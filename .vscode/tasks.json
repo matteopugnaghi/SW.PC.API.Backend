@@ -1,0 +1,65 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build",
+			"type": "shell",
+			"command": "dotnet",
+			"args": ["build"],
+			"problemMatcher": ["$msCompile"],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "run",
+			"type": "shell",
+			"command": "dotnet",
+			"args": ["run"],
+			"problemMatcher": ["$msCompile"],
+			"group": "test",
+			"isBackground": true,
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"runOptions": {
+				"runOn": "folderOpen"
+			}
+		},
+		{
+			"label": "watch",
+			"type": "shell",
+			"command": "dotnet",
+			"args": ["watch", "run"],
+			"problemMatcher": ["$msCompile"],
+			"group": "test",
+			"isBackground": true,
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "clean",
+			"type": "shell",
+			"command": "dotnet",
+			"args": ["clean"],
+			"problemMatcher": ["$msCompile"],
+			"group": "build"
+		},
+		{
+			"label": "restore",
+			"type": "shell",
+			"command": "dotnet",
+			"args": ["restore"],
+			"problemMatcher": ["$msCompile"],
+			"group": "build"
+		}
+	]
+}

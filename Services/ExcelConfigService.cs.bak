@@ -1,0 +1,236 @@
+using OfficeOpenXml;
+using SW.PC.API.Backend.Models.Excel;
+
+namespace SW.PC.API.Backend.Services
+{
+    public interface IExcelConfigService
+    {
+        Task<ProjectConfiguration> LoadProjectConfigurationAsync(string filePath);
+        Task<bool> SaveProjectConfigurationAsync(ProjectConfiguration config, string filePath);
+        Task<List<PlcVariable>> LoadPlcVariablesAsync(string filePath);
+        Task<List<HMIScreen>> LoadHMIScreensAsync(string filePath);
+        Task<List<Model3DConfig>> LoadModels3DAsync(string filePath);
+    }
+    
+    public class ExcelConfigService : IExcelConfigService
+    {
+        private readonly ILogger<ExcelConfigService> _logger;
+        private readonly string _configFolder;
+        
+        public ExcelConfigService(IWebHostEnvironment environment, ILogger<ExcelConfigService> logger)
+        {
+            _logger = logger;
+            _configFolder = Path.Combine(environment.ContentRootPath, "ExcelConfigs");
+            
+            // Asegurar que existe la carpeta
+            if (!Directory.Exists(_configFolder))
+            {
+                Directory.CreateDirectory(_configFolder);
+            }
+            
+            // Configurar licencia EPPlus (NonCommercial o Commercial)
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+        }
+        
+        public async Task<ProjectConfiguration> LoadProjectConfigurationAsync(string filePath)
+        {
+            try
+            {
+                var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+                
+                if (!File.Exists(fullPath))
+                {
+                    throw new FileNotFoundException($"Excel file not found: {fullPath}");
+                }
+                
+                var config = new ProjectConfiguration();
+                
+                using (var package = new ExcelPackage(new FileInfo(fullPath)))
+                {
+                    // Leer hoja de información general
+                    var generalSheet = package.Workbook.Worksheets["General"];
+                    if (generalSheet != null)
+                    {
+                        config.ProjectName = generalSheet.Cells["B1"].Text;
+                        config.ProjectCode = generalSheet.Cells["B2"].Text;
+                        config.Customer = generalSheet.Cells["B3"].Text;
+                        
+                        if (DateTime.TryParse(generalSheet.Cells["B4"].Text, out var date))
+                        {
+                            config.CreatedDate = date;
+                        }
+                    }
+                    
+                    // Leer variables PLC
+                    config.PlcVariables = await LoadPlcVariablesFromSheetAsync(package);
+                    
+                    // Leer pantallas HMI
+                    config.Screens = await LoadHMIScreensFromSheetAsync(package);
+                    
+                    // Leer modelos 3D
+                    config.Models3D = await LoadModels3DFromSheetAsync(package);
+                }
+                
+                _logger.LogInformation("Project configuration loaded successfully from {FilePath}", fullPath);
+                return config;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading project configuration from {FilePath}", filePath);
+                throw;
+            }
+        }
+        
+        public async Task<bool> SaveProjectConfigurationAsync(ProjectConfiguration config, string filePath)
+        {
+            try
+            {
+                var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+                
+                using (var package = new ExcelPackage())
+                {
+                    // Crear hoja General
+                    var generalSheet = package.Workbook.Worksheets.Add("General");
+                    generalSheet.Cells["A1"].Value = "Project Name:";
+                    generalSheet.Cells["B1"].Value = config.ProjectName;
+                    generalSheet.Cells["A2"].Value = "Project Code:";
+                    generalSheet.Cells["B2"].Value = config.ProjectCode;
+                    generalSheet.Cells["A3"].Value = "Customer:";
+                    generalSheet.Cells["B3"].Value = config.Customer;
+                    generalSheet.Cells["A4"].Value = "Created Date:";
+                    generalSheet.Cells["B4"].Value = config.CreatedDate;
+                    
+                    // Crear hoja de Variables PLC
+                    var plcSheet = package.Workbook.Worksheets.Add("PLC_Variables");
+                    plcSheet.Cells["A1"].Value = "Variable Name";
+                    plcSheet.Cells["B1"].Value = "Symbol Path";
+                    plcSheet.Cells["C1"].Value = "Data Type";
+                    plcSheet.Cells["D1"].Value = "Access Mode";
+                    plcSheet.Cells["E1"].Value = "Update Rate (ms)";
+                    plcSheet.Cells["F1"].Value = "Description";
+                    
+                    int row = 2;
+                    foreach (var variable in config.PlcVariables)
+                    {
+                        plcSheet.Cells[$"A{row}"].Value = variable.VariableName;
+                        plcSheet.Cells[$"B{row}"].Value = variable.SymbolPath;
+                        plcSheet.Cells[$"C{row}"].Value = variable.DataType;
+                        plcSheet.Cells[$"D{row}"].Value = variable.AccessMode;
+                        plcSheet.Cells[$"E{row}"].Value = variable.UpdateRateMs;
+                        plcSheet.Cells[$"F{row}"].Value = variable.Description;
+                        row++;
+                    }
+                    
+                    // Guardar archivo
+                    await package.SaveAsAsync(new FileInfo(fullPath));
+                }
+                
+                _logger.LogInformation("Project configuration saved successfully to {FilePath}", fullPath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving project configuration to {FilePath}", filePath);
+                return false;
+            }
+        }
+        
+        public async Task<List<PlcVariable>> LoadPlcVariablesAsync(string filePath)
+        {
+            var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+            
+            using (var package = new ExcelPackage(new FileInfo(fullPath)))
+            {
+                return await LoadPlcVariablesFromSheetAsync(package);
+            }
+        }
+        
+        public async Task<List<HMIScreen>> LoadHMIScreensAsync(string filePath)
+        {
+            var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+            
+            using (var package = new ExcelPackage(new FileInfo(fullPath)))
+            {
+                return await LoadHMIScreensFromSheetAsync(package);
+            }
+        }
+        
+        public async Task<List<Model3DConfig>> LoadModels3DAsync(string filePath)
+        {
+            var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+            
+            using (var package = new ExcelPackage(new FileInfo(fullPath)))
+            {
+                return await LoadModels3DFromSheetAsync(package);
+            }
+        }
+        
+        private async Task<List<PlcVariable>> LoadPlcVariablesFromSheetAsync(ExcelPackage package)
+        {
+            var variables = new List<PlcVariable>();
+            var sheet = package.Workbook.Worksheets["PLC_Variables"];
+            
+            if (sheet == null)
+            {
+                _logger.LogWarning("PLC_Variables sheet not found in Excel file");
+                return variables;
+            }
+            
+            // Leer desde la fila 2 (la 1 es encabezado)
+            int row = 2;
+            while (!string.IsNullOrEmpty(sheet.Cells[$"A{row}"].Text))
+            {
+                var variable = new PlcVariable
+                {
+                    VariableName = sheet.Cells[$"A{row}"].Text,
+                    SymbolPath = sheet.Cells[$"B{row}"].Text,
+                    DataType = sheet.Cells[$"C{row}"].Text,
+                    AccessMode = sheet.Cells[$"D{row}"].Text,
+                    UpdateRateMs = int.TryParse(sheet.Cells[$"E{row}"].Text, out var rate) ? rate : 1000,
+                    Description = sheet.Cells[$"F{row}"].Text,
+                    Unit = sheet.Cells[$"G{row}"].Text,
+                    LogToDatabase = sheet.Cells[$"H{row}"].Text.ToLower() == "true" || sheet.Cells[$"H{row}"].Text == "1"
+                };
+                
+                variables.Add(variable);
+                row++;
+            }
+            
+            _logger.LogInformation("Loaded {Count} PLC variables from Excel", variables.Count);
+            return await Task.FromResult(variables);
+        }
+        
+        private async Task<List<HMIScreen>> LoadHMIScreensFromSheetAsync(ExcelPackage package)
+        {
+            var screens = new List<HMIScreen>();
+            var sheet = package.Workbook.Worksheets["HMI_Screens"];
+            
+            if (sheet == null)
+            {
+                _logger.LogWarning("HMI_Screens sheet not found in Excel file");
+                return screens;
+            }
+            
+            // Leer desde la fila 2
+            int row = 2;
+            while (!string.IsNullOrEmpty(sheet.Cells[$"A{row}"].Text))
+            {
+                var screen = new HMIScreen
+                {
+                    ScreenId = sheet.Cells[$"A{row}"].Text,
+                    ScreenName = sheet.Cells[$"B{row}"].Text,
+                    Title = sheet.Cells[$"C{row}"].Text,
+                    DisplayOrder = int.TryParse(sheet.Cells[$"D{row}"].Text, out var order) ? order : 0,
+                    IsEnabled = sheet.Cells[$"E{row}"].Text.ToLower() != "false" && sheet.Cells[$"E{row}"].Text != "0",
+                    IconName = sheet.Cells[$"F{row}"].Text
+                };
+                
+                screens.Add(screen);
+                row++;
+            }
+            
+            _logger.LogInformation("Loaded {Count} HMI screens from Excel", screens.Count);
+            return await Task.FromResult(screens);
+        }
+    }
+}

@@ -1,0 +1,86 @@
+@SW.PC.API.Backend_HostAddress = http://localhost:5000
+
+# Get all available models
+GET {{SW.PC.API.Backend_HostAddress}}/api/models
+Accept: application/json
+
+###
+
+# Get specific model by ID
+GET {{SW.PC.API.Backend_HostAddress}}/api/models/MODEL_ID_HERE
+Accept: application/json
+
+###
+
+# Download model file
+GET {{SW.PC.API.Backend_HostAddress}}/api/models/MODEL_ID_HERE/download
+Accept: application/octet-stream
+
+###
+
+# Get model file directly
+GET {{SW.PC.API.Backend_HostAddress}}/api/models/file/example.glb
+Accept: application/octet-stream
+
+###
+
+# Get application configuration
+GET {{SW.PC.API.Backend_HostAddress}}/api/config
+Accept: application/json
+
+###
+
+# Get color configuration only
+GET {{SW.PC.API.Backend_HostAddress}}/api/config/colors
+Accept: application/json
+
+###
+
+# Update color configuration
+POST {{SW.PC.API.Backend_HostAddress}}/api/config/colors
+Content-Type: application/json
+
+{
+  "defaultColor": "#FF0000",
+  "availableColors": ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"],
+  "colorPolicy": "override",
+  "enableColorPanel": true
+}
+
+###
+
+# Update full configuration
+POST {{SW.PC.API.Backend_HostAddress}}/api/config
+Content-Type: application/json
+
+{
+  "colors": {
+    "defaultColor": "#FF0000",
+    "availableColors": ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"],
+    "colorPolicy": "override",
+    "enableColorPanel": true
+  },
+  "viewer": {
+    "camera": {
+      "position": [5.0, 5.0, 5.0],
+      "target": [0.0, 0.0, 0.0],
+      "fov": 75.0,
+      "near": 0.1,
+      "far": 1000.0
+    },
+    "lighting": {
+      "ambient": {
+        "color": "#404040",
+        "intensity": 0.4
+      },
+      "directional": {
+        "color": "#ffffff",
+        "intensity": 0.8,
+        "position": [10.0, 10.0, 5.0]
+      },
+      "environmentIntensity": 1.0
+    },
+    "enableGridHelper": true,
+    "enableAxesHelper": false
+  }
+}
