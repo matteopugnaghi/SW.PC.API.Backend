@@ -40,7 +40,19 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("ReactFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3001", "http://localhost:3000", "http://localhost:3002", "http://localhost:5173")
+        // En desarrollo, permitir cualquier origen de la red local
+        policy.SetIsOriginAllowed(origin =>
+              {
+                  // Permitir localhost en cualquier puerto
+                  if (origin.StartsWith("http://localhost:") || origin.StartsWith("http://127.0.0.1:"))
+                      return true;
+                  
+                  // Permitir IPs de la red local 192.168.x.x
+                  if (origin.StartsWith("http://192.168."))
+                      return true;
+                  
+                  return false;
+              })
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();  // Necesario para SignalR
