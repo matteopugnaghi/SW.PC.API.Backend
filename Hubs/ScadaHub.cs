@@ -149,26 +149,7 @@ namespace SW.PC.API.Backend.Hubs
             }
         }
         
-        /// <summary>
-        /// Obtener valores actuales de todas las variables PLC monitoreadas
-        /// </summary>
-        public async Task<Dictionary<string, object>> GetAllVariablesValues()
-        {
-            try
-            {
-                _logger.LogInformation("Client {ConnectionId} requesting all PLC variables values", Context.ConnectionId);
-                
-                var values = await _twinCATService.GetAllVariablesAsync();
-                
-                _logger.LogInformation("Returning {Count} PLC variable values", values.Count);
-                return values;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting all PLC variables");
-                return new Dictionary<string, object>();
-            }
-        }
+
         
         private Type GetTypeFromString(string typeName)
         {
