@@ -218,11 +218,15 @@ provider.Mappings[".stl"] = "application/sla";
 app.UseStaticFiles(new StaticFileOptions
 {
     ContentTypeProvider = provider,
+    ServeUnknownFileTypes = false,
+    HttpsCompression = Microsoft.AspNetCore.Http.Features.HttpsCompressionMode.Compress,
     OnPrepareResponse = ctx =>
     {
         app.Logger.LogInformation("✅ Serving static file: {Path}", ctx.File.PhysicalPath);
         // Add CORS headers to static files
         ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+        ctx.Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS";
+        ctx.Context.Response.Headers["Access-Control-Allow-Headers"] = "*";
     }
 });
 
@@ -233,10 +237,15 @@ app.UseStaticFiles(new StaticFileOptions
         Path.Combine(app.Environment.WebRootPath, "models")),
     RequestPath = "/models",
     ContentTypeProvider = provider,
+    ServeUnknownFileTypes = false,
+    HttpsCompression = Microsoft.AspNetCore.Http.Features.HttpsCompressionMode.Compress,
     OnPrepareResponse = ctx =>
     {
-        app.Logger.LogInformation("✅ Serving model file: {Path}", ctx.File.PhysicalPath);
+        app.Logger.LogInformation("✅ Serving model file: {Path} with ContentType: {ContentType}", 
+            ctx.File.PhysicalPath, ctx.Context.Response.ContentType);
         ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+        ctx.Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS";
+        ctx.Context.Response.Headers["Access-Control-Allow-Headers"] = "*";
     }
 });
 
