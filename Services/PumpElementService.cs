@@ -286,6 +286,16 @@ namespace SW.PC.API.Backend.Services
                             AvailableColors = ""
                         };
 
+                        // 🔍 DEBUG: Log child data for gantry_1
+                        if (element.Name == "gantry_1")
+                        {
+                            _logger.LogInformation("🎯 DEBUG gantry_1 en row {Row}:", row);
+                            _logger.LogInformation("   AL (Child1_AnimationType) raw: '{RawValue}'", sheet.Cells[$"AL{row}"].Text);
+                            _logger.LogInformation("   Child1_AnimationType parsed: '{ParsedValue}'", element.Child1_AnimationType);
+                            _logger.LogInformation("   AI (Child1_Name): '{Child1Name}'", element.Child1_Name);
+                            _logger.LogInformation("   AO (Child1_PlcVariable): '{PlcVar}'", element.Child1_PlcVariable);
+                        }
+
                         elements.Add(element);
                     }
 

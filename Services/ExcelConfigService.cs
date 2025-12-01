@@ -329,7 +329,16 @@ namespace SW.PC.API.Backend.Services
                     Category = sheet.Cells[$"F{row}"].Text,
                     AssociatedScreen = sheet.Cells[$"G{row}"].Text,
                     IsEnabled = sheet.Cells[$"H{row}"].Text.ToLower() != "false" && sheet.Cells[$"H{row}"].Text != "0",
-                    DisplayOrder = int.TryParse(sheet.Cells[$"I{row}"].Text, out var order) ? order : 0
+                    DisplayOrder = int.TryParse(sheet.Cells[$"I{row}"].Text, out var order) ? order : 0,
+                    // Campos de animación del padre
+                    AnimationType = sheet.Cells[$"U{row}"].Text,
+                    AnimationSpeed = double.TryParse(sheet.Cells[$"V{row}"].Text, out var animSpeed) ? animSpeed : 1.0,
+                    AnimateOnlyWhenOn = sheet.Cells[$"W{row}"].Text.ToLower() == "true" || sheet.Cells[$"W{row}"].Text == "1",
+                    AnimationPlcVariable = sheet.Cells[$"AD{row}"].Text,
+                    AnimationMinValue = double.TryParse(sheet.Cells[$"AE{row}"].Text, out var animMin) ? animMin : 0.0,
+                    AnimationMaxValue = double.TryParse(sheet.Cells[$"AF{row}"].Text, out var animMax) ? animMax : 1000.0,
+                    AnimationAxis = sheet.Cells[$"AG{row}"].Text,
+                    AnimationScaleFactor = double.TryParse(sheet.Cells[$"AH{row}"].Text, out var animScale) ? animScale : 0.1
                 };
                 
                 // ✅ LEER CHILDREN (5 hijos posibles, 21 columnas cada uno)

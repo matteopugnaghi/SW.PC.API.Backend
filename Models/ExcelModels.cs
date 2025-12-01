@@ -6,128 +6,137 @@ namespace SW.PC.API.Backend.Models.Excel
     public class ProjectConfiguration
     {
         public string ProjectName { get; set; } = string.Empty;
-        
+
         public string ProjectCode { get; set; } = string.Empty;
-        
+
         public string Customer { get; set; } = string.Empty;
-        
+
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
-        
+
         public List<HMIScreen> Screens { get; set; } = new();
-        
+
         public List<PlcVariable> PlcVariables { get; set; } = new();
-        
+
         public List<Model3DConfig> Models3D { get; set; } = new();
-        
+
         public Dictionary<string, string> GeneralSettings { get; set; } = new();
     }
-    
+
     /// <summary>
     /// Pantalla del HMI configurada en Excel
     /// </summary>
     public class HMIScreen
     {
         public string ScreenId { get; set; } = string.Empty;
-        
+
         public string ScreenName { get; set; } = string.Empty;
-        
+
         public string? Title { get; set; }
-        
+
         public int DisplayOrder { get; set; }
-        
+
         public bool IsEnabled { get; set; } = true;
-        
+
         public string? IconName { get; set; }
-        
+
         public List<HMIComponent> Components { get; set; } = new();
-        
+
         public Dictionary<string, string> Properties { get; set; } = new();
     }
-    
+
     /// <summary>
     /// Componente de pantalla HMI
     /// </summary>
     public class HMIComponent
     {
         public string ComponentId { get; set; } = string.Empty;
-        
+
         public string ComponentType { get; set; } = string.Empty; // Button, Indicator, Graph, Input, etc.
-        
+
         public string Label { get; set; } = string.Empty;
-        
+
         public string? PlcVariable { get; set; }  // Variable vinculada del PLC
-        
+
         public Position Position { get; set; } = new();
-        
+
         public Size Size { get; set; } = new();
-        
+
         public Dictionary<string, object> Properties { get; set; } = new();
-        
+
         public bool IsVisible { get; set; } = true;
-        
+
         public bool IsEnabled { get; set; } = true;
     }
-    
+
     public class Position
     {
         public int X { get; set; }
         public int Y { get; set; }
     }
-    
+
     public class Size
     {
         public int Width { get; set; }
         public int Height { get; set; }
     }
-    
+
     /// <summary>
     /// Variable PLC configurada en Excel
     /// </summary>
     public class PlcVariable
     {
         public string VariableName { get; set; } = string.Empty;
-        
+
         public string SymbolPath { get; set; } = string.Empty; // Path completo en TwinCAT
-        
+
         public string DataType { get; set; } = string.Empty; // BOOL, INT, REAL, STRING, etc.
-        
+
         public string AccessMode { get; set; } = "ReadOnly"; // ReadOnly, WriteOnly, ReadWrite
-        
+
         public int? UpdateRateMs { get; set; } = 1000; // Tasa de actualización en milisegundos
-        
+
         public string? Description { get; set; }
-        
+
         public string? Unit { get; set; }  // Unidad de medida
-        
+
         public double? MinValue { get; set; }
-        
+
         public double? MaxValue { get; set; }
-        
+
         public string? AlarmCondition { get; set; }
-        
+
         public bool LogToDatabase { get; set; } = false;
     }
-    
+
     /// <summary>
     /// Modelo 3D configurado en Excel
     /// </summary>
     public class Model3DConfig
     {
+        // Animación del padre (columnas U, V, W, AD, AE, AF, AG, AH)
+        public string AnimationType { get; set; } = string.Empty;
+        public double AnimationSpeed { get; set; } = 1.0;
+        public bool AnimateOnlyWhenOn { get; set; } = true;
+        public string AnimationPlcVariable { get; set; } = string.Empty;
+        public double AnimationMinValue { get; set; } = 0.0;
+        public double AnimationMaxValue { get; set; } = 1000.0;
+        public string AnimationAxis { get; set; } = "Y";
+        public double AnimationScaleFactor { get; set; } = 0.1;
         public string ModelId { get; set; } = string.Empty;
-        
-        public string ModelName { get; set; } = string.Empty;
-        
-        public string FileName { get; set; } = string.Empty; // Ej: machine.glb
-        
-        public string FileType { get; set; } = "glb"; // glb, gltf, obj, stl, fbx
-        
-        public string? Description { get; set; }
-        
-        public string? Category { get; set; } // Machine, Equipment, Part, Assembly, etc.
-        
-        public string? AssociatedScreen { get; set; } // ScreenId relacionado
-        
-        public bool IsEnabled { get; set; } = true;
+
+    public string ModelName { get; set; } = string.Empty;
+
+    public string FileName { get; set; } = string.Empty; // Ej: machine.glb
+
+    public string FileType { get; set; } = "glb"; // glb, gltf, obj, stl, fbx
+
+    public string? Description { get; set; }
+
+    public string? Category { get; set; } // Machine, Equipment, Part, Assembly, etc.
+
+    public string? AssociatedScreen { get; set; } // ScreenId relacionado
+
+    public bool IsEnabled { get; set; } = true; 
         
         public int DisplayOrder { get; set; }
         
