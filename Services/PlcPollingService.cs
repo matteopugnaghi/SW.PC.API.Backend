@@ -49,8 +49,12 @@ namespace SW.PC.API.Backend.Services
             if (!_config.Enabled)
             {
                 _logger.LogWarning("⚠️ PlcPollingService deshabilitado en configuración");
+                _metricsService.SetPlcPollingStatus(false, false, "Deshabilitado en configuración");
                 return;
             }
+
+            // Registrar que el servicio está habilitado
+            _metricsService.SetPlcPollingStatus(true, false, "Iniciando...");
 
             // Cargar variables desde Excel si está habilitado
             if (_config.AutoLoadFromExcel)
@@ -69,18 +73,21 @@ namespace SW.PC.API.Backend.Services
                     if (_monitoredVariables.Count == 0)
                     {
                         _logger.LogWarning("⚠️ No se encontraron variables para monitorear en el Excel");
+                        _metricsService.SetPlcPollingStatus(true, false, "Sin variables en Excel");
                         return;
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "❌ Error cargando variables desde Excel");
+                    _metricsService.SetPlcPollingStatus(true, false, $"Error: {ex.Message}");
                     return;
                 }
             }
             else
             {
                 _logger.LogWarning("⚠️ AutoLoadFromExcel deshabilitado - No hay variables para monitorear");
+                _metricsService.SetPlcPollingStatus(true, false, "AutoLoadFromExcel deshabilitado");
                 return;
             }
 
@@ -97,6 +104,9 @@ namespace SW.PC.API.Backend.Services
 
             _logger.LogInformation("📊 Monitoreando {Count} variables PLC desde Excel", _monitoredVariables.Count);
             _lastExcelReload = DateTime.UtcNow;
+            
+            // Actualizar estado: Conectado y funcionando
+            _metricsService.SetPlcPollingStatus(true, true, $"OK - {_monitoredVariables.Count} variables");
 
             // Loop principal de polling
             while (!stoppingToken.IsCancellationRequested)
@@ -110,16 +120,22 @@ namespace SW.PC.API.Backend.Services
                     }
 
                     await PollAllVariablesAsync(stoppingToken);
+                    
+                    // Actualizar estado a OK después de un ciclo exitoso
+                    _metricsService.SetPlcPollingStatus(true, true, $"OK - {_monitoredVariables.Count} variables");
+                    
                     await Task.Delay(_config.PollingIntervalMs, stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {
                     _logger.LogInformation("🛑 PlcPollingService detenido");
+                    _metricsService.SetPlcPollingStatus(true, false, "Servicio detenido");
                     break;
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "❌ Error en ciclo de polling");
+                    _metricsService.SetPlcPollingStatus(true, false, $"Error: {ex.Message}");
                     await Task.Delay(5000, stoppingToken); // Esperar antes de reintentar
                 }
             }
@@ -132,20 +148,40 @@ namespace SW.PC.API.Backend.Services
             // Verificar conexión PLC
             if (!_twinCATService.IsConnected)
             {
-                _logger.LogWarning("⚠️ PLC no conectado, esperando reconexión...");
-                return;
+                _logger.LogWarning("⚠️ PLC no conectado, intentando reconexión...");
+                _metricsService.SetPlcPollingStatus(true, false, "PLC desconectado - reconectando...");
+                
+                // Intentar reconectar
+                try
+                {
+                    var reconnected = await _twinCATService.ConnectAsync();
+                    if (!reconnected)
+                    {
+                        _metricsService.SetPlcPollingStatus(true, false, "PLC desconectado");
+                        return;
+                    }
+                    _logger.LogInformation("✅ PLC reconectado exitosamente");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ Error al reconectar con PLC");
+                    _metricsService.SetPlcPollingStatus(true, false, "Error reconexión PLC");
+                    return;
+                }
             }
 
             // Registrar número de variables monitoreadas
             _metricsService.SetPlcMonitoredVariables(_monitoredVariables.Count);
 
             // ✨ LECTURA EN PARALELO - Mucho más rápido que secuencial
+            int errorCount = 0;
             var readTasks = _monitoredVariables.Select(varName => 
                 PollSingleVariableAsync(varName, cancellationToken)
                     .ContinueWith(t => 
                     {
                         if (t.IsFaulted)
                         {
+                            Interlocked.Increment(ref errorCount);
                             _logger.LogError(t.Exception, "❌ Error leyendo variable {Variable}", varName);
                             
                             // Incrementar contador de errores
@@ -164,6 +200,12 @@ namespace SW.PC.API.Backend.Services
 
             // Esperar a que terminen todas las lecturas en paralelo
             await Task.WhenAll(readTasks);
+            
+            // Si hubo muchos errores, probablemente el PLC está desconectado
+            if (errorCount > _monitoredVariables.Count / 2)
+            {
+                _metricsService.SetPlcPollingStatus(true, false, $"PLC desconectado ({errorCount} errores)");
+            }
             
             // Registrar tiempo del ciclo de polling
             stopwatch.Stop();

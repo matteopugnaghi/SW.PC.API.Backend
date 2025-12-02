@@ -183,10 +183,25 @@ if (wwwrootExists)
 using (var scope = app.Services.CreateScope())
 {
     var twinCATService = scope.ServiceProvider.GetRequiredService<ITwinCATService>();
+    var metricsService = scope.ServiceProvider.GetRequiredService<IMetricsService>();
+    var excelConfigService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     
     try
     {
+        // Leer configuración del sistema desde Excel
+        var systemConfig = await excelConfigService.LoadSystemConfigurationAsync("ProjectConfig.xlsm");
+        
+        // Inicializar estado de SignalR
+        metricsService.SetSignalRStatus(systemConfig.EnableSignalR, false, "Esperando conexiones...");
+        
+        // Inicializar estado de Database
+        metricsService.SetDatabaseStatus(systemConfig.EnableDatabase, false, 
+            systemConfig.EnableDatabase ? "Iniciando..." : "Deshabilitado");
+        
+        // Establecer si usa PLC simulado (desde Excel)
+        metricsService.SetUseSimulatedPlc(systemConfig.UseSimulatedPlc);
+        
         var connected = await twinCATService.ConnectAsync();
         if (connected)
         {
@@ -194,7 +209,7 @@ using (var scope = app.Services.CreateScope())
         }
         else
         {
-            logger.LogWarning("⚠️ TwinCAT Service failed to connect (will use simulated mode)");
+            logger.LogWarning("⚠️ TwinCAT Service failed to connect");
         }
     }
     catch (Exception ex)
@@ -246,6 +261,19 @@ app.UseStaticFiles(new StaticFileOptions
         ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
         ctx.Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS";
         ctx.Context.Response.Headers["Access-Control-Allow-Headers"] = "*";
+        
+        // 🔄 CACHE-BUSTING: Deshabilitar caché para modelos 3D (GLB/GLTF)
+        // Esto asegura que los cambios en los archivos se reflejen inmediatamente
+        var fileName = ctx.File.Name.ToLower();
+        if (fileName.EndsWith(".glb") || fileName.EndsWith(".gltf") || 
+            fileName.EndsWith(".obj") || fileName.EndsWith(".mtl"))
+        {
+            ctx.Context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+            ctx.Context.Response.Headers["Pragma"] = "no-cache";
+            ctx.Context.Response.Headers["Expires"] = "0";
+            // Añadir ETag basado en la fecha de modificación del archivo
+            ctx.Context.Response.Headers["ETag"] = $"\"{ctx.File.LastModified.Ticks}\"";
+        }
     }
 });
 

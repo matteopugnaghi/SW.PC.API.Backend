@@ -438,6 +438,74 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Uptime del servidor en formato legible
         /// </summary>
         public string ServerUptime { get; set; } = "00:00:00";
+
+        // ===== ESTADO DE SISTEMAS HABILITADOS =====
+        
+        /// <summary>
+        /// Estado de los servicios del sistema
+        /// </summary>
+        public SystemServicesStatus ServicesStatus { get; set; } = new SystemServicesStatus();
+    }
+
+    /// <summary>
+    /// Estado de los servicios habilitados del sistema
+    /// </summary>
+    public class SystemServicesStatus
+    {
+        /// <summary>
+        /// PLC Polling habilitado en configuración
+        /// </summary>
+        public bool PlcPollingEnabled { get; set; }
+
+        /// <summary>
+        /// PLC Polling funcionando correctamente
+        /// </summary>
+        public bool PlcPollingConnected { get; set; }
+
+        /// <summary>
+        /// Último mensaje de estado del PLC
+        /// </summary>
+        public string PlcPollingStatus { get; set; } = "No iniciado";
+
+        /// <summary>
+        /// SignalR habilitado en configuración
+        /// </summary>
+        public bool SignalREnabled { get; set; }
+
+        /// <summary>
+        /// SignalR Hub funcionando correctamente
+        /// </summary>
+        public bool SignalRConnected { get; set; }
+
+        /// <summary>
+        /// Último mensaje de estado de SignalR
+        /// </summary>
+        public string SignalRStatus { get; set; } = "No iniciado";
+
+        /// <summary>
+        /// Base de datos habilitada en configuración
+        /// </summary>
+        public bool DatabaseEnabled { get; set; }
+
+        /// <summary>
+        /// Base de datos conectada correctamente
+        /// </summary>
+        public bool DatabaseConnected { get; set; }
+
+        /// <summary>
+        /// Último mensaje de estado de la base de datos
+        /// </summary>
+        public string DatabaseStatus { get; set; } = "Deshabilitada";
+
+        /// <summary>
+        /// Usando PLC simulado (no real)
+        /// </summary>
+        public bool UseSimulatedPlc { get; set; }
+
+        /// <summary>
+        /// Timestamp de la última actualización de estados
+        /// </summary>
+        public DateTime LastStatusUpdate { get; set; } = DateTime.UtcNow;
     }
 }
 

@@ -32,6 +32,7 @@ namespace SW.PC.API.Backend.Hubs
             {
                 _activeConnections++;
                 _metricsService.SetSignalRActiveConnections(_activeConnections);
+                _metricsService.SetSignalRStatus(true, true, $"OK - {_activeConnections} conexiones");
             }
             
             _logger.LogInformation("Client connected: {ConnectionId} (Total: {Count})", 
@@ -52,7 +53,10 @@ namespace SW.PC.API.Backend.Hubs
             lock (_lockObj)
             {
                 _activeConnections--;
+                if (_activeConnections < 0) _activeConnections = 0; // Evitar negativos
                 _metricsService.SetSignalRActiveConnections(_activeConnections);
+                _metricsService.SetSignalRStatus(true, _activeConnections > 0, 
+                    _activeConnections > 0 ? $"OK - {_activeConnections} conexiones" : "Esperando conexiones...");
             }
             
             _logger.LogInformation("Client disconnected: {ConnectionId} (Total: {Count})", 

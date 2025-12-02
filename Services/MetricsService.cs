@@ -38,6 +38,28 @@ namespace SW.PC.API.Backend.Services
         /// Obtener las métricas actuales del sistema
         /// </summary>
         SystemMetrics GetCurrentMetrics();
+
+        // ===== ESTADO DE SISTEMAS HABILITADOS =====
+
+        /// <summary>
+        /// Registrar estado del PLC Polling
+        /// </summary>
+        void SetPlcPollingStatus(bool enabled, bool connected, string statusMessage);
+
+        /// <summary>
+        /// Registrar estado de SignalR
+        /// </summary>
+        void SetSignalRStatus(bool enabled, bool connected, string statusMessage);
+
+        /// <summary>
+        /// Registrar estado de la base de datos
+        /// </summary>
+        void SetDatabaseStatus(bool enabled, bool connected, string statusMessage);
+
+        /// <summary>
+        /// Registrar si se usa PLC simulado
+        /// </summary>
+        void SetUseSimulatedPlc(bool simulated);
     }
 
     public class MetricsService : IMetricsService
@@ -53,6 +75,9 @@ namespace SW.PC.API.Backend.Services
         private int _signalRActiveConnections;
         private double _lastSignalRBroadcastTime;
         private double _lastExcelLoadTime;
+
+        // ===== ESTADO DE SISTEMAS =====
+        private SystemServicesStatus _servicesStatus = new SystemServicesStatus();
 
         public MetricsService()
         {
@@ -133,8 +158,66 @@ namespace SW.PC.API.Backend.Services
                         : 0,
                     ExcelLastLoadTime = Math.Round(_lastExcelLoadTime, 2),
                     LastUpdate = DateTime.UtcNow,
-                    ServerUptime = $"{uptime.Days:00}:{uptime.Hours:00}:{uptime.Minutes:00}:{uptime.Seconds:00}"
+                    ServerUptime = $"{uptime.Days:00}:{uptime.Hours:00}:{uptime.Minutes:00}:{uptime.Seconds:00}",
+                    ServicesStatus = new SystemServicesStatus
+                    {
+                        PlcPollingEnabled = _servicesStatus.PlcPollingEnabled,
+                        PlcPollingConnected = _servicesStatus.PlcPollingConnected,
+                        PlcPollingStatus = _servicesStatus.PlcPollingStatus,
+                        SignalREnabled = _servicesStatus.SignalREnabled,
+                        SignalRConnected = _servicesStatus.SignalRConnected,
+                        SignalRStatus = _servicesStatus.SignalRStatus,
+                        DatabaseEnabled = _servicesStatus.DatabaseEnabled,
+                        DatabaseConnected = _servicesStatus.DatabaseConnected,
+                        DatabaseStatus = _servicesStatus.DatabaseStatus,
+                        UseSimulatedPlc = _servicesStatus.UseSimulatedPlc,
+                        LastStatusUpdate = _servicesStatus.LastStatusUpdate
+                    }
                 };
+            }
+        }
+
+        // ===== MÉTODOS DE ESTADO DE SISTEMAS =====
+
+        public void SetPlcPollingStatus(bool enabled, bool connected, string statusMessage)
+        {
+            lock (_lock)
+            {
+                _servicesStatus.PlcPollingEnabled = enabled;
+                _servicesStatus.PlcPollingConnected = connected;
+                _servicesStatus.PlcPollingStatus = statusMessage;
+                _servicesStatus.LastStatusUpdate = DateTime.UtcNow;
+            }
+        }
+
+        public void SetSignalRStatus(bool enabled, bool connected, string statusMessage)
+        {
+            lock (_lock)
+            {
+                _servicesStatus.SignalREnabled = enabled;
+                _servicesStatus.SignalRConnected = connected;
+                _servicesStatus.SignalRStatus = statusMessage;
+                _servicesStatus.LastStatusUpdate = DateTime.UtcNow;
+            }
+        }
+
+        public void SetDatabaseStatus(bool enabled, bool connected, string statusMessage)
+        {
+            lock (_lock)
+            {
+                _servicesStatus.DatabaseEnabled = enabled;
+                _servicesStatus.DatabaseConnected = connected;
+                _servicesStatus.DatabaseStatus = statusMessage;
+                _servicesStatus.LastStatusUpdate = DateTime.UtcNow;
+            }
+        }
+
+        public void SetUseSimulatedPlc(bool simulated)
+        {
+            lock (_lock)
+            {
+                _servicesStatus.UseSimulatedPlc = simulated;
+                _servicesStatus.LastStatusUpdate = DateTime.UtcNow;
             }
         }
     }

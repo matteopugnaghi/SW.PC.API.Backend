@@ -224,9 +224,21 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogDebug("📝 Variable {Var} no existe en PLC real, usando valor simulado", variableName);
                     // Continuar al bloque de simulación
                 }
+                catch (TwinCAT.Ads.AdsErrorException ex)
+                {
+                    // Error de comunicación ADS - posible desconexión
+                    _logger.LogError(ex, "❌ ADS Error reading variable {Var} - ErrorCode: {ErrorCode}", variableName, ex.ErrorCode);
+                    
+                    // Marcar como desconectado si es error de conexión
+                    _isConnected = false;
+                    throw;
+                }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "❌ Error reading variable {Var} from REAL PLC", variableName);
+                    _logger.LogError(ex, "❌ Error reading variable {Var} from REAL PLC - possible disconnection", variableName);
+                    
+                    // Marcar como desconectado en caso de error general
+                    _isConnected = false;
                     throw;
                 }
             }
