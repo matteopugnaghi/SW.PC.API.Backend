@@ -116,6 +116,7 @@ builder.Services.AddSingleton<ISoftwareIntegrityService, SoftwareIntegrityServic
 // Register Background Services
 // builder.Services.AddHostedService<PlcNotificationService>(); // Servicio legacy - reemplazado por PlcPollingService
 builder.Services.AddHostedService<PlcPollingService>(); // ✅ Nuevo servicio profesional
+builder.Services.AddHostedService<IntegrityVerificationService>(); // 🔐 Verificación periódica de integridad (cada 2 min)
 
 // Add logging
 builder.Services.AddLogging(logging =>

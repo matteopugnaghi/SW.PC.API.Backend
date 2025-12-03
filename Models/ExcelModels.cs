@@ -491,6 +491,19 @@ namespace SW.PC.API.Backend.Models.Excel
         public string LastVerificationDate { get; set; } = "Never";
         public string VerifiedByAdmin { get; set; } = "System";
         public string SystemStatus { get; set; } = "unknown"; // "clean", "modified", "unknown"
+
+        // ===== TIMER DE RE-VERIFICACIÓN AUTOMÁTICA =====
+        /// <summary>Próxima verificación programada (UTC ISO string)</summary>
+        public string NextVerificationTime { get; set; } = "Pending";
+        
+        /// <summary>Intervalo de verificación en segundos (default: 120 = 2 min)</summary>
+        public int VerificationIntervalSeconds { get; set; } = 120;
+        
+        /// <summary>Segundos restantes hasta próxima verificación</summary>
+        public int SecondsUntilNextVerification { get; set; } = 0;
+        
+        /// <summary>Indica si la verificación automática está activa</summary>
+        public bool AutoVerificationEnabled { get; set; } = true;
     }
 
     /// <summary>

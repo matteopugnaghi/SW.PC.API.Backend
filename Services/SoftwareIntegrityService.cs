@@ -38,6 +38,11 @@ namespace SW.PC.API.Backend.Services
         /// Actualizar estado de Database desde configuración Excel
         /// </summary>
         void UpdateDatabaseStatus(bool enabled, bool connected, string details);
+
+        /// <summary>
+        /// Actualizar información de programación de verificación automática
+        /// </summary>
+        void UpdateVerificationSchedule(DateTime nextVerification, int intervalSeconds);
     }
 
     public class SoftwareIntegrityService : ISoftwareIntegrityService
@@ -517,6 +522,23 @@ namespace SW.PC.API.Backend.Services
 
                 _logger.LogInformation("🔧 Database status updated: Enabled={Enabled}, Status={Status}", 
                     enabled, status);
+            }
+        }
+
+        public void UpdateVerificationSchedule(DateTime nextVerification, int intervalSeconds)
+        {
+            lock (_lock)
+            {
+                _versionInfo.NextVerificationTime = nextVerification.ToString("yyyy-MM-ddTHH:mm:ssZ");
+                _versionInfo.VerificationIntervalSeconds = intervalSeconds;
+                _versionInfo.AutoVerificationEnabled = true;
+                
+                // Calcular segundos restantes
+                var secondsUntil = (nextVerification - DateTime.UtcNow).TotalSeconds;
+                _versionInfo.SecondsUntilNextVerification = Math.Max(0, (int)secondsUntil);
+                
+                _logger.LogDebug("🔐 Verification schedule updated: Next at {Next}, Interval: {Interval}s", 
+                    _versionInfo.NextVerificationTime, intervalSeconds);
             }
         }
     }
