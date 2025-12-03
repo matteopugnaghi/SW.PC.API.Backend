@@ -1,7 +1,6 @@
-// ✅ IMPLEMENTACIÓN CORRECTA con Beckhoff.TwinCAT.Ads 6.2.521
-// Basado en ejemplos oficiales: https://github.com/Beckhoff/TF6000_ADS_DOTNET_V5_Samples
-
 using SW.PC.API.Backend.Models.TwinCAT;
+using SW.PC.API.Backend.Models;
+using SW.PC.API.Backend.Models.Excel;
 using TwinCAT.Ads;
 
 namespace SW.PC.API.Backend.Services
@@ -15,6 +14,7 @@ namespace SW.PC.API.Backend.Services
         Task<object?> ReadVariableAsync(string variableName, Type dataType);
         Task<bool> WriteVariableAsync(string variableName, object value, Type dataType);
         Task<PlcState> GetPlcStateAsync();
+        TwinCATVersionInfo GetVersionInfo();
         event EventHandler<PlcNotification>? OnVariableChanged;
     }
     
@@ -31,6 +31,65 @@ namespace SW.PC.API.Backend.Services
         public event EventHandler<PlcNotification>? OnVariableChanged;
         
         public bool IsConnected => _isConnected;
+
+        /// <summary>
+        /// 🔐 Obtener información de versión de TwinCAT para ciberseguridad
+        /// </summary>
+        public TwinCATVersionInfo GetVersionInfo()
+        {
+            var info = new TwinCATVersionInfo
+            {
+                TargetNetId = _config.NetId,
+                IsConnected = _isConnected,
+                IsSimulated = _isSimulatedMode,
+                DeviceState = _isConnected ? (_isSimulatedMode ? "Simulated" : "Connected") : "Disconnected"
+            };
+
+            if (_adsClient != null && _isConnected && !_isSimulatedMode)
+            {
+                try
+                {
+                    // Obtener versión del ADS Client (librería Beckhoff)
+                    var adsVersion = typeof(AdsClient).Assembly.GetName().Version;
+                    info.AdsVersion = adsVersion?.ToString() ?? "Unknown";
+                    
+                    // Leer información del dispositivo PLC
+                    var deviceInfo = _adsClient.ReadDeviceInfo();
+                    
+                    // Debug: mostrar todos los campos disponibles
+                    _logger.LogInformation("🔍 DeviceInfo.Name: {Name}", deviceInfo.Name);
+                    _logger.LogInformation("🔍 DeviceInfo.Version.Version (Major): {Major}", deviceInfo.Version.Version);
+                    _logger.LogInformation("🔍 DeviceInfo.Version.Revision (Minor): {Minor}", deviceInfo.Version.Revision);
+                    _logger.LogInformation("🔍 DeviceInfo.Version.Build: {Build}", deviceInfo.Version.Build);
+                    
+                    // Formato: "TwinCAT 3.1 Build 4024" o similar
+                    // Version=Major, Revision=Minor, Build=Build number
+                    info.RuntimeVersion = $"TwinCAT {deviceInfo.Version.Version}.{deviceInfo.Version.Revision} Build {deviceInfo.Version.Build}";
+                    info.MajorVersion = deviceInfo.Version.Version;
+                    info.MinorVersion = deviceInfo.Version.Revision;
+                    info.BuildNumber = deviceInfo.Version.Build;
+                    info.DeviceName = deviceInfo.Name;
+                    
+                    _logger.LogInformation("🔧 TwinCAT Runtime: {Version} ({Name})", info.RuntimeVersion, deviceInfo.Name);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not read TwinCAT device info");
+                    info.RuntimeVersion = "TwinCAT 3.x (version unknown)";
+                }
+            }
+            else
+            {
+                // Modo simulado - usar versión genérica
+                info.RuntimeVersion = "TwinCAT 3.1.4024 (Simulated)";
+                info.AdsVersion = typeof(AdsClient).Assembly.GetName().Version?.ToString() ?? "6.x";
+                info.MajorVersion = 3;
+                info.MinorVersion = 1;
+                info.BuildNumber = 4024;
+            }
+
+            return info;
+        }
         
         public TwinCATService(IConfiguration configuration, ILogger<TwinCATService> logger)
         {

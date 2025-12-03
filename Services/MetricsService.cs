@@ -60,6 +60,13 @@ namespace SW.PC.API.Backend.Services
         /// Registrar si se usa PLC simulado
         /// </summary>
         void SetUseSimulatedPlc(bool simulated);
+
+        // ===== 🔐 SOFTWARE INTEGRITY =====
+
+        /// <summary>
+        /// Establecer servicio de integridad de software
+        /// </summary>
+        void SetSoftwareIntegrityService(ISoftwareIntegrityService integrityService);
     }
 
     public class MetricsService : IMetricsService
@@ -79,9 +86,20 @@ namespace SW.PC.API.Backend.Services
         // ===== ESTADO DE SISTEMAS =====
         private SystemServicesStatus _servicesStatus = new SystemServicesStatus();
 
+        // ===== 🔐 SOFTWARE INTEGRITY =====
+        private ISoftwareIntegrityService? _integrityService;
+
         public MetricsService()
         {
             _serverStartTime = DateTime.UtcNow;
+        }
+
+        public void SetSoftwareIntegrityService(ISoftwareIntegrityService integrityService)
+        {
+            lock (_lock)
+            {
+                _integrityService = integrityService;
+            }
         }
 
         public void RecordPlcPollingScanTime(double milliseconds)
@@ -144,7 +162,7 @@ namespace SW.PC.API.Backend.Services
             {
                 var uptime = DateTime.UtcNow - _serverStartTime;
                 
-                return new SystemMetrics
+                var metrics = new SystemMetrics
                 {
                     PlcPollingScanTime = Math.Round(_lastPlcScanTime, 2),
                     PlcPollingAvgScanTime = _plcScanTimes.Count > 0 
@@ -174,6 +192,14 @@ namespace SW.PC.API.Backend.Services
                         LastStatusUpdate = _servicesStatus.LastStatusUpdate
                     }
                 };
+
+                // 🔐 Añadir información de versiones e integridad
+                if (_integrityService != null)
+                {
+                    metrics.SoftwareVersions = _integrityService.GetSoftwareVersionInfo();
+                }
+
+                return metrics;
             }
         }
 

@@ -111,6 +111,7 @@ builder.Services.AddSingleton<IExcelConfigService, ExcelConfigService>(); // ✅
 builder.Services.AddScoped<IPumpElementService, PumpElementService>();
 builder.Services.AddSingleton<ITwinCATService, TwinCATService>();
 builder.Services.AddSingleton<IMetricsService, MetricsService>(); // ✅ Servicio de métricas
+builder.Services.AddSingleton<ISoftwareIntegrityService, SoftwareIntegrityService>(); // 🔐 Servicio de integridad
 
 // Register Background Services
 // builder.Services.AddHostedService<PlcNotificationService>(); // Servicio legacy - reemplazado por PlcPollingService
@@ -125,6 +126,62 @@ builder.Services.AddLogging(logging =>
 });
 
 var app = builder.Build();
+
+// 🔐 Conectar servicio de integridad con métricas y TwinCAT
+{
+    var metricsService = app.Services.GetRequiredService<IMetricsService>();
+    var integrityService = app.Services.GetRequiredService<ISoftwareIntegrityService>();
+    var twinCatService = app.Services.GetRequiredService<ITwinCATService>();
+    var excelConfigService = app.Services.GetRequiredService<IExcelConfigService>();
+    
+    metricsService.SetSoftwareIntegrityService(integrityService);
+    
+    // NOTA: La info de TwinCAT se actualiza después de ConnectAsync() más abajo
+    
+    // 📋 Cargar rutas Git desde Excel (System Config filas A20-A22)
+    try
+    {
+        // Buscar Excel en múltiples ubicaciones
+        var possiblePaths = new[]
+        {
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExcelConfigs", "ProjectConfig.xlsm"),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "ExcelConfigs", "ProjectConfig.xlsm"),
+            @"C:\Users\mpugnaghi.AQUAFRISCH\Documents\Work_In_Process\_Web\AI test\SW.PC.API.Backend_\ExcelConfigs\ProjectConfig.xlsm"
+        };
+        
+        var excelPath = possiblePaths.FirstOrDefault(File.Exists);
+        
+        if (excelPath != null)
+        {
+            app.Logger.LogInformation("📋 Excel found at: {Path}", excelPath);
+            var systemConfig = excelConfigService.LoadSystemConfigurationAsync(excelPath).GetAwaiter().GetResult();
+            
+            // 🔍 Debug: mostrar qué rutas se leyeron del Excel
+            app.Logger.LogInformation("📋 Excel Git paths read:");
+            app.Logger.LogInformation("   Backend: '{Path}'", systemConfig.GitRepoBackend ?? "(empty)");
+            app.Logger.LogInformation("   Frontend: '{Path}'", systemConfig.GitRepoFrontend ?? "(empty)");
+            app.Logger.LogInformation("   TwinCAT: '{Path}'", systemConfig.GitRepoTwinCatPlc ?? "(empty)");
+            
+            integrityService.ConfigureGitPaths(
+                systemConfig.GitRepoBackend,
+                systemConfig.GitRepoFrontend,
+                systemConfig.GitRepoTwinCatPlc
+            );
+            
+            app.Logger.LogInformation("🔐 Git paths configured from Excel");
+        }
+        else
+        {
+            app.Logger.LogWarning("⚠️ Excel not found in any location, using default Git paths");
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Could not load Git paths from Excel, using defaults");
+    }
+    
+    app.Logger.LogInformation("🔐 Software Integrity Service initialized with Git-based versioning");
+}
 
 // Initialize Database (Comentado temporalmente - descomentar cuando tengas SQL Server listo)
 /*
@@ -199,6 +256,14 @@ using (var scope = app.Services.CreateScope())
         metricsService.SetDatabaseStatus(systemConfig.EnableDatabase, false, 
             systemConfig.EnableDatabase ? "Iniciando..." : "Deshabilitado");
         
+        // 🔐 Actualizar estado de Database en el servicio de integridad (desde Excel)
+        var integrityServiceForDb = app.Services.GetRequiredService<ISoftwareIntegrityService>();
+        integrityServiceForDb.UpdateDatabaseStatus(
+            systemConfig.EnableDatabase, 
+            false, // No está conectada aún
+            systemConfig.EnableDatabase ? "Configured from Excel" : "Disabled in Excel configuration"
+        );
+        
         // Establecer si usa PLC simulado (desde Excel)
         metricsService.SetUseSimulatedPlc(systemConfig.UseSimulatedPlc);
         
@@ -206,6 +271,18 @@ using (var scope = app.Services.CreateScope())
         if (connected)
         {
             logger.LogInformation("✅ TwinCAT Service connected successfully");
+            
+            // 🔐 Actualizar info de TwinCAT en el servicio de integridad DESPUÉS de conectar
+            var integrityService = app.Services.GetRequiredService<ISoftwareIntegrityService>();
+            var twinCatInfo = twinCATService.GetVersionInfo();
+            integrityService.UpdateTwinCATRuntimeInfo(
+                twinCatInfo.RuntimeVersion,
+                twinCatInfo.AdsVersion,
+                twinCatInfo.IsConnected,
+                twinCatInfo.IsSimulated
+            );
+            logger.LogInformation("🔐 TwinCAT integrity info updated: {Version} (Connected={Connected}, Simulated={Simulated})",
+                twinCatInfo.RuntimeVersion, twinCatInfo.IsConnected, twinCatInfo.IsSimulated);
         }
         else
         {

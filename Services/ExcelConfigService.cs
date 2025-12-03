@@ -1114,6 +1114,25 @@ namespace SW.PC.API.Backend.Services
                                 config.MaxSignalRConnections = ParseInt(paramValue, 100);
                                 break;
 
+                            // 🔐 GIT REPOSITORIES (Cybersecurity)
+                            case "gitrepobackend":
+                            case "git_repo_backend":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.GitRepoBackend = paramValue;
+                                break;
+                            
+                            case "gitrepofrontend":
+                            case "git_repo_frontend":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.GitRepoFrontend = paramValue;
+                                break;
+                            
+                            case "gitrepotwincatplc":
+                            case "git_repo_twincat_plc":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.GitRepoTwinCatPlc = paramValue;
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;

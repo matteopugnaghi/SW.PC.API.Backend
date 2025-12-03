@@ -387,6 +387,23 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Máximo de conexiones SignalR concurrentes
         /// </summary>
         public int MaxSignalRConnections { get; set; } = 100;
+
+        // ===== 🔐 GIT REPOSITORIES (Cybersecurity) =====
+        /// <summary>
+        /// Ruta al repositorio Git del Backend (ASP.NET Core)
+        /// Si vacío, se auto-detecta desde la ubicación del ejecutable
+        /// </summary>
+        public string GitRepoBackend { get; set; } = "";
+
+        /// <summary>
+        /// Ruta al repositorio Git del Frontend (React/Babylon.js)
+        /// </summary>
+        public string GitRepoFrontend { get; set; } = "";
+
+        /// <summary>
+        /// Ruta al repositorio Git del código TwinCAT PLC
+        /// </summary>
+        public string GitRepoTwinCatPlc { get; set; } = "";
     }
 
     /// <summary>
@@ -445,6 +462,139 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Estado de los servicios del sistema
         /// </summary>
         public SystemServicesStatus ServicesStatus { get; set; } = new SystemServicesStatus();
+
+        // ===== 🔐 SOFTWARE VERSIONS - CYBERSECURITY COMPLIANCE =====
+
+        /// <summary>
+        /// Información de versiones y verificación de integridad del software
+        /// </summary>
+        public SoftwareVersionInfo SoftwareVersions { get; set; } = new SoftwareVersionInfo();
+    }
+
+    /// <summary>
+    /// 🔐 Información de versiones de software basada en Git commits
+    /// Para cumplimiento de normativas de ciberseguridad NASA/NIST
+    /// </summary>
+    public class SoftwareVersionInfo
+    {
+        // ===== COMPONENTES CON CONTROL DE VERSIONES GIT =====
+        public GitVersionComponent Backend { get; set; } = new();
+        public GitVersionComponent Frontend { get; set; } = new();
+        public GitVersionComponent TwinCatPlc { get; set; } = new();
+
+        // ===== INFORMACIÓN DE RUNTIME (sin Git) =====
+        public RuntimeVersionInfo TwinCatRuntime { get; set; } = new();
+        public RuntimeVersionInfo AdsClient { get; set; } = new();
+        public RuntimeVersionInfo Database { get; set; } = new();
+
+        // ===== METADATOS DE VERIFICACIÓN =====
+        public string LastVerificationDate { get; set; } = "Never";
+        public string VerifiedByAdmin { get; set; } = "System";
+        public string SystemStatus { get; set; } = "unknown"; // "clean", "modified", "unknown"
+    }
+
+    /// <summary>
+    /// Información de versión basada en Git commit
+    /// </summary>
+    public class GitVersionComponent
+    {
+        /// <summary>Nombre del componente</summary>
+        public string Name { get; set; } = "Unknown";
+
+        /// <summary>Tag de versión semántica (ej: v1.2.3)</summary>
+        public string Version { get; set; } = "0.0.0";
+
+        /// <summary>SHA corto del commit (7-8 caracteres)</summary>
+        public string CommitSha { get; set; } = "unknown";
+
+        /// <summary>SHA completo del commit (40 caracteres)</summary>
+        public string CommitShaFull { get; set; } = "unknown";
+
+        /// <summary>Rama actual</summary>
+        public string Branch { get; set; } = "unknown";
+
+        /// <summary>Fecha del commit</summary>
+        public string CommitDate { get; set; } = "unknown";
+
+        /// <summary>Autor del commit (nombre)</summary>
+        public string CommitAuthor { get; set; } = "unknown";
+
+        /// <summary>Email del autor del commit</summary>
+        public string CommitAuthorEmail { get; set; } = "unknown";
+
+        /// <summary>Mensaje del commit</summary>
+        public string CommitMessage { get; set; } = "";
+
+        /// <summary>Estado del working directory: "clean", "dirty", "unknown"</summary>
+        public string WorkingDirStatus { get; set; } = "unknown";
+
+        /// <summary>Archivos modificados (si dirty)</summary>
+        public int ModifiedFiles { get; set; } = 0;
+
+        /// <summary>Estado de integridad: "verified", "modified", "unknown"</summary>
+        public string Integrity { get; set; } = "unknown";
+
+        /// <summary>Última vez que se verificó este componente</summary>
+        public string LastVerified { get; set; } = "Never";
+
+        /// <summary>Ruta del repositorio</summary>
+        public string RepoPath { get; set; } = "";
+
+        // === FIRMA DIGITAL (GPG/SSH) ===
+        
+        /// <summary>Si el commit está firmado (GPG o SSH)</summary>
+        public bool IsSigned { get; set; } = false;
+
+        /// <summary>Estado de la firma: "valid", "invalid", "unsigned", "unknown"</summary>
+        public string SignatureStatus { get; set; } = "unknown";
+
+        /// <summary>Tipo de firma: "GPG", "SSH", "X509", "none"</summary>
+        public string SignatureType { get; set; } = "none";
+
+        /// <summary>ID de la clave usada para firmar (Key ID)</summary>
+        public string SignatureKeyId { get; set; } = "";
+
+        /// <summary>Nombre del firmante (de la clave GPG/SSH)</summary>
+        public string SignatureSigner { get; set; } = "";
+
+        /// <summary>Mensaje de verificación de firma</summary>
+        public string SignatureMessage { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Información de versión para componentes de runtime (sin Git)
+    /// </summary>
+    public class RuntimeVersionInfo
+    {
+        /// <summary>Nombre del componente</summary>
+        public string Name { get; set; } = "Unknown";
+
+        /// <summary>Versión del componente</summary>
+        public string Version { get; set; } = "Unknown";
+
+        /// <summary>Estado: "connected", "disconnected", "disabled"</summary>
+        public string Status { get; set; } = "unknown";
+
+        /// <summary>Información adicional</summary>
+        public string Details { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Información detallada de versión de TwinCAT
+    /// </summary>
+    public class TwinCATVersionInfo
+    {
+        public string RuntimeVersion { get; set; } = "Unknown";
+        public string AdsVersion { get; set; } = "Unknown";
+        public string DeviceName { get; set; } = "Unknown";
+        public int MajorVersion { get; set; }
+        public int MinorVersion { get; set; }
+        public int BuildNumber { get; set; }
+        public int RevisionNumber { get; set; }
+        public string TargetNetId { get; set; } = "Unknown";
+        public string DeviceState { get; set; } = "Unknown";
+        public bool IsConnected { get; set; }
+        public bool IsSimulated { get; set; }
     }
 
     /// <summary>
