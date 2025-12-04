@@ -60,6 +60,17 @@ public class GitController : ControllerBase
         };
     }
 
+    /// <summary>
+    /// Obtener información del entorno (production/development) y permisos de edición
+    /// </summary>
+    [HttpGet("environment")]
+    public ActionResult<ScadaEnvironmentInfo> GetEnvironmentInfo()
+    {
+        _logger.LogInformation("🌍 Getting environment info");
+        var envInfo = _gitService.GetEnvironmentInfo();
+        return Ok(envInfo);
+    }
+
     [HttpGet("status")]
     public async Task<ActionResult<AllRepositoriesStatus>> GetAllStatus()
     {

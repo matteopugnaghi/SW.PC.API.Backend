@@ -404,6 +404,14 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Ruta al repositorio Git del código TwinCAT PLC
         /// </summary>
         public string GitRepoTwinCatPlc { get; set; } = "";
+
+        // ===== 🔐 MODO DE ENTORNO (EU CRA Compliance) =====
+        /// <summary>
+        /// Modo de entorno: "production" o "development"
+        /// En producción: solo TwinCAT es editable desde Git Panel
+        /// En desarrollo: todos los repos son editables
+        /// </summary>
+        public string EnvironmentMode { get; set; } = "development";
     }
 
     /// <summary>

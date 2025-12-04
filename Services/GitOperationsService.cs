@@ -37,17 +37,21 @@ public interface IGitOperationsService
     // Access Control Configuration
     Task<AccessControlConfig> GetAccessControlConfigAsync();
     Task<GitOperationResult> SetAccessControlEnabledAsync(bool enabled);
+    // Environment Info (Production/Development mode)
+    ScadaEnvironmentInfo GetEnvironmentInfo();
 }
 
 public class GitOperationsService : IGitOperationsService
 {
     private readonly ILogger<GitOperationsService> _logger;
     private readonly ISoftwareIntegrityService _integrityService;
+    private readonly IExcelConfigService _excelConfigService;
 
-    public GitOperationsService(ILogger<GitOperationsService> logger, ISoftwareIntegrityService integrityService)
+    public GitOperationsService(ILogger<GitOperationsService> logger, ISoftwareIntegrityService integrityService, IExcelConfigService excelConfigService)
     {
         _logger = logger;
         _integrityService = integrityService;
+        _excelConfigService = excelConfigService;
         _logger.LogInformation("🔧 GitOperationsService initialized (using paths from SoftwareIntegrityService)");
     }
 
@@ -59,19 +63,77 @@ public class GitOperationsService : IGitOperationsService
         return _integrityService.GetRepositoryPaths();
     }
 
+    /// <summary>
+    /// Detecta el entorno (production/development) basado en configuración Excel (EnvironmentMode)
+    /// </summary>
+    public ScadaEnvironmentInfo GetEnvironmentInfo()
+    {
+        // Leer desde Excel SystemConfiguration
+        string environmentMode = "development";
+        try
+        {
+            var systemConfig = _excelConfigService.LoadSystemConfigurationAsync("ProjectConfig.xlsm").GetAwaiter().GetResult();
+            environmentMode = systemConfig?.EnvironmentMode?.ToLower() ?? "development";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Could not read EnvironmentMode from Excel, defaulting to 'development'");
+        }
+        
+        var isProduction = environmentMode == "production";
+        
+        var paths = GetRepoPaths();
+        
+        // En producción: solo TwinCAT es editable
+        // En desarrollo: todos son editables (si tienen .git)
+        var permissions = new Dictionary<string, bool>
+        {
+            ["backend"] = !isProduction && Directory.Exists(Path.Combine(paths.Backend ?? "", ".git")),
+            ["frontend"] = !isProduction && Directory.Exists(Path.Combine(paths.Frontend ?? "", ".git")),
+            ["twincat"] = Directory.Exists(Path.Combine(paths.TwinCAT ?? "", ".git")) // TwinCAT siempre editable si tiene .git
+        };
+
+        _logger.LogInformation("🌍 Environment: {Env} | Permissions: Backend={B}, Frontend={F}, TwinCAT={T}", 
+            environmentMode, permissions["backend"], permissions["frontend"], permissions["twincat"]);
+
+        return new ScadaEnvironmentInfo
+        {
+            Environment = environmentMode,
+            RepoEditPermissions = permissions
+        };
+    }
+
     public async Task<AllRepositoriesStatus> GetAllRepositoriesStatusAsync()
     {
         var paths = GetRepoPaths();
-        var result = new AllRepositoriesStatus { Timestamp = DateTime.UtcNow, Repositories = new Dictionary<string, RepositoryStatus>() };
+        var envInfo = GetEnvironmentInfo();
+        var result = new AllRepositoriesStatus 
+        { 
+            Timestamp = DateTime.UtcNow, 
+            Repositories = new Dictionary<string, RepositoryStatus>(),
+            EnvironmentInfo = envInfo
+        };
         
-        if (!string.IsNullOrEmpty(paths.Backend) && Directory.Exists(paths.Backend)) 
-            result.Repositories["backend"] = await GetRepositoryStatusAsync(paths.Backend);
+        if (!string.IsNullOrEmpty(paths.Backend) && Directory.Exists(paths.Backend))
+        {
+            var status = await GetRepositoryStatusAsync(paths.Backend);
+            status.IsEditable = envInfo.RepoEditPermissions.GetValueOrDefault("backend", false);
+            result.Repositories["backend"] = status;
+        }
         
-        if (!string.IsNullOrEmpty(paths.Frontend) && Directory.Exists(paths.Frontend)) 
-            result.Repositories["frontend"] = await GetRepositoryStatusAsync(paths.Frontend);
+        if (!string.IsNullOrEmpty(paths.Frontend) && Directory.Exists(paths.Frontend))
+        {
+            var status = await GetRepositoryStatusAsync(paths.Frontend);
+            status.IsEditable = envInfo.RepoEditPermissions.GetValueOrDefault("frontend", false);
+            result.Repositories["frontend"] = status;
+        }
         
-        if (!string.IsNullOrEmpty(paths.TwinCAT) && Directory.Exists(paths.TwinCAT)) 
-            result.Repositories["twincat"] = await GetRepositoryStatusAsync(paths.TwinCAT);
+        if (!string.IsNullOrEmpty(paths.TwinCAT) && Directory.Exists(paths.TwinCAT))
+        {
+            var status = await GetRepositoryStatusAsync(paths.TwinCAT);
+            status.IsEditable = envInfo.RepoEditPermissions.GetValueOrDefault("twincat", false);
+            result.Repositories["twincat"] = status;
+        }
         
         return result;
     }
@@ -82,7 +144,8 @@ public class GitOperationsService : IGitOperationsService
         try
         {
             var gitDir = Path.Combine(repoPath, ".git");
-            if (!Directory.Exists(gitDir)) { status.Error = "Not a git repository"; return status; }
+            status.IsGitRepo = Directory.Exists(gitDir);
+            if (!status.IsGitRepo) { status.Error = "Not a git repository"; return status; }
             status.IsValid = true;
             var branchResult = await RunGitCommandAsync(repoPath, "rev-parse --abbrev-ref HEAD");
             status.CurrentBranch = branchResult.Output?.Trim() ?? "unknown";
@@ -129,10 +192,41 @@ public class GitOperationsService : IGitOperationsService
         return commits;
     }
 
+    /// <summary>
+    /// Verifica si el repositorio es editable según el entorno (production/development)
+    /// </summary>
+    private GitOperationResult? CheckEditPermission(string repoPath)
+    {
+        var paths = GetRepoPaths();
+        var envInfo = GetEnvironmentInfo();
+        
+        string repoName = "";
+        if (repoPath == paths.Backend) repoName = "backend";
+        else if (repoPath == paths.Frontend) repoName = "frontend";
+        else if (repoPath == paths.TwinCAT) repoName = "twincat";
+        
+        if (!string.IsNullOrEmpty(repoName) && !envInfo.RepoEditPermissions.GetValueOrDefault(repoName, false))
+        {
+            _logger.LogWarning("🚫 Edit blocked: {Repo} not editable in {Env} environment", repoName, envInfo.Environment);
+            return new GitOperationResult
+            {
+                Success = false,
+                Message = $"🚫 OPERACIÓN BLOQUEADA: El repositorio '{repoName}' no es editable en modo {envInfo.Environment.ToUpper()}.\n" +
+                          (envInfo.IsProduction ? "En producción solo se puede editar TwinCAT." : "Verifica que existe la carpeta .git")
+            };
+        }
+        
+        return null; // null = permitido
+    }
+
     public async Task<GitOperationResult> CommitAsync(string repoPath, string message)
     {
         try
         {
+            // 🏭 Verificar si el repo es editable en este entorno
+            var editCheck = CheckEditPermission(repoPath);
+            if (editCheck != null) return editCheck;
+
             // 🔐 EU CRA: Verificar autorización de clave antes de permitir commit
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
@@ -171,6 +265,10 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
+            // 🏭 Verificar si el repo es editable en este entorno
+            var editCheck = CheckEditPermission(repoPath);
+            if (editCheck != null) return editCheck;
+
             // 🔐 EU CRA: Verificar autorización antes de push
             var authResult = await CheckKeyAuthorizationAsync();
             _logger.LogWarning("🔍 DEBUG Push - AccessControlEnabled: {Enabled}, IsAuthorized: {Auth}, Message: {Msg}", 
@@ -206,6 +304,10 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
+            // 🔐 MODO PRODUCCIÓN: Verificar permisos de edición
+            var editPermission = CheckEditPermission(repoPath);
+            if (editPermission != null) return editPermission;
+
             // 🔐 EU CRA: Verificar autorización antes de force push
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
@@ -238,6 +340,10 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
+            // 🔐 MODO PRODUCCIÓN: Verificar permisos de edición
+            var editPermission = CheckEditPermission(repoPath);
+            if (editPermission != null) return editPermission;
+
             string command;
             if (string.IsNullOrEmpty(filePath)) { await RunGitCommandAsync(repoPath, "checkout -- ."); command = "clean -fd"; }
             else { command = $"checkout -- \"{filePath}\""; }
@@ -251,6 +357,10 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
+            // 🔐 MODO PRODUCCIÓN: Verificar permisos de edición
+            var editPermission = CheckEditPermission(repoPath);
+            if (editPermission != null) return editPermission;
+
             _logger.LogWarning("REVERTING to commit {Hash} in {Path}", commitHash, repoPath);
             var result = await RunGitCommandAsync(repoPath, $"reset --hard {commitHash}");
             if (result.Success) return new GitOperationResult { Success = true, Message = $"Successfully reverted to commit {commitHash[..7]}", Output = result.Output };
@@ -393,6 +503,10 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
+            // 🔐 MODO PRODUCCIÓN: Verificar permisos de edición
+            var editPermission = CheckEditPermission(repoPath);
+            if (editPermission != null) return editPermission;
+
             // 🔐 EU CRA: Verificar autorización antes de crear tag/release
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
@@ -432,6 +546,10 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
+            // 🔐 MODO PRODUCCIÓN: Verificar permisos de edición
+            var editPermission = CheckEditPermission(repoPath);
+            if (editPermission != null) return editPermission;
+
             // 🔐 EU CRA: Verificar autorización antes de push tags
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
@@ -1186,8 +1304,17 @@ public class GitOperationsService : IGitOperationsService
     #endregion
 }
 
-public class AllRepositoriesStatus { public DateTime Timestamp { get; set; } public Dictionary<string, RepositoryStatus> Repositories { get; set; } = new(); }
-public class RepositoryStatus { public string Path { get; set; } = ""; public bool IsValid { get; set; } public string? Error { get; set; } public string CurrentBranch { get; set; } = ""; public CommitInfo? LastCommit { get; set; } public bool HasChanges { get; set; } public List<ModifiedFile> ModifiedFiles { get; set; } = new(); public int CommitsAhead { get; set; } public int CommitsBehind { get; set; } public string? RemoteUrl { get; set; } }
+// Environment Detection
+public class ScadaEnvironmentInfo
+{
+    public string Environment { get; set; } = "development"; // "development" or "production"
+    public bool IsProduction => Environment.ToLower() == "production";
+    public bool IsDevelopment => !IsProduction;
+    public Dictionary<string, bool> RepoEditPermissions { get; set; } = new();
+}
+
+public class AllRepositoriesStatus { public DateTime Timestamp { get; set; } public Dictionary<string, RepositoryStatus> Repositories { get; set; } = new(); public ScadaEnvironmentInfo? EnvironmentInfo { get; set; } }
+public class RepositoryStatus { public string Path { get; set; } = ""; public bool IsValid { get; set; } public string? Error { get; set; } public string CurrentBranch { get; set; } = ""; public CommitInfo? LastCommit { get; set; } public bool HasChanges { get; set; } public List<ModifiedFile> ModifiedFiles { get; set; } = new(); public int CommitsAhead { get; set; } public int CommitsBehind { get; set; } public string? RemoteUrl { get; set; } public bool IsGitRepo { get; set; } = true; public bool IsEditable { get; set; } = true; }
 public class CommitInfo { public string Hash { get; set; } = ""; public string ShortHash { get; set; } = ""; public string Message { get; set; } = ""; public DateTime Date { get; set; } public string Author { get; set; } = ""; }
 public class ModifiedFile { public string Path { get; set; } = ""; public string Status { get; set; } = ""; public string StatusCode { get; set; } = ""; }
 public class GitOperationResult { public bool Success { get; set; } public string Message { get; set; } = ""; public string? Output { get; set; } }

@@ -1133,6 +1133,13 @@ namespace SW.PC.API.Backend.Services
                                     config.GitRepoTwinCatPlc = paramValue;
                                 break;
 
+                            // 🔐 MODO DE ENTORNO (EU CRA Compliance)
+                            case "environmentmode":
+                            case "environment_mode":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.EnvironmentMode = paramValue.ToLower();
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
@@ -1146,6 +1153,7 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogInformation("  - SignalR: {Enabled}", config.EnableSignalR);
                     _logger.LogInformation("  - Simulated PLC: {Enabled}", config.UseSimulatedPlc);
                     _logger.LogInformation("  - Database: {Enabled}", config.EnableDatabase);
+                    _logger.LogInformation("  - 🔐 EnvironmentMode: {Mode}", config.EnvironmentMode);
 
                     stopwatch.Stop();
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);

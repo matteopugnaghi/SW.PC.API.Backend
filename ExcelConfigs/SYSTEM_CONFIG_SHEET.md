@@ -234,3 +234,25 @@ Para agregar nuevos parámetros:
 4. Documentar aquí
 
 **¡No se requiere reiniciar el servidor para leer los valores actualizados desde el endpoint!** (Solo para aplicar los cambios al comportamiento del sistema)
+
+## 🔐 Parámetros de Seguridad (EU CRA Compliance)
+
+### Git Repositories
+
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| **GitRepoBackend** | string | `""` | Ruta al repositorio Git del Backend |
+| **GitRepoFrontend** | string | `""` | Ruta al repositorio Git del Frontend |
+| **GitRepoTwinCatPlc** | string | `""` | Ruta al repositorio Git del TwinCAT PLC |
+
+### Modo de Entorno
+
+| Parámetro | Tipo | Default | Descripción |
+|-----------|------|---------|-------------|
+| **EnvironmentMode** | string | `"development"` | Modo de entorno del sistema |
+
+**Valores posibles:**
+- `development` - Todos los repositorios son editables desde Git Panel
+- `production` - Solo TwinCAT es editable (Backend/Frontend bloqueados con 🔒)
+
+> ⚠️ **IMPORTANTE**: En instalaciones industriales, configurar `EnvironmentMode = production` para cumplir con EU CRA. Solo el código PLC (TwinCAT) debe ser modificable en campo.
