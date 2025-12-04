@@ -152,7 +152,15 @@ public class GitOperationsService : IGitOperationsService
             if (!addResult.Success) return new GitOperationResult { Success = false, Message = $"Failed to stage changes: {addResult.Error}" };
             var escapedMessage = message.Replace("\"", "\\\"");
             var commitResult = await RunGitCommandAsync(repoPath, $"commit -m \"{escapedMessage}\"");
-            if (commitResult.Success) return new GitOperationResult { Success = true, Message = "Commit created successfully", Output = commitResult.Output };
+            if (commitResult.Success) 
+            {
+                // 🔐 Actualizar información de firma en el servicio de integridad
+                _ = Task.Run(async () => {
+                    try { await _integrityService.VerifyAllIntegrityAsync(); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after commit"); }
+                });
+                return new GitOperationResult { Success = true, Message = "Commit created successfully", Output = commitResult.Output };
+            }
             if (commitResult.Output?.Contains("nothing to commit") == true) return new GitOperationResult { Success = true, Message = "Nothing to commit - working tree clean" };
             return new GitOperationResult { Success = false, Message = $"Commit failed: {commitResult.Error}" };
         }
@@ -180,7 +188,15 @@ public class GitOperationsService : IGitOperationsService
 
             _logger.LogInformation("Pushing changes from {Path}", repoPath);
             var result = await RunGitCommandAsync(repoPath, "push");
-            if (result.Success) return new GitOperationResult { Success = true, Message = "Push completed successfully", Output = result.Output };
+            if (result.Success) 
+            {
+                // 🔐 Actualizar información de integridad después de push
+                _ = Task.Run(async () => {
+                    try { await _integrityService.VerifyAllIntegrityAsync(); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after push"); }
+                });
+                return new GitOperationResult { Success = true, Message = "Push completed successfully", Output = result.Output };
+            }
             return new GitOperationResult { Success = false, Message = $"Push failed: {result.Error}" };
         }
         catch (Exception ex) { _logger.LogError(ex, "Error pushing from {Path}", repoPath); return new GitOperationResult { Success = false, Message = $"Exception: {ex.Message}" }; }
@@ -204,7 +220,15 @@ public class GitOperationsService : IGitOperationsService
 
             _logger.LogWarning("⚠️ FORCE PUSHING changes from {Path} - This will overwrite remote!", repoPath);
             var result = await RunGitCommandAsync(repoPath, "push --force");
-            if (result.Success) return new GitOperationResult { Success = true, Message = "✅ Force Push completado - Remoto sincronizado con local", Output = result.Output };
+            if (result.Success) 
+            {
+                // 🔐 Actualizar información de integridad después de force push
+                _ = Task.Run(async () => {
+                    try { await _integrityService.VerifyAllIntegrityAsync(); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after force push"); }
+                });
+                return new GitOperationResult { Success = true, Message = "✅ Force Push completado - Remoto sincronizado con local", Output = result.Output };
+            }
             return new GitOperationResult { Success = false, Message = $"Force Push failed: {result.Error}" };
         }
         catch (Exception ex) { _logger.LogError(ex, "Error force pushing from {Path}", repoPath); return new GitOperationResult { Success = false, Message = $"Exception: {ex.Message}" }; }
@@ -386,7 +410,14 @@ public class GitOperationsService : IGitOperationsService
             var result = await RunGitCommandAsync(repoPath, $"tag -a {tagName} -m \"{escapedMessage}\"");
             
             if (result.Success)
+            {
+                // 🔐 Actualizar información de integridad (incluye latest release)
+                _ = Task.Run(async () => {
+                    try { await _integrityService.VerifyAllIntegrityAsync(); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after tag creation"); }
+                });
                 return new GitOperationResult { Success = true, Message = $"Tag '{tagName}' created successfully", Output = result.Output };
+            }
             
             return new GitOperationResult { Success = false, Message = $"Failed to create tag: {result.Error}" };
         }
@@ -417,7 +448,14 @@ public class GitOperationsService : IGitOperationsService
             var result = await RunGitCommandAsync(repoPath, "push --tags");
             
             if (result.Success)
+            {
+                // 🔐 Actualizar información de integridad después de push tags
+                _ = Task.Run(async () => {
+                    try { await _integrityService.VerifyAllIntegrityAsync(); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after push tags"); }
+                });
                 return new GitOperationResult { Success = true, Message = "Tags pushed successfully", Output = result.Output };
+            }
             
             return new GitOperationResult { Success = false, Message = $"Failed to push tags: {result.Error}" };
         }
