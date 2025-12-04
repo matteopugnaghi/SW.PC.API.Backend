@@ -128,6 +128,24 @@ public class GitController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    [HttpPost("force-push/{repoName}")]
+    public async Task<ActionResult<GitOperationResult>> ForcePush(string repoName, [FromQuery] string? operatorName = null)
+    {
+        var repoPaths = GetRepoPaths();
+        if (!repoPaths.TryGetValue(repoName.ToLower(), out var repoPath) || string.IsNullOrEmpty(repoPath))
+            return NotFound($"Repository '{repoName}' not found");
+        _logger.LogWarning("⚠️ FORCE PUSH request for {Repo}", repoName);
+        var result = await _gitService.ForcePushAsync(repoPath);
+        
+        // Generar certificado automático después de force push exitoso
+        if (result.Success)
+        {
+            await GenerateDeploymentCertificateAsync(repoName, repoPath, operatorName ?? "System", "Force Push (sync after revert)");
+        }
+        
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
     [HttpPost("commit-and-push/{repoName}")]
     public async Task<ActionResult<GitOperationResult>> CommitAndPush(string repoName, [FromBody] CommitRequest request)
     {
@@ -420,6 +438,133 @@ public class GitController : ControllerBase
                 Message = $"Exception: {ex.Message}" 
             });
         }
+    }
+
+    /// <summary>
+    /// Desactiva SSH signing - quita la configuración de firma de commits/tags
+    /// </summary>
+    [HttpPost("ssh-signing/disable")]
+    public async Task<ActionResult<GitOperationResult>> DisableSshSigning()
+    {
+        _logger.LogInformation("🔐 Request to disable SSH signing");
+        var result = await _gitService.DisableSshSigningAsync();
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Valida que la identidad del usuario Git coincida con la clave SSH (EU CRA anti-spoofing)
+    /// </summary>
+    [HttpGet("ssh-signing/validate-identity")]
+    public async Task<ActionResult<IdentityValidationResult>> ValidateSigningIdentity()
+    {
+        _logger.LogInformation("🔐 Validating signing identity");
+        var result = await _gitService.ValidateSigningIdentityAsync();
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Elimina las claves SSH del disco
+    /// </summary>
+    [HttpDelete("ssh-keys")]
+    public async Task<ActionResult<GitOperationResult>> DeleteSshKeys()
+    {
+        _logger.LogInformation("🗑️ Request to delete SSH keys");
+        var result = await _gitService.DeleteSshKeysAsync();
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Exporta la clave SSH actual para guardarla externamente
+    /// </summary>
+    [HttpGet("ssh-keys/export")]
+    public async Task<ActionResult<SshKeyExportResult>> ExportSshKey()
+    {
+        _logger.LogInformation("📤 Request to export SSH key");
+        var result = await _gitService.ExportSshKeyAsync();
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Importa una clave SSH (privada + pública)
+    /// </summary>
+    [HttpPost("ssh-keys/import")]
+    public async Task<ActionResult<GitOperationResult>> ImportSshKey([FromBody] ImportSshKeyRequest request)
+    {
+        if (string.IsNullOrEmpty(request.PrivateKey) || string.IsNullOrEmpty(request.PublicKey))
+            return BadRequest(new GitOperationResult { Success = false, Message = "Both private and public keys are required" });
+        
+        _logger.LogInformation("📥 Request to import SSH key");
+        var result = await _gitService.ImportSshKeyAsync(request.PrivateKey, request.PublicKey);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Obtiene la lista de claves autorizadas para modificar el software
+    /// </summary>
+    [HttpGet("authorized-keys")]
+    public async Task<ActionResult<List<AuthorizedKey>>> GetAuthorizedKeys()
+    {
+        var keys = await _gitService.GetAuthorizedKeysAsync();
+        return Ok(keys);
+    }
+
+    /// <summary>
+    /// Añade una clave a la lista de autorizados
+    /// </summary>
+    [HttpPost("authorized-keys")]
+    public async Task<ActionResult<GitOperationResult>> AddAuthorizedKey([FromBody] AddAuthorizedKeyRequest request)
+    {
+        if (string.IsNullOrEmpty(request.Fingerprint) || string.IsNullOrEmpty(request.OwnerName))
+            return BadRequest(new GitOperationResult { Success = false, Message = "Fingerprint and owner name are required" });
+        
+        _logger.LogInformation("➕ Adding authorized key for {Owner}", request.OwnerName);
+        var result = await _gitService.AddAuthorizedKeyAsync(request.Fingerprint, request.OwnerName, request.OwnerEmail ?? "");
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Elimina una clave de la lista de autorizados
+    /// </summary>
+    [HttpDelete("authorized-keys/{fingerprint}")]
+    public async Task<ActionResult<GitOperationResult>> RemoveAuthorizedKey(string fingerprint)
+    {
+        _logger.LogInformation("➖ Removing authorized key: {Fingerprint}", fingerprint);
+        // URL decode the fingerprint (SHA256: gets encoded)
+        var decodedFingerprint = Uri.UnescapeDataString(fingerprint);
+        var result = await _gitService.RemoveAuthorizedKeyAsync(decodedFingerprint);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Verifica si la clave actual está autorizada para modificar el software
+    /// </summary>
+    [HttpGet("check-authorization")]
+    public async Task<ActionResult<KeyAuthorizationResult>> CheckKeyAuthorization()
+    {
+        _logger.LogInformation("🔍 Checking key authorization");
+        var result = await _gitService.CheckKeyAuthorizationAsync();
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Obtiene la configuración del control de acceso
+    /// </summary>
+    [HttpGet("access-control")]
+    public async Task<ActionResult<AccessControlConfig>> GetAccessControlConfig()
+    {
+        var config = await _gitService.GetAccessControlConfigAsync();
+        return Ok(config);
+    }
+
+    /// <summary>
+    /// Activa o desactiva el control de acceso por claves
+    /// </summary>
+    [HttpPost("access-control")]
+    public async Task<ActionResult<GitOperationResult>> SetAccessControlEnabled([FromBody] SetAccessControlRequest request)
+    {
+        _logger.LogInformation("🔒 Setting access control to: {Enabled}", request.Enabled);
+        var result = await _gitService.SetAccessControlEnabledAsync(request.Enabled);
+        return Ok(result);
     }
 
     #endregion
@@ -777,4 +922,23 @@ public class GenerateSshKeyResult
     public string? KeyPath { get; set; }
     public string? PublicKey { get; set; }
     public bool AlreadyExisted { get; set; }
+}
+
+// SSH Key Management models
+public class ImportSshKeyRequest
+{
+    public string PrivateKey { get; set; } = "";
+    public string PublicKey { get; set; } = "";
+}
+
+public class AddAuthorizedKeyRequest
+{
+    public string Fingerprint { get; set; } = "";
+    public string OwnerName { get; set; } = "";
+    public string? OwnerEmail { get; set; }
+}
+
+public class SetAccessControlRequest
+{
+    public bool Enabled { get; set; }
 }

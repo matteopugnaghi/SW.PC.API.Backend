@@ -10,6 +10,7 @@ public interface IGitOperationsService
     Task<List<CommitInfo>> GetCommitHistoryAsync(string repoPath, int count = 20);
     Task<GitOperationResult> CommitAsync(string repoPath, string message);
     Task<GitOperationResult> PushAsync(string repoPath);
+    Task<GitOperationResult> ForcePushAsync(string repoPath);
     Task<GitOperationResult> DiscardChangesAsync(string repoPath, string? filePath = null);
     Task<GitOperationResult> RevertToCommitAsync(string repoPath, string commitHash);
     Task<List<ModifiedFile>> GetModifiedFilesAsync(string repoPath);
@@ -23,6 +24,19 @@ public interface IGitOperationsService
     // SSH Signing methods
     Task<SshSigningStatus> GetSshSigningStatusAsync();
     Task<GitOperationResult> ConfigureSshSigningAsync(string keyPath);
+    Task<GitOperationResult> DisableSshSigningAsync();
+    Task<IdentityValidationResult> ValidateSigningIdentityAsync();
+    // SSH Key Management (authorized keys system)
+    Task<GitOperationResult> DeleteSshKeysAsync();
+    Task<SshKeyExportResult> ExportSshKeyAsync();
+    Task<GitOperationResult> ImportSshKeyAsync(string privateKey, string publicKey);
+    Task<List<AuthorizedKey>> GetAuthorizedKeysAsync();
+    Task<GitOperationResult> AddAuthorizedKeyAsync(string fingerprint, string ownerName, string ownerEmail);
+    Task<GitOperationResult> RemoveAuthorizedKeyAsync(string fingerprint);
+    Task<KeyAuthorizationResult> CheckKeyAuthorizationAsync();
+    // Access Control Configuration
+    Task<AccessControlConfig> GetAccessControlConfigAsync();
+    Task<GitOperationResult> SetAccessControlEnabledAsync(bool enabled);
 }
 
 public class GitOperationsService : IGitOperationsService
@@ -119,6 +133,20 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
+            // 🔐 EU CRA: Verificar autorización de clave antes de permitir commit
+            var authResult = await CheckKeyAuthorizationAsync();
+            if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
+            {
+                _logger.LogWarning("🚫 Commit rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
+                return new GitOperationResult 
+                { 
+                    Success = false, 
+                    Message = $"🚫 COMMIT RECHAZADO: Tu clave SSH no está en la lista de autorizadas.\n" +
+                              $"Fingerprint: {authResult.CurrentFingerprint}\n" +
+                              $"Contacta al administrador para autorizar tu clave."
+                };
+            }
+
             _logger.LogInformation("Creating commit in {Path}: {Message}", repoPath, message);
             var addResult = await RunGitCommandAsync(repoPath, "add -A");
             if (!addResult.Success) return new GitOperationResult { Success = false, Message = $"Failed to stage changes: {addResult.Error}" };
@@ -135,12 +163,51 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
+            // 🔐 EU CRA: Verificar autorización antes de push
+            var authResult = await CheckKeyAuthorizationAsync();
+            _logger.LogWarning("🔍 DEBUG Push - AccessControlEnabled: {Enabled}, IsAuthorized: {Auth}, Message: {Msg}", 
+                authResult.AccessControlEnabled, authResult.IsAuthorized, authResult.Message);
+            
+            if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
+            {
+                _logger.LogWarning("🚫 Push rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
+                return new GitOperationResult 
+                { 
+                    Success = false, 
+                    Message = $"🚫 PUSH RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                };
+            }
+
             _logger.LogInformation("Pushing changes from {Path}", repoPath);
             var result = await RunGitCommandAsync(repoPath, "push");
             if (result.Success) return new GitOperationResult { Success = true, Message = "Push completed successfully", Output = result.Output };
             return new GitOperationResult { Success = false, Message = $"Push failed: {result.Error}" };
         }
         catch (Exception ex) { _logger.LogError(ex, "Error pushing from {Path}", repoPath); return new GitOperationResult { Success = false, Message = $"Exception: {ex.Message}" }; }
+    }
+
+    public async Task<GitOperationResult> ForcePushAsync(string repoPath)
+    {
+        try
+        {
+            // 🔐 EU CRA: Verificar autorización antes de force push
+            var authResult = await CheckKeyAuthorizationAsync();
+            if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
+            {
+                _logger.LogWarning("🚫 Force Push rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
+                return new GitOperationResult 
+                { 
+                    Success = false, 
+                    Message = $"🚫 FORCE PUSH RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                };
+            }
+
+            _logger.LogWarning("⚠️ FORCE PUSHING changes from {Path} - This will overwrite remote!", repoPath);
+            var result = await RunGitCommandAsync(repoPath, "push --force");
+            if (result.Success) return new GitOperationResult { Success = true, Message = "✅ Force Push completado - Remoto sincronizado con local", Output = result.Output };
+            return new GitOperationResult { Success = false, Message = $"Force Push failed: {result.Error}" };
+        }
+        catch (Exception ex) { _logger.LogError(ex, "Error force pushing from {Path}", repoPath); return new GitOperationResult { Success = false, Message = $"Exception: {ex.Message}" }; }
     }
 
     public async Task<GitOperationResult> DiscardChangesAsync(string repoPath, string? filePath = null)
@@ -302,6 +369,18 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
+            // 🔐 EU CRA: Verificar autorización antes de crear tag/release
+            var authResult = await CheckKeyAuthorizationAsync();
+            if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
+            {
+                _logger.LogWarning("🚫 Tag creation rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
+                return new GitOperationResult 
+                { 
+                    Success = false, 
+                    Message = $"🚫 RELEASE RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                };
+            }
+
             _logger.LogInformation("Creating tag {Tag} in {Path}: {Message}", tagName, repoPath, message);
             var escapedMessage = message.Replace("\"", "\\\"");
             var result = await RunGitCommandAsync(repoPath, $"tag -a {tagName} -m \"{escapedMessage}\"");
@@ -322,6 +401,18 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
+            // 🔐 EU CRA: Verificar autorización antes de push tags
+            var authResult = await CheckKeyAuthorizationAsync();
+            if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
+            {
+                _logger.LogWarning("🚫 Push tags rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
+                return new GitOperationResult 
+                { 
+                    Success = false, 
+                    Message = $"🚫 PUSH TAGS RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                };
+            }
+
             _logger.LogInformation("Pushing tags from {Path}", repoPath);
             var result = await RunGitCommandAsync(repoPath, "push --tags");
             
@@ -507,6 +598,553 @@ public class GitOperationsService : IGitOperationsService
         }
     }
 
+    /// <summary>
+    /// Desactiva SSH signing - quita la configuración de firma
+    /// </summary>
+    public async Task<GitOperationResult> DisableSshSigningAsync()
+    {
+        try
+        {
+            _logger.LogInformation("🔐 Disabling SSH signing...");
+
+            // Disable commit signing
+            var commitResult = await RunGitCommandAsync(".", "config --global --unset commit.gpgsign");
+            
+            // Disable tag signing
+            var tagResult = await RunGitCommandAsync(".", "config --global --unset tag.gpgsign");
+            
+            // Remove signing key configuration
+            var keyResult = await RunGitCommandAsync(".", "config --global --unset user.signingkey");
+            
+            // Reset gpg format to default (optional)
+            var formatResult = await RunGitCommandAsync(".", "config --global --unset gpg.format");
+
+            _logger.LogInformation("🔐 SSH signing disabled successfully");
+
+            return new GitOperationResult 
+            { 
+                Success = true, 
+                Message = "SSH signing disabled. Commits will no longer be signed." 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error disabling SSH signing");
+            return new GitOperationResult { Success = false, Message = $"Exception: {ex.Message}" };
+        }
+    }
+
+    /// <summary>
+    /// Valida que la identidad del usuario Git coincida con la clave SSH
+    /// Para evitar suplantación de identidad (EU CRA compliance)
+    /// </summary>
+    public async Task<IdentityValidationResult> ValidateSigningIdentityAsync()
+    {
+        var result = new IdentityValidationResult();
+
+        try
+        {
+            // Get current Git user email
+            var emailResult = await RunGitCommandAsync(".", "config --global user.email");
+            result.GitEmail = emailResult.Output?.Trim() ?? "";
+
+            // Get current Git user name
+            var nameResult = await RunGitCommandAsync(".", "config --global user.name");
+            result.GitUserName = nameResult.Output?.Trim() ?? "";
+
+            // Get signing key path
+            var signingKeyResult = await RunGitCommandAsync(".", "config --global user.signingkey");
+            var signingKeyPath = signingKeyResult.Output?.Trim() ?? "";
+            result.SigningKeyPath = signingKeyPath;
+
+            if (string.IsNullOrEmpty(signingKeyPath))
+            {
+                result.IsValid = true; // No signing configured = no identity check needed
+                result.Message = "SSH signing not configured";
+                return result;
+            }
+
+            // Normalize path and read SSH key to get email from comment
+            var normalizedPath = signingKeyPath.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            
+            if (!File.Exists(normalizedPath))
+            {
+                result.IsValid = false;
+                result.Message = $"Signing key not found: {normalizedPath}";
+                return result;
+            }
+
+            var publicKeyContent = await File.ReadAllTextAsync(normalizedPath);
+            var parts = publicKeyContent.Trim().Split(' ');
+            
+            // SSH public key format: type base64key email@comment
+            if (parts.Length >= 3)
+            {
+                result.KeyEmail = parts[^1].Trim();
+            }
+
+            // Calculate key fingerprint for display
+            if (parts.Length >= 2)
+            {
+                result.KeyFingerprint = CalculateKeyFingerprint(parts[1]);
+            }
+
+            // Validate: Git email should match SSH key email
+            if (!string.IsNullOrEmpty(result.KeyEmail) && !string.IsNullOrEmpty(result.GitEmail))
+            {
+                result.EmailsMatch = result.GitEmail.Equals(result.KeyEmail, StringComparison.OrdinalIgnoreCase);
+                
+                if (!result.EmailsMatch)
+                {
+                    result.IsValid = false;
+                    result.Message = $"⚠️ IDENTITY MISMATCH: Git email ({result.GitEmail}) doesn't match SSH key email ({result.KeyEmail}). This could indicate identity spoofing!";
+                    result.Warning = "La identidad del commit podría no coincidir con el firmante real.";
+                    _logger.LogWarning("🚨 Identity mismatch detected! Git: {GitEmail}, Key: {KeyEmail}", result.GitEmail, result.KeyEmail);
+                }
+                else
+                {
+                    result.IsValid = true;
+                    result.Message = "✅ Identity verified: Git email matches SSH key email";
+                }
+            }
+            else
+            {
+                result.IsValid = true;
+                result.Message = "Identity validation skipped (missing email in key or git config)";
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error validating signing identity");
+            result.IsValid = false;
+            result.Message = $"Error validating identity: {ex.Message}";
+            return result;
+        }
+    }
+
+    private string CalculateKeyFingerprint(string base64Key)
+    {
+        try
+        {
+            var keyBytes = Convert.FromBase64String(base64Key);
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var hashBytes = sha256.ComputeHash(keyBytes);
+            return "SHA256:" + Convert.ToBase64String(hashBytes).TrimEnd('=');
+        }
+        catch
+        {
+            return "Unknown";
+        }
+    }
+
+    #endregion
+
+    #region SSH Key Management (Authorized Keys System)
+
+    private static readonly string AuthorizedKeysFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "authorized_signing_keys.json");
+    private static readonly string AccessControlConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "access_control_config.json");
+
+    /// <summary>
+    /// Obtiene la configuración de control de acceso
+    /// </summary>
+    public async Task<AccessControlConfig> GetAccessControlConfigAsync()
+    {
+        try
+        {
+            if (!File.Exists(AccessControlConfigPath))
+            {
+                // Default: disabled (open mode)
+                return new AccessControlConfig { IsEnabled = false };
+            }
+            var json = await File.ReadAllTextAsync(AccessControlConfigPath);
+            return System.Text.Json.JsonSerializer.Deserialize<AccessControlConfig>(json) ?? new AccessControlConfig();
+        }
+        catch
+        {
+            return new AccessControlConfig { IsEnabled = false };
+        }
+    }
+
+    /// <summary>
+    /// Activa o desactiva el control de acceso por claves
+    /// </summary>
+    public async Task<GitOperationResult> SetAccessControlEnabledAsync(bool enabled)
+    {
+        try
+        {
+            var config = new AccessControlConfig 
+            { 
+                IsEnabled = enabled,
+                LastModified = DateTime.UtcNow,
+                ModifiedBy = Environment.UserName
+            };
+            var json = System.Text.Json.JsonSerializer.Serialize(config, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(AccessControlConfigPath, json);
+            
+            _logger.LogInformation("🔒 Access control {Status} by {User}", enabled ? "ENABLED" : "DISABLED", Environment.UserName);
+            return new GitOperationResult 
+            { 
+                Success = true, 
+                Message = enabled 
+                    ? "✅ Control de acceso ACTIVADO. Solo claves autorizadas pueden modificar el software." 
+                    : "⚠️ Control de acceso DESACTIVADO. Cualquiera puede modificar el software."
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error setting access control");
+            return new GitOperationResult { Success = false, Message = $"Error: {ex.Message}" };
+        }
+    }
+
+    /// <summary>
+    /// Elimina las claves SSH del disco (~/.ssh/id_ed25519*)
+    /// </summary>
+    public async Task<GitOperationResult> DeleteSshKeysAsync()
+    {
+        try
+        {
+            _logger.LogInformation("🗑️ Deleting SSH keys...");
+            
+            // First disable SSH signing
+            await DisableSshSigningAsync();
+
+            var sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+            var keysDeleted = new List<string>();
+            var keyPatterns = new[] { "id_ed25519", "id_rsa", "id_ecdsa" };
+
+            foreach (var pattern in keyPatterns)
+            {
+                var privateKeyPath = Path.Combine(sshDir, pattern);
+                var publicKeyPath = Path.Combine(sshDir, $"{pattern}.pub");
+
+                if (File.Exists(privateKeyPath))
+                {
+                    File.Delete(privateKeyPath);
+                    keysDeleted.Add(pattern);
+                }
+                if (File.Exists(publicKeyPath))
+                {
+                    File.Delete(publicKeyPath);
+                }
+            }
+
+            if (keysDeleted.Count == 0)
+            {
+                return new GitOperationResult { Success = true, Message = "No SSH keys found to delete." };
+            }
+
+            _logger.LogInformation("🗑️ Deleted SSH keys: {Keys}", string.Join(", ", keysDeleted));
+            return new GitOperationResult 
+            { 
+                Success = true, 
+                Message = $"SSH keys deleted: {string.Join(", ", keysDeleted)}. SSH signing disabled." 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting SSH keys");
+            return new GitOperationResult { Success = false, Message = $"Error: {ex.Message}" };
+        }
+    }
+
+    /// <summary>
+    /// Exporta la clave SSH actual para que el usuario pueda guardarla
+    /// </summary>
+    public async Task<SshKeyExportResult> ExportSshKeyAsync()
+    {
+        var result = new SshKeyExportResult();
+        try
+        {
+            var sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+            var privateKeyPath = Path.Combine(sshDir, "id_ed25519");
+            var publicKeyPath = Path.Combine(sshDir, "id_ed25519.pub");
+
+            if (!File.Exists(privateKeyPath) || !File.Exists(publicKeyPath))
+            {
+                result.Success = false;
+                result.Message = "No Ed25519 SSH key found to export.";
+                return result;
+            }
+
+            result.PrivateKey = await File.ReadAllTextAsync(privateKeyPath);
+            result.PublicKey = await File.ReadAllTextAsync(publicKeyPath);
+            
+            // Calculate fingerprint
+            var pubKeyParts = result.PublicKey.Trim().Split(' ');
+            if (pubKeyParts.Length >= 2)
+            {
+                result.Fingerprint = CalculateKeyFingerprint(pubKeyParts[1]);
+                if (pubKeyParts.Length >= 3)
+                {
+                    result.Email = pubKeyParts[^1].Trim();
+                }
+            }
+
+            result.Success = true;
+            result.Message = "SSH key exported successfully. Keep the private key secure!";
+            _logger.LogInformation("📤 SSH key exported for {Email}", result.Email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error exporting SSH key");
+            result.Success = false;
+            result.Message = $"Error: {ex.Message}";
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Importa una clave SSH (privada + pública) al sistema
+    /// </summary>
+    public async Task<GitOperationResult> ImportSshKeyAsync(string privateKey, string publicKey)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(privateKey) || string.IsNullOrWhiteSpace(publicKey))
+            {
+                return new GitOperationResult { Success = false, Message = "Both private and public keys are required." };
+            }
+
+            // Validate key format
+            if (!privateKey.Contains("BEGIN OPENSSH PRIVATE KEY") && !privateKey.Contains("BEGIN RSA PRIVATE KEY"))
+            {
+                return new GitOperationResult { Success = false, Message = "Invalid private key format." };
+            }
+
+            if (!publicKey.StartsWith("ssh-ed25519") && !publicKey.StartsWith("ssh-rsa"))
+            {
+                return new GitOperationResult { Success = false, Message = "Invalid public key format." };
+            }
+
+            var sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+            
+            // Create .ssh directory if needed
+            if (!Directory.Exists(sshDir))
+            {
+                Directory.CreateDirectory(sshDir);
+            }
+
+            // Determine key type
+            var keyName = publicKey.StartsWith("ssh-ed25519") ? "id_ed25519" : "id_rsa";
+            var privateKeyPath = Path.Combine(sshDir, keyName);
+            var publicKeyPath = Path.Combine(sshDir, $"{keyName}.pub");
+
+            // Check if keys already exist
+            if (File.Exists(privateKeyPath))
+            {
+                return new GitOperationResult 
+                { 
+                    Success = false, 
+                    Message = $"SSH key already exists at {privateKeyPath}. Delete existing keys first." 
+                };
+            }
+
+            // Write keys with proper permissions
+            await File.WriteAllTextAsync(privateKeyPath, privateKey.Trim() + "\n");
+            await File.WriteAllTextAsync(publicKeyPath, publicKey.Trim() + "\n");
+
+            // On Windows, we need to set proper permissions for the private key
+            // This is done automatically by OpenSSH on Windows for user-owned files
+
+            _logger.LogInformation("📥 SSH key imported: {KeyName}", keyName);
+            return new GitOperationResult 
+            { 
+                Success = true, 
+                Message = $"SSH key imported to {privateKeyPath}. Now configure signing to use it." 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error importing SSH key");
+            return new GitOperationResult { Success = false, Message = $"Error: {ex.Message}" };
+        }
+    }
+
+    /// <summary>
+    /// Obtiene la lista de claves autorizadas para modificar el software
+    /// </summary>
+    public async Task<List<AuthorizedKey>> GetAuthorizedKeysAsync()
+    {
+        try
+        {
+            if (!File.Exists(AuthorizedKeysFilePath))
+            {
+                return new List<AuthorizedKey>();
+            }
+
+            var json = await File.ReadAllTextAsync(AuthorizedKeysFilePath);
+            return System.Text.Json.JsonSerializer.Deserialize<List<AuthorizedKey>>(json) ?? new List<AuthorizedKey>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reading authorized keys");
+            return new List<AuthorizedKey>();
+        }
+    }
+
+    /// <summary>
+    /// Añade una clave a la lista de autorizados
+    /// </summary>
+    public async Task<GitOperationResult> AddAuthorizedKeyAsync(string fingerprint, string ownerName, string ownerEmail)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(fingerprint) || string.IsNullOrWhiteSpace(ownerName))
+            {
+                return new GitOperationResult { Success = false, Message = "Fingerprint and owner name are required." };
+            }
+
+            var authorizedKeys = await GetAuthorizedKeysAsync();
+            
+            // Check if already exists
+            if (authorizedKeys.Any(k => k.Fingerprint.Equals(fingerprint, StringComparison.OrdinalIgnoreCase)))
+            {
+                return new GitOperationResult { Success = false, Message = "This key is already authorized." };
+            }
+
+            authorizedKeys.Add(new AuthorizedKey
+            {
+                Fingerprint = fingerprint,
+                OwnerName = ownerName,
+                OwnerEmail = ownerEmail,
+                AuthorizedAt = DateTime.UtcNow,
+                AuthorizedBy = Environment.UserName
+            });
+
+            var json = System.Text.Json.JsonSerializer.Serialize(authorizedKeys, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(AuthorizedKeysFilePath, json);
+
+            _logger.LogInformation("✅ Authorized key added for {Owner} ({Email})", ownerName, ownerEmail);
+            return new GitOperationResult { Success = true, Message = $"Key authorized for {ownerName}." };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding authorized key");
+            return new GitOperationResult { Success = false, Message = $"Error: {ex.Message}" };
+        }
+    }
+
+    /// <summary>
+    /// Elimina una clave de la lista de autorizados
+    /// </summary>
+    public async Task<GitOperationResult> RemoveAuthorizedKeyAsync(string fingerprint)
+    {
+        try
+        {
+            var authorizedKeys = await GetAuthorizedKeysAsync();
+            var keyToRemove = authorizedKeys.FirstOrDefault(k => k.Fingerprint.Equals(fingerprint, StringComparison.OrdinalIgnoreCase));
+            
+            if (keyToRemove == null)
+            {
+                return new GitOperationResult { Success = false, Message = "Key not found in authorized list." };
+            }
+
+            authorizedKeys.Remove(keyToRemove);
+
+            var json = System.Text.Json.JsonSerializer.Serialize(authorizedKeys, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(AuthorizedKeysFilePath, json);
+
+            _logger.LogInformation("🚫 Removed authorized key for {Owner}", keyToRemove.OwnerName);
+            return new GitOperationResult { Success = true, Message = $"Key for {keyToRemove.OwnerName} removed from authorized list." };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing authorized key");
+            return new GitOperationResult { Success = false, Message = $"Error: {ex.Message}" };
+        }
+    }
+
+    /// <summary>
+    /// Verifica si la clave SSH actual está en la lista de autorizados
+    /// </summary>
+    public async Task<KeyAuthorizationResult> CheckKeyAuthorizationAsync()
+    {
+        var result = new KeyAuthorizationResult();
+        try
+        {
+            // Get current key fingerprint
+            var sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+            var publicKeyPath = Path.Combine(sshDir, "id_ed25519.pub");
+
+            if (!File.Exists(publicKeyPath))
+            {
+                result.HasKey = false;
+                result.IsAuthorized = false;
+                result.Message = "No SSH key found. Import or generate a key first.";
+                return result;
+            }
+
+            result.HasKey = true;
+            var publicKey = await File.ReadAllTextAsync(publicKeyPath);
+            var parts = publicKey.Trim().Split(' ');
+            
+            if (parts.Length >= 2)
+            {
+                result.CurrentFingerprint = CalculateKeyFingerprint(parts[1]);
+                if (parts.Length >= 3)
+                {
+                    result.CurrentKeyEmail = parts[^1].Trim();
+                }
+            }
+
+            // Get access control configuration
+            var accessConfig = await GetAccessControlConfigAsync();
+            result.AccessControlEnabled = accessConfig.IsEnabled;
+
+            // If access control is disabled, allow everyone
+            if (!accessConfig.IsEnabled)
+            {
+                result.IsAuthorized = true;
+                result.Message = "⚠️ Control de acceso DESACTIVADO. Cualquiera puede modificar el software.";
+                result.AuthorizationMode = "disabled";
+                return result;
+            }
+
+            // Check against authorized keys
+            var authorizedKeys = await GetAuthorizedKeysAsync();
+            
+            if (authorizedKeys.Count == 0)
+            {
+                // Access control enabled but no keys = block everyone (must add keys first)
+                result.IsAuthorized = false;
+                result.Message = "🚫 Control de acceso ACTIVADO pero no hay claves autorizadas. Añade claves para poder modificar.";
+                result.AuthorizationMode = "restricted";
+                return result;
+            }
+
+            var matchingKey = authorizedKeys.FirstOrDefault(k => 
+                k.Fingerprint.Equals(result.CurrentFingerprint, StringComparison.OrdinalIgnoreCase));
+
+            if (matchingKey != null)
+            {
+                result.IsAuthorized = true;
+                result.AuthorizedOwner = matchingKey.OwnerName;
+                result.AuthorizedEmail = matchingKey.OwnerEmail;
+                result.Message = $"✅ Clave autorizada para: {matchingKey.OwnerName} ({matchingKey.OwnerEmail})";
+                result.AuthorizationMode = "restricted";
+            }
+            else
+            {
+                result.IsAuthorized = false;
+                result.Message = $"🚫 ACCESO DENEGADO: Tu clave ({result.CurrentFingerprint}) no está en la lista de autorizados.";
+                result.AuthorizationMode = "restricted";
+            }
+
+            result.TotalAuthorizedKeys = authorizedKeys.Count;
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking key authorization");
+            result.IsAuthorized = false;
+            result.Message = $"Error: {ex.Message}";
+            return result;
+        }
+    }
+
     #endregion
 }
 
@@ -541,4 +1179,62 @@ public class SshKeyInfo
     public string? PrivateKeyPath { get; set; }
     public string? PublicKey { get; set; }
     public string? Email { get; set; }
+}
+
+// Identity Validation for EU CRA compliance
+public class IdentityValidationResult
+{
+    public bool IsValid { get; set; }
+    public bool EmailsMatch { get; set; }
+    public string GitEmail { get; set; } = "";
+    public string GitUserName { get; set; } = "";
+    public string KeyEmail { get; set; } = "";
+    public string SigningKeyPath { get; set; } = "";
+    public string KeyFingerprint { get; set; } = "";
+    public string Message { get; set; } = "";
+    public string? Warning { get; set; }
+}
+
+// SSH Key Export Result
+public class SshKeyExportResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public string? PrivateKey { get; set; }
+    public string? PublicKey { get; set; }
+    public string? Fingerprint { get; set; }
+    public string? Email { get; set; }
+}
+
+// Authorized Key for software modification
+public class AuthorizedKey
+{
+    public string Fingerprint { get; set; } = "";
+    public string OwnerName { get; set; } = "";
+    public string OwnerEmail { get; set; } = "";
+    public DateTime AuthorizedAt { get; set; }
+    public string AuthorizedBy { get; set; } = "";
+}
+
+// Key Authorization Check Result
+public class KeyAuthorizationResult
+{
+    public bool HasKey { get; set; }
+    public bool IsAuthorized { get; set; }
+    public bool AccessControlEnabled { get; set; }
+    public string CurrentFingerprint { get; set; } = "";
+    public string CurrentKeyEmail { get; set; } = "";
+    public string? AuthorizedOwner { get; set; }
+    public string? AuthorizedEmail { get; set; }
+    public string Message { get; set; } = "";
+    public string AuthorizationMode { get; set; } = ""; // "disabled", "restricted"
+    public int TotalAuthorizedKeys { get; set; }
+}
+
+// Access Control Configuration
+public class AccessControlConfig
+{
+    public bool IsEnabled { get; set; }
+    public DateTime LastModified { get; set; }
+    public string ModifiedBy { get; set; } = "";
 }
