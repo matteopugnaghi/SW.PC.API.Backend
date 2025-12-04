@@ -20,6 +20,9 @@ public interface IGitOperationsService
     Task<string> GetNextCalVerTagAsync(string repoPath);
     Task<GitOperationResult> CreateTagAsync(string repoPath, string tagName, string message);
     Task<GitOperationResult> PushTagsAsync(string repoPath);
+    // SSH Signing methods
+    Task<SshSigningStatus> GetSshSigningStatusAsync();
+    Task<GitOperationResult> ConfigureSshSigningAsync(string keyPath);
 }
 
 public class GitOperationsService : IGitOperationsService
@@ -335,6 +338,176 @@ public class GitOperationsService : IGitOperationsService
     }
 
     #endregion
+
+    #region SSH Signing Methods
+
+    /// <summary>
+    /// Gets the current SSH signing configuration status
+    /// </summary>
+    public async Task<SshSigningStatus> GetSshSigningStatusAsync()
+    {
+        var status = new SshSigningStatus();
+
+        try
+        {
+            // Check if Git is configured to use SSH for signing
+            var gpgFormatResult = await RunGitCommandAsync(".", "config --global gpg.format");
+            status.GpgFormat = gpgFormatResult.Output?.Trim() ?? "";
+            status.IsConfiguredForSsh = status.GpgFormat.Equals("ssh", StringComparison.OrdinalIgnoreCase);
+
+            // Get the signing key path
+            var signingKeyResult = await RunGitCommandAsync(".", "config --global user.signingkey");
+            status.SigningKeyPath = signingKeyResult.Output?.Trim() ?? "";
+
+            // Check if commit signing is enabled
+            var commitSignResult = await RunGitCommandAsync(".", "config --global commit.gpgsign");
+            status.CommitSigningEnabled = commitSignResult.Output?.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
+
+            // Check if tag signing is enabled
+            var tagSignResult = await RunGitCommandAsync(".", "config --global tag.gpgsign");
+            status.TagSigningEnabled = tagSignResult.Output?.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
+
+            // Get user email configured in git
+            var emailResult = await RunGitCommandAsync(".", "config --global user.email");
+            status.GitUserEmail = emailResult.Output?.Trim() ?? "";
+
+            // Get user name configured in git
+            var nameResult = await RunGitCommandAsync(".", "config --global user.name");
+            status.GitUserName = nameResult.Output?.Trim() ?? "";
+
+            // Check for available SSH keys
+            var sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+            status.SshKeysFound = new List<SshKeyInfo>();
+
+            if (Directory.Exists(sshDir))
+            {
+                // Look for common SSH key files
+                var keyPatterns = new[] { "id_ed25519", "id_rsa", "id_ecdsa" };
+                foreach (var pattern in keyPatterns)
+                {
+                    var privateKeyPath = Path.Combine(sshDir, pattern);
+                    var publicKeyPath = Path.Combine(sshDir, $"{pattern}.pub");
+
+                    if (File.Exists(publicKeyPath))
+                    {
+                        var keyInfo = new SshKeyInfo
+                        {
+                            Name = pattern,
+                            PublicKeyPath = publicKeyPath,
+                            PrivateKeyPath = File.Exists(privateKeyPath) ? privateKeyPath : null,
+                            Type = pattern.Contains("ed25519") ? "Ed25519" : 
+                                   pattern.Contains("ecdsa") ? "ECDSA" : "RSA"
+                        };
+
+                        // Try to read the public key
+                        try
+                        {
+                            var pubKeyContent = await File.ReadAllTextAsync(publicKeyPath);
+                            keyInfo.PublicKey = pubKeyContent.Trim();
+                            
+                            // Extract email from key comment (usually at the end)
+                            var parts = pubKeyContent.Split(' ');
+                            if (parts.Length >= 3)
+                            {
+                                keyInfo.Email = parts[^1].Trim();
+                            }
+                        }
+                        catch { }
+
+                        status.SshKeysFound.Add(keyInfo);
+                    }
+                }
+            }
+
+            status.HasSshKeys = status.SshKeysFound.Count > 0;
+            
+            // Determine if signing is fully configured
+            status.IsFullyConfigured = status.IsConfiguredForSsh && 
+                                       status.CommitSigningEnabled && 
+                                       !string.IsNullOrEmpty(status.SigningKeyPath) &&
+                                       File.Exists(status.SigningKeyPath.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)));
+
+            _logger.LogInformation("🔐 SSH Signing Status: Configured={Configured}, HasKeys={HasKeys}, FullyConfigured={FullyConfigured}",
+                status.IsConfiguredForSsh, status.HasSshKeys, status.IsFullyConfigured);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting SSH signing status");
+            status.Error = ex.Message;
+        }
+
+        return status;
+    }
+
+    /// <summary>
+    /// Configures Git to use SSH signing with the specified key
+    /// </summary>
+    public async Task<GitOperationResult> ConfigureSshSigningAsync(string keyPath)
+    {
+        try
+        {
+            _logger.LogInformation("🔐 Configuring SSH signing with key: {KeyPath}", keyPath);
+
+            // Normalize the key path
+            var normalizedPath = keyPath.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            
+            // Ensure it's the public key
+            if (!normalizedPath.EndsWith(".pub"))
+            {
+                normalizedPath += ".pub";
+            }
+
+            if (!File.Exists(normalizedPath))
+            {
+                return new GitOperationResult 
+                { 
+                    Success = false, 
+                    Message = $"SSH public key not found: {normalizedPath}" 
+                };
+            }
+
+            // Set gpg.format to ssh
+            var formatResult = await RunGitCommandAsync(".", "config --global gpg.format ssh");
+            if (!formatResult.Success)
+            {
+                return new GitOperationResult { Success = false, Message = $"Failed to set gpg.format: {formatResult.Error}" };
+            }
+
+            // Set the signing key
+            var keyResult = await RunGitCommandAsync(".", $"config --global user.signingkey \"{normalizedPath}\"");
+            if (!keyResult.Success)
+            {
+                return new GitOperationResult { Success = false, Message = $"Failed to set signing key: {keyResult.Error}" };
+            }
+
+            // Enable commit signing
+            var commitSignResult = await RunGitCommandAsync(".", "config --global commit.gpgsign true");
+            if (!commitSignResult.Success)
+            {
+                return new GitOperationResult { Success = false, Message = $"Failed to enable commit signing: {commitSignResult.Error}" };
+            }
+
+            // Enable tag signing
+            var tagSignResult = await RunGitCommandAsync(".", "config --global tag.gpgsign true");
+            if (!tagSignResult.Success)
+            {
+                return new GitOperationResult { Success = false, Message = $"Failed to enable tag signing: {tagSignResult.Error}" };
+            }
+
+            return new GitOperationResult 
+            { 
+                Success = true, 
+                Message = $"SSH signing configured successfully with key: {normalizedPath}" 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error configuring SSH signing");
+            return new GitOperationResult { Success = false, Message = $"Exception: {ex.Message}" };
+        }
+    }
+
+    #endregion
 }
 
 public class AllRepositoriesStatus { public DateTime Timestamp { get; set; } public Dictionary<string, RepositoryStatus> Repositories { get; set; } = new(); }
@@ -343,3 +516,29 @@ public class CommitInfo { public string Hash { get; set; } = ""; public string S
 public class ModifiedFile { public string Path { get; set; } = ""; public string Status { get; set; } = ""; public string StatusCode { get; set; } = ""; }
 public class GitOperationResult { public bool Success { get; set; } public string Message { get; set; } = ""; public string? Output { get; set; } }
 public class TagInfo { public string Name { get; set; } = ""; public DateTime Date { get; set; } public string Message { get; set; } = ""; }
+
+// SSH Signing Models
+public class SshSigningStatus
+{
+    public bool IsConfiguredForSsh { get; set; }
+    public bool IsFullyConfigured { get; set; }
+    public bool CommitSigningEnabled { get; set; }
+    public bool TagSigningEnabled { get; set; }
+    public string GpgFormat { get; set; } = "";
+    public string SigningKeyPath { get; set; } = "";
+    public string GitUserEmail { get; set; } = "";
+    public string GitUserName { get; set; } = "";
+    public bool HasSshKeys { get; set; }
+    public List<SshKeyInfo> SshKeysFound { get; set; } = new();
+    public string? Error { get; set; }
+}
+
+public class SshKeyInfo
+{
+    public string Name { get; set; } = "";
+    public string Type { get; set; } = "";
+    public string? PublicKeyPath { get; set; }
+    public string? PrivateKeyPath { get; set; }
+    public string? PublicKey { get; set; }
+    public string? Email { get; set; }
+}

@@ -1,145 +1,298 @@
-# SW.PC.API.Backend - ASP.NET Core Web API for 3D Model Viewer
+# SW.PC.API.Backend - Industrial SCADA/HMI Backend
 
-A C# ASP.NET Core Web API backend that serves 3D models and configuration for a React frontend 3D viewer application.
+ASP.NET Core 8.0 Web API para sistema SCADA/HMI industrial con visualización 3D, integración TwinCAT PLC y cumplimiento EU Cyber Resilience Act (CRA).
 
-## Features
-
-- **3D Model Management**: Serve GLB, GLTF, OBJ, and STL files
-- **Configuration API**: Color management and viewer settings
-- **CORS Support**: Configured for React frontend integration
-- **Swagger Documentation**: Interactive API documentation
-- **File Upload Support**: Static file serving for 3D models
-
-## API Endpoints
-
-### Models API
-- `GET /api/models` - List all available 3D models
-- `GET /api/models/{id}` - Get specific model metadata
-- `GET /api/models/{id}/download` - Download model file
-- `GET /api/models/file/{filename}` - Direct file access
-- `GET /api/models/{id}/thumbnail` - Model thumbnail (placeholder)
-
-### Configuration API
-- `GET /api/config` - Get complete application configuration
-- `POST /api/config` - Update complete configuration
-- `GET /api/config/colors` - Get color configuration only
-- `POST /api/config/colors` - Update color configuration
-- `GET /api/config/viewer` - Get viewer configuration
-
-## Project Structure
+## 🏭 Arquitectura
 
 ```
-SW.PC.API.Backend/
-├── Controllers/           # API Controllers
-│   ├── ModelsController.cs
-│   └── ConfigController.cs
-├── Services/             # Business Logic
-│   ├── ModelService.cs
-│   └── ConfigurationService.cs
-├── Models/               # Data Models
-│   ├── Model3D.cs
-│   └── AppConfiguration.cs
-├── wwwroot/              # Static Files
-│   └── models/          # 3D Model Files
-├── .vscode/             # VS Code Configuration
-│   ├── tasks.json
-│   └── launch.json
-└── Program.cs           # Application Entry Point
+PC Industrial → Backend (Port 5000) → TwinCAT PLC (ADS)
+                   ↓
+              React Frontend (Port 3001) ← SignalR Real-time
 ```
 
-## Getting Started
+**One Backend Per Industrial Installation** - Cada PC ejecuta un backend independiente gestionando un único proyecto configurado via Excel.
 
-### Prerequisites
+---
 
-- .NET 8.0 SDK
-- Visual Studio 2022 or VS Code with C# extension
+## 🚀 Inicio Rápido
 
-### Installation
-
-1. Clone or download this repository
-2. Restore NuGet packages:
-   ```powershell
-   dotnet restore
-   ```
-
-3. Build the project:
-   ```powershell
-   dotnet build
-   ```
-
-### Running the Application
-
-#### Development Mode
 ```powershell
+# Restaurar dependencias
+dotnet restore
+
+# Compilar
+dotnet build
+
+# Ejecutar
 dotnet run
-```
 
-#### Watch Mode (Auto-restart on changes)
-```powershell
+# Modo desarrollo (auto-reload)
 dotnet watch run
 ```
 
-The API will be available at:
-- HTTP: `http://localhost:5000`
-- HTTPS: `https://localhost:5001`
-- Swagger UI: `http://localhost:5000` (root path)
+**URLs:**
+- API: `http://localhost:5000`
+- Swagger: `http://localhost:5000` (raíz)
 
-### VS Code Tasks
+---
 
-Use `Ctrl+Shift+P` and type "Tasks: Run Task" to access:
-- **build** - Build the project
-- **run** - Run the application
-- **watch** - Run with file watching
-- **clean** - Clean build artifacts
-- **restore** - Restore NuGet packages
+## 📋 API Endpoints
 
-### Debugging in VS Code
+### Models API
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/models` | Lista todos los modelos 3D |
+| GET | `/api/models/{id}` | Metadata de modelo específico |
+| GET | `/api/models/{id}/download` | Descargar archivo del modelo |
+| GET | `/api/models/file/{filename}` | Acceso directo a archivo |
 
-1. Open VS Code in the project folder
-2. Install the C# extension if not already installed
-3. Press `F5` to start debugging
-4. The application will launch and open in your browser
+### Configuration API
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/config` | Configuración completa |
+| POST | `/api/config` | Actualizar configuración |
+| GET | `/api/config/colors` | Configuración de colores |
+| GET | `/api/config/viewer` | Configuración del visor |
 
-## Configuration
+### Git Management API (EU CRA Compliance)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/git/status` | Estado de todos los repositorios |
+| GET | `/api/git/status/{repo}` | Estado de repositorio específico |
+| GET | `/api/git/history/{repo}` | Historial de commits |
+| POST | `/api/git/commit/{repo}` | Crear commit |
+| POST | `/api/git/push/{repo}` | Push a remoto |
+| POST | `/api/git/commit-push/{repo}` | Commit + Push + Certificate |
+| GET | `/api/git/backup/{repo}` | Descargar ZIP backup con certificado |
+| GET | `/api/git/backup-log` | Historial de backups |
+| GET | `/api/git/deployment-certificates` | Certificados de deployment |
+| GET | `/api/git/deployment-certificates/download` | Descargar todos los certificados JSON |
 
-### CORS Settings
-The application is configured to allow requests from:
-- `http://localhost:3001` (React development server)
-- `http://localhost:3000` (Alternative React port)
+### Release Management API (CalVer)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/git/tags/{repo}` | Lista todos los tags |
+| GET | `/api/git/release-info/{repo}` | Info de release actual + sugerida |
+| POST | `/api/git/create-release/{repo}` | Crear tag CalVer + push |
 
-### Model Files
-Place your 3D model files in `wwwroot/models/` directory. Supported formats:
-- `.glb` - Binary GLTF
-- `.gltf` - JSON GLTF
-- `.obj` - Wavefront OBJ
-- `.stl` - Stereolithography
+### SSH Signing API (EU CRA)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/git/ssh-signing/status` | Estado de configuración SSH signing |
+| POST | `/api/git/ssh-signing/configure` | Configurar Git para SSH signing |
+| POST | `/api/git/ssh-signing/generate-key` | Generar nueva clave SSH Ed25519 |
 
-### Application Configuration
-Configuration is stored in `app-config.json` and includes:
-- Color management settings
-- Camera configuration
-- Lighting configuration
-- UI preferences
+### Integrity API (EU CRA)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/integrity/status` | Estado de integridad del software |
+| POST | `/api/integrity/verify` | Verificación manual de integridad |
+| POST | `/api/integrity/certificate/generate` | Generar certificado de integridad |
+| POST | `/api/integrity/certificate/download` | Descargar certificado JSON |
 
-## Testing the API
+---
 
-Use the included `SW.PC.API.Backend.http` file with VS Code REST Client extension to test all endpoints.
+## 🔐 EU Cyber Resilience Act (CRA) Compliance
 
-## Integration with React Frontend
+### Funcionalidades Implementadas
 
-The backend is designed to work with a React + Babylon.js frontend. Ensure your frontend makes requests to:
+#### 1. **Trazabilidad de Cambios**
+- Autor obligatorio en cada commit: `[Autor: Nombre] mensaje`
+- Log de todas las operaciones Git
+- Historial completo accesible
+
+#### 2. **Deployment Certificates**
+- Certificado automático en cada Push
+- Incluye: ID único, timestamp, operador, máquina, commit hash, branch
+- Hash de integridad SHA256
+- Exportable como JSON para auditoría
+
+#### 3. **Release Management (CalVer)**
+- Formato: `YYYY.MM.increment` (ej: 2025.12.01, 2025.12.02)
+- Incremento automático dentro del mes
+- Reset a .01 en nuevo mes
+- Autor obligatorio para trazabilidad
+
+#### 4. **SSH Signing (Firma Criptográfica)**
+- Detección automática de claves SSH existentes
+- Generación de clave Ed25519 si no existe
+- Configuración automática de Git para firmar commits
+- Verificación local de firmas (`git log --show-signature`)
+
+#### 5. **Software Integrity Verification**
+- Verificación automática periódica (configurable)
+- Detección de cambios no autorizados
+- Certificados de integridad firmados
+- Estado CLEAN/DIRTY por componente
+
+#### 6. **Backup con Certificado**
+- ZIP con código fuente + certificado de integridad
+- Excluye: node_modules, bin, obj, .git
+- Nombre: `backup_{repo}_{planta}_{fecha}.zip`
+- Log de backups con historial
+
+---
+
+## 🔑 SSH Signing - Guía de Configuración
+
+### Verificar si tienes clave SSH
+```powershell
+ls ~/.ssh/
 ```
-http://localhost:5000/api/models    # For model listing
-http://localhost:5000/api/config    # For configuration
+
+### Crear nueva clave (si no existe)
+```powershell
+ssh-keygen -t ed25519 -C "tu.email@empresa.com"
 ```
 
-## Development Notes
+### Configurar Git para firmar
+```powershell
+git config --global gpg.format ssh
+git config --global user.signingkey ~/.ssh/id_ed25519.pub
+git config --global commit.gpgsign true
+git config --global tag.gpgsign true
+```
 
-- The project uses ASP.NET Core 8.0 with minimal APIs
-- Swagger documentation is available at the root URL in development
-- Static file serving is enabled for the wwwroot directory
-- Logging is configured for development and production environments
+### Verificar firma de commit
+```powershell
+git log --show-signature -1
+```
 
-## License
+### Subir clave a Azure DevOps
+1. User Settings → SSH public keys
+2. Add key
+3. Pegar contenido de `~/.ssh/id_ed25519.pub`
 
-This project is part of the SW.PC software suite.
+> **Nota:** Azure DevOps acepta commits firmados pero NO muestra badge "Verified" en la UI.
+
+---
+
+## 📁 Estructura del Proyecto
+
+```
+SW.PC.API.Backend/
+├── Controllers/
+│   ├── ConfigController.cs      # Configuración de la aplicación
+│   ├── GitController.cs         # Git Management + EU CRA
+│   ├── IntegrityController.cs   # Verificación de integridad
+│   ├── ModelsController.cs      # Gestión de modelos 3D
+│   ├── PumpElementsController.cs
+│   └── StaticFilesController.cs
+├── Services/
+│   ├── GitOperationsService.cs      # Operaciones Git + SSH Signing
+│   ├── SoftwareIntegrityService.cs  # Verificación de integridad
+│   ├── MetricsService.cs            # Métricas del sistema
+│   ├── TwinCATService.cs            # Integración PLC (simulado/real)
+│   ├── ExcelConfigService.cs        # Configuración desde Excel
+│   └── ModelService.cs              # Gestión de modelos 3D
+├── Models/
+│   ├── ExcelModels.cs           # Modelos de configuración Excel
+│   ├── TwinCATModels.cs         # Modelos de variables PLC
+│   ├── Model3D.cs               # Modelo de objetos 3D
+│   └── AppConfiguration.cs      # Configuración de la app
+├── Hubs/
+│   └── ScadaHub.cs              # SignalR para tiempo real
+├── ExcelConfigs/
+│   └── ProjectConfig.xlsm       # Configuración del proyecto
+├── wwwroot/
+│   └── models/                  # Archivos de modelos 3D
+├── CRA_COMPLIANCE/              # Documentación EU CRA
+├── Program.cs                   # Entry point + DI
+├── appsettings.json            # Configuración
+└── app-config.json             # Configuración de la aplicación
+```
+
+---
+
+## ⚙️ Configuración
+
+### appsettings.json
+```json
+{
+  "TwinCAT": {
+    "AmsNetId": "127.0.0.1.1.1",
+    "Port": 851,
+    "UseSimulation": true
+  },
+  "Integrity": {
+    "VerificationIntervalSeconds": 120,
+    "AutoVerificationEnabled": true
+  }
+}
+```
+
+### CORS (Program.cs)
+Configurado para permitir:
+- `http://localhost:3000`
+- `http://localhost:3001`
+- `http://localhost:5173`
+
+### Archivos Ignorados (.gitignore)
+```
+integrity-state.json
+deployment-certificates.json
+backup-log.json
+```
+
+---
+
+## 🧪 Testing
+
+### REST Client (VS Code)
+Usa el archivo `SW.PC.API.Backend.http` con la extensión REST Client.
+
+### Ejemplos cURL
+
+```bash
+# Estado de repositorios
+curl http://localhost:5000/api/git/status
+
+# Info de release
+curl http://localhost:5000/api/git/release-info/backend
+
+# Estado SSH signing
+curl http://localhost:5000/api/git/ssh-signing/status
+
+# Verificar integridad
+curl -X POST http://localhost:5000/api/integrity/verify \
+  -H "Content-Type: application/json" \
+  -d '{"verifiedBy": "Admin"}'
+```
+
+---
+
+## 📊 Integración con Frontend
+
+El backend está diseñado para trabajar con React + Babylon.js:
+
+```javascript
+// API Base
+const API_BASE = 'http://localhost:5000';
+
+// Endpoints principales
+fetch(`${API_BASE}/api/models`);           // Modelos 3D
+fetch(`${API_BASE}/api/config`);           // Configuración
+fetch(`${API_BASE}/api/git/status`);       // Estado Git
+
+// SignalR Hub
+const connection = new signalR.HubConnectionBuilder()
+  .withUrl(`${API_BASE}/hubs/scada`)
+  .build();
+```
+
+---
+
+## 📝 Notas de Desarrollo
+
+- **TwinCAT Simulation**: Por defecto está activada la simulación PLC
+- **Database**: Temporalmente deshabilitada (EF Core culture issues)
+- **Excel Config**: Sistema de configuración via Excel implementado
+- **Multi-language**: Soporte i18next (ES/EN) en frontend
+
+---
+
+## 📜 Licencia
+
+Parte del software suite SW.PC para automatización industrial.
+
+**EU CRA Compliance**: Este software implementa los requisitos del EU Cyber Resilience Act para trazabilidad, integridad y gestión segura del ciclo de vida del software.

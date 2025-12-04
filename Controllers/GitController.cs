@@ -307,6 +307,123 @@ public class GitController : ControllerBase
 
     #endregion
 
+    #region SSH Signing Management
+
+    /// <summary>
+    /// Obtiene el estado actual de la configuración SSH Signing
+    /// </summary>
+    [HttpGet("ssh-signing/status")]
+    public async Task<ActionResult<SshSigningStatus>> GetSshSigningStatus()
+    {
+        _logger.LogInformation("🔐 Getting SSH signing status");
+        var status = await _gitService.GetSshSigningStatusAsync();
+        return Ok(status);
+    }
+
+    /// <summary>
+    /// Configura SSH signing con la clave especificada
+    /// </summary>
+    [HttpPost("ssh-signing/configure")]
+    public async Task<ActionResult<GitOperationResult>> ConfigureSshSigning([FromBody] ConfigureSshSigningRequest request)
+    {
+        if (string.IsNullOrEmpty(request.KeyPath))
+            return BadRequest(new GitOperationResult { Success = false, Message = "KeyPath is required" });
+        
+        _logger.LogInformation("🔐 Configuring SSH signing with key: {KeyPath}", request.KeyPath);
+        var result = await _gitService.ConfigureSshSigningAsync(request.KeyPath);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Genera una nueva clave SSH (Ed25519) si el usuario no tiene una
+    /// </summary>
+    [HttpPost("ssh-signing/generate-key")]
+    public async Task<ActionResult<GenerateSshKeyResult>> GenerateSshKey([FromBody] GenerateSshKeyRequest request)
+    {
+        if (string.IsNullOrEmpty(request.Email))
+            return BadRequest(new GenerateSshKeyResult { Success = false, Message = "Email is required" });
+        
+        try
+        {
+            var sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+            var keyPath = Path.Combine(sshDir, "id_ed25519");
+            var publicKeyPath = keyPath + ".pub";
+
+            // Check if key already exists
+            if (System.IO.File.Exists(publicKeyPath))
+            {
+                var existingKey = await System.IO.File.ReadAllTextAsync(publicKeyPath);
+                return Ok(new GenerateSshKeyResult 
+                { 
+                    Success = true, 
+                    Message = "SSH key already exists",
+                    KeyPath = publicKeyPath,
+                    PublicKey = existingKey.Trim(),
+                    AlreadyExisted = true
+                });
+            }
+
+            // Create .ssh directory if it doesn't exist
+            if (!Directory.Exists(sshDir))
+            {
+                Directory.CreateDirectory(sshDir);
+            }
+
+            // Generate new Ed25519 key using ssh-keygen
+            var process = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "ssh-keygen",
+                    Arguments = $"-t ed25519 -C \"{request.Email}\" -f \"{keyPath}\" -N \"\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            var output = await process.StandardOutput.ReadToEndAsync();
+            var error = await process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode != 0)
+            {
+                return BadRequest(new GenerateSshKeyResult 
+                { 
+                    Success = false, 
+                    Message = $"Failed to generate SSH key: {error}" 
+                });
+            }
+
+            // Read the generated public key
+            var publicKey = await System.IO.File.ReadAllTextAsync(publicKeyPath);
+
+            _logger.LogInformation("🔑 Generated new SSH key for {Email}", request.Email);
+
+            return Ok(new GenerateSshKeyResult
+            {
+                Success = true,
+                Message = "SSH key generated successfully",
+                KeyPath = publicKeyPath,
+                PublicKey = publicKey.Trim(),
+                AlreadyExisted = false
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating SSH key");
+            return BadRequest(new GenerateSshKeyResult 
+            { 
+                Success = false, 
+                Message = $"Exception: {ex.Message}" 
+            });
+        }
+    }
+
+    #endregion
+
     /// <summary>
     /// Genera un ZIP con el certificado de integridad + código fuente del repositorio seleccionado
     /// Para backup offline cuando no hay conexión a internet (EU CRA compliance)
@@ -640,4 +757,24 @@ public class CreateReleaseRequest
     public string? CustomTag { get; set; }  // Si está vacío, usa el sugerido
     public string? Message { get; set; } 
     public string? OperatorName { get; set; }
+}
+
+// SSH Signing models
+public class ConfigureSshSigningRequest
+{
+    public string KeyPath { get; set; } = "";
+}
+
+public class GenerateSshKeyRequest
+{
+    public string Email { get; set; } = "";
+}
+
+public class GenerateSshKeyResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public string? KeyPath { get; set; }
+    public string? PublicKey { get; set; }
+    public bool AlreadyExisted { get; set; }
 }
