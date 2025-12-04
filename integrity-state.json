@@ -1,0 +1,122 @@
+{
+  "backend": {
+    "name": "Backend",
+    "version": "dev-ae573cb",
+    "commitSha": "ae573cb",
+    "commitShaFull": "ae573cb92f947cf33c26527eea741730c1d0bd63",
+    "branch": "master",
+    "commitDate": "2025-12-03 17:56:56 \u002B0100",
+    "commitAuthor": "matteopugnaghi",
+    "commitAuthorEmail": "matte_pugnaghi@hotmail.it",
+    "commitMessage": "Backend: Timer verificacion integridad cada 2 minutos",
+    "workingDirStatus": "dirty",
+    "modifiedFiles": 7,
+    "integrity": "modified",
+    "lastVerified": "2025-12-04 10:30:24",
+    "repoPath": "C:\\Users\\mpugnaghi.AQUAFRISCH\\Documents\\Work_In_Process\\_Web\\AI test\\SW.PC.API.Backend_",
+    "isSigned": false,
+    "signatureStatus": "unsigned",
+    "signatureType": "none",
+    "signatureKeyId": "",
+    "signatureSigner": "",
+    "signatureMessage": ""
+  },
+  "frontend": {
+    "name": "Frontend",
+    "version": "dev-phase11-complete-64percent-reduction-13-g445168e",
+    "commitSha": "445168e",
+    "commitShaFull": "445168e10a8a23e991c04d6b59efb8b80d02b8d0",
+    "branch": "main",
+    "commitDate": "2025-12-03 17:56:38 \u002B0100",
+    "commitAuthor": "matteopugnaghi",
+    "commitAuthorEmail": "matte_pugnaghi@hotmail.it",
+    "commitMessage": "UI: Mejoras InfoPanel - header bonito, iconos visibles, alarmas en posicion 2",
+    "workingDirStatus": "dirty",
+    "modifiedFiles": 3,
+    "integrity": "modified",
+    "lastVerified": "2025-12-04 10:30:25",
+    "repoPath": "C:\\Users\\mpugnaghi.AQUAFRISCH\\Documents\\Work_In_Process\\_Web\\AI test\\SW.PC.REACT.Frontend\\my-3d-app",
+    "isSigned": false,
+    "signatureStatus": "unsigned",
+    "signatureType": "none",
+    "signatureKeyId": "",
+    "signatureSigner": "",
+    "signatureMessage": ""
+  },
+  "twinCatPlc": {
+    "name": "TwinCAT PLC",
+    "version": "2.4",
+    "commitSha": "e7951f4",
+    "commitShaFull": "e7951f4b45ae3060821ff6b04ac7d3e46f54d9d9",
+    "branch": "master",
+    "commitDate": "2025-12-04 10:19:58 \u002B0100",
+    "commitAuthor": "matteopugnaghi",
+    "commitAuthorEmail": "matte_pugnaghi@hotmail.it",
+    "commitMessage": "[Autor: Matteo] Test certificado",
+    "workingDirStatus": "clean",
+    "modifiedFiles": 0,
+    "integrity": "verified",
+    "lastVerified": "2025-12-04 10:30:25",
+    "repoPath": "C:\\Users\\mpugnaghi.AQUAFRISCH\\Documents\\Work_In_Process\\_AZURE\\MASTER-PROJECT.SW.PC.Twincat_3",
+    "isSigned": false,
+    "signatureStatus": "unsigned",
+    "signatureType": "none",
+    "signatureKeyId": "",
+    "signatureSigner": "",
+    "signatureMessage": ""
+  },
+  "twinCatRuntime": {
+    "name": "TwinCAT Runtime",
+    "version": "Pending connection",
+    "status": "unknown",
+    "details": ""
+  },
+  "adsClient": {
+    "name": "TwinCAT ADS Client",
+    "version": "6.0.0.0",
+    "status": "loaded",
+    "details": ""
+  },
+  "database": {
+    "name": "Database",
+    "version": "SQL Server",
+    "status": "disabled",
+    "details": "Pending configuration"
+  },
+  "lastVerificationDate": "2025-12-04 09:30:25",
+  "verifiedByAdmin": "System",
+  "systemStatus": "modified",
+  "nextVerificationTime": "2025-12-04T09:30:23Z",
+  "verificationIntervalSeconds": 120,
+  "secondsUntilNextVerification": 119,
+  "autoVerificationEnabled": true,
+  "networkStatus": {
+    "checkedAt": "2025-12-04T00:05:10Z",
+    "hasInternetConnection": null,
+    "overallSyncStatus": "unknown",
+    "backendSync": {
+      "componentName": "Backend",
+      "remoteUrl": "https://github.com/matteopugnaghi/SW.PC.API.Backend.git",
+      "status": "ahead",
+      "commitsAhead": 2,
+      "commitsBehind": 0,
+      "message": "\uD83D\uDFE0 2 commits pending push"
+    },
+    "frontendSync": {
+      "componentName": "Frontend",
+      "remoteUrl": "https://github.com/matteopugnaghi/my-3d-app.git",
+      "status": "ahead",
+      "commitsAhead": 2,
+      "commitsBehind": 0,
+      "message": "\uD83D\uDFE0 2 commits pending push"
+    },
+    "twinCatPlcSync": {
+      "componentName": "TwinCAT PLC",
+      "remoteUrl": "https://Aquafrisch@dev.azure.com/Aquafrisch/MASTER-PROJECT/_git/MASTER-PROJECT.SW.PC.Twincat_3",
+      "status": "ahead",
+      "commitsAhead": 1,
+      "commitsBehind": 0,
+      "message": "\uD83D\uDFE0 1 commits pending push"
+    }
+  }
+}

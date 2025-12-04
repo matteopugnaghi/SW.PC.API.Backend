@@ -112,6 +112,7 @@ builder.Services.AddScoped<IPumpElementService, PumpElementService>();
 builder.Services.AddSingleton<ITwinCATService, TwinCATService>();
 builder.Services.AddSingleton<IMetricsService, MetricsService>(); // ✅ Servicio de métricas
 builder.Services.AddSingleton<ISoftwareIntegrityService, SoftwareIntegrityService>(); // 🔐 Servicio de integridad
+builder.Services.AddSingleton<IGitOperationsService, GitOperationsService>(); // 🔧 Git operations service
 
 // Register Background Services
 // builder.Services.AddHostedService<PlcNotificationService>(); // Servicio legacy - reemplazado por PlcPollingService

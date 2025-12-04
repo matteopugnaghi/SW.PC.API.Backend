@@ -1,11 +1,15 @@
 using SW.PC.API.Backend.Models.Excel;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Net.NetworkInformation;
 
 namespace SW.PC.API.Backend.Services
 {
     /// <summary>
     /// 🔐 Servicio de verificación de integridad del software basado en Git
-    /// Para cumplimiento de normativas de ciberseguridad NASA/NIST
+    /// Para cumplimiento de normativas de ciberseguridad NASA/NIST y EU CRA
     /// </summary>
     public interface ISoftwareIntegrityService
     {
@@ -43,6 +47,26 @@ namespace SW.PC.API.Backend.Services
         /// Actualizar información de programación de verificación automática
         /// </summary>
         void UpdateVerificationSchedule(DateTime nextVerification, int intervalSeconds);
+
+        /// <summary>
+        /// Verificar conectividad a internet y estado de sincronización con remoto
+        /// </summary>
+        Task<NetworkSyncStatus> CheckNetworkAndSyncStatusAsync();
+
+        /// <summary>
+        /// Generar certificado de integridad firmado digitalmente
+        /// </summary>
+        Task<IntegrityCertificate> GenerateIntegrityCertificateAsync(string machineId, string operatorName);
+
+        /// <summary>
+        /// Verificar un certificado de integridad
+        /// </summary>
+        bool VerifyCertificateSignature(IntegrityCertificate certificate);
+
+        /// <summary>
+        /// Obtener rutas de repositorios Git configuradas (desde Excel)
+        /// </summary>
+        (string Backend, string Frontend, string TwinCAT) GetRepositoryPaths();
     }
 
     public class SoftwareIntegrityService : ISoftwareIntegrityService
@@ -53,6 +77,9 @@ namespace SW.PC.API.Backend.Services
 
         // Información de versiones
         private SoftwareVersionInfo _versionInfo;
+        
+        // 🔐 Archivo de persistencia para el estado de integridad
+        private readonly string _stateFilePath;
 
         // Configuración de repositorios (modificables desde Excel)
         private string _backendRepoPath;
@@ -75,7 +102,11 @@ namespace SW.PC.API.Backend.Services
 
             _twinCatPlcRepoPath = Path.GetFullPath(Path.Combine(_backendRepoPath, "..", "SW.PC.TwinCAT.PLC"));
 
-            _versionInfo = new SoftwareVersionInfo();
+            // 🔐 Ruta del archivo de persistencia de estado
+            _stateFilePath = Path.Combine(_backendRepoPath, "integrity-state.json");
+            
+            // Cargar estado guardado o crear nuevo
+            _versionInfo = LoadPersistedState() ?? new SoftwareVersionInfo();
             
             // Inicializar información Git de forma asíncrona con rutas por defecto
             _ = InitializeGitInfoAsync();
@@ -86,6 +117,14 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Configurar rutas de repositorios Git desde Excel (hoja System Config)
         /// </summary>
+        /// <summary>
+        /// Obtener rutas de repositorios Git configuradas
+        /// </summary>
+        public (string Backend, string Frontend, string TwinCAT) GetRepositoryPaths()
+        {
+            return (_backendRepoPath, _frontendRepoPath, _twinCatPlcRepoPath);
+        }
+
         public void ConfigureGitPaths(string backendPath, string frontendPath, string twinCatPlcPath)
         {
             var updated = false;
@@ -170,6 +209,80 @@ namespace SW.PC.API.Backend.Services
                 _logger.LogError(ex, "Error initializing Git info");
             }
         }
+
+        #region 🔐 PERSISTENCIA DE ESTADO
+
+        /// <summary>
+        /// Cargar estado guardado desde archivo JSON
+        /// </summary>
+        private SoftwareVersionInfo? LoadPersistedState()
+        {
+            try
+            {
+                if (File.Exists(_stateFilePath))
+                {
+                    var json = File.ReadAllText(_stateFilePath);
+                    var state = JsonSerializer.Deserialize<SoftwareVersionInfo>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    
+                    if (state != null)
+                    {
+                        _logger.LogInformation("✅ Integrity state loaded from {Path}", _stateFilePath);
+                        _logger.LogInformation("   📅 Last verification: {Date}", state.LastVerificationDate ?? "Never");
+                        _logger.LogInformation("   🌐 Last network check: {Date}", state.NetworkStatus?.CheckedAt ?? "Never");
+                        
+                        // 🔐 NO cargar NetworkStatus - el estado de red puede haber cambiado
+                        // Se verificará manualmente o cuando el usuario presione el botón
+                        // Pero SÍ mantenemos la fecha del último chequeo como referencia
+                        if (state.NetworkStatus != null)
+                        {
+                            // Marcar como "needs refresh" - mantener última fecha pero status desconocido
+                            state.NetworkStatus.HasInternetConnection = null; // null = desconocido
+                            state.NetworkStatus.OverallSyncStatus = "unknown";
+                            _logger.LogInformation("   ⚠️ Network status marked as 'unknown' - needs refresh");
+                        }
+                        
+                        return state;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Could not load persisted state from {Path}", _stateFilePath);
+            }
+            
+            return null;
+        }
+
+        /// <summary>
+        /// Guardar estado actual a archivo JSON
+        /// </summary>
+        private void SavePersistedState()
+        {
+            try
+            {
+                lock (_lock)
+                {
+                    var json = JsonSerializer.Serialize(_versionInfo, new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                    });
+                    
+                    File.WriteAllText(_stateFilePath, json);
+                }
+                
+                _logger.LogDebug("💾 Integrity state saved to {Path}", _stateFilePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Could not save integrity state to {Path}", _stateFilePath);
+            }
+        }
+
+        #endregion
 
         private string GetDatabaseVersion()
         {
@@ -478,16 +591,26 @@ namespace SW.PC.API.Backend.Services
 
             await InitializeGitInfoAsync();
 
+            bool allVerified;
             lock (_lock)
             {
-                var allVerified = _versionInfo.Backend.Integrity == "verified" &&
+                allVerified = _versionInfo.Backend.Integrity == "verified" &&
                                   _versionInfo.Frontend.Integrity == "verified";
+
+                // 🔐 Actualizar fecha de última verificación
+                _versionInfo.LastVerificationDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+                if (string.IsNullOrEmpty(_versionInfo.VerifiedByAdmin) || _versionInfo.VerifiedByAdmin == "Never")
+                {
+                    _versionInfo.VerifiedByAdmin = "System (Auto)";
+                }
 
                 _logger.LogInformation("🔐 Integrity verification complete. System status: {Status}", 
                     _versionInfo.SystemStatus);
-
-                return allVerified;
             }
+            
+            // 💾 Persistir estado después de verificación
+            SavePersistedState();
+            return allVerified;
         }
 
         public void RegisterAdminVerification(string adminUser)
@@ -496,8 +619,11 @@ namespace SW.PC.API.Backend.Services
             {
                 _logger.LogInformation("🔐 Admin verification registered by: {Admin}", adminUser);
                 _versionInfo.LastVerificationDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-                _versionInfo.VerifiedByAdmin = adminUser;
+                _versionInfo.VerifiedByAdmin = adminUser + " (Manual)";
             }
+            
+            // 💾 Persistir estado después de verificación manual
+            SavePersistedState();
         }
 
         public void UpdateDatabaseStatus(bool enabled, bool connected, string details)
@@ -541,5 +667,393 @@ namespace SW.PC.API.Backend.Services
                     _versionInfo.NextVerificationTime, intervalSeconds);
             }
         }
+
+        /// <summary>
+        /// Verificar conectividad a internet y estado de sincronización con remotos Git
+        /// </summary>
+        public async Task<NetworkSyncStatus> CheckNetworkAndSyncStatusAsync()
+        {
+            var status = new NetworkSyncStatus
+            {
+                CheckedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
+            };
+
+            // 1. Verificar conectividad a internet
+            status.HasInternetConnection = await CheckInternetConnectivityAsync();
+            
+            _logger.LogInformation("🌐 Internet connectivity: {Status}", 
+                status.HasInternetConnection == true ? "Connected" : "Offline");
+
+            // 2. Si hay internet, verificar estado de sincronización con remotos
+            if (status.HasInternetConnection == true)
+            {
+                status.BackendSync = await GetRemoteSyncStatusAsync("Backend", _backendRepoPath);
+                status.FrontendSync = await GetRemoteSyncStatusAsync("Frontend", _frontendRepoPath);
+                status.TwinCatPlcSync = await GetRemoteSyncStatusAsync("TwinCAT PLC", _twinCatPlcRepoPath);
+
+                // Calcular estado general
+                var allSynced = status.BackendSync.Status == "synced" &&
+                               status.FrontendSync.Status == "synced" &&
+                               status.TwinCatPlcSync.Status == "synced";
+
+                status.OverallSyncStatus = allSynced ? "synced" : "out-of-sync";
+            }
+            else
+            {
+                // Sin internet, marcar como desconocido
+                status.BackendSync = new RemoteSyncInfo { Status = "offline", RemoteUrl = "N/A" };
+                status.FrontendSync = new RemoteSyncInfo { Status = "offline", RemoteUrl = "N/A" };
+                status.TwinCatPlcSync = new RemoteSyncInfo { Status = "offline", RemoteUrl = "N/A" };
+                status.OverallSyncStatus = "offline";
+            }
+
+            // Actualizar en versionInfo
+            lock (_lock)
+            {
+                _versionInfo.NetworkStatus = status;
+            }
+            
+            // 💾 Persistir estado después de verificar red/sync
+            SavePersistedState();
+
+            return status;
+        }
+
+        private async Task<bool> CheckInternetConnectivityAsync()
+        {
+            var hostsToCheck = new[] { "github.com", "8.8.8.8", "1.1.1.1" };
+
+            foreach (var host in hostsToCheck)
+            {
+                try
+                {
+                    using var ping = new Ping();
+                    var reply = await ping.SendPingAsync(host, 3000); // 3 segundos timeout
+                    if (reply.Status == IPStatus.Success)
+                    {
+                        _logger.LogDebug("🌐 Ping to {Host}: {Status} ({Time}ms)", host, reply.Status, reply.RoundtripTime);
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug("🌐 Ping to {Host} failed: {Error}", host, ex.Message);
+                }
+            }
+
+            return false;
+        }
+
+        private async Task<RemoteSyncInfo> GetRemoteSyncStatusAsync(string name, string repoPath)
+        {
+            var syncInfo = new RemoteSyncInfo { ComponentName = name };
+
+            if (!Directory.Exists(repoPath))
+            {
+                syncInfo.Status = "no-repo";
+                return syncInfo;
+            }
+
+            try
+            {
+                // Obtener URL del remoto
+                var remoteUrl = await RunGitCommandAsync(repoPath, "remote get-url origin");
+                syncInfo.RemoteUrl = remoteUrl.Trim();
+
+                if (string.IsNullOrEmpty(syncInfo.RemoteUrl))
+                {
+                    syncInfo.Status = "no-remote";
+                    syncInfo.Message = "No remote configured";
+                    return syncInfo;
+                }
+
+                // Hacer fetch para actualizar referencias remotas
+                _logger.LogDebug("🔄 Fetching remote for {Name}...", name);
+                await RunGitCommandAsync(repoPath, "fetch --quiet");
+
+                // Obtener commits ahead/behind
+                var statusOutput = await RunGitCommandAsync(repoPath, "rev-list --left-right --count HEAD...@{upstream}");
+                
+                if (!string.IsNullOrWhiteSpace(statusOutput))
+                {
+                    var parts = statusOutput.Trim().Split('\t');
+                    if (parts.Length >= 2)
+                    {
+                        syncInfo.CommitsAhead = int.TryParse(parts[0], out var ahead) ? ahead : 0;
+                        syncInfo.CommitsBehind = int.TryParse(parts[1], out var behind) ? behind : 0;
+                    }
+                }
+
+                // Determinar estado
+                if (syncInfo.CommitsAhead == 0 && syncInfo.CommitsBehind == 0)
+                {
+                    syncInfo.Status = "synced";
+                    syncInfo.Message = "✅ Synchronized with remote";
+                }
+                else if (syncInfo.CommitsAhead > 0 && syncInfo.CommitsBehind == 0)
+                {
+                    syncInfo.Status = "ahead";
+                    syncInfo.Message = $"🟠 {syncInfo.CommitsAhead} commits pending push";
+                }
+                else if (syncInfo.CommitsAhead == 0 && syncInfo.CommitsBehind > 0)
+                {
+                    syncInfo.Status = "behind";
+                    syncInfo.Message = $"🔴 {syncInfo.CommitsBehind} commits behind remote";
+                }
+                else
+                {
+                    syncInfo.Status = "diverged";
+                    syncInfo.Message = $"⚠️ Diverged: {syncInfo.CommitsAhead} ahead, {syncInfo.CommitsBehind} behind";
+                }
+
+                _logger.LogInformation("🔄 {Name} sync status: {Status} (ahead: {Ahead}, behind: {Behind})",
+                    name, syncInfo.Status, syncInfo.CommitsAhead, syncInfo.CommitsBehind);
+            }
+            catch (Exception ex)
+            {
+                syncInfo.Status = "error";
+                syncInfo.Message = $"Error checking sync: {ex.Message}";
+                _logger.LogWarning(ex, "Error checking sync status for {Name}", name);
+            }
+
+            return syncInfo;
+        }
+
+        /// <summary>
+        /// Genera un certificado de integridad firmado digitalmente
+        /// Para uso offline y auditorías EU CRA
+        /// </summary>
+        public async Task<IntegrityCertificate> GenerateIntegrityCertificateAsync(string machineId, string operatorName)
+        {
+            _logger.LogInformation("📜 Generating integrity certificate for machine: {MachineId}", machineId);
+
+            // Asegurar que tenemos la última información
+            await VerifyAllIntegrityAsync();
+
+            var certificate = new IntegrityCertificate
+            {
+                CertificateId = Guid.NewGuid().ToString(),
+                Version = "1.0",
+                GeneratedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                MachineId = machineId,
+                MachineName = Environment.MachineName,
+                OperatorName = operatorName,
+                OperatingSystem = Environment.OSVersion.ToString()
+            };
+
+            // Añadir información de componentes
+            lock (_lock)
+            {
+                certificate.Components = new List<CertificateComponent>
+                {
+                    CreateCertificateComponent(_versionInfo.Backend),
+                    CreateCertificateComponent(_versionInfo.Frontend),
+                    CreateCertificateComponent(_versionInfo.TwinCatPlc)
+                };
+
+                // Añadir info de runtime
+                certificate.RuntimeInfo = new CertificateRuntimeInfo
+                {
+                    TwinCatVersion = _versionInfo.TwinCatRuntime?.Version ?? "Unknown",
+                    TwinCatStatus = _versionInfo.TwinCatRuntime?.Status ?? "unknown",
+                    AdsClientVersion = _versionInfo.AdsClient?.Version ?? "Unknown",
+                    DatabaseStatus = _versionInfo.Database?.Status ?? "unknown"
+                };
+
+                // Estado general
+                certificate.OverallStatus = _versionInfo.SystemStatus == "clean" ? "VERIFIED" :
+                                           _versionInfo.SystemStatus == "modified" ? "MODIFIED" : "UNKNOWN";
+            }
+
+            // Calcular hash del contenido (sin firma)
+            certificate.ContentHash = CalculateCertificateContentHash(certificate);
+
+            // Firmar el certificado
+            certificate.Signature = SignCertificate(certificate);
+            certificate.SignatureAlgorithm = "HMAC-SHA256";
+            certificate.SignedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+
+            _logger.LogInformation("📜 Certificate generated: {Id}, Status: {Status}", 
+                certificate.CertificateId, certificate.OverallStatus);
+
+            return certificate;
+        }
+
+        private CertificateComponent CreateCertificateComponent(GitVersionComponent git)
+        {
+            return new CertificateComponent
+            {
+                Name = git.Name,
+                Version = git.Version,
+                CommitSha = git.CommitShaFull,
+                CommitShort = git.CommitSha,
+                Branch = git.Branch,
+                CommitDate = git.CommitDate,
+                CommitAuthor = git.CommitAuthor,
+                CommitAuthorEmail = git.CommitAuthorEmail,
+                WorkingDirStatus = git.WorkingDirStatus,
+                ModifiedFiles = git.ModifiedFiles,
+                Integrity = git.Integrity,
+                IsSigned = git.IsSigned,
+                SignatureStatus = git.SignatureStatus,
+                RepoPath = git.RepoPath
+            };
+        }
+
+        private string CalculateCertificateContentHash(IntegrityCertificate cert)
+        {
+            // Crear un string con los datos importantes (sin firma)
+            var contentBuilder = new StringBuilder();
+            contentBuilder.Append(cert.CertificateId);
+            contentBuilder.Append(cert.GeneratedAt);
+            contentBuilder.Append(cert.MachineId);
+            contentBuilder.Append(cert.MachineName);
+            contentBuilder.Append(cert.OperatorName);
+
+            foreach (var comp in cert.Components)
+            {
+                contentBuilder.Append(comp.Name);
+                contentBuilder.Append(comp.CommitSha);
+                contentBuilder.Append(comp.WorkingDirStatus);
+                contentBuilder.Append(comp.Integrity);
+            }
+
+            // Calcular SHA256
+            using var sha256 = SHA256.Create();
+            var bytes = Encoding.UTF8.GetBytes(contentBuilder.ToString());
+            var hash = sha256.ComputeHash(bytes);
+            return Convert.ToBase64String(hash);
+        }
+
+        private string SignCertificate(IntegrityCertificate cert)
+        {
+            // Usar una clave secreta para HMAC (en producción, usar certificado X.509 o HSM)
+            // La clave debería estar en configuración segura o Azure Key Vault
+            var secretKey = _configuration["IntegrityCertificate:SigningKey"] 
+                ?? "AQUAFRISCH-CRA-INTEGRITY-KEY-2025-CHANGE-IN-PRODUCTION";
+
+            var dataToSign = cert.ContentHash + cert.CertificateId + cert.GeneratedAt;
+            
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secretKey));
+            var signatureBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(dataToSign));
+            return Convert.ToBase64String(signatureBytes);
+        }
+
+        /// <summary>
+        /// Verifica la firma de un certificado de integridad
+        /// </summary>
+        public bool VerifyCertificateSignature(IntegrityCertificate certificate)
+        {
+            try
+            {
+                var secretKey = _configuration["IntegrityCertificate:SigningKey"] 
+                    ?? "AQUAFRISCH-CRA-INTEGRITY-KEY-2025-CHANGE-IN-PRODUCTION";
+
+                var dataToSign = certificate.ContentHash + certificate.CertificateId + certificate.GeneratedAt;
+                
+                using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secretKey));
+                var expectedSignature = Convert.ToBase64String(
+                    hmac.ComputeHash(Encoding.UTF8.GetBytes(dataToSign)));
+
+                var isValid = certificate.Signature == expectedSignature;
+                
+                _logger.LogInformation("📜 Certificate {Id} signature verification: {Result}", 
+                    certificate.CertificateId, isValid ? "VALID" : "INVALID");
+
+                return isValid;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error verifying certificate signature");
+                return false;
+            }
+        }
     }
+
+    #region Network and Certificate Models
+
+    /// <summary>
+    /// Estado de conectividad y sincronización con remotos
+    /// </summary>
+    public class NetworkSyncStatus
+    {
+        public string CheckedAt { get; set; } = "";
+        public bool? HasInternetConnection { get; set; } // null = desconocido, true = online, false = offline
+        public string OverallSyncStatus { get; set; } = "unknown"; // synced, out-of-sync, offline, unknown
+        public RemoteSyncInfo BackendSync { get; set; } = new();
+        public RemoteSyncInfo FrontendSync { get; set; } = new();
+        public RemoteSyncInfo TwinCatPlcSync { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Información de sincronización con remoto para un componente
+    /// </summary>
+    public class RemoteSyncInfo
+    {
+        public string ComponentName { get; set; } = "";
+        public string RemoteUrl { get; set; } = "";
+        public string Status { get; set; } = "unknown"; // synced, ahead, behind, diverged, no-remote, offline, error
+        public int CommitsAhead { get; set; }
+        public int CommitsBehind { get; set; }
+        public string Message { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Certificado de integridad del software - Para auditorías EU CRA
+    /// </summary>
+    public class IntegrityCertificate
+    {
+        public string CertificateId { get; set; } = "";
+        public string Version { get; set; } = "1.0";
+        public string GeneratedAt { get; set; } = "";
+        public string MachineId { get; set; } = "";
+        public string MachineName { get; set; } = "";
+        public string OperatorName { get; set; } = "";
+        public string OperatingSystem { get; set; } = "";
+        
+        public List<CertificateComponent> Components { get; set; } = new();
+        public CertificateRuntimeInfo RuntimeInfo { get; set; } = new();
+        
+        public string OverallStatus { get; set; } = ""; // VERIFIED, MODIFIED, UNKNOWN
+        public string ContentHash { get; set; } = "";
+        
+        // Firma digital
+        public string Signature { get; set; } = "";
+        public string SignatureAlgorithm { get; set; } = "";
+        public string SignedAt { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Componente dentro del certificado
+    /// </summary>
+    public class CertificateComponent
+    {
+        public string Name { get; set; } = "";
+        public string Version { get; set; } = "";
+        public string CommitSha { get; set; } = "";
+        public string CommitShort { get; set; } = "";
+        public string Branch { get; set; } = "";
+        public string CommitDate { get; set; } = "";
+        public string CommitAuthor { get; set; } = "";
+        public string CommitAuthorEmail { get; set; } = "";
+        public string WorkingDirStatus { get; set; } = "";
+        public int ModifiedFiles { get; set; }
+        public string Integrity { get; set; } = "";
+        public bool IsSigned { get; set; }
+        public string SignatureStatus { get; set; } = "";
+        public string RepoPath { get; set; } = "";
+    }
+
+    /// <summary>
+    /// Información de runtime en el certificado
+    /// </summary>
+    public class CertificateRuntimeInfo
+    {
+        public string TwinCatVersion { get; set; } = "";
+        public string TwinCatStatus { get; set; } = "";
+        public string AdsClientVersion { get; set; } = "";
+        public string DatabaseStatus { get; set; } = "";
+    }
+
+    #endregion
 }

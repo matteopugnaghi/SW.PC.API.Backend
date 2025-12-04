@@ -504,6 +504,10 @@ namespace SW.PC.API.Backend.Models.Excel
         
         /// <summary>Indica si la verificación automática está activa</summary>
         public bool AutoVerificationEnabled { get; set; } = true;
+
+        // ===== ESTADO DE RED Y SINCRONIZACIÓN CON REMOTO =====
+        /// <summary>Estado de conectividad y sincronización con repositorios remotos</summary>
+        public SW.PC.API.Backend.Services.NetworkSyncStatus? NetworkStatus { get; set; }
     }
 
     /// <summary>
