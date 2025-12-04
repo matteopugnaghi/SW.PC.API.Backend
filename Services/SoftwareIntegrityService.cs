@@ -335,12 +335,14 @@ namespace SW.PC.API.Backend.Services
                 var authorTask = RunGitCommandAsync(repoPath, "log -1 --format=%an");
                 var authorEmailTask = RunGitCommandAsync(repoPath, "log -1 --format=%ae");
                 var messageTask = RunGitCommandAsync(repoPath, "log -1 --format=%s");
-                // Verificación de firma GPG/SSH
-                var signatureTask = RunGitCommandAsync(repoPath, "log -1 --format=%G? %GS %GK");
+                // Verificación de firma GPG/SSH - usar formato separado para evitar problemas
+                var signatureCodeTask = RunGitCommandAsync(repoPath, "log -1 --format=%G?");
+                var signatureSignerTask = RunGitCommandAsync(repoPath, "log -1 --format=%GS");
+                var signatureKeyTask = RunGitCommandAsync(repoPath, "log -1 --format=%GK");
                 // Obtener último tag CalVer con fecha
                 var latestTagTask = RunGitCommandAsync(repoPath, "tag --sort=-version:refname --format=%(refname:short)|%(creatordate:short) -l \"20*\"");
 
-                await Task.WhenAll(shaTask, shaShortTask, branchTask, describeTask, statusTask, dateTask, authorTask, authorEmailTask, messageTask, signatureTask, latestTagTask);
+                await Task.WhenAll(shaTask, shaShortTask, branchTask, describeTask, statusTask, dateTask, authorTask, authorEmailTask, messageTask, signatureCodeTask, signatureSignerTask, signatureKeyTask, latestTagTask);
 
                 component.CommitShaFull = shaTask.Result.Trim();
                 component.CommitSha = shaShortTask.Result.Trim();
@@ -352,8 +354,13 @@ namespace SW.PC.API.Backend.Services
                 component.CommitMessage = messageTask.Result.Trim();
                 component.LastVerified = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-                // Parsear información de firma
-                ParseSignatureInfo(component, signatureTask.Result.Trim());
+                // Parsear información de firma (comandos separados para evitar problemas de formato)
+                var sigCode = signatureCodeTask.Result.Trim();
+                var sigSigner = signatureSignerTask.Result.Trim();
+                var sigKey = signatureKeyTask.Result.Trim();
+                _logger.LogInformation("🔐 {Name} Signature raw: Code=[{Code}] Signer=[{Signer}] Key=[{Key}]", component.Name, sigCode, sigSigner, sigKey);
+                var signatureOutput = $"{sigCode} {sigSigner} {sigKey}".Trim();
+                ParseSignatureInfo(component, signatureOutput);
 
                 // Parsear último release CalVer
                 var tagOutput = latestTagTask.Result.Trim();
@@ -430,17 +437,22 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         private void ParseSignatureInfo(GitVersionComponent component, string signatureOutput)
         {
+            _logger.LogInformation("🔍 ParseSignatureInfo input: [{Output}]", signatureOutput);
+            
             if (string.IsNullOrWhiteSpace(signatureOutput))
             {
                 component.SignatureStatus = "unsigned";
                 component.IsSigned = false;
+                _logger.LogWarning("🔓 {Name}: No signature output - marking as unsigned", component.Name);
                 return;
             }
 
             var parts = signatureOutput.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
-            var signatureCode = parts.Length > 0 ? parts[0] : "N";
-            var signer = parts.Length > 1 ? parts[1] : "";
-            var keyId = parts.Length > 2 ? parts[2] : "";
+            var signatureCode = parts.Length > 0 ? parts[0].Trim() : "N";
+            var signer = parts.Length > 1 ? parts[1].Trim() : "";
+            var keyId = parts.Length > 2 ? parts[2].Trim() : "";
+            
+            _logger.LogInformation("🔍 Parsed: Code=[{Code}], Signer=[{Signer}], KeyId=[{KeyId}]", signatureCode, signer, keyId);
 
             component.SignatureKeyId = keyId;
             component.SignatureSigner = signer;
@@ -527,6 +539,11 @@ namespace SW.PC.API.Backend.Services
                         CreateNoWindow = true
                     }
                 };
+                
+                // Asegurar que Git tenga acceso a HOME para la configuración de firma SSH
+                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                process.StartInfo.EnvironmentVariables["HOME"] = userProfile;
+                process.StartInfo.EnvironmentVariables["USERPROFILE"] = userProfile;
 
                 process.Start();
                 var output = await process.StandardOutput.ReadToEndAsync();
