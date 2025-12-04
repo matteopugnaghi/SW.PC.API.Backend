@@ -175,14 +175,18 @@ namespace SW.PC.API.Backend.Services
                     _versionInfo.Frontend = frontendTask.Result;
                     _versionInfo.TwinCatPlc = plcTask.Result;
 
-                    // Inicializar info de runtime con valores por defecto
-                    _versionInfo.TwinCatRuntime = new RuntimeVersionInfo
+                    // Inicializar info de runtime con valores por defecto SOLO si no están ya configurados
+                    if (_versionInfo.TwinCatRuntime == null || _versionInfo.TwinCatRuntime.Status == "unknown")
                     {
-                        Name = "TwinCAT Runtime",
-                        Version = "Pending connection",
-                        Status = "unknown"
-                    };
+                        _versionInfo.TwinCatRuntime = new RuntimeVersionInfo
+                        {
+                            Name = "TwinCAT Runtime",
+                            Version = "Pending connection",
+                            Status = "unknown"
+                        };
+                    }
 
+                    // AdsClient siempre se puede actualizar con la versión de la librería
                     _versionInfo.AdsClient = new RuntimeVersionInfo
                     {
                         Name = "TwinCAT ADS Client",
@@ -190,13 +194,16 @@ namespace SW.PC.API.Backend.Services
                         Status = "loaded"
                     };
 
-                    _versionInfo.Database = new RuntimeVersionInfo
+                    if (_versionInfo.Database == null || _versionInfo.Database.Status == "unknown")
                     {
-                        Name = "Database",
-                        Version = "SQL Server",
-                        Status = "disabled", // Por defecto deshabilitado, se actualiza desde Excel
-                        Details = "Pending configuration"
-                    };
+                        _versionInfo.Database = new RuntimeVersionInfo
+                        {
+                            Name = "Database",
+                            Version = "SQL Server",
+                            Status = "disabled", // Por defecto deshabilitado, se actualiza desde Excel
+                            Details = "Pending configuration"
+                        };
+                    }
 
                     // Calcular estado general del sistema
                     UpdateSystemStatus();
