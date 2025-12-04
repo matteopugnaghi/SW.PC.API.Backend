@@ -102,3 +102,8 @@ _ReSharper*/
 
 # JetBrains Rider
 *.sln.iml
+
+# Runtime state files (change constantly)
+integrity-state.json
+deployment-certificates.json
+backup-log.json
