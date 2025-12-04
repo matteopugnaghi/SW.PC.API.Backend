@@ -14,6 +14,12 @@ public interface IGitOperationsService
     Task<GitOperationResult> RevertToCommitAsync(string repoPath, string commitHash);
     Task<List<ModifiedFile>> GetModifiedFilesAsync(string repoPath);
     (string Backend, string Frontend, string TwinCAT) GetRepoPaths();
+    // Tag/Release methods
+    Task<List<TagInfo>> GetTagsAsync(string repoPath);
+    Task<string> GetLatestTagAsync(string repoPath);
+    Task<string> GetNextCalVerTagAsync(string repoPath);
+    Task<GitOperationResult> CreateTagAsync(string repoPath, string tagName, string message);
+    Task<GitOperationResult> PushTagsAsync(string repoPath);
 }
 
 public class GitOperationsService : IGitOperationsService
@@ -205,6 +211,130 @@ public class GitOperationsService : IGitOperationsService
     }
 
     private static string ParseGitStatus(string code) => code switch { "M" => "Modified", "A" => "Added", "D" => "Deleted", "R" => "Renamed", "C" => "Copied", "U" => "Unmerged", "?" => "Untracked", "!" => "Ignored", _ => code };
+
+    #region Tag/Release Methods (CalVer: YYYY.MM.increment)
+
+    public async Task<List<TagInfo>> GetTagsAsync(string repoPath)
+    {
+        var tags = new List<TagInfo>();
+        try
+        {
+            // Get tags with date and message
+            var result = await RunGitCommandAsync(repoPath, "tag -l --format=%(refname:short)|%(creatordate:iso)|%(subject)");
+            if (result.Success && !string.IsNullOrEmpty(result.Output))
+            {
+                foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var parts = line.Split('|');
+                    if (parts.Length >= 1)
+                    {
+                        tags.Add(new TagInfo
+                        {
+                            Name = parts[0],
+                            Date = parts.Length > 1 && DateTime.TryParse(parts[1], out var date) ? date : DateTime.MinValue,
+                            Message = parts.Length > 2 ? parts[2] : ""
+                        });
+                    }
+                }
+            }
+        }
+        catch (Exception ex) { _logger.LogError(ex, "Error getting tags for {Path}", repoPath); }
+        return tags.OrderByDescending(t => t.Name).ToList();
+    }
+
+    public async Task<string> GetLatestTagAsync(string repoPath)
+    {
+        try
+        {
+            var result = await RunGitCommandAsync(repoPath, "describe --tags --abbrev=0");
+            if (result.Success && !string.IsNullOrEmpty(result.Output))
+                return result.Output.Trim();
+        }
+        catch { }
+        return "";
+    }
+
+    /// <summary>
+    /// Generates next CalVer tag: YYYY.MM.increment
+    /// If current month has no tags, starts at .01
+    /// If current month has tags, increments the last number
+    /// </summary>
+    public async Task<string> GetNextCalVerTagAsync(string repoPath)
+    {
+        var now = DateTime.Now;
+        var yearMonth = $"{now.Year}.{now.Month:D2}";
+        
+        try
+        {
+            var tags = await GetTagsAsync(repoPath);
+            var currentMonthTags = tags
+                .Where(t => t.Name.StartsWith(yearMonth))
+                .Select(t => t.Name)
+                .OrderByDescending(t => t)
+                .ToList();
+
+            if (currentMonthTags.Count == 0)
+            {
+                return $"{yearMonth}.01";
+            }
+
+            // Get the highest increment for current month
+            var latestTag = currentMonthTags.First();
+            var parts = latestTag.Split('.');
+            if (parts.Length >= 3 && int.TryParse(parts[2], out var increment))
+            {
+                return $"{yearMonth}.{(increment + 1):D2}";
+            }
+
+            return $"{yearMonth}.01";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating next CalVer tag");
+            return $"{yearMonth}.01";
+        }
+    }
+
+    public async Task<GitOperationResult> CreateTagAsync(string repoPath, string tagName, string message)
+    {
+        try
+        {
+            _logger.LogInformation("Creating tag {Tag} in {Path}: {Message}", tagName, repoPath, message);
+            var escapedMessage = message.Replace("\"", "\\\"");
+            var result = await RunGitCommandAsync(repoPath, $"tag -a {tagName} -m \"{escapedMessage}\"");
+            
+            if (result.Success)
+                return new GitOperationResult { Success = true, Message = $"Tag '{tagName}' created successfully", Output = result.Output };
+            
+            return new GitOperationResult { Success = false, Message = $"Failed to create tag: {result.Error}" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating tag {Tag} in {Path}", tagName, repoPath);
+            return new GitOperationResult { Success = false, Message = $"Exception: {ex.Message}" };
+        }
+    }
+
+    public async Task<GitOperationResult> PushTagsAsync(string repoPath)
+    {
+        try
+        {
+            _logger.LogInformation("Pushing tags from {Path}", repoPath);
+            var result = await RunGitCommandAsync(repoPath, "push --tags");
+            
+            if (result.Success)
+                return new GitOperationResult { Success = true, Message = "Tags pushed successfully", Output = result.Output };
+            
+            return new GitOperationResult { Success = false, Message = $"Failed to push tags: {result.Error}" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error pushing tags from {Path}", repoPath);
+            return new GitOperationResult { Success = false, Message = $"Exception: {ex.Message}" };
+        }
+    }
+
+    #endregion
 }
 
 public class AllRepositoriesStatus { public DateTime Timestamp { get; set; } public Dictionary<string, RepositoryStatus> Repositories { get; set; } = new(); }
@@ -212,3 +342,4 @@ public class RepositoryStatus { public string Path { get; set; } = ""; public bo
 public class CommitInfo { public string Hash { get; set; } = ""; public string ShortHash { get; set; } = ""; public string Message { get; set; } = ""; public DateTime Date { get; set; } public string Author { get; set; } = ""; }
 public class ModifiedFile { public string Path { get; set; } = ""; public string Status { get; set; } = ""; public string StatusCode { get; set; } = ""; }
 public class GitOperationResult { public bool Success { get; set; } public string Message { get; set; } = ""; public string? Output { get; set; } }
+public class TagInfo { public string Name { get; set; } = ""; public DateTime Date { get; set; } public string Message { get; set; } = ""; }

@@ -337,8 +337,10 @@ namespace SW.PC.API.Backend.Services
                 var messageTask = RunGitCommandAsync(repoPath, "log -1 --format=%s");
                 // Verificación de firma GPG/SSH
                 var signatureTask = RunGitCommandAsync(repoPath, "log -1 --format=%G? %GS %GK");
+                // Obtener último tag CalVer con fecha
+                var latestTagTask = RunGitCommandAsync(repoPath, "tag --sort=-version:refname --format=%(refname:short)|%(creatordate:short) -l \"20*\"");
 
-                await Task.WhenAll(shaTask, shaShortTask, branchTask, describeTask, statusTask, dateTask, authorTask, authorEmailTask, messageTask, signatureTask);
+                await Task.WhenAll(shaTask, shaShortTask, branchTask, describeTask, statusTask, dateTask, authorTask, authorEmailTask, messageTask, signatureTask, latestTagTask);
 
                 component.CommitShaFull = shaTask.Result.Trim();
                 component.CommitSha = shaShortTask.Result.Trim();
@@ -352,6 +354,23 @@ namespace SW.PC.API.Backend.Services
 
                 // Parsear información de firma
                 ParseSignatureInfo(component, signatureTask.Result.Trim());
+
+                // Parsear último release CalVer
+                var tagOutput = latestTagTask.Result.Trim();
+                if (!string.IsNullOrEmpty(tagOutput))
+                {
+                    var firstLine = tagOutput.Split('\n').FirstOrDefault()?.Trim();
+                    if (!string.IsNullOrEmpty(firstLine) && firstLine.Contains("|"))
+                    {
+                        var parts = firstLine.Split('|');
+                        component.LatestRelease = parts[0].Trim();
+                        component.LatestReleaseDate = parts.Length > 1 ? parts[1].Trim() : "";
+                    }
+                    else if (!string.IsNullOrEmpty(firstLine))
+                    {
+                        component.LatestRelease = firstLine;
+                    }
+                }
 
                 // Analizar estado del working directory
                 var statusOutput = statusTask.Result.Trim();

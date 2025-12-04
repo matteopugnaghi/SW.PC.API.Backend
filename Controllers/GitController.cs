@@ -207,6 +207,106 @@ public class GitController : ControllerBase
         return Ok(results);
     }
 
+    #region Tag/Release Management (CalVer: YYYY.MM.increment)
+
+    /// <summary>
+    /// Obtiene todos los tags de un repositorio
+    /// </summary>
+    [HttpGet("tags/{repoName}")]
+    public async Task<ActionResult<List<TagInfo>>> GetTags(string repoName)
+    {
+        var repoPaths = GetRepoPaths();
+        if (!repoPaths.TryGetValue(repoName.ToLower(), out var repoPath) || string.IsNullOrEmpty(repoPath))
+            return NotFound($"Repository '{repoName}' not found");
+        
+        var tags = await _gitService.GetTagsAsync(repoPath);
+        return Ok(tags);
+    }
+
+    /// <summary>
+    /// Obtiene información de release: último tag y siguiente tag sugerido (CalVer)
+    /// </summary>
+    [HttpGet("release-info/{repoName}")]
+    public async Task<ActionResult<ReleaseInfo>> GetReleaseInfo(string repoName)
+    {
+        var repoPaths = GetRepoPaths();
+        if (!repoPaths.TryGetValue(repoName.ToLower(), out var repoPath) || string.IsNullOrEmpty(repoPath))
+            return NotFound($"Repository '{repoName}' not found");
+        
+        var latestTag = await _gitService.GetLatestTagAsync(repoPath);
+        var nextTag = await _gitService.GetNextCalVerTagAsync(repoPath);
+        var tags = await _gitService.GetTagsAsync(repoPath);
+        
+        return Ok(new ReleaseInfo
+        {
+            LatestTag = latestTag,
+            NextSuggestedTag = nextTag,
+            TotalTags = tags.Count,
+            RecentTags = tags.Take(5).ToList()
+        });
+    }
+
+    /// <summary>
+    /// Crea un nuevo tag/release con formato CalVer (YYYY.MM.increment)
+    /// </summary>
+    [HttpPost("create-release/{repoName}")]
+    public async Task<ActionResult<GitOperationResult>> CreateRelease(string repoName, [FromBody] CreateReleaseRequest request)
+    {
+        var repoPaths = GetRepoPaths();
+        if (!repoPaths.TryGetValue(repoName.ToLower(), out var repoPath) || string.IsNullOrEmpty(repoPath))
+            return NotFound($"Repository '{repoName}' not found");
+        
+        // Use suggested tag or custom tag
+        var tagName = string.IsNullOrEmpty(request.CustomTag) 
+            ? await _gitService.GetNextCalVerTagAsync(repoPath) 
+            : request.CustomTag;
+        
+        var message = string.IsNullOrEmpty(request.Message) 
+            ? $"Release {tagName}" 
+            : $"Release {tagName}: {request.Message}";
+        
+        if (!string.IsNullOrEmpty(request.OperatorName))
+            message = $"[Autor: {request.OperatorName}] {message}";
+        
+        _logger.LogInformation("📦 Creating release {Tag} for {Repo} by {Operator}", tagName, repoName, request.OperatorName ?? "System");
+        
+        // Create tag
+        var createResult = await _gitService.CreateTagAsync(repoPath, tagName, message);
+        if (!createResult.Success)
+            return BadRequest(createResult);
+        
+        // Push tag to remote
+        var pushResult = await _gitService.PushTagsAsync(repoPath);
+        if (!pushResult.Success)
+            return Ok(new GitOperationResult 
+            { 
+                Success = true, 
+                Message = $"Tag '{tagName}' created locally but failed to push: {pushResult.Message}. Push manually later." 
+            });
+        
+        // Log the release
+        await LogReleaseAsync(repoName, tagName, request.OperatorName ?? "System", message);
+        
+        return Ok(new GitOperationResult 
+        { 
+            Success = true, 
+            Message = $"Release '{tagName}' created and pushed successfully!" 
+        });
+    }
+
+    private async Task LogReleaseAsync(string repoName, string tagName, string operatorName, string message)
+    {
+        // Reutilizamos el log de deployment certificates
+        var repoPaths = GetRepoPaths();
+        var repoPath = repoPaths.GetValueOrDefault(repoName.ToLower()) ?? "";
+        if (!string.IsNullOrEmpty(repoPath))
+        {
+            await GenerateDeploymentCertificateAsync(repoName, repoPath, operatorName, $"Release {tagName}: {message}");
+        }
+    }
+
+    #endregion
+
     /// <summary>
     /// Genera un ZIP con el certificado de integridad + código fuente del repositorio seleccionado
     /// Para backup offline cuando no hay conexión a internet (EU CRA compliance)
@@ -525,3 +625,19 @@ public class GitController : ControllerBase
 public class CommitRequest { public string Message { get; set; } = ""; }
 public class DiscardRequest { public string? FilePath { get; set; } }
 public class RevertRequest { public string CommitHash { get; set; } = ""; }
+
+// Release/Tag models
+public class ReleaseInfo 
+{ 
+    public string LatestTag { get; set; } = ""; 
+    public string NextSuggestedTag { get; set; } = ""; 
+    public int TotalTags { get; set; }
+    public List<TagInfo> RecentTags { get; set; } = new();
+}
+
+public class CreateReleaseRequest 
+{ 
+    public string? CustomTag { get; set; }  // Si está vacío, usa el sugerido
+    public string? Message { get; set; } 
+    public string? OperatorName { get; set; }
+}

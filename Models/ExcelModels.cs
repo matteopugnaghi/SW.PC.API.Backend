@@ -576,6 +576,14 @@ namespace SW.PC.API.Backend.Models.Excel
 
         /// <summary>Mensaje de verificación de firma</summary>
         public string SignatureMessage { get; set; } = "";
+
+        // === RELEASE VERSION (CalVer) ===
+        
+        /// <summary>Última versión release (tag CalVer, ej: 2025.12.01)</summary>
+        public string LatestRelease { get; set; } = "";
+
+        /// <summary>Fecha del último release</summary>
+        public string LatestReleaseDate { get; set; } = "";
     }
 
     /// <summary>
