@@ -446,6 +446,28 @@ namespace SW.PC.API.Backend.Models.Excel
         /// API Key para servicios que lo requieran (NVD, GitHub con rate limit, etc.)
         /// </summary>
         public string VulnScanApiKey { get; set; } = "";
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 💻 IPC HARDWARE INFO - EU CRA Compliance (System Documentation)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar monitoreo de hardware IPC (CPU, RAM, Disk, Network, Security).
+        /// Requerido por EU CRA para documentación del entorno operativo.
+        /// </summary>
+        public bool IpcInfoEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Intervalo de polling rápido (CPU%, RAM%, Disk%) en segundos.
+        /// Recomendado: 30 segundos. 0 = deshabilitado.
+        /// </summary>
+        public int IpcInfoQuickPollSeconds { get; set; } = 30;
+
+        /// <summary>
+        /// Intervalo de actualización completa (full info) en minutos.
+        /// Recomendado: 5 minutos. 0 = solo bajo demanda.
+        /// </summary>
+        public int IpcInfoFullPollMinutes { get; set; } = 5;
     }
 
     /// <summary>
@@ -644,6 +666,9 @@ namespace SW.PC.API.Backend.Models.Excel
 
         /// <summary>Información adicional</summary>
         public string Details { get; set; } = "";
+        
+        /// <summary>Task Cycle Time del PLC en milisegundos (solo para TwinCAT Runtime)</summary>
+        public double? TaskCycleTimeMs { get; set; }
     }
 
     /// <summary>
@@ -662,6 +687,15 @@ namespace SW.PC.API.Backend.Models.Excel
         public string DeviceState { get; set; } = "Unknown";
         public bool IsConnected { get; set; }
         public bool IsSimulated { get; set; }
+        
+        /// <summary>Task Cycle Time del PLC en microsegundos (100ns units from TwinCAT)</summary>
+        public long TaskCycleTime100ns { get; set; }
+        
+        /// <summary>Task Cycle Time del PLC en milisegundos (para display)</summary>
+        public double TaskCycleTimeMs { get; set; }
+        
+        /// <summary>Nombre de la tarea principal del PLC</summary>
+        public string TaskName { get; set; } = "PlcTask";
     }
 
     /// <summary>

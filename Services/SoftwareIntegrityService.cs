@@ -31,7 +31,7 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Actualizar información de TwinCAT Runtime
         /// </summary>
-        void UpdateTwinCATRuntimeInfo(string version, string adsVersion, bool isConnected, bool isSimulated);
+        void UpdateTwinCATRuntimeInfo(string version, string adsVersion, bool isConnected, bool isSimulated, double taskCycleTimeMs = 0);
 
         /// <summary>
         /// Configurar rutas de repositorios Git desde Excel
@@ -603,7 +603,7 @@ namespace SW.PC.API.Backend.Services
             }
         }
 
-        public void UpdateTwinCATRuntimeInfo(string version, string adsVersion, bool isConnected, bool isSimulated)
+        public void UpdateTwinCATRuntimeInfo(string version, string adsVersion, bool isConnected, bool isSimulated, double taskCycleTimeMs = 0)
         {
             lock (_lock)
             {
@@ -612,7 +612,8 @@ namespace SW.PC.API.Backend.Services
                     Name = "TwinCAT Runtime",
                     Version = version,
                     Status = isSimulated ? "simulated" : (isConnected ? "connected" : "disconnected"),
-                    Details = isSimulated ? "Running in simulation mode" : ""
+                    Details = isSimulated ? "Running in simulation mode" : "",
+                    TaskCycleTimeMs = taskCycleTimeMs > 0 ? taskCycleTimeMs : (isSimulated ? 10.0 : null)
                 };
 
                 _versionInfo.AdsClient = new RuntimeVersionInfo
@@ -623,8 +624,8 @@ namespace SW.PC.API.Backend.Services
                     Details = ""
                 };
 
-                _logger.LogInformation("🔧 TwinCAT Runtime info updated: {Version} ({Status})", 
-                    version, _versionInfo.TwinCatRuntime.Status);
+                _logger.LogInformation("🔧 TwinCAT Runtime info updated: {Version} ({Status}) - Cycle Time: {CycleTime}ms", 
+                    version, _versionInfo.TwinCatRuntime.Status, taskCycleTimeMs);
             }
         }
 

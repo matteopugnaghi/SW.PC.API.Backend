@@ -21,7 +21,9 @@ namespace SW.PC.API.Backend.Services
         private readonly Dictionary<string, PlcVariableState> _variableStates;
         private List<string> _monitoredVariables;
         private DateTime _lastExcelReload;
+        private DateTime _lastTaskCycleTimeUpdate;
         private const int EXCEL_RELOAD_INTERVAL_SECONDS = 30; // Recargar Excel cada 30 segundos
+        private const int TASK_CYCLE_TIME_UPDATE_SECONDS = 10; // Actualizar Task Cycle Time cada 10 segundos
 
         public PlcPollingService(
             ITwinCATService twinCATService,
@@ -40,6 +42,7 @@ namespace SW.PC.API.Backend.Services
             _variableStates = new Dictionary<string, PlcVariableState>();
             _monitoredVariables = new List<string>();
             _lastExcelReload = DateTime.MinValue;
+            _lastTaskCycleTimeUpdate = DateTime.MinValue;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -117,6 +120,12 @@ namespace SW.PC.API.Backend.Services
                     if ((DateTime.UtcNow - _lastExcelReload).TotalSeconds >= EXCEL_RELOAD_INTERVAL_SECONDS)
                     {
                         await ReloadExcelConfigurationAsync();
+                    }
+                    
+                    // Actualizar Task Cycle Time del TwinCAT periódicamente
+                    if ((DateTime.UtcNow - _lastTaskCycleTimeUpdate).TotalSeconds >= TASK_CYCLE_TIME_UPDATE_SECONDS)
+                    {
+                        await UpdateTwinCATTaskCycleTimeAsync();
                     }
 
                     await PollAllVariablesAsync(stoppingToken);
@@ -331,6 +340,43 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ Error recargando configuración desde Excel");
+            }
+        }
+        
+        /// <summary>
+        /// Actualiza el Task Cycle Time real del TwinCAT en el servicio de integridad
+        /// </summary>
+        private async Task UpdateTwinCATTaskCycleTimeAsync()
+        {
+            try
+            {
+                // Obtener Task Cycle Time real del PLC
+                var taskCycleTimeMs = await _twinCATService.GetTaskCycleTimeAsync();
+                
+                if (taskCycleTimeMs > 0)
+                {
+                    // Actualizar en el SoftwareIntegrityService
+                    using var scope = _serviceProvider.CreateScope();
+                    var integrityService = scope.ServiceProvider.GetRequiredService<ISoftwareIntegrityService>();
+                    var twinCatInfo = _twinCATService.GetVersionInfo();
+                    
+                    integrityService.UpdateTwinCATRuntimeInfo(
+                        twinCatInfo.RuntimeVersion,
+                        twinCatInfo.AdsVersion,
+                        twinCatInfo.IsConnected,
+                        twinCatInfo.IsSimulated,
+                        taskCycleTimeMs
+                    );
+                    
+                    _logger.LogDebug("🕐 TwinCAT Task Cycle Time actualizado: {CycleTime}ms", taskCycleTimeMs);
+                }
+                
+                _lastTaskCycleTimeUpdate = DateTime.UtcNow;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ No se pudo actualizar Task Cycle Time del TwinCAT");
+                _lastTaskCycleTimeUpdate = DateTime.UtcNow; // Evitar reintentos constantes
             }
         }
 

@@ -115,6 +115,7 @@ builder.Services.AddSingleton<ISoftwareIntegrityService, SoftwareIntegrityServic
 builder.Services.AddSingleton<IGitOperationsService, GitOperationsService>(); // 🔧 Git operations service
 builder.Services.AddScoped<ISbomService, SbomService>(); // 📋 SBOM - EU CRA Compliance
 builder.Services.AddScoped<IVulnerabilityService, VulnerabilityService>(); // 🛡️ Vulnerability Scanner - EU CRA
+builder.Services.AddSingleton<IIpcInfoService, IpcInfoService>(); // 💻 IPC System Info
 
 // Register HttpClient for Vulnerability Scanner
 builder.Services.AddHttpClient("VulnerabilityScanner", client =>
@@ -286,14 +287,19 @@ using (var scope = app.Services.CreateScope())
             // 🔐 Actualizar info de TwinCAT en el servicio de integridad DESPUÉS de conectar
             var integrityService = app.Services.GetRequiredService<ISoftwareIntegrityService>();
             var twinCatInfo = twinCATService.GetVersionInfo();
+            
+            // Obtener Task Cycle Time real del PLC
+            var taskCycleTimeMs = await twinCATService.GetTaskCycleTimeAsync();
+            
             integrityService.UpdateTwinCATRuntimeInfo(
                 twinCatInfo.RuntimeVersion,
                 twinCatInfo.AdsVersion,
                 twinCatInfo.IsConnected,
-                twinCatInfo.IsSimulated
+                twinCatInfo.IsSimulated,
+                taskCycleTimeMs
             );
-            logger.LogInformation("🔐 TwinCAT integrity info updated: {Version} (Connected={Connected}, Simulated={Simulated})",
-                twinCatInfo.RuntimeVersion, twinCatInfo.IsConnected, twinCatInfo.IsSimulated);
+            logger.LogInformation("🔐 TwinCAT integrity info updated: {Version} (Connected={Connected}, Simulated={Simulated}, CycleTime={CycleTime}ms)",
+                twinCatInfo.RuntimeVersion, twinCatInfo.IsConnected, twinCatInfo.IsSimulated, taskCycleTimeMs);
         }
         else
         {

@@ -1165,6 +1165,26 @@ namespace SW.PC.API.Backend.Services
                                 config.VulnScanApiKey = paramValue ?? "";
                                 break;
 
+                            // ═══════════════════════════════════════════════════════════════
+                            // 💻 IPC HARDWARE INFO - EU CRA Compliance
+                            // ═══════════════════════════════════════════════════════════════
+                            case "ipcinfoenabled":
+                            case "ipcinfo_enabled":
+                                config.IpcInfoEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "ipcinfoquickpollseconds":
+                            case "ipcinfo_quickpollseconds":
+                            case "ipcinfo_quickpoll_seconds":
+                                if (int.TryParse(paramValue, out int quickPoll))
+                                    config.IpcInfoQuickPollSeconds = quickPoll;
+                                break;
+                            case "ipcinfofullpollminutes":
+                            case "ipcinfo_fullpollminutes":
+                            case "ipcinfo_fullpoll_minutes":
+                                if (int.TryParse(paramValue, out int fullPoll))
+                                    config.IpcInfoFullPollMinutes = fullPoll;
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
@@ -1179,6 +1199,8 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogInformation("  - Simulated PLC: {Enabled}", config.UseSimulatedPlc);
                     _logger.LogInformation("  - Database: {Enabled}", config.EnableDatabase);
                     _logger.LogInformation("  - 🔐 EnvironmentMode: {Mode}", config.EnvironmentMode);
+                    _logger.LogInformation("  - 💻 IpcInfo: {Enabled} (Quick: {Quick}s, Full: {Full}m)", 
+                        config.IpcInfoEnabled, config.IpcInfoQuickPollSeconds, config.IpcInfoFullPollMinutes);
 
                     stopwatch.Stop();
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);

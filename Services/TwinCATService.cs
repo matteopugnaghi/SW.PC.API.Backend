@@ -2,6 +2,7 @@ using SW.PC.API.Backend.Models.TwinCAT;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.Excel;
 using TwinCAT.Ads;
+using System.Runtime.InteropServices;
 
 namespace SW.PC.API.Backend.Services
 {
@@ -15,6 +16,7 @@ namespace SW.PC.API.Backend.Services
         Task<bool> WriteVariableAsync(string variableName, object value, Type dataType);
         Task<PlcState> GetPlcStateAsync();
         TwinCATVersionInfo GetVersionInfo();
+        Task<double> GetTaskCycleTimeAsync();
         event EventHandler<PlcNotification>? OnVariableChanged;
     }
     
@@ -31,6 +33,10 @@ namespace SW.PC.API.Backend.Services
         public event EventHandler<PlcNotification>? OnVariableChanged;
         
         public bool IsConnected => _isConnected;
+        
+        // Cache del Task Cycle Time (se actualiza periódicamente)
+        private double _cachedTaskCycleTimeMs = 0;
+        private DateTime _lastTaskCycleTimeUpdate = DateTime.MinValue;
 
         /// <summary>
         /// 🔐 Obtener información de versión de TwinCAT para ciberseguridad
@@ -70,6 +76,9 @@ namespace SW.PC.API.Backend.Services
                     info.BuildNumber = deviceInfo.Version.Build;
                     info.DeviceName = deviceInfo.Name;
                     
+                    // Añadir Task Cycle Time si está disponible
+                    info.TaskCycleTimeMs = _cachedTaskCycleTimeMs;
+                    
                     _logger.LogInformation("🔧 TwinCAT Runtime: {Version} ({Name})", info.RuntimeVersion, deviceInfo.Name);
                 }
                 catch (Exception ex)
@@ -80,15 +89,137 @@ namespace SW.PC.API.Backend.Services
             }
             else
             {
-                // Modo simulado - usar versión genérica
+                // Modo simulado - usar versión genérica y cycle time simulado (10ms típico)
                 info.RuntimeVersion = "TwinCAT 3.1.4024 (Simulated)";
                 info.AdsVersion = typeof(AdsClient).Assembly.GetName().Version?.ToString() ?? "6.x";
                 info.MajorVersion = 3;
                 info.MinorVersion = 1;
                 info.BuildNumber = 4024;
+                info.TaskCycleTimeMs = 10.0; // 10ms típico en simulación
+                info.TaskName = "PlcTask (Simulated)";
             }
 
             return info;
+        }
+        
+        /// <summary>
+        /// 🕐 Obtener el Task Cycle Time real del PLC TwinCAT
+        /// Lee la variable de sistema TwinCAT que contiene el cycle time configurado
+        /// </summary>
+        public async Task<double> GetTaskCycleTimeAsync()
+        {
+            // Cache de 5 segundos - el cycle time no cambia frecuentemente
+            if ((DateTime.UtcNow - _lastTaskCycleTimeUpdate).TotalSeconds < 5 && _cachedTaskCycleTimeMs > 0)
+            {
+                return _cachedTaskCycleTimeMs;
+            }
+            
+            if (!_isConnected)
+            {
+                return 0;
+            }
+            
+            if (_isSimulatedMode)
+            {
+                // Simulación: cycle time típico de 10ms
+                _cachedTaskCycleTimeMs = 10.0;
+                _lastTaskCycleTimeUpdate = DateTime.UtcNow;
+                return _cachedTaskCycleTimeMs;
+            }
+            
+            if (_adsClient == null)
+            {
+                return 0;
+            }
+            
+            try
+            {
+                // Lista de posibles rutas para el CycleTime en diferentes versiones/configuraciones de TwinCAT
+                // El CycleTime en TwinCAT está en unidades de 100ns (10000 = 1ms)
+                string[] possiblePaths = new[]
+                {
+                    // Tu configuración específica
+                    "In_Out.TaskInfo.CycleTime",
+                    
+                    // Rutas con PlcTask (tu tarea)
+                    "PlcTask.Info.CycleTime",
+                    "PlcTask._TaskInfo.CycleTime",
+                    
+                    // Rutas de sistema TwinCAT
+                    "TwinCAT_SystemInfoVarList._TaskInfo[1].CycleTime",
+                    "_TaskInfo[1].CycleTime",
+                    
+                    // Variables globales comunes
+                    "GVL._TaskInfo.CycleTime",
+                    "GVL_System._TaskInfo.CycleTime",
+                    "MAIN._TaskInfo.CycleTime",
+                    
+                    // PlcTaskSystemInfo
+                    "PlcTaskSystemInfo.CycleTime",
+                    "TcSystemInfo.PlcTask.CycleTime"
+                };
+                
+                foreach (var path in possiblePaths)
+                {
+                    try
+                    {
+                        var handle = _adsClient.CreateVariableHandle(path);
+                        var cycleTime100ns = _adsClient.ReadAny<uint>(handle);
+                        _adsClient.DeleteVariableHandle(handle);
+                        
+                        // Convertir de 100ns a milisegundos
+                        _cachedTaskCycleTimeMs = cycleTime100ns / 10000.0;
+                        _lastTaskCycleTimeUpdate = DateTime.UtcNow;
+                        
+                        _logger.LogInformation("🕐 TwinCAT Task Cycle Time: {CycleTime}ms (from: {Path}, raw: {Raw} x 100ns)", 
+                            _cachedTaskCycleTimeMs, path, cycleTime100ns);
+                        
+                        return _cachedTaskCycleTimeMs;
+                    }
+                    catch (AdsErrorException)
+                    {
+                        // Path no encontrado, intentar siguiente
+                        continue;
+                    }
+                }
+                
+                // Si ningún path funciona, intentar leer la configuración del Task via índice de grupo
+                try
+                {
+                    // ADS Index Group 0x4020 = Task Info, Offset 0 = configuración de la primera tarea
+                    // Leer cycle time directamente del sistema (offset 4 = CycleTime en UDINT)
+                    byte[] buffer = new byte[4];
+                    _adsClient.Read(0x4020, 0x4, buffer.AsMemory());
+                    var cycleTime100ns = BitConverter.ToUInt32(buffer, 0);
+                    
+                    if (cycleTime100ns > 0 && cycleTime100ns < 100000000) // Sanity check: < 10 segundos
+                    {
+                        _cachedTaskCycleTimeMs = cycleTime100ns / 10000.0;
+                        _lastTaskCycleTimeUpdate = DateTime.UtcNow;
+                        
+                        _logger.LogInformation("🕐 TwinCAT Task Cycle Time: {CycleTime}ms (from ADS Index Group 0x4020)", 
+                            _cachedTaskCycleTimeMs);
+                        
+                        return _cachedTaskCycleTimeMs;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug("Could not read via ADS Index Group: {Error}", ex.Message);
+                }
+                
+                // Si todo falla, usar valor por defecto
+                _logger.LogWarning("⚠️ Could not read TwinCAT Task Cycle Time - using default 10ms. Add '_TaskInfo : PlcTaskSystemInfo' to your PLC project GVL.");
+                _cachedTaskCycleTimeMs = 10.0;
+                _lastTaskCycleTimeUpdate = DateTime.UtcNow;
+                
+                return _cachedTaskCycleTimeMs;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reading TwinCAT Task Cycle Time");
+                return 0;
+            }
         }
         
         public TwinCATService(IConfiguration configuration, ILogger<TwinCATService> logger)
