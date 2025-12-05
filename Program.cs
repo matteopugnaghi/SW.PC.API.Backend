@@ -114,6 +114,14 @@ builder.Services.AddSingleton<IMetricsService, MetricsService>(); // ✅ Servici
 builder.Services.AddSingleton<ISoftwareIntegrityService, SoftwareIntegrityService>(); // 🔐 Servicio de integridad
 builder.Services.AddSingleton<IGitOperationsService, GitOperationsService>(); // 🔧 Git operations service
 builder.Services.AddScoped<ISbomService, SbomService>(); // 📋 SBOM - EU CRA Compliance
+builder.Services.AddScoped<IVulnerabilityService, VulnerabilityService>(); // 🛡️ Vulnerability Scanner - EU CRA
+
+// Register HttpClient for Vulnerability Scanner
+builder.Services.AddHttpClient("VulnerabilityScanner", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "SW.PC.SUPERVISOR/1.0 (EU-CRA-Compliance)");
+});
 
 // Register Background Services
 // builder.Services.AddHostedService<PlcNotificationService>(); // Servicio legacy - reemplazado por PlcPollingService

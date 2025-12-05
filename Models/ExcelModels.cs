@@ -412,6 +412,40 @@ namespace SW.PC.API.Backend.Models.Excel
         /// En desarrollo: todos los repos son editables
         /// </summary>
         public string EnvironmentMode { get; set; } = "development";
+
+        // ===== 🛡️ VULNERABILITY SCANNER (EU CRA Compliance) =====
+        /// <summary>
+        /// URL del servicio de vulnerabilidades.
+        /// Si vacío, el scanner está deshabilitado.
+        /// Ejemplos:
+        /// - OSV (Google): https://api.osv.dev/v1/query
+        /// - GitHub: https://api.github.com/advisories
+        /// - ENISA (futuro): https://api.enisa.europa.eu/vuln
+        /// - Local: http://192.168.1.100:8080/api/vuln
+        /// </summary>
+        public string VulnScanApiUrl { get; set; } = "";
+
+        /// <summary>
+        /// Tipo de API para parsear respuestas correctamente.
+        /// Valores: OSV, GitHub, NVD, ENISA, Custom
+        /// </summary>
+        public string VulnScanApiType { get; set; } = "OSV";
+
+        /// <summary>
+        /// Intervalo de escaneo automático en horas.
+        /// 0 = solo escaneo manual
+        /// </summary>
+        public int VulnScanIntervalHours { get; set; } = 0;
+
+        /// <summary>
+        /// Generar alarma del sistema si se detecta vulnerabilidad crítica
+        /// </summary>
+        public bool VulnScanAlertOnCritical { get; set; } = true;
+
+        /// <summary>
+        /// API Key para servicios que lo requieran (NVD, GitHub con rate limit, etc.)
+        /// </summary>
+        public string VulnScanApiKey { get; set; } = "";
     }
 
     /// <summary>

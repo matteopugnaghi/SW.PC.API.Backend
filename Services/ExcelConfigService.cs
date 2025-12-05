@@ -1140,6 +1140,31 @@ namespace SW.PC.API.Backend.Services
                                     config.EnvironmentMode = paramValue.ToLower();
                                 break;
 
+                            // 🛡️ VULNERABILITY SCANNER (EU CRA Compliance)
+                            case "vulnscan_apiurl":
+                            case "vulnscanapiurl":
+                                config.VulnScanApiUrl = paramValue ?? "";
+                                break;
+                            case "vulnscan_apitype":
+                            case "vulnscanapitype":
+                                config.VulnScanApiType = paramValue ?? "OSV";
+                                break;
+                            case "vulnscan_autoscanintervalhours":
+                            case "vulnscanautoscanintervalhours":
+                            case "vulnscan_intervalhours":
+                            case "vulnscanintervalhours":
+                                if (int.TryParse(paramValue, out var vulnInterval))
+                                    config.VulnScanIntervalHours = vulnInterval;
+                                break;
+                            case "vulnscan_alertoncritical":
+                            case "vulnscanalertoncritical":
+                                config.VulnScanAlertOnCritical = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "vulnscan_apikey":
+                            case "vulnscanapikey":
+                                config.VulnScanApiKey = paramValue ?? "";
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
