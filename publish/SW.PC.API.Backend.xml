@@ -1,0 +1,2168 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>SW.PC.API.Backend</name>
+    </assembly>
+    <members>
+        <member name="M:SW.PC.API.Backend.Controllers.ConfigController.GetConfiguration">
+            <summary>
+            Get application configuration
+            </summary>
+            <returns>Application configuration including color and viewer settings</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ConfigController.UpdateConfiguration(SW.PC.API.Backend.Models.AppConfiguration)">
+            <summary>
+            Update application configuration
+            </summary>
+            <param name="configuration">Updated application configuration</param>
+            <returns>Success status</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ConfigController.UpdateColorConfiguration(SW.PC.API.Backend.Models.ColorConfiguration)">
+            <summary>
+            Update color configuration only
+            </summary>
+            <param name="colorConfig">Updated color configuration</param>
+            <returns>Success status</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ConfigController.GetColorConfiguration">
+            <summary>
+            Get only color configuration
+            </summary>
+            <returns>Color configuration</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ConfigController.GetViewerConfiguration">
+            <summary>
+            Get only viewer configuration
+            </summary>
+            <returns>Viewer configuration</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ConfigController.GetStateColors(System.String)">
+            <summary>
+            Get PLC state color configuration from Excel (hoja: PLC_State_Colors)
+            </summary>
+            <param name="fileName">Nombre del archivo Excel (default: ProjectConfig.xlsx)</param>
+            <returns>Lista de configuraciones de color por estado PLC</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ConfigController.Get3DElements(System.String)">
+            <summary>
+            Get 3D models configuration from Excel (hoja "3D_Models") with children metadata
+            </summary>
+            <param name="fileName">Excel file name (default: ProjectConfig.xlsm)</param>
+            <returns>List of 3D models with children configuration</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ConfigController.GetSystemConfiguration(System.String)">
+            <summary>
+            Get system configuration from Excel (hoja "System Config")
+            </summary>
+            <param name="fileName">Excel file name (default: ProjectConfig.xlsm)</param>
+            <returns>System configuration with service settings, PLC config, etc.</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ConfigController.ReloadSystemConfiguration">
+            <summary>
+            Invalidate cache and force reload of system configuration
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ConfigController.GetSystemMetrics">
+            <summary>
+            Get real-time system performance metrics
+            </summary>
+            <returns>Current system metrics including scan times and connection counts</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ExcelController.CreateTemplate">
+            <summary>
+            Crear un archivo Excel de ejemplo con datos de prueba
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.GetEnvironmentInfo">
+            <summary>
+            Obtener información del entorno (production/development) y permisos de edición
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.GetTags(System.String)">
+            <summary>
+            Obtiene todos los tags de un repositorio
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.GetReleaseInfo(System.String)">
+            <summary>
+            Obtiene información de release: último tag y siguiente tag sugerido (CalVer)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.CreateRelease(System.String,SW.PC.API.Backend.Controllers.CreateReleaseRequest)">
+            <summary>
+            Crea un nuevo tag/release con formato CalVer (YYYY.MM.increment)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.GetSshSigningStatus">
+            <summary>
+            Obtiene el estado actual de la configuración SSH Signing
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.ConfigureSshSigning(SW.PC.API.Backend.Controllers.ConfigureSshSigningRequest)">
+            <summary>
+            Configura SSH signing con la clave especificada
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.GenerateSshKey(SW.PC.API.Backend.Controllers.GenerateSshKeyRequest)">
+            <summary>
+            Genera una nueva clave SSH (Ed25519) si el usuario no tiene una
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.DisableSshSigning">
+            <summary>
+            Desactiva SSH signing - quita la configuración de firma de commits/tags
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.ValidateSigningIdentity">
+            <summary>
+            Valida que la identidad del usuario Git coincida con la clave SSH (EU CRA anti-spoofing)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.DeleteSshKeys">
+            <summary>
+            Elimina las claves SSH del disco
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.ExportSshKey">
+            <summary>
+            Exporta la clave SSH actual para guardarla externamente
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.ImportSshKey(SW.PC.API.Backend.Controllers.ImportSshKeyRequest)">
+            <summary>
+            Importa una clave SSH (privada + pública)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.GetAuthorizedKeys">
+            <summary>
+            Obtiene la lista de claves autorizadas para modificar el software
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.AddAuthorizedKey(SW.PC.API.Backend.Controllers.AddAuthorizedKeyRequest)">
+            <summary>
+            Añade una clave a la lista de autorizados
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.RemoveAuthorizedKey(System.String)">
+            <summary>
+            Elimina una clave de la lista de autorizados
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.CheckKeyAuthorization">
+            <summary>
+            Verifica si la clave actual está autorizada para modificar el software
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.GetAccessControlConfig">
+            <summary>
+            Obtiene la configuración del control de acceso
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.SetAccessControlEnabled(SW.PC.API.Backend.Controllers.SetAccessControlRequest)">
+            <summary>
+            Activa o desactiva el control de acceso por claves
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.DownloadBackupWithCertificate(System.String,System.String,System.String)">
+            <summary>
+            Genera un ZIP con el certificado de integridad + código fuente del repositorio seleccionado
+            Para backup offline cuando no hay conexión a internet (EU CRA compliance)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.GetBackupLog(System.String,System.Int32)">
+            <summary>
+            Obtiene el historial de backups realizados
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.ExtractAuthorFromMessage(System.String)">
+            <summary>
+            Extrae el nombre del autor del mensaje de commit [Autor: XXX]
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.GenerateDeploymentCertificateAsync(System.String,System.String,System.String,System.String)">
+            <summary>
+            Genera un certificado de deployment después de cada push exitoso
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.GetDeploymentCertificates(System.String,System.Int32)">
+            <summary>
+            Obtiene el historial de certificados de deployment (generados en cada push)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.GitController.DownloadDeploymentCertificates(System.String)">
+            <summary>
+            Descarga todos los certificados de deployment como archivo JSON para auditoría
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Controllers.IntegrityController">
+            <summary>
+            🔐 API para gestión de integridad del software y certificados EU CRA
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IntegrityController.GetIntegrityStatus">
+            <summary>
+            Obtener estado actual de integridad del software
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IntegrityController.GetNetworkSyncStatus">
+            <summary>
+            Verificar conectividad a internet y estado de sincronización con repositorios remotos
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IntegrityController.VerifyIntegrity(SW.PC.API.Backend.Controllers.ManualVerifyRequest)">
+            <summary>
+            Forzar re-verificación de integridad de todos los componentes
+            </summary>
+            <remarks>
+            TODO: Cuando se implemente autenticación:
+            - Añadir [Authorize(Roles = "Admin,Auditor")]
+            - Obtener usuario del JWT: User.Identity.Name
+            - Registrar en audit log: quién, cuándo, IP, resultado
+            </remarks>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IntegrityController.GenerateCertificate(SW.PC.API.Backend.Controllers.GenerateCertificateRequest)">
+            <summary>
+            Generar certificado de integridad firmado (para uso offline y auditorías)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IntegrityController.DownloadCertificate(SW.PC.API.Backend.Controllers.GenerateCertificateRequest)">
+            <summary>
+            Descargar certificado como archivo JSON
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IntegrityController.VerifyCertificate(SW.PC.API.Backend.Services.IntegrityCertificate)">
+            <summary>
+            Verificar firma de un certificado existente
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IntegrityController.RegisterAdminVerification(SW.PC.API.Backend.Controllers.AdminVerificationRequest)">
+            <summary>
+            Registrar verificación manual por administrador
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Controllers.IpcInfoController">
+            <summary>
+            IPC System Information API
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IpcInfoController.GetStatus">
+            <summary>
+            Get IPC Info configuration status
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IpcInfoController.GetSystemInfo">
+            <summary>
+            Get complete IPC system information
+            </summary>
+            <returns>Full system info including OS, CPU, RAM, Disk, Network, Security</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IpcInfoController.GetQuickStatus">
+            <summary>
+            Get quick status (CPU, RAM, Disk usage) - for frequent polling
+            </summary>
+            <returns>Quick status with usage percentages</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IpcInfoController.GetOsInfo">
+            <summary>
+            Get OS information only
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IpcInfoController.GetSecurityInfo">
+            <summary>
+            Get security status only
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.IpcInfoController.GetNetworkInfo">
+            <summary>
+            Get network information only
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ModelsController.GetModels">
+            <summary>
+            Get all available 3D models
+            </summary>
+            <returns>List of 3D models with metadata</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ModelsController.GetModel(System.String)">
+            <summary>
+            Get a specific 3D model by ID
+            </summary>
+            <param name="id">Model ID</param>
+            <returns>3D model metadata</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ModelsController.DownloadModel(System.String)">
+            <summary>
+            Download a 3D model file
+            </summary>
+            <param name="id">Model ID</param>
+            <returns>3D model file</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ModelsController.GetModelFile(System.String)">
+            <summary>
+            Get model file directly by filename
+            </summary>
+            <param name="fileName">Model file name</param>
+            <returns>3D model file</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ModelsController.GetModelThumbnail(System.String)">
+            <summary>
+            Get model thumbnail (placeholder endpoint)
+            </summary>
+            <param name="id">Model ID</param>
+            <returns>Thumbnail image</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpElementsController.GetAllPumpElements">
+            <summary>
+            Obtener todos los elementos de bombas desde Excel
+            </summary>
+            <returns>Lista de elementos PumpElement3D</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpElementsController.GetPumpElementByName(System.String)">
+            <summary>
+            Obtener un elemento de bomba específico por nombre
+            </summary>
+            <param name="name">Nombre del elemento</param>
+            <returns>Elemento PumpElement3D</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpElementsController.GetPumpElementsByCategory(System.String)">
+            <summary>
+            Obtener elementos filtrados por categoría
+            </summary>
+            <param name="category">Categoría (pumps, valves, tanks...)</param>
+            <returns>Lista filtrada</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpElementsController.GetPumpElementsStats">
+            <summary>
+            Obtener estadísticas de elementos
+            </summary>
+            <returns>Resumen estadístico</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpElementsController.SavePumpElements(System.Collections.Generic.List{SW.PC.API.Backend.Models.PumpElement3D})">
+            <summary>
+            Guardar elementos de bombas en Excel
+            </summary>
+            <param name="elements">Lista de elementos a guardar</param>
+            <returns>Resultado de la operación</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpElementsController.GetPumpStateFromPLC(System.Int32)">
+            <summary>
+            Leer estado de una bomba específica desde TwinCAT PLC
+            </summary>
+            <param name="pumpIndex">Índice de la bomba (1, 2, 3...)</param>
+            <returns>Estado de la bomba (0=Disabled, 1=Off, 2=On, 3=Alarm)</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpElementsController.GetPlcVariableState(System.String)">
+            <summary>
+            Obtener estado actual de cualquier variable PLC
+            </summary>
+            <param name="variableName">Nombre completo de la variable PLC</param>
+            <returns>Valor actual de la variable</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpElementsController.GetStateColors(System.String)">
+            <summary>
+            Obtener configuración de colores por estado PLC desde Excel
+            Convierte los colores de los elementos en un formato usable por el frontend
+            </summary>
+            <param name="fileName">Nombre del archivo Excel (default: ProjectConfig.xlsm)</param>
+            <returns>Array de configuraciones de color por estado</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpElementsController.CreateStateColorConfig(System.String,System.Int32,System.String,System.String)">
+            <summary>
+            Crear configuración de color para un estado específico
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpElementsController.ParseHexColor(System.String)">
+            <summary>
+            Parsear color hexadecimal o nombre de color a RGB
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpExcelController.CreatePumpTemplate">
+            <summary>
+            Crear un Excel de ejemplo con elementos pump
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.PumpExcelController.GetColumnInfo">
+            <summary>
+            Obtener información de las columnas del Excel
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Controllers.SbomController">
+            <summary>
+            SBOM Controller - Manages Software Bill of Materials
+            Required by EU Cyber Resilience Act (CRA) for software transparency
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.SbomController.GetStatus">
+            <summary>
+            Get SBOM status - existence, date, component counts
+            </summary>
+            <returns>Current SBOM status</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.SbomController.GetSbom">
+            <summary>
+            Get full SBOM document in CycloneDX format
+            </summary>
+            <returns>Complete SBOM document</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.SbomController.DownloadSbom">
+            <summary>
+            Download SBOM as JSON file
+            </summary>
+            <returns>SBOM JSON file download</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.SbomController.GenerateSbom(SW.PC.API.Backend.Models.SbomGenerateRequest)">
+            <summary>
+            Generate new SBOM document
+            </summary>
+            <param name="request">Generation options</param>
+            <returns>Generation result with status</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.SbomController.GetComponents(System.String)">
+            <summary>
+            Get list of components from SBOM
+            </summary>
+            <param name="type">Filter by type: "nuget" or "npm"</param>
+            <returns>List of components</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.SbomController.GetSummary">
+            <summary>
+            Get SBOM summary statistics
+            </summary>
+            <returns>Summary with counts by type</returns>
+        </member>
+        <member name="T:SW.PC.API.Backend.Controllers.ModelsStaticController">
+            <summary>
+            Controller to serve static 3D model files at /models/{filename}
+            This mimics static file serving but through a controller endpoint
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.ModelsStaticController.GetFile(System.String)">
+            <summary>
+            Serve 3D model files directly at /models/{fileName}
+            </summary>
+            <param name="fileName">Model file name (e.g., Box.glb)</param>
+            <returns>3D model file</returns>
+        </member>
+        <member name="T:SW.PC.API.Backend.Controllers.VulnerabilitiesController">
+            <summary>
+            Vulnerability Scanner API - Scan SBOM dependencies for CVEs
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.VulnerabilitiesController.GetStatus">
+            <summary>
+            Get vulnerability scanner status and last scan summary
+            </summary>
+            <returns>Current scanner status</returns>
+            <response code="200">Returns scanner status</response>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.VulnerabilitiesController.Scan">
+            <summary>
+            Perform a full vulnerability scan on SBOM components
+            </summary>
+            <returns>Scan results with list of vulnerabilities</returns>
+            <response code="200">Scan completed successfully</response>
+            <response code="400">Scanner not configured or SBOM not available</response>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.VulnerabilitiesController.GetVulnerabilities">
+            <summary>
+            Get detailed list of vulnerabilities from last scan
+            </summary>
+            <returns>List of vulnerabilities</returns>
+            <response code="200">Returns list of vulnerabilities</response>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.VulnerabilitiesController.GetVulnerabilitiesBySeverity(System.String)">
+            <summary>
+            Get vulnerabilities filtered by severity
+            </summary>
+            <param name="severity">Severity level (critical, high, medium, low)</param>
+            <returns>Filtered list of vulnerabilities</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.VulnerabilitiesController.GetReport">
+            <summary>
+            Get summary report of vulnerabilities
+            </summary>
+            <returns>Vulnerability summary report</returns>
+        </member>
+        <member name="M:SW.PC.API.Backend.Controllers.VulnerabilitiesController.IsEnabled">
+            <summary>
+            Check if scanner is enabled
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Hubs.ScadaHub">
+            <summary>
+            Hub SignalR para comunicación en tiempo real entre backend y frontend
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Hubs.ScadaHub.SubscribeToVariable(System.String)">
+            <summary>
+            El cliente se suscribe a una variable PLC específica
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Hubs.ScadaHub.UnsubscribeFromVariable(System.String)">
+            <summary>
+            El cliente se desuscribe de una variable PLC
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Hubs.ScadaHub.WriteVariable(SW.PC.API.Backend.Models.TwinCAT.PlcWriteRequest)">
+            <summary>
+            El cliente solicita escribir una variable PLC
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Hubs.ScadaHub.ReadVariable(System.String,System.String)">
+            <summary>
+            El cliente solicita leer una variable PLC
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Hubs.PlcNotificationService">
+            <summary>
+            Servicio de fondo para enviar actualizaciones de PLC a los clientes conectados
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Database.Alarm">
+            <summary>
+            Alarma del sistema SCADA
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Database.Recipe">
+            <summary>
+            Receta de producción
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Database.RecipeStep">
+            <summary>
+            Paso de receta
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Database.ProductionStatistic">
+            <summary>
+            Estadística de producción
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Database.SystemLog">
+            <summary>
+            Log de eventos del sistema
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Database.ScadaUser">
+            <summary>
+            Usuario del sistema SCADA
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.ProjectConfiguration">
+            <summary>
+            Configuración de proyecto desde Excel
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.HMIScreen">
+            <summary>
+            Pantalla del HMI configurada en Excel
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.HMIComponent">
+            <summary>
+            Componente de pantalla HMI
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.PlcVariable">
+            <summary>
+            Variable PLC configurada en Excel
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.Model3DConfig">
+            <summary>
+            Modelo 3D configurado en Excel
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.ChildModel3DConfig">
+            <summary>
+            Modelo 3D hijo (Child1-Child5) - 21 columnas por hijo en Excel
+            Child1: AI-BC, Child2: BD-BX, Child3: BY-CS, Child4: CT-DN, Child5: DO-EI
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.ViewConfiguration">
+            <summary>
+            Configuración de vista inicial del modelo 3D
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.ModelVariableBinding">
+            <summary>
+            Vinculación de variable PLC con partes del modelo 3D
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.StateColorConfig">
+            <summary>
+            Configuración de colores por estado PLC desde Excel (hoja: PLC_State_Colors)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.StateColorConfig.VariablePattern">
+            <summary>
+            Patrón de variable PLC (ej: "i_StatePumps[*]", "bMotorState", etc.)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.StateColorConfig.StateValue">
+            <summary>
+            Valor del estado (0, 1, 2, 3, etc.)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.StateColorConfig.StateName">
+            <summary>
+            Nombre descriptivo del estado (Disabled, Off, On, Alarm)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.StateColorConfig.ColorR">
+            <summary>
+            Componente Rojo del color RGB (0-255)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.StateColorConfig.ColorG">
+            <summary>
+            Componente Verde del color RGB (0-255)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.StateColorConfig.ColorB">
+            <summary>
+            Componente Azul del color RGB (0-255)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.StateColorConfig.Description">
+            <summary>
+            Descripción opcional del estado y color
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.StateColorConfig.ColorHex">
+            <summary>
+            Color en formato hexadecimal (#RRGGBB)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.StateColorConfig.ColorNormalized">
+            <summary>
+            Color normalizado para Babylon.js (0.0-1.0)
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.ColorRGB">
+            <summary>
+            Estructura de color RGB normalizado (0.0-1.0) para frontend
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.SystemConfiguration">
+            <summary>
+            Configuración del sistema desde Excel (hoja "System Config")
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.EnablePlcPolling">
+            <summary>
+            Habilitar/deshabilitar PlcPollingService
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.PlcPollingInterval">
+            <summary>
+            Intervalo de polling del PLC en milisegundos
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.EnableSignalR">
+            <summary>
+            Habilitar/deshabilitar SignalR Hub
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.EnableVerboseLogging">
+            <summary>
+            Habilitar/deshabilitar logging detallado
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.UseSimulatedPlc">
+            <summary>
+            Usar simulación de PLC en lugar de TwinCAT real
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.PlcAmsNetId">
+            <summary>
+            AMS Net ID del PLC (ej: 127.0.0.1.1.1)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.PlcAdsPort">
+            <summary>
+            Puerto ADS del PLC
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.EnableDatabase">
+            <summary>
+            Habilitar/deshabilitar Entity Framework / SQL Server
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.DatabaseConnectionString">
+            <summary>
+            Connection string de la base de datos
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.ApiPort">
+            <summary>
+            Puerto del servidor API
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.EnableCors">
+            <summary>
+            Habilitar CORS
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.CorsOrigins">
+            <summary>
+            Orígenes permitidos para CORS (separados por coma)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.ExcelConfigFileName">
+            <summary>
+            Nombre del archivo Excel principal
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.ConfigFolder">
+            <summary>
+            Carpeta donde están los archivos de configuración
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.ModelsFolder">
+            <summary>
+            Carpeta donde están los modelos 3D
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.ConfigCacheSeconds">
+            <summary>
+            Tiempo de cache de configuración en segundos
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.MaxSignalRConnections">
+            <summary>
+            Máximo de conexiones SignalR concurrentes
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.GitRepoBackend">
+            <summary>
+            Ruta al repositorio Git del Backend (ASP.NET Core)
+            Si vacío, se auto-detecta desde la ubicación del ejecutable
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.GitRepoFrontend">
+            <summary>
+            Ruta al repositorio Git del Frontend (React/Babylon.js)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.GitRepoTwinCatPlc">
+            <summary>
+            Ruta al repositorio Git del código TwinCAT PLC
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.EnvironmentMode">
+            <summary>
+            Modo de entorno: "production" o "development"
+            En producción: solo TwinCAT es editable desde Git Panel
+            En desarrollo: todos los repos son editables
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.VulnScanApiUrl">
+            <summary>
+            URL del servicio de vulnerabilidades.
+            Si vacío, el scanner está deshabilitado.
+            Ejemplos:
+            - OSV (Google): https://api.osv.dev/v1/query
+            - GitHub: https://api.github.com/advisories
+            - ENISA (futuro): https://api.enisa.europa.eu/vuln
+            - Local: http://192.168.1.100:8080/api/vuln
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.VulnScanApiType">
+            <summary>
+            Tipo de API para parsear respuestas correctamente.
+            Valores: OSV, GitHub, NVD, ENISA, Custom
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.VulnScanIntervalHours">
+            <summary>
+            Intervalo de escaneo automático en horas.
+            0 = solo escaneo manual
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.VulnScanAlertOnCritical">
+            <summary>
+            Generar alarma del sistema si se detecta vulnerabilidad crítica
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.VulnScanApiKey">
+            <summary>
+            API Key para servicios que lo requieran (NVD, GitHub con rate limit, etc.)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.IpcInfoEnabled">
+            <summary>
+            Habilitar monitoreo de hardware IPC (CPU, RAM, Disk, Network, Security).
+            Requerido por EU CRA para documentación del entorno operativo.
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.IpcInfoQuickPollSeconds">
+            <summary>
+            Intervalo de polling rápido (CPU%, RAM%, Disk%) en segundos.
+            Recomendado: 30 segundos. 0 = deshabilitado.
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemConfiguration.IpcInfoFullPollMinutes">
+            <summary>
+            Intervalo de actualización completa (full info) en minutos.
+            Recomendado: 5 minutos. 0 = solo bajo demanda.
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.SystemMetrics">
+            <summary>
+            Métricas de rendimiento del sistema en tiempo real
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemMetrics.PlcPollingScanTime">
+            <summary>
+            Tiempo de ciclo actual del polling PLC en ms
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemMetrics.PlcPollingAvgScanTime">
+            <summary>
+            Tiempo promedio del ciclo de polling en ms
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemMetrics.PlcMonitoredVariables">
+            <summary>
+            Número de variables monitoreadas activamente
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemMetrics.SignalRActiveConnections">
+            <summary>
+            Número de conexiones SignalR activas
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemMetrics.SignalRLastBroadcastTime">
+            <summary>
+            Tiempo de respuesta del último broadcast SignalR en ms
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemMetrics.SignalRAvgBroadcastTime">
+            <summary>
+            Tiempo de respuesta promedio de broadcasts SignalR en ms
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemMetrics.ExcelLastLoadTime">
+            <summary>
+            Tiempo de carga del último Excel en ms
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemMetrics.LastUpdate">
+            <summary>
+            Timestamp de la última actualización de métricas
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemMetrics.ServerUptime">
+            <summary>
+            Uptime del servidor en formato legible
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemMetrics.ServicesStatus">
+            <summary>
+            Estado de los servicios del sistema
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemMetrics.SoftwareVersions">
+            <summary>
+            Información de versiones y verificación de integridad del software
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.SoftwareVersionInfo">
+            <summary>
+            🔐 Información de versiones de software basada en Git commits
+            Para cumplimiento de normativas de ciberseguridad NASA/NIST
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SoftwareVersionInfo.NextVerificationTime">
+            <summary>Próxima verificación programada (UTC ISO string)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SoftwareVersionInfo.VerificationIntervalSeconds">
+            <summary>Intervalo de verificación en segundos (default: 120 = 2 min)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SoftwareVersionInfo.SecondsUntilNextVerification">
+            <summary>Segundos restantes hasta próxima verificación</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SoftwareVersionInfo.AutoVerificationEnabled">
+            <summary>Indica si la verificación automática está activa</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SoftwareVersionInfo.NetworkStatus">
+            <summary>Estado de conectividad y sincronización con repositorios remotos</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.GitVersionComponent">
+            <summary>
+            Información de versión basada en Git commit
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.Name">
+            <summary>Nombre del componente</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.Version">
+            <summary>Tag de versión semántica (ej: v1.2.3)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.CommitSha">
+            <summary>SHA corto del commit (7-8 caracteres)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.CommitShaFull">
+            <summary>SHA completo del commit (40 caracteres)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.Branch">
+            <summary>Rama actual</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.CommitDate">
+            <summary>Fecha del commit</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.CommitAuthor">
+            <summary>Autor del commit (nombre)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.CommitAuthorEmail">
+            <summary>Email del autor del commit</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.CommitMessage">
+            <summary>Mensaje del commit</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.WorkingDirStatus">
+            <summary>Estado del working directory: "clean", "dirty", "unknown"</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.ModifiedFiles">
+            <summary>Archivos modificados (si dirty)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.Integrity">
+            <summary>Estado de integridad: "verified", "modified", "unknown"</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.LastVerified">
+            <summary>Última vez que se verificó este componente</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.RepoPath">
+            <summary>Ruta del repositorio</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.IsSigned">
+            <summary>Si el commit está firmado (GPG o SSH)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.SignatureStatus">
+            <summary>Estado de la firma: "valid", "invalid", "unsigned", "unknown"</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.SignatureType">
+            <summary>Tipo de firma: "GPG", "SSH", "X509", "none"</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.SignatureKeyId">
+            <summary>ID de la clave usada para firmar (Key ID)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.SignatureSigner">
+            <summary>Nombre del firmante (de la clave GPG/SSH)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.SignatureMessage">
+            <summary>Mensaje de verificación de firma</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.LatestRelease">
+            <summary>Última versión release (tag CalVer, ej: 2025.12.01)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.GitVersionComponent.LatestReleaseDate">
+            <summary>Fecha del último release</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.RuntimeVersionInfo">
+            <summary>
+            Información de versión para componentes de runtime (sin Git)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.RuntimeVersionInfo.Name">
+            <summary>Nombre del componente</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.RuntimeVersionInfo.Version">
+            <summary>Versión del componente</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.RuntimeVersionInfo.Status">
+            <summary>Estado: "connected", "disconnected", "disabled"</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.RuntimeVersionInfo.Details">
+            <summary>Información adicional</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.RuntimeVersionInfo.TaskCycleTimeMs">
+            <summary>Task Cycle Time del PLC en milisegundos (solo para TwinCAT Runtime)</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.TwinCATVersionInfo">
+            <summary>
+            Información detallada de versión de TwinCAT
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.TwinCATVersionInfo.TaskCycleTime100ns">
+            <summary>Task Cycle Time del PLC en microsegundos (100ns units from TwinCAT)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.TwinCATVersionInfo.TaskCycleTimeMs">
+            <summary>Task Cycle Time del PLC en milisegundos (para display)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.TwinCATVersionInfo.TaskName">
+            <summary>Nombre de la tarea principal del PLC</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Excel.SystemServicesStatus">
+            <summary>
+            Estado de los servicios habilitados del sistema
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemServicesStatus.PlcPollingEnabled">
+            <summary>
+            PLC Polling habilitado en configuración
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemServicesStatus.PlcPollingConnected">
+            <summary>
+            PLC Polling funcionando correctamente
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemServicesStatus.PlcPollingStatus">
+            <summary>
+            Último mensaje de estado del PLC
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemServicesStatus.SignalREnabled">
+            <summary>
+            SignalR habilitado en configuración
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemServicesStatus.SignalRConnected">
+            <summary>
+            SignalR Hub funcionando correctamente
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemServicesStatus.SignalRStatus">
+            <summary>
+            Último mensaje de estado de SignalR
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemServicesStatus.DatabaseEnabled">
+            <summary>
+            Base de datos habilitada en configuración
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemServicesStatus.DatabaseConnected">
+            <summary>
+            Base de datos conectada correctamente
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemServicesStatus.DatabaseStatus">
+            <summary>
+            Último mensaje de estado de la base de datos
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemServicesStatus.UseSimulatedPlc">
+            <summary>
+            Usando PLC simulado (no real)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Excel.SystemServicesStatus.LastStatusUpdate">
+            <summary>
+            Timestamp de la última actualización de estados
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.IpcSystemInfo">
+            <summary>
+            Complete IPC system information
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.OsInfo">
+            <summary>
+            Operating System information
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.CpuInfo">
+            <summary>
+            CPU information
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.CoreUsage">
+            <summary>
+            Individual CPU core usage
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.MemoryInfo">
+            <summary>
+            Memory (RAM) information
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.DiskInfo">
+            <summary>
+            Disk information
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.NetworkInfo">
+            <summary>
+            Network information
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.NetworkAdapter">
+            <summary>
+            Network adapter details
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.RuntimeInfo">
+            <summary>
+            Runtime environment information
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SecurityInfo">
+            <summary>
+            Security status information
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.AntivirusProduct">
+            <summary>
+            Installed antivirus product information
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.PlcPollingConfiguration">
+            <summary>
+            Configuración del servicio de polling de variables PLC
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.PlcVariableState">
+            <summary>
+            Estado interno de una variable monitoreada
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.PumpElement3D">
+            <summary>
+            Modelo completo de elemento 3D según estructura de Excel "1) Pumps"
+            Soporta 30 columnas base + parámetros adicionales para web
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.TotalElements">
+            <summary>A: Total de elementos (solo en primera fila)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.Name">
+            <summary>B: Nombre/descripción del elemento</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.FileName">
+            <summary>C: Ruta del archivo 3D (ej: Pumps/PUMP_01.OBJ)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.OffsetX">
+            <summary>D: Offset X del modelo en la escena</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.OffsetY">
+            <summary>E: Offset Y del modelo en la escena</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.OffsetZ">
+            <summary>F: Offset Z del modelo en la escena</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.PlcMainPageReference">
+            <summary>G: Variable PLC para página principal (estado del elemento)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.PlcManualPageReference">
+            <summary>H: Variable PLC para página de manuales (NO USADO - columna eliminada)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.PlcConfigPageReference">
+            <summary>I: Variable PLC para página de configuración (NO USADO - columna eliminada)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.ColorElementOn">
+            <summary>J: Color cuando PlcMainPageReference = 2 (elemento encendido)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.ColorElementOff">
+            <summary>K: Color cuando PlcMainPageReference = 1 (elemento apagado)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.ColorElementDisabled">
+            <summary>L: Color cuando PlcMainPageReference = 0 (elemento deshabilitado)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.ColorElementAlarm">
+            <summary>M: Color cuando PlcMainPageReference = 3 (alarma)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.ElementNameDescription">
+            <summary>N: Texto del label que aparece en 3D</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.LabelFontSize">
+            <summary>O: Tamaño de fuente del label (NO USADO - columna eliminada)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.LabelOffsetX_Pos1">
+            <summary>P: Offset X de la etiqueta (Posición 1) (NO USADO - columna eliminada)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.LabelOffsetY_Pos1">
+            <summary>Q: Offset Y de la etiqueta (Posición 1) (NO USADO - columna eliminada)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.LabelOffsetZ_Pos1">
+            <summary>R: Offset Z de la etiqueta (Posición 1) (NO USADO - columna eliminada)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.LabelOffsetX_Pos2">
+            <summary>S: Offset X de la etiqueta (Posición 2) (NO USADO - columna eliminada)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.LabelOffsetY_Pos2">
+            <summary>T: Offset Y de la etiqueta (Posición 2) (NO USADO - columna eliminada)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.LabelOffsetZ_Pos2">
+            <summary>U: Offset Z de la etiqueta (Posición 2) (NO USADO - columna eliminada)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.OffspringsCount">
+            <summary>V (col 22): Número de elementos hijos (offsprings) que heredan este modelo (NO USADO)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.Children">
+            <summary>Lista de elementos hijos cargados (NO USADO)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.IconFileReference">
+            <summary>W (col 23): Ruta de imagen .jpg/.png para UI 2D (NO USADO)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.IconLanguageLabelRow">
+            <summary>X (col 24): Línea en archivos MSG.ENG/ITA/ESP para multiidioma (NO USADO)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.BrandAndModel">
+            <summary>Y (col 25): Marca y modelo (NO USADO)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.BindGantryNumber">
+            <summary>Z (col 26): Vinculación a Gantry (NO USADO)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.AvailableColors">
+            <summary>AA (col 30): Lista de colores disponibles (NO USADO)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.RotationX">
+            <summary>Rotación X en grados</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.RotationY">
+            <summary>Rotación Y en grados</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.RotationZ">
+            <summary>Rotación Z en grados</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.ScaleX">
+            <summary>Escala X (1.0 = normal)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.ScaleY">
+            <summary>Escala Y (1.0 = normal)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.ScaleZ">
+            <summary>Escala Z (1.0 = normal)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.IsClickable">
+            <summary>¿El modelo es clickeable en el 3D?</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.ShowTooltip">
+            <summary>¿Mostrar tooltip al hacer hover?</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.NavigateToScreen">
+            <summary>Pantalla a la que navegar al hacer click (manual/config/null)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.AnimationType">
+            <summary>
+            Tipo de animación:
+            - "none": Sin animación
+            - "REF PLC": Control directo desde variable PLC (requiere AnimationPlcVariable configurado)
+            - "rotate/pulse/bounce": Animaciones procedurales (no implementado)
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.AnimationSpeed">
+            <summary>Velocidad de animación (0-10) - Solo para animaciones procedurales</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.AnimateOnlyWhenOn">
+            <summary>¿Solo animar cuando estado = 2 (on)? - Solo para animaciones procedurales</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.AnimationPlcVariable">
+            <summary>Variable PLC que controla la posición de la animación (LREAL en mm) - Usado cuando AnimationType = "REF PLC"</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.AnimationMinValue">
+            <summary>Valor mínimo del rango de movimiento (en mm)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.AnimationMaxValue">
+            <summary>Valor máximo del rango de movimiento (en mm)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.AnimationAxis">
+            <summary>Eje de movimiento de la animación: X, Y o Z</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.AnimationScaleFactor">
+            <summary>Factor de escala para convertir mm del PLC a unidades Babylon (1.0 = 1mm PLC = 1 unidad Babylon)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.InitiallyVisible">
+            <summary>¿Visible al cargar la escena?</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.VisibilityCondition">
+            <summary>Variable PLC que controla visibilidad (opcional)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.Category">
+            <summary>Categoría para filtrado (pumps, valves, tanks...)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.Layer">
+            <summary>Capa de visualización (para ocultar/mostrar grupos)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.CastShadows">
+            <summary>¿Proyectar sombras?</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.ReceiveShadows">
+            <summary>¿Recibir sombras?</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.LOD">
+            <summary>Nivel de detalle: high, medium, low</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.Id">
+            <summary>ID único generado</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.ExcelRowIndex">
+            <summary>Índice de fila en el Excel (para debugging)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.PumpElement3D.LoadedAt">
+            <summary>Fecha de carga</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomDocument">
+            <summary>
+            CycloneDX SBOM Document - Standard format for Software Bill of Materials
+            Required by EU Cyber Resilience Act (CRA) for software transparency
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomDocument.BomFormat">
+            <summary>Format identifier - always "CycloneDX"</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomDocument.SpecVersion">
+            <summary>CycloneDX specification version</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomDocument.SerialNumber">
+            <summary>Serial number (UUID) for this SBOM instance</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomDocument.Version">
+            <summary>Version of this SBOM (increments on regeneration)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomDocument.Metadata">
+            <summary>Metadata about the SBOM and main component</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomDocument.Components">
+            <summary>List of all software components/dependencies</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomDocument.Dependencies">
+            <summary>Dependency relationships between components</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomMetadata">
+            <summary>
+            SBOM Metadata - Information about when/how the SBOM was generated
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomMetadata.Timestamp">
+            <summary>ISO 8601 timestamp of SBOM generation</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomMetadata.Tools">
+            <summary>Tools used to generate this SBOM</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomMetadata.Component">
+            <summary>The main component this SBOM describes</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomMetadata.Manufacture">
+            <summary>Manufacturer information</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomMetadata.Supplier">
+            <summary>Supplier information</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomTool">
+            <summary>
+            SBOM Tool - Information about the tool that generated the SBOM
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomOrganization">
+            <summary>
+            SBOM Organization - Company/organization information
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomContact">
+            <summary>
+            SBOM Contact - Contact person information
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomComponent">
+            <summary>
+            SBOM Component - A single software component/dependency
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.Type">
+            <summary>Type: application, library, framework, etc.</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.BomRef">
+            <summary>Unique identifier for this component</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.Group">
+            <summary>Component group/namespace (e.g., "Microsoft.Extensions")</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.Name">
+            <summary>Component name</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.Version">
+            <summary>Component version</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.Description">
+            <summary>Component description</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.Purl">
+            <summary>Package URL (purl) - standard format for identifying packages</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.Licenses">
+            <summary>Licenses associated with this component</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.ExternalReferences">
+            <summary>External references (repository, website, etc.)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.Hashes">
+            <summary>Hashes for integrity verification</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.Publisher">
+            <summary>Source: "nuget", "npm", "internal"</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomComponent.Scope">
+            <summary>Scope: "required", "optional", "dev"</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomLicense">
+            <summary>
+            SBOM License - License information for a component
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomLicenseInfo">
+            <summary>
+            SBOM License Info - Detailed license information
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomLicenseInfo.Id">
+            <summary>SPDX License ID (e.g., "MIT", "Apache-2.0")</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomLicenseInfo.Name">
+            <summary>License name if not SPDX standard</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomLicenseInfo.Url">
+            <summary>URL to license text</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomExternalReference">
+            <summary>
+            SBOM External Reference - Links to external resources
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomExternalReference.Type">
+            <summary>Type: vcs, website, documentation, etc.</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomExternalReference.Url">
+            <summary>URL to the resource</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomExternalReference.Comment">
+            <summary>Comment about this reference</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomHash">
+            <summary>
+            SBOM Hash - Integrity hash for a component
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomHash.Alg">
+            <summary>Algorithm: SHA-256, SHA-512, etc.</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomHash.Content">
+            <summary>Hash value</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomDependency">
+            <summary>
+            SBOM Dependency - Relationship between components
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomDependency.Ref">
+            <summary>Reference to the component</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomDependency.DependsOn">
+            <summary>Components this depends on</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomStatus">
+            <summary>
+            SBOM Status - Current state of SBOM generation
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.Exists">
+            <summary>Whether SBOM files exist</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.GeneratedAt">
+            <summary>Last generation timestamp</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.GeneratedBy">
+            <summary>Who triggered the generation</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.TotalComponents">
+            <summary>Total component count</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.BackendComponents">
+            <summary>Backend (NuGet) component count</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.FrontendComponents">
+            <summary>Frontend (npm) component count</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.IsUpToDate">
+            <summary>Is the SBOM up-to-date with current dependencies?</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.FilePath">
+            <summary>Path to the SBOM file</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.FileSizeBytes">
+            <summary>File size in bytes</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.SpecVersion">
+            <summary>CycloneDX format version</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.Status">
+            <summary>Validation status</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomStatus.ErrorMessage">
+            <summary>Error message if generation failed</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomGenerateRequest">
+            <summary>
+            SBOM Generation Request - Parameters for generating SBOM
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomGenerateRequest.RequestedBy">
+            <summary>Who is requesting the generation</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomGenerateRequest.IncludeBackend">
+            <summary>Include backend (NuGet) dependencies</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomGenerateRequest.IncludeFrontend">
+            <summary>Include frontend (npm) dependencies</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomGenerateRequest.IncludeDevDependencies">
+            <summary>Include dev dependencies</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.SbomGenerateRequest.Force">
+            <summary>Force regeneration even if up-to-date</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.SbomGenerateResult">
+            <summary>
+            SBOM Generation Result - Response after generating SBOM
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.TwinCAT.PlcDataSnapshot">
+            <summary>
+            Datos en tiempo real del PLC
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.TwinCAT.PlcWriteRequest">
+            <summary>
+            Solicitud de escritura de variable PLC
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.TwinCAT.PlcOperationResponse">
+            <summary>
+            Respuesta de operación PLC
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.TwinCAT.AdsConfiguration">
+            <summary>
+            Configuración de conexión TwinCAT ADS
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.TwinCAT.PlcSymbol">
+            <summary>
+            Símbolo (variable) del PLC
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.TwinCAT.PlcNotification">
+            <summary>
+            Notificación de cambio de variable PLC
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.VulnApiType">
+            <summary>
+            Tipos de API de vulnerabilidades soportados
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.VulnSeverity">
+            <summary>
+            Severidad de vulnerabilidad (CVSS)
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.Vulnerability">
+            <summary>
+            Vulnerabilidad detectada en una dependencia
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.Id">
+            <summary>ID único de la vulnerabilidad (CVE-2024-XXXXX)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.Aliases">
+            <summary>IDs alternativos (GHSA, OSV, etc.)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.Summary">
+            <summary>Resumen corto de la vulnerabilidad</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.Details">
+            <summary>Descripción detallada</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.Severity">
+            <summary>Severidad (Critical, High, Medium, Low)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.CvssScore">
+            <summary>Puntuación CVSS (0-10)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.AffectedPackage">
+            <summary>Paquete/librería afectada</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.InstalledVersion">
+            <summary>Versión instalada (afectada)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.AffectedVersions">
+            <summary>Rango de versiones afectadas</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.FixedVersion">
+            <summary>Versión que corrige la vulnerabilidad</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.Ecosystem">
+            <summary>Ecosistema (NuGet, npm, PyPI, etc.)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.PublishedDate">
+            <summary>Fecha de publicación</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.ModifiedDate">
+            <summary>Fecha de última modificación</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.References">
+            <summary>URLs de referencia (advisories, patches, etc.)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.Vulnerability.CweIds">
+            <summary>CWE IDs relacionados</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.VulnerabilityScanStatus">
+            <summary>
+            Estado del escaneo de vulnerabilidades
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.IsEnabled">
+            <summary>Scanner habilitado (tiene URL configurada)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.ApiType">
+            <summary>Tipo de API configurada</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.ApiUrlMasked">
+            <summary>URL de la API (parcialmente oculta por seguridad)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.LastScanDate">
+            <summary>Último escaneo exitoso</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.NextScheduledScan">
+            <summary>Próximo escaneo programado</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.ScanIntervalHours">
+            <summary>Intervalo de escaneo en horas (0=manual)</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.PackagesScanned">
+            <summary>Total de paquetes escaneados</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.TotalVulnerabilities">
+            <summary>Total de vulnerabilidades encontradas</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.CriticalCount">
+            <summary>Vulnerabilidades críticas</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.HighCount">
+            <summary>Vulnerabilidades altas</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.MediumCount">
+            <summary>Vulnerabilidades medias</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.LowCount">
+            <summary>Vulnerabilidades bajas</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.Status">
+            <summary>Estado del último escaneo</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanStatus.StatusMessage">
+            <summary>Mensaje de estado</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.VulnerabilityScanResult">
+            <summary>
+            Resultado de un escaneo de vulnerabilidades
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanResult.PackagesScanned">
+            <summary>Paquetes escaneados</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanResult.Vulnerabilities">
+            <summary>Vulnerabilidades encontradas</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanResult.Errors">
+            <summary>Errores durante el escaneo</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Models.VulnerabilityScanResult.Status">
+            <summary>Estado resumido</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.OsvQueryRequest">
+            <summary>
+            Request para consulta OSV (Google Open Source Vulnerabilities)
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Models.OsvQueryResponse">
+            <summary>
+            Response de OSV API
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ExcelConfigService.LoadChildrenForModel(OfficeOpenXml.ExcelWorksheet,System.Int32,System.String)">
+            <summary>
+            Lee las 21 columnas × 5 hijos (Child1-Child5) desde columnas AI-EI del Excel
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ExcelConfigService.LoadStateColorsAsync(System.String)">
+            <summary>
+            Carga la configuración de colores por estado desde la hoja PLC_State_Colors
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ExcelConfigService.ParseColorValue(System.String)">
+            <summary>
+            Parsea un valor de color desde Excel (soporta nombres CSS, hex #RRGGBB o RGB separado)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ExcelConfigService.ConvertNamedColorToRgb(System.String)">
+            <summary>
+            Convierte nombres de colores CSS/HTML a valores RGB
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ExcelConfigService.GetMonitoredVariableNamesAsync(System.String)">
+            <summary>
+            Obtiene la lista de nombres de variables PLC únicas que deben ser monitoreadas
+            desde la configuración de StateColors en el Excel
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ExcelConfigService.LoadSystemConfigurationAsync(System.String)">
+            <summary>
+            Carga la configuración del sistema desde la hoja "System Config" del Excel
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ExcelConfigService.Load3DModelsAsync(System.String)">
+            <summary>
+            Carga modelos 3D con children desde Excel (hoja "3D_Models")
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ExcelConfigService.InvalidateCache">
+            <summary>
+            Invalida el caché de configuración del sistema para forzar una recarga desde Excel
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.GetRepoPaths">
+            <summary>
+            Obtener las rutas de los repositorios (delegado a SoftwareIntegrityService que lee desde Excel)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.GetEnvironmentInfo">
+            <summary>
+            Detecta el entorno (production/development) basado en configuración Excel (EnvironmentMode)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.CheckEditPermission(System.String)">
+            <summary>
+            Verifica si el repositorio es editable según el entorno (production/development)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.GetNextCalVerTagAsync(System.String)">
+            <summary>
+            Generates next CalVer tag: YYYY.MM.increment
+            If current month has no tags, starts at .01
+            If current month has tags, increments the last number
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.GetSshSigningStatusAsync">
+            <summary>
+            Gets the current SSH signing configuration status
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.ConfigureSshSigningAsync(System.String)">
+            <summary>
+            Configures Git to use SSH signing with the specified key
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.DisableSshSigningAsync">
+            <summary>
+            Desactiva SSH signing - quita la configuración de firma
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.ValidateSigningIdentityAsync">
+            <summary>
+            Valida que la identidad del usuario Git coincida con la clave SSH
+            Para evitar suplantación de identidad (EU CRA compliance)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.GetAccessControlConfigAsync">
+            <summary>
+            Obtiene la configuración de control de acceso
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.SetAccessControlEnabledAsync(System.Boolean)">
+            <summary>
+            Activa o desactiva el control de acceso por claves
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.DeleteSshKeysAsync">
+            <summary>
+            Elimina las claves SSH del disco (~/.ssh/id_ed25519*)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.ExportSshKeyAsync">
+            <summary>
+            Exporta la clave SSH actual para que el usuario pueda guardarla
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.ImportSshKeyAsync(System.String,System.String)">
+            <summary>
+            Importa una clave SSH (privada + pública) al sistema
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.GetAuthorizedKeysAsync">
+            <summary>
+            Obtiene la lista de claves autorizadas para modificar el software
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.AddAuthorizedKeyAsync(System.String,System.String,System.String)">
+            <summary>
+            Añade una clave a la lista de autorizados
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.RemoveAuthorizedKeyAsync(System.String)">
+            <summary>
+            Elimina una clave de la lista de autorizados
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.GitOperationsService.CheckKeyAuthorizationAsync">
+            <summary>
+            Verifica si la clave SSH actual está en la lista de autorizados
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.IntegrityVerificationService">
+            <summary>
+            🔐 Servicio de verificación periódica de integridad del software
+            Re-verifica la integridad Git de todos los componentes cada 2 minutos
+            Para cumplimiento CRA (Cyber Resilience Act)
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.IIpcInfoService">
+            <summary>
+            Interface for IPC system information
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IIpcInfoService.GetSystemInfoAsync">
+            <summary>Get complete system information</summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IIpcInfoService.GetQuickStatusAsync">
+            <summary>Get quick summary (for frequent polling)</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.IpcQuickStatus">
+            <summary>
+            Quick status for frequent updates
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.IpcInfoService">
+            <summary>
+            Service to collect IPC system information
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IpcInfoService.GetSystemInfoAsync">
+            <summary>
+            Get complete system information
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IpcInfoService.GetQuickStatusAsync">
+            <summary>
+            Get quick status for frequent polling
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.IMetricsService">
+            <summary>
+            Servicio para recopilar y almacenar métricas de rendimiento del sistema
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IMetricsService.RecordPlcPollingScanTime(System.Double)">
+            <summary>
+            Registrar el tiempo de un ciclo de polling PLC
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IMetricsService.SetPlcMonitoredVariables(System.Int32)">
+            <summary>
+            Registrar el número de variables monitoreadas
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IMetricsService.RecordSignalRBroadcastTime(System.Double)">
+            <summary>
+            Registrar el tiempo de un broadcast SignalR
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IMetricsService.SetSignalRActiveConnections(System.Int32)">
+            <summary>
+            Registrar el número de conexiones SignalR activas
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IMetricsService.RecordExcelLoadTime(System.Double)">
+            <summary>
+            Registrar el tiempo de carga de un archivo Excel
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IMetricsService.GetCurrentMetrics">
+            <summary>
+            Obtener las métricas actuales del sistema
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IMetricsService.SetPlcPollingStatus(System.Boolean,System.Boolean,System.String)">
+            <summary>
+            Registrar estado del PLC Polling
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IMetricsService.SetSignalRStatus(System.Boolean,System.Boolean,System.String)">
+            <summary>
+            Registrar estado de SignalR
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IMetricsService.SetDatabaseStatus(System.Boolean,System.Boolean,System.String)">
+            <summary>
+            Registrar estado de la base de datos
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IMetricsService.SetUseSimulatedPlc(System.Boolean)">
+            <summary>
+            Registrar si se usa PLC simulado
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IMetricsService.SetSoftwareIntegrityService(SW.PC.API.Backend.Services.ISoftwareIntegrityService)">
+            <summary>
+            Establecer servicio de integridad de software
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.PlcPollingService">
+            <summary>
+            Servicio de background que monitorea continuamente variables del PLC
+            y transmite cambios via SignalR a todos los clientes conectados.
+            Las variables se cargan automáticamente desde el Excel.
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.PlcPollingService.ReloadExcelConfigurationAsync">
+            <summary>
+            Recarga la configuración de variables desde el Excel sin reiniciar el servicio
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.PlcPollingService.UpdateTwinCATTaskCycleTimeAsync">
+            <summary>
+            Actualiza el Task Cycle Time real del TwinCAT en el servicio de integridad
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.ISbomService">
+            <summary>
+            Interface for SBOM generation and management
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISbomService.GetStatusAsync">
+            <summary>Get current SBOM status</summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISbomService.GenerateAsync(SW.PC.API.Backend.Models.SbomGenerateRequest)">
+            <summary>Generate new SBOM</summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISbomService.GetSbomAsync">
+            <summary>Get full SBOM document</summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISbomService.GetSbomJsonAsync">
+            <summary>Get SBOM as JSON string for download</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.SbomService">
+            <summary>
+            SBOM Service Implementation - Generates CycloneDX format SBOM
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SbomService.GetStatusAsync">
+            <summary>
+            Get current SBOM status
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SbomService.GenerateAsync(SW.PC.API.Backend.Models.SbomGenerateRequest)">
+            <summary>
+            Generate new SBOM document
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SbomService.GetSbomAsync">
+            <summary>
+            Get full SBOM document
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SbomService.GetSbomJsonAsync">
+            <summary>
+            Get SBOM as JSON string for download
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SbomService.GetNuGetComponentsAsync">
+            <summary>
+            Parse NuGet packages from .csproj file
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SbomService.GetNpmComponentsAsync(System.Boolean)">
+            <summary>
+            Parse npm packages from package.json
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.ISoftwareIntegrityService">
+            <summary>
+            🔐 Servicio de verificación de integridad del software basado en Git
+            Para cumplimiento de normativas de ciberseguridad NASA/NIST y EU CRA
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISoftwareIntegrityService.GetSoftwareVersionInfo">
+            <summary>
+            Obtener información completa de versiones Git y estado de integridad
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISoftwareIntegrityService.VerifyAllIntegrityAsync">
+            <summary>
+            Verificar integridad de todos los componentes (working dir clean)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISoftwareIntegrityService.RegisterAdminVerification(System.String)">
+            <summary>
+            Registrar verificación por administrador
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISoftwareIntegrityService.UpdateTwinCATRuntimeInfo(System.String,System.String,System.Boolean,System.Boolean,System.Double)">
+            <summary>
+            Actualizar información de TwinCAT Runtime
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISoftwareIntegrityService.ConfigureGitPaths(System.String,System.String,System.String)">
+            <summary>
+            Configurar rutas de repositorios Git desde Excel
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISoftwareIntegrityService.UpdateDatabaseStatus(System.Boolean,System.Boolean,System.String)">
+            <summary>
+            Actualizar estado de Database desde configuración Excel
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISoftwareIntegrityService.UpdateVerificationSchedule(System.DateTime,System.Int32)">
+            <summary>
+            Actualizar información de programación de verificación automática
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISoftwareIntegrityService.CheckNetworkAndSyncStatusAsync">
+            <summary>
+            Verificar conectividad a internet y estado de sincronización con remoto
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISoftwareIntegrityService.GenerateIntegrityCertificateAsync(System.String,System.String)">
+            <summary>
+            Generar certificado de integridad firmado digitalmente
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISoftwareIntegrityService.VerifyCertificateSignature(SW.PC.API.Backend.Services.IntegrityCertificate)">
+            <summary>
+            Verificar un certificado de integridad
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.ISoftwareIntegrityService.GetRepositoryPaths">
+            <summary>
+            Obtener rutas de repositorios Git configuradas (desde Excel)
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SoftwareIntegrityService.GetRepositoryPaths">
+            <summary>
+            Configurar rutas de repositorios Git desde Excel (hoja System Config)
+            </summary>
+            <summary>
+            Obtener rutas de repositorios Git configuradas
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SoftwareIntegrityService.LoadPersistedState">
+            <summary>
+            Cargar estado guardado desde archivo JSON
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SoftwareIntegrityService.SavePersistedState">
+            <summary>
+            Guardar estado actual a archivo JSON
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SoftwareIntegrityService.ParseSignatureInfo(SW.PC.API.Backend.Models.Excel.GitVersionComponent,System.String)">
+            <summary>
+            Parsea la información de firma GPG/SSH del commit
+            Formato git: %G? = status, %GS = signer, %GK = key ID
+            %G? valores: G=good, B=bad, U=unknown, X=expired, Y=expired key, R=revoked, E=error, N=no signature
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SoftwareIntegrityService.CheckNetworkAndSyncStatusAsync">
+            <summary>
+            Verificar conectividad a internet y estado de sincronización con remotos Git
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SoftwareIntegrityService.GenerateIntegrityCertificateAsync(System.String,System.String)">
+            <summary>
+            Genera un certificado de integridad firmado digitalmente
+            Para uso offline y auditorías EU CRA
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.SoftwareIntegrityService.VerifyCertificateSignature(SW.PC.API.Backend.Services.IntegrityCertificate)">
+            <summary>
+            Verifica la firma de un certificado de integridad
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.NetworkSyncStatus">
+            <summary>
+            Estado de conectividad y sincronización con remotos
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.RemoteSyncInfo">
+            <summary>
+            Información de sincronización con remoto para un componente
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.IntegrityCertificate">
+            <summary>
+            Certificado de integridad del software - Para auditorías EU CRA
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.CertificateComponent">
+            <summary>
+            Componente dentro del certificado
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.CertificateRuntimeInfo">
+            <summary>
+            Información de runtime en el certificado
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.TwinCATService.GetVersionInfo">
+            <summary>
+            🔐 Obtener información de versión de TwinCAT para ciberseguridad
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.TwinCATService.GetTaskCycleTimeAsync">
+            <summary>
+            🕐 Obtener el Task Cycle Time real del PLC TwinCAT
+            Lee la variable de sistema TwinCAT que contiene el cycle time configurado
+            </summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.IVulnerabilityService">
+            <summary>
+            Interface for vulnerability scanning
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IVulnerabilityService.GetStatusAsync">
+            <summary>Get scanner status and last scan summary</summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IVulnerabilityService.ScanAsync">
+            <summary>Perform a full vulnerability scan</summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.IVulnerabilityService.GetVulnerabilitiesAsync">
+            <summary>Get detailed list of vulnerabilities from last scan</summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Services.IVulnerabilityService.IsEnabled">
+            <summary>Check if scanner is enabled</summary>
+        </member>
+        <member name="T:SW.PC.API.Backend.Services.VulnerabilityService">
+            <summary>
+            Vulnerability Scanner Service - Queries CVE databases for known vulnerabilities
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.VulnerabilityService.LoadConfigurationAsync">
+            <summary>
+            Load configuration from Excel via ExcelConfigService
+            </summary>
+        </member>
+        <member name="P:SW.PC.API.Backend.Services.VulnerabilityService.IsEnabled">
+            <summary>
+            Is the scanner enabled (has API URL configured)?
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.VulnerabilityService.GetStatusAsync">
+            <summary>
+            Get current scanner status
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.VulnerabilityService.ScanAsync">
+            <summary>
+            Perform full vulnerability scan
+            </summary>
+        </member>
+        <member name="M:SW.PC.API.Backend.Services.VulnerabilityService.GetVulnerabilitiesAsync">
+            <summary>
+            Get vulnerabilities from last scan
+            </summary>
+        </member>
+    </members>
+</doc>

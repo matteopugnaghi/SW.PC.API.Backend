@@ -1,0 +1,53 @@
+{
+  "colors": {
+    "defaultColor": "#FF0000",
+    "availableColors": [
+      "#FF0000",
+      "#00FF00",
+      "#0000FF",
+      "#FFFF00",
+      "#FF00FF",
+      "#00FFFF",
+      "#FFA500",
+      "#800080"
+    ],
+    "colorPolicy": "override",
+    "enableColorPanel": true
+  },
+  "viewer": {
+    "camera": {
+      "position": [
+        5,
+        5,
+        5
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "fov": 75,
+      "near": 0.1,
+      "far": 1000
+    },
+    "lighting": {
+      "ambient": {
+        "color": "#404040",
+        "intensity": 0.4
+      },
+      "directional": {
+        "color": "#ffffff",
+        "intensity": 0.8,
+        "position": [
+          10,
+          10,
+          5
+        ]
+      },
+      "environmentIntensity": 1
+    },
+    "enableGridHelper": true,
+    "enableAxesHelper": false
+  },
+  "custom": {}
+}

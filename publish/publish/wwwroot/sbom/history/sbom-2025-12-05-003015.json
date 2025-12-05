@@ -1,0 +1,419 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:d5f91ba2-1e98-4ac1-bbda-d796e10ef3f0",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2025-12-05T00:30:14.9686793Z",
+    "tools": [
+      {
+        "vendor": "Aquafrisch",
+        "name": "SW.PC.API.Backend SBOM Generator",
+        "version": "1.0.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "SW.PC.SCADA.System",
+      "version": "1.0.0",
+      "description": "Industrial SCADA/HMI System with 3D Visualization"
+    },
+    "manufacture": {
+      "name": "Aquafrisch"
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "bomRef": "pkg:nuget/BCrypt.Net-Next@4.0.3",
+      "group": "BCrypt",
+      "name": "BCrypt.Net-Next",
+      "version": "4.0.3",
+      "purl": "pkg:nuget/BCrypt.Net-Next@4.0.3",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.nuget.org/packages/BCrypt.Net-Next/4.0.3"
+        }
+      ],
+      "publisher": "NuGet",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:nuget/Beckhoff.TwinCAT.Ads@6.2.521",
+      "group": "Beckhoff.TwinCAT",
+      "name": "Beckhoff.TwinCAT.Ads",
+      "version": "6.2.521",
+      "purl": "pkg:nuget/Beckhoff.TwinCAT.Ads@6.2.521",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.nuget.org/packages/Beckhoff.TwinCAT.Ads/6.2.521"
+        }
+      ],
+      "publisher": "NuGet",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:nuget/EPPlus@7.5.0",
+      "group": "EPPlus",
+      "name": "EPPlus",
+      "version": "7.5.0",
+      "purl": "pkg:nuget/EPPlus@7.5.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.nuget.org/packages/EPPlus/7.5.0"
+        }
+      ],
+      "publisher": "NuGet",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:nuget/Microsoft.AspNetCore.Authentication.JwtBearer@8.0.0",
+      "group": "Microsoft.AspNetCore.Authentication",
+      "name": "Microsoft.AspNetCore.Authentication.JwtBearer",
+      "version": "8.0.0",
+      "purl": "pkg:nuget/Microsoft.AspNetCore.Authentication.JwtBearer@8.0.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.nuget.org/packages/Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0"
+        }
+      ],
+      "publisher": "NuGet",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:nuget/Microsoft.AspNetCore.OpenApi@8.0.1",
+      "group": "Microsoft.AspNetCore",
+      "name": "Microsoft.AspNetCore.OpenApi",
+      "version": "8.0.1",
+      "purl": "pkg:nuget/Microsoft.AspNetCore.OpenApi@8.0.1",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.nuget.org/packages/Microsoft.AspNetCore.OpenApi/8.0.1"
+        }
+      ],
+      "publisher": "NuGet",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:nuget/Microsoft.AspNetCore.SignalR@1.1.0",
+      "group": "Microsoft.AspNetCore",
+      "name": "Microsoft.AspNetCore.SignalR",
+      "version": "1.1.0",
+      "purl": "pkg:nuget/Microsoft.AspNetCore.SignalR@1.1.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.nuget.org/packages/Microsoft.AspNetCore.SignalR/1.1.0"
+        }
+      ],
+      "publisher": "NuGet",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:nuget/Microsoft.EntityFrameworkCore.SqlServer@8.0.0",
+      "group": "Microsoft.EntityFrameworkCore",
+      "name": "Microsoft.EntityFrameworkCore.SqlServer",
+      "version": "8.0.0",
+      "purl": "pkg:nuget/Microsoft.EntityFrameworkCore.SqlServer@8.0.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.SqlServer/8.0.0"
+        }
+      ],
+      "publisher": "NuGet",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:nuget/Microsoft.EntityFrameworkCore.Tools@8.0.0",
+      "group": "Microsoft.EntityFrameworkCore",
+      "name": "Microsoft.EntityFrameworkCore.Tools",
+      "version": "8.0.0",
+      "purl": "pkg:nuget/Microsoft.EntityFrameworkCore.Tools@8.0.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.Tools/8.0.0"
+        }
+      ],
+      "publisher": "NuGet",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:nuget/Swashbuckle.AspNetCore@6.4.0",
+      "group": "Swashbuckle",
+      "name": "Swashbuckle.AspNetCore",
+      "version": "6.4.0",
+      "purl": "pkg:nuget/Swashbuckle.AspNetCore@6.4.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.nuget.org/packages/Swashbuckle.AspNetCore/6.4.0"
+        }
+      ],
+      "publisher": "NuGet",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/@babylonjs/core@8.33.2",
+      "group": "@babylonjs",
+      "name": "@babylonjs/core",
+      "version": "8.33.2",
+      "purl": "pkg:npm/@babylonjs/core@8.33.2",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/@babylonjs/core/v/8.33.2"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/@babylonjs/gui@8.33.2",
+      "group": "@babylonjs",
+      "name": "@babylonjs/gui",
+      "version": "8.33.2",
+      "purl": "pkg:npm/@babylonjs/gui@8.33.2",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/@babylonjs/gui/v/8.33.2"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/@babylonjs/loaders@8.33.2",
+      "group": "@babylonjs",
+      "name": "@babylonjs/loaders",
+      "version": "8.33.2",
+      "purl": "pkg:npm/@babylonjs/loaders@8.33.2",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/@babylonjs/loaders/v/8.33.2"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/@microsoft/signalr@9.0.6",
+      "group": "@microsoft",
+      "name": "@microsoft/signalr",
+      "version": "9.0.6",
+      "purl": "pkg:npm/@microsoft/signalr@9.0.6",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/@microsoft/signalr/v/9.0.6"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/@testing-library/dom@10.4.1",
+      "group": "@testing-library",
+      "name": "@testing-library/dom",
+      "version": "10.4.1",
+      "purl": "pkg:npm/@testing-library/dom@10.4.1",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/@testing-library/dom/v/10.4.1"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/@testing-library/jest-dom@6.9.1",
+      "group": "@testing-library",
+      "name": "@testing-library/jest-dom",
+      "version": "6.9.1",
+      "purl": "pkg:npm/@testing-library/jest-dom@6.9.1",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/@testing-library/jest-dom/v/6.9.1"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/@testing-library/react@16.3.0",
+      "group": "@testing-library",
+      "name": "@testing-library/react",
+      "version": "16.3.0",
+      "purl": "pkg:npm/@testing-library/react@16.3.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/@testing-library/react/v/16.3.0"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/@testing-library/user-event@13.5.0",
+      "group": "@testing-library",
+      "name": "@testing-library/user-event",
+      "version": "13.5.0",
+      "purl": "pkg:npm/@testing-library/user-event@13.5.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/@testing-library/user-event/v/13.5.0"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/i18next@25.6.0",
+      "name": "i18next",
+      "version": "25.6.0",
+      "purl": "pkg:npm/i18next@25.6.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/i18next/v/25.6.0"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/i18next-http-backend@3.0.2",
+      "name": "i18next-http-backend",
+      "version": "3.0.2",
+      "purl": "pkg:npm/i18next-http-backend@3.0.2",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/i18next-http-backend/v/3.0.2"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/install@0.13.0",
+      "name": "install",
+      "version": "0.13.0",
+      "purl": "pkg:npm/install@0.13.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/install/v/0.13.0"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/react@19.2.0",
+      "name": "react",
+      "version": "19.2.0",
+      "purl": "pkg:npm/react@19.2.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/react/v/19.2.0"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/react-dom@19.2.0",
+      "name": "react-dom",
+      "version": "19.2.0",
+      "purl": "pkg:npm/react-dom@19.2.0",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/react-dom/v/19.2.0"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/react-i18next@16.2.3",
+      "name": "react-i18next",
+      "version": "16.2.3",
+      "purl": "pkg:npm/react-i18next@16.2.3",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/react-i18next/v/16.2.3"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/react-scripts@5.0.1",
+      "name": "react-scripts",
+      "version": "5.0.1",
+      "purl": "pkg:npm/react-scripts@5.0.1",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/react-scripts/v/5.0.1"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "bomRef": "pkg:npm/web-vitals@2.1.4",
+      "name": "web-vitals",
+      "version": "2.1.4",
+      "purl": "pkg:npm/web-vitals@2.1.4",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://www.npmjs.com/package/web-vitals/v/2.1.4"
+        }
+      ],
+      "publisher": "npm",
+      "scope": "required"
+    }
+  ]
+}
