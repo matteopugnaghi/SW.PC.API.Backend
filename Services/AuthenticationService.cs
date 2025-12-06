@@ -136,7 +136,7 @@ public class AuthenticationService : IAuthenticationService
                 request.Username, ipAddress ?? "unknown");
             
             // Buscar usuario
-            var user = await _context.Users
+            var nuser = await _context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.Username.ToLower() == request.Username.ToLower());
