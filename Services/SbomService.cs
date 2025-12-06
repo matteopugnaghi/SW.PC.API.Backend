@@ -35,6 +35,7 @@ public class SbomService : ISbomService
     private readonly ILogger<SbomService> _logger;
     private readonly IConfiguration _configuration;
     private readonly IWebHostEnvironment _environment;
+    private readonly IAuditLogService _auditLogService;
     
     // Paths
     private readonly string _backendProjectPath;
@@ -52,11 +53,13 @@ public class SbomService : ISbomService
     public SbomService(
         ILogger<SbomService> logger,
         IConfiguration configuration,
-        IWebHostEnvironment environment)
+        IWebHostEnvironment environment,
+        IAuditLogService auditLogService)
     {
         _logger = logger;
         _configuration = configuration;
         _environment = environment;
+        _auditLogService = auditLogService;
         
         // Get paths from configuration or use defaults
         var contentRoot = environment.ContentRootPath;
@@ -206,12 +209,31 @@ public class SbomService : ISbomService
             result.Status = await GetStatusAsync();
             
             _logger.LogInformation("✅ SBOM generated: {Count} total components", sbom.Components.Count);
+            
+            // 📋 Audit Log - EU CRA Compliance
+            await _auditLogService.LogAsync(
+                AuditCategory.Sbom,
+                AuditAction.SbomGenerate,
+                AuditResult.Success,
+                $"Generated SBOM with {sbom.Components.Count} components (Backend: {sbom.Components.Count(c => c.Purl?.StartsWith("pkg:nuget") == true)}, Frontend: {sbom.Components.Count(c => c.Purl?.StartsWith("pkg:npm") == true)})",
+                request.RequestedBy,
+                affectedItemCount: sbom.Components.Count
+            );
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ Error generating SBOM");
             result.Success = false;
             result.Message = $"Error generating SBOM: {ex.Message}";
+            
+            // 📋 Audit Log - Error
+            await _auditLogService.LogAsync(
+                AuditCategory.Sbom,
+                AuditAction.SbomGenerate,
+                AuditResult.Error,
+                $"Failed to generate SBOM: {ex.Message}",
+                request.RequestedBy
+            );
         }
         
         return result;

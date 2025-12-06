@@ -63,8 +63,10 @@ builder.Services.AddCors(options =>
 builder.Services.AddSignalR();
 
 // Configure JWT Authentication
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "YourSuperSecretKeyMinimum32Characters!";
-var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "SW.PC.API.Backend";
+// Los valores deben coincidir con la configuración de Excel (Auth_JwtSecretKey, Auth_JwtIssuer, Auth_JwtAudience)
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "AquafrischSupervisorSecretKey2024!Min32Chars";
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AquafrischSupervisor";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AquafrischClients";
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -76,7 +78,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtIssuer,
-            ValidAudience = jwtIssuer,
+            ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
         
@@ -104,6 +106,18 @@ builder.Services.AddAuthorization();
 builder.Services.Configure<PlcPollingConfiguration>(
     builder.Configuration.GetSection("PlcPolling"));
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔐 PHASE 2: Authentication System - SQLite Database (EU CRA / CADRA Compliance)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Configure SQLite Database for Authentication
+var authDbPath = builder.Configuration["Auth:DatabasePath"] ?? "Data/Aquafrisch.db";
+builder.Services.AddDbContext<AquafrischDbContext>(options =>
+    options.UseSqlite($"Data Source={authDbPath}"));
+
+// Register Authentication Service
+builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+
 // Register SCADA Services
 builder.Services.AddScoped<IModelService, ModelService>();
 builder.Services.AddScoped<IConfigurationService, ConfigurationService>();
@@ -116,12 +130,20 @@ builder.Services.AddSingleton<IGitOperationsService, GitOperationsService>(); //
 builder.Services.AddScoped<ISbomService, SbomService>(); // 📋 SBOM - EU CRA Compliance
 builder.Services.AddScoped<IVulnerabilityService, VulnerabilityService>(); // 🛡️ Vulnerability Scanner - EU CRA
 builder.Services.AddSingleton<IIpcInfoService, IpcInfoService>(); // 💻 IPC System Info
+builder.Services.AddSingleton<IAuditLogService, AuditLogService>(); // 📋 Audit Log - EU CRA Compliance
 
 // Register HttpClient for Vulnerability Scanner
 builder.Services.AddHttpClient("VulnerabilityScanner", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
     client.DefaultRequestHeaders.Add("User-Agent", "SW.PC.SUPERVISOR/1.0 (EU-CRA-Compliance)");
+});
+
+// Register HttpClient for Audit Log External SOC
+builder.Services.AddHttpClient("AuditExternal", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "AquafrischSupervisor/1.0 (EU-CRA-Audit)");
 });
 
 // Register Background Services
@@ -193,6 +215,23 @@ var app = builder.Build();
     }
     
     app.Logger.LogInformation("🔐 Software Integrity Service initialized with Git-based versioning");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔐 PHASE 2: Initialize Authentication System (SQLite + Default Admin)
+// ═══════════════════════════════════════════════════════════════════════════════
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var authService = scope.ServiceProvider.GetRequiredService<IAuthenticationService>();
+        await authService.InitializeAsync();
+        app.Logger.LogInformation("🔐 Authentication system initialized successfully");
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "❌ Error initializing authentication system");
+    }
 }
 
 // Initialize Database (Comentado temporalmente - descomentar cuando tengas SQL Server listo)

@@ -468,6 +468,244 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Recomendado: 5 minutos. 0 = solo bajo demanda.
         /// </summary>
         public int IpcInfoFullPollMinutes { get; set; } = 5;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 📋 AUDIT LOG - EU CRA Compliance (CADRA/Alstom)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar sistema de auditoría. Requerido por EU CRA y CADRA.
+        /// </summary>
+        public bool AuditLogEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Días de retención de logs. Mínimo 30 días según CADRA.
+        /// </summary>
+        public int AuditLogRetentionDays { get; set; } = 30;
+
+        /// <summary>
+        /// URL externa para envío de logs al SOC (ej: SOC PIVOT TISSEO).
+        /// Vacío = no enviar a externo.
+        /// </summary>
+        public string AuditLogExternalUrl { get; set; } = "";
+
+        /// <summary>
+        /// Habilitar envío de logs a URL externa.
+        /// </summary>
+        public bool AuditLogExternalEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Habilitar firma SHA256 en cada entrada de log para integridad.
+        /// </summary>
+        public bool AuditLogSignatureEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Máximo de entradas por archivo antes de rotar.
+        /// </summary>
+        public int AuditLogMaxEntriesPerFile { get; set; } = 10000;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🔐 AUTHENTICATION - EU CRA Compliance (CADRA/Alstom Phase 2)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Modo de autenticación: Local, ActiveDirectory, Hybrid
+        /// </summary>
+        public string AuthMode { get; set; } = "Local";
+
+        /// <summary>
+        /// Habilitar Active Directory (deshabilitado por defecto)
+        /// </summary>
+        public bool AuthEnableActiveDirectory { get; set; } = false;
+
+        /// <summary>
+        /// Servidor Active Directory (LDAP://server:port)
+        /// </summary>
+        public string AuthADServer { get; set; } = "";
+
+        /// <summary>
+        /// Dominio Active Directory
+        /// </summary>
+        public string AuthADDomain { get; set; } = "";
+
+        /// <summary>
+        /// Base DN para búsquedas en AD
+        /// </summary>
+        public string AuthADBaseDN { get; set; } = "";
+
+        /// <summary>
+        /// Timeout de conexión AD en segundos
+        /// </summary>
+        public int AuthADTimeoutSeconds { get; set; } = 10;
+
+        /// <summary>
+        /// Si AD falla, usar autenticación local como fallback
+        /// </summary>
+        public bool AuthFallbackToLocal { get; set; } = true;
+
+        /// <summary>
+        /// Ruta a la base de datos SQLite
+        /// </summary>
+        public string AuthDatabasePath { get; set; } = "Data/Aquafrisch.db";
+
+        /// <summary>
+        /// Longitud mínima de contraseña (CADRA: 12 caracteres mínimo)
+        /// </summary>
+        public int AuthPasswordMinLength { get; set; } = 12;
+
+        /// <summary>
+        /// Requerir mayúsculas en contraseña
+        /// </summary>
+        public bool AuthRequireUppercase { get; set; } = true;
+
+        /// <summary>
+        /// Requerir minúsculas en contraseña
+        /// </summary>
+        public bool AuthRequireLowercase { get; set; } = true;
+
+        /// <summary>
+        /// Requerir números en contraseña
+        /// </summary>
+        public bool AuthRequireNumbers { get; set; } = true;
+
+        /// <summary>
+        /// Requerir caracteres especiales en contraseña
+        /// </summary>
+        public bool AuthRequireSpecialChars { get; set; } = true;
+
+        /// <summary>
+        /// Máximo de intentos de login fallidos antes de bloquear
+        /// </summary>
+        public int AuthMaxLoginAttempts { get; set; } = 6;
+
+        /// <summary>
+        /// Minutos de bloqueo después de exceder intentos
+        /// </summary>
+        public int AuthLockoutMinutes { get; set; } = 15;
+
+        /// <summary>
+        /// Timeout de sesión en minutos
+        /// </summary>
+        public int AuthSessionTimeoutMinutes { get; set; } = 30;
+
+        /// <summary>
+        /// Forzar cambio de contraseña en primer login
+        /// </summary>
+        public bool AuthForcePasswordChangeOnFirstLogin { get; set; } = true;
+
+        /// <summary>
+        /// Mostrar banner de advertencia en login
+        /// </summary>
+        public bool AuthShowLoginBanner { get; set; } = true;
+
+        /// <summary>
+        /// Texto del banner de login
+        /// </summary>
+        public string AuthLoginBannerText { get; set; } = "ACCESO RESTRINGIDO - Solo personal autorizado. Todas las actividades son monitoreadas y registradas.";
+
+        /// <summary>
+        /// Clave secreta JWT (se genera automáticamente si está vacío)
+        /// </summary>
+        public string AuthJwtSecretKey { get; set; } = "";
+
+        /// <summary>
+        /// Emisor JWT
+        /// </summary>
+        public string AuthJwtIssuer { get; set; } = "AquafrischSupervisor";
+
+        /// <summary>
+        /// Audiencia JWT
+        /// </summary>
+        public string AuthJwtAudience { get; set; } = "AquafrischClients";
+
+        // ===== 🔐 SESSION MANAGEMENT - EU CRA Compliance (Phase 3) =====
+
+        /// <summary>
+        /// Máximo de sesiones concurrentes por usuario (0=ilimitado)
+        /// </summary>
+        public int AuthMaxConcurrentSessions { get; set; } = 2;
+
+        /// <summary>
+        /// Roles con sesión única (solo 1 usuario del rol activo a la vez)
+        /// Separados por coma. Ej: "Operator,Maintenance"
+        /// </summary>
+        public string AuthSingleSessionRoles { get; set; } = "Operator";
+
+        /// <summary>
+        /// Timeout por inactividad en minutos (0=deshabilitado)
+        /// Cierra sesión automáticamente si no hay actividad
+        /// </summary>
+        public int AuthInactivityTimeoutMinutes { get; set; } = 15;
+
+        /// <summary>
+        /// Rastrear última actividad de cada sesión
+        /// Necesario para InactivityTimeout y auditoría
+        /// </summary>
+        public bool AuthTrackLastActivity { get; set; } = true;
+
+        /// <summary>
+        /// Comportamiento cuando usuario de rol único intenta login y ya hay otro activo:
+        /// "reject" = Rechazar nuevo login
+        /// "force" = Expulsar sesión anterior
+        /// </summary>
+        public string AuthSingleSessionBehavior { get; set; } = "reject";
+
+        // ===== 🔐 PHASE 4: RBAC - Role Based Access Control (EU CRA) =====
+        
+        /// <summary>
+        /// Rol por defecto asignado a nuevos usuarios creados por administrador
+        /// Valores: Viewer, Operator, Maintenance, Auditor
+        /// </summary>
+        public string AuthDefaultRole { get; set; } = "Viewer";
+
+        /// <summary>
+        /// Habilitar rol de invitado (usuario anónimo con permisos limitados)
+        /// CADRA recomienda deshabilitar en producción
+        /// </summary>
+        public bool AuthEnableGuestRole { get; set; } = false;
+
+        /// <summary>
+        /// Permisos para rol invitado (si está habilitado)
+        /// Formato: area1:perm1,area2:perm2
+        /// Ejemplo: "plc:read,alarms:read"
+        /// </summary>
+        public string AuthGuestPermissions { get; set; } = "plc:read";
+
+        /// <summary>
+        /// Requerir aprobación de administrador para nuevos usuarios
+        /// Si true, usuarios creados están inactivos hasta aprobación
+        /// </summary>
+        public bool AuthRequireUserApproval { get; set; } = true;
+
+        /// <summary>
+        /// Notificar a administradores cuando se crea nuevo usuario
+        /// </summary>
+        public bool AuthNotifyAdminOnNewUser { get; set; } = true;
+
+        /// <summary>
+        /// Permisos adicionales para rol Operator (override desde Excel)
+        /// Formato: area1:perm1,area2:perm2
+        /// Ejemplo: "reports:export" para dar export además de los permisos base
+        /// </summary>
+        public string AuthOperatorExtraPermissions { get; set; } = "";
+
+        /// <summary>
+        /// Permisos adicionales para rol Maintenance (override desde Excel)
+        /// </summary>
+        public string AuthMaintenanceExtraPermissions { get; set; } = "";
+
+        /// <summary>
+        /// Permisos restringidos para todos los roles excepto Administrator
+        /// Formato: area1:perm1,area2:perm2
+        /// Ejemplo: "backup:restore" para bloquear restore a no-admins
+        /// </summary>
+        public string AuthRestrictedPermissions { get; set; } = "backup:restore,security:update";
+
+        /// <summary>
+        /// Habilitar herencia de permisos en jerarquía de roles
+        /// Si true: Admin > Maintenance > Operator > Viewer
+        /// </summary>
+        public bool AuthEnableRoleHierarchy { get; set; } = false;
     }
 
     /// <summary>

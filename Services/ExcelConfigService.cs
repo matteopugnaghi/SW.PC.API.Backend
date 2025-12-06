@@ -1185,6 +1185,233 @@ namespace SW.PC.API.Backend.Services
                                     config.IpcInfoFullPollMinutes = fullPoll;
                                 break;
 
+                            // ═══════════════════════════════════════════════════════════════
+                            // 📋 AUDIT LOG - EU CRA Compliance (CADRA/Alstom)
+                            // ═══════════════════════════════════════════════════════════════
+                            case "auditlogenabled":
+                            case "auditlog_enabled":
+                                config.AuditLogEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "auditlogretentiondays":
+                            case "auditlog_retentiondays":
+                            case "auditlog_retention_days":
+                                if (int.TryParse(paramValue, out int retDays))
+                                    config.AuditLogRetentionDays = Math.Max(7, retDays); // Mínimo 7 días
+                                break;
+                            case "auditlogexternalurl":
+                            case "auditlog_externalurl":
+                            case "auditlog_external_url":
+                                config.AuditLogExternalUrl = paramValue ?? "";
+                                break;
+                            case "auditlogexternalenabled":
+                            case "auditlog_externalenabled":
+                            case "auditlog_external_enabled":
+                                config.AuditLogExternalEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "auditlogsignatureenabled":
+                            case "auditlog_signatureenabled":
+                            case "auditlog_signature_enabled":
+                                config.AuditLogSignatureEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "auditlogmaxentriesperfile":
+                            case "auditlog_maxentriesperfile":
+                            case "auditlog_max_entries_per_file":
+                                if (int.TryParse(paramValue, out int maxEntries))
+                                    config.AuditLogMaxEntriesPerFile = Math.Max(100, maxEntries);
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
+                            // 🔐 AUTHENTICATION - EU CRA Compliance (CADRA/Alstom Phase 2)
+                            // ═══════════════════════════════════════════════════════════════
+                            case "authmode":
+                            case "auth_mode":
+                                config.AuthMode = paramValue ?? "Local";
+                                break;
+                            case "authenableactivedirectory":
+                            case "auth_enableactivedirectory":
+                            case "auth_enable_active_directory":
+                                config.AuthEnableActiveDirectory = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authadserver":
+                            case "auth_adserver":
+                            case "auth_ad_server":
+                                config.AuthADServer = paramValue ?? "";
+                                break;
+                            case "authaddomain":
+                            case "auth_addomain":
+                            case "auth_ad_domain":
+                                config.AuthADDomain = paramValue ?? "";
+                                break;
+                            case "authadbasedn":
+                            case "auth_adbasedn":
+                            case "auth_ad_basedn":
+                                config.AuthADBaseDN = paramValue ?? "";
+                                break;
+                            case "authadtimeoutseconds":
+                            case "auth_adtimeoutseconds":
+                            case "auth_ad_timeout_seconds":
+                                if (int.TryParse(paramValue, out int adTimeout))
+                                    config.AuthADTimeoutSeconds = Math.Max(5, adTimeout);
+                                break;
+                            case "authfallbacktolocal":
+                            case "auth_fallbacktolocal":
+                            case "auth_fallback_to_local":
+                                config.AuthFallbackToLocal = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authdatabasepath":
+                            case "auth_databasepath":
+                            case "auth_database_path":
+                                config.AuthDatabasePath = paramValue ?? "Data/Aquafrisch.db";
+                                break;
+                            case "authpasswordminlength":
+                            case "auth_passwordminlength":
+                            case "auth_password_min_length":
+                                if (int.TryParse(paramValue, out int minLen))
+                                    config.AuthPasswordMinLength = Math.Max(8, minLen);
+                                break;
+                            case "authrequireuppercase":
+                            case "auth_requireuppercase":
+                            case "auth_require_uppercase":
+                                config.AuthRequireUppercase = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authrequirelowercase":
+                            case "auth_requirelowercase":
+                            case "auth_require_lowercase":
+                                config.AuthRequireLowercase = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authrequirenumbers":
+                            case "auth_requirenumbers":
+                            case "auth_require_numbers":
+                                config.AuthRequireNumbers = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authrequirespecialchars":
+                            case "auth_requirespecialchars":
+                            case "auth_require_special_chars":
+                                config.AuthRequireSpecialChars = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authmaxloginattempts":
+                            case "auth_maxloginattempts":
+                            case "auth_max_login_attempts":
+                                if (int.TryParse(paramValue, out int maxAttempts))
+                                    config.AuthMaxLoginAttempts = Math.Max(3, maxAttempts);
+                                break;
+                            case "authlockoutminutes":
+                            case "auth_lockoutminutes":
+                            case "auth_lockout_minutes":
+                                if (int.TryParse(paramValue, out int lockoutMin))
+                                    config.AuthLockoutMinutes = Math.Max(5, lockoutMin);
+                                break;
+                            case "authsessiontimeoutminutes":
+                            case "auth_sessiontimeoutminutes":
+                            case "auth_session_timeout_minutes":
+                                if (int.TryParse(paramValue, out int sessionTimeout))
+                                    config.AuthSessionTimeoutMinutes = Math.Max(5, sessionTimeout);
+                                break;
+                            case "authforcepasswordchangeonfirstlogin":
+                            case "auth_forcepasswordchangeonfirstlogin":
+                            case "auth_force_password_change_on_first_login":
+                                config.AuthForcePasswordChangeOnFirstLogin = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authshowloginbanner":
+                            case "auth_showloginbanner":
+                            case "auth_show_login_banner":
+                                config.AuthShowLoginBanner = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authloginbannertext":
+                            case "auth_loginbannertext":
+                            case "auth_login_banner_text":
+                                config.AuthLoginBannerText = paramValue ?? "";
+                                break;
+                            case "authjwtsecretkey":
+                            case "auth_jwtsecretkey":
+                            case "auth_jwt_secret_key":
+                                config.AuthJwtSecretKey = paramValue ?? "";
+                                break;
+                            case "authjwtissuer":
+                            case "auth_jwtissuer":
+                            case "auth_jwt_issuer":
+                                config.AuthJwtIssuer = paramValue ?? "AquafrischSupervisor";
+                                break;
+                            case "authjwtaudience":
+                            case "auth_jwtaudience":
+                            case "auth_jwt_audience":
+                                config.AuthJwtAudience = paramValue ?? "AquafrischClients";
+                                break;
+
+                            // ===== 🔐 SESSION MANAGEMENT (Phase 3) =====
+                            case "authmaxconcurrentsessions":
+                            case "auth_maxconcurrentsessions":
+                            case "auth_max_concurrent_sessions":
+                                config.AuthMaxConcurrentSessions = int.TryParse(paramValue, out var maxSessions) ? maxSessions : 2;
+                                break;
+                            case "authsinglesessionroles":
+                            case "auth_singlesessionroles":
+                            case "auth_single_session_roles":
+                                config.AuthSingleSessionRoles = paramValue ?? "Operator";
+                                break;
+                            case "authinactivitytimeoutminutes":
+                            case "auth_inactivitytimeoutminutes":
+                            case "auth_inactivity_timeout_minutes":
+                                config.AuthInactivityTimeoutMinutes = int.TryParse(paramValue, out var inactivity) ? inactivity : 15;
+                                break;
+                            case "authtracklastactivity":
+                            case "auth_tracklastactivity":
+                            case "auth_track_last_activity":
+                                config.AuthTrackLastActivity = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authsinglesessionbehavior":
+                            case "auth_singlesessionbehavior":
+                            case "auth_single_session_behavior":
+                                config.AuthSingleSessionBehavior = paramValue?.ToLower() == "force" ? "force" : "reject";
+                                break;
+
+                            // ===== 🔐 RBAC - Role Based Access Control (Phase 4) =====
+                            case "authdefaultrole":
+                            case "auth_defaultrole":
+                            case "auth_default_role":
+                                config.AuthDefaultRole = paramValue ?? "Viewer";
+                                break;
+                            case "authenableguestrole":
+                            case "auth_enableguestrole":
+                            case "auth_enable_guest_role":
+                                config.AuthEnableGuestRole = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authguestpermissions":
+                            case "auth_guestpermissions":
+                            case "auth_guest_permissions":
+                                config.AuthGuestPermissions = paramValue ?? "plc:read";
+                                break;
+                            case "authrequireuserapproval":
+                            case "auth_requireuserapproval":
+                            case "auth_require_user_approval":
+                                config.AuthRequireUserApproval = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authnotifyadminonnewuser":
+                            case "auth_notifyadminonnewuser":
+                            case "auth_notify_admin_on_new_user":
+                                config.AuthNotifyAdminOnNewUser = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "authoperatorextrapermissions":
+                            case "auth_operatorextrapermissions":
+                            case "auth_operator_extra_permissions":
+                                config.AuthOperatorExtraPermissions = paramValue ?? "";
+                                break;
+                            case "authmaintenanceextrapermissions":
+                            case "auth_maintenanceextrapermissions":
+                            case "auth_maintenance_extra_permissions":
+                                config.AuthMaintenanceExtraPermissions = paramValue ?? "";
+                                break;
+                            case "authrestrictedpermissions":
+                            case "auth_restrictedpermissions":
+                            case "auth_restricted_permissions":
+                                config.AuthRestrictedPermissions = paramValue ?? "backup:restore,security:update";
+                                break;
+                            case "authenablerolehierarchy":
+                            case "auth_enablerolehierarchy":
+                            case "auth_enable_role_hierarchy":
+                                config.AuthEnableRoleHierarchy = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;

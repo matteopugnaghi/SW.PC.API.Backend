@@ -1,3 +1,4 @@
+using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.Excel;
 
 namespace SW.PC.API.Backend.Services
@@ -78,6 +79,7 @@ namespace SW.PC.API.Backend.Services
         {
             using var scope = _serviceProvider.CreateScope();
             var integrityService = scope.ServiceProvider.GetRequiredService<ISoftwareIntegrityService>();
+            var auditLog = scope.ServiceProvider.GetRequiredService<IAuditLogService>();
 
             if (_isFirstRun)
             {
@@ -98,11 +100,31 @@ namespace SW.PC.API.Backend.Services
             if (result)
             {
                 _logger.LogInformation("✅ Integrity verification PASSED in {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
+                
+                // 📝 Audit Log: Register successful auto-verification
+                await auditLog.LogAsync(
+                    AuditCategory.Integrity,
+                    AuditAction.IntegrityAutoVerify,
+                    AuditResult.Success,
+                    "Automatic integrity verification PASSED",
+                    "System",
+                    durationMs: stopwatch.ElapsedMilliseconds
+                );
             }
             else
             {
                 _logger.LogWarning("⚠️ Integrity verification completed with warnings in {ElapsedMs}ms", 
                     stopwatch.ElapsedMilliseconds);
+                    
+                // 📝 Audit Log: Register verification with warnings
+                await auditLog.LogAsync(
+                    AuditCategory.Integrity,
+                    AuditAction.IntegrityAutoVerify,
+                    AuditResult.Warning,
+                    "Automatic integrity verification completed with WARNINGS - possible code modifications detected",
+                    "System",
+                    durationMs: stopwatch.ElapsedMilliseconds
+                );
             }
         }
 
