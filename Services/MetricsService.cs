@@ -44,7 +44,7 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Registrar estado del PLC Polling
         /// </summary>
-        void SetPlcPollingStatus(bool enabled, bool connected, string statusMessage);
+        void SetPlcPollingStatus(bool enabled, bool connected, string statusMessage, bool isSimulated = false);
 
         /// <summary>
         /// Registrar estado de SignalR
@@ -181,6 +181,7 @@ namespace SW.PC.API.Backend.Services
                     {
                         PlcPollingEnabled = _servicesStatus.PlcPollingEnabled,
                         PlcPollingConnected = _servicesStatus.PlcPollingConnected,
+                        PlcIsSimulated = _servicesStatus.PlcIsSimulated,
                         PlcPollingStatus = _servicesStatus.PlcPollingStatus,
                         SignalREnabled = _servicesStatus.SignalREnabled,
                         SignalRConnected = _servicesStatus.SignalRConnected,
@@ -205,12 +206,13 @@ namespace SW.PC.API.Backend.Services
 
         // ===== MÉTODOS DE ESTADO DE SISTEMAS =====
 
-        public void SetPlcPollingStatus(bool enabled, bool connected, string statusMessage)
+        public void SetPlcPollingStatus(bool enabled, bool connected, string statusMessage, bool isSimulated = false)
         {
             lock (_lock)
             {
                 _servicesStatus.PlcPollingEnabled = enabled;
                 _servicesStatus.PlcPollingConnected = connected;
+                _servicesStatus.PlcIsSimulated = isSimulated;
                 _servicesStatus.PlcPollingStatus = statusMessage;
                 _servicesStatus.LastStatusUpdate = DateTime.UtcNow;
             }

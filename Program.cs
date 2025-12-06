@@ -28,13 +28,6 @@ builder.Services.AddSwaggerGen(c =>
     // c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, "SW.PC.API.Backend.xml"));
 });
 
-// Configure Database (SQL Server)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? "Server=(localdb)\\mssqllocaldb;Database=ScadaDB;Trusted_Connection=true;MultipleActiveResultSets=true";
-
-builder.Services.AddDbContext<ScadaDbContext>(options =>
-    options.UseSqlServer(connectionString));
-
 // Configure CORS for React frontend + SignalR
 builder.Services.AddCors(options =>
 {
@@ -110,10 +103,11 @@ builder.Services.Configure<PlcPollingConfiguration>(
 // 🔐 PHASE 2: Authentication System - SQLite Database (EU CRA / CADRA Compliance)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Configure SQLite Database for Authentication
-var authDbPath = builder.Configuration["Auth:DatabasePath"] ?? "Data/Aquafrisch.db";
+// Configure SQLite Database for Authentication (path configurable from Excel: DatabaseConnectionString)
+// Default: Data/Aquafrisch.db - Can be enabled/disabled via Excel: EnableDatabase
+var defaultDbPath = "Data/Aquafrisch.db";
 builder.Services.AddDbContext<AquafrischDbContext>(options =>
-    options.UseSqlite($"Data Source={authDbPath}"));
+    options.UseSqlite($"Data Source={defaultDbPath}"));
 
 // Register Authentication Service
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
@@ -227,30 +221,21 @@ using (var scope = app.Services.CreateScope())
         var authService = scope.ServiceProvider.GetRequiredService<IAuthenticationService>();
         await authService.InitializeAsync();
         app.Logger.LogInformation("🔐 Authentication system initialized successfully");
+        
+        // ✅ Actualizar estado de Database a conectado
+        var metricsForDb = scope.ServiceProvider.GetRequiredService<IMetricsService>();
+        metricsForDb.SetDatabaseStatus(true, true, "SQLite conectado");
+        app.Logger.LogInformation("✅ SQLite database connected and ready");
     }
     catch (Exception ex)
     {
         app.Logger.LogError(ex, "❌ Error initializing authentication system");
+        
+        // ❌ Actualizar estado de Database a error
+        var metricsForDb = scope.ServiceProvider.GetRequiredService<IMetricsService>();
+        metricsForDb.SetDatabaseStatus(true, false, $"Error: {ex.Message}");
     }
 }
-
-// Initialize Database (Comentado temporalmente - descomentar cuando tengas SQL Server listo)
-/*
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<ScadaDbContext>();
-    try
-    {
-        db.Database.EnsureCreated(); // Crear base de datos si no existe
-        // Para producción, usar: db.Database.Migrate();
-    }
-    catch (Exception ex)
-    {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "Error creating database");
-    }
-}
-*/
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -303,9 +288,8 @@ using (var scope = app.Services.CreateScope())
         // Inicializar estado de SignalR
         metricsService.SetSignalRStatus(systemConfig.EnableSignalR, false, "Esperando conexiones...");
         
-        // Inicializar estado de Database
-        metricsService.SetDatabaseStatus(systemConfig.EnableDatabase, false, 
-            systemConfig.EnableDatabase ? "Iniciando..." : "Deshabilitado");
+        // Nota: El estado de Database se actualiza después de inicializar AuthService
+        // para reflejar el estado real de conexión SQLite
         
         // 🔐 Actualizar estado de Database en el servicio de integridad (desde Excel)
         var integrityServiceForDb = app.Services.GetRequiredService<ISoftwareIntegrityService>();

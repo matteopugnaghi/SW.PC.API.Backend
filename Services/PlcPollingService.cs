@@ -108,8 +108,9 @@ namespace SW.PC.API.Backend.Services
             _logger.LogInformation("📊 Monitoreando {Count} variables PLC desde Excel", _monitoredVariables.Count);
             _lastExcelReload = DateTime.UtcNow;
             
-            // Actualizar estado: Conectado y funcionando
-            _metricsService.SetPlcPollingStatus(true, true, $"OK - {_monitoredVariables.Count} variables");
+            // Actualizar estado: Conectado y funcionando (indicar si es simulado)
+            var simStatus = _twinCATService.IsSimulated ? " (SIMULADO)" : "";
+            _metricsService.SetPlcPollingStatus(true, true, $"OK - {_monitoredVariables.Count} variables{simStatus}", _twinCATService.IsSimulated);
 
             // Loop principal de polling
             while (!stoppingToken.IsCancellationRequested)

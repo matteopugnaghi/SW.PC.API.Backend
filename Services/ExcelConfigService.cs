@@ -1055,14 +1055,16 @@ namespace SW.PC.API.Backend.Services
                                 config.PlcAdsPort = ParseInt(paramValue, 851);
                                 break;
 
-                            // BASE DE DATOS
+                            // BASE DE DATOS SQLite
                             case "enabledatabase":
                             case "enable_database":
-                                config.EnableDatabase = ParseBool(paramValue, false);
+                                config.EnableDatabase = ParseBool(paramValue, true); // Default true para SQLite
                                 break;
                             
                             case "databaseconnectionstring":
                             case "database_connection_string":
+                            case "databasepath":
+                            case "database_path":
                                 if (!string.IsNullOrWhiteSpace(paramValue))
                                     config.DatabaseConnectionString = paramValue;
                                 break;

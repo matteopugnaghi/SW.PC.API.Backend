@@ -334,16 +334,16 @@ namespace SW.PC.API.Backend.Models.Excel
         /// </summary>
         public int PlcAdsPort { get; set; } = 851;
 
-        // ===== BASE DE DATOS =====
+        // ===== BASE DE DATOS SQLite =====
         /// <summary>
-        /// Habilitar/deshabilitar Entity Framework / SQL Server
+        /// Habilitar/deshabilitar base de datos SQLite (autenticación, audit logs, etc.)
         /// </summary>
-        public bool EnableDatabase { get; set; } = false;
+        public bool EnableDatabase { get; set; } = true;
 
         /// <summary>
-        /// Connection string de la base de datos
+        /// Ruta del archivo SQLite (ej: "Data/Aquafrisch.db")
         /// </summary>
-        public string? DatabaseConnectionString { get; set; }
+        public string? DatabaseConnectionString { get; set; } = "Data/Aquafrisch.db";
 
         // ===== API/WEB =====
         /// <summary>
@@ -950,6 +950,11 @@ namespace SW.PC.API.Backend.Models.Excel
         /// PLC Polling funcionando correctamente
         /// </summary>
         public bool PlcPollingConnected { get; set; }
+
+        /// <summary>
+        /// PLC en modo simulado (no conectado a PLC real)
+        /// </summary>
+        public bool PlcIsSimulated { get; set; }
 
         /// <summary>
         /// Último mensaje de estado del PLC

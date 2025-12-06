@@ -11,6 +11,7 @@ namespace SW.PC.API.Backend.Services
         Task<bool> ConnectAsync();
         Task<bool> DisconnectAsync();
         bool IsConnected { get; }
+        bool IsSimulated { get; }
         Task<PlcDataSnapshot> ReadAllVariablesAsync(List<string> variableNames);
         Task<object?> ReadVariableAsync(string variableName, Type dataType);
         Task<bool> WriteVariableAsync(string variableName, object value, Type dataType);
@@ -33,6 +34,7 @@ namespace SW.PC.API.Backend.Services
         public event EventHandler<PlcNotification>? OnVariableChanged;
         
         public bool IsConnected => _isConnected;
+        public bool IsSimulated => _isSimulatedMode;
         
         // Cache del Task Cycle Time (se actualiza periódicamente)
         private double _cachedTaskCycleTimeMs = 0;
@@ -222,19 +224,54 @@ namespace SW.PC.API.Backend.Services
             }
         }
         
-        public TwinCATService(IConfiguration configuration, ILogger<TwinCATService> logger)
+        private readonly bool _forceSimulatedMode = false; // Forzar modo simulado desde Excel
+        
+        public TwinCATService(IConfiguration configuration, ILogger<TwinCATService> logger, IExcelConfigService excelConfig)
         {
             _logger = logger;
             
-            // Cargar configuración
+            // Cargar configuración desde Excel (prioridad) o appsettings.json (fallback)
+            SystemConfiguration? systemConfig = null;
+            try
+            {
+                var possiblePaths = new[]
+                {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExcelConfigs", "ProjectConfig.xlsm"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "ExcelConfigs", "ProjectConfig.xlsm"),
+                    @"ExcelConfigs\ProjectConfig.xlsm"
+                };
+                var excelPath = possiblePaths.FirstOrDefault(File.Exists);
+                if (excelPath != null)
+                {
+                    systemConfig = excelConfig.LoadSystemConfigurationAsync(excelPath).GetAwaiter().GetResult();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("⚠️ No se pudo cargar configuración de Excel: {Error}", ex.Message);
+            }
+            
+            // Usar valores de Excel si están disponibles, sino fallback a appsettings.json
             _config = new AdsConfiguration
             {
-                NetId = configuration["TwinCAT:NetId"] ?? "192.168.1.151.1.1",
-                Port = int.Parse(configuration["TwinCAT:Port"] ?? "851"),
+                NetId = systemConfig?.PlcAmsNetId ?? configuration["TwinCAT:NetId"] ?? "192.168.1.151.1.1",
+                Port = systemConfig?.PlcAdsPort ?? int.Parse(configuration["TwinCAT:Port"] ?? "851"),
                 Timeout = int.Parse(configuration["TwinCAT:Timeout"] ?? "5000")
             };
             
-            _logger.LogInformation("🔧 TwinCATService initialized - Target: {NetId}:{Port}", _config.NetId, _config.Port);
+            // ⭐ IMPORTANTE: Leer UseSimulatedPlc desde Excel
+            _forceSimulatedMode = systemConfig?.UseSimulatedPlc ?? false;
+            _isSimulatedMode = _forceSimulatedMode; // Inicializar con el valor de Excel
+            
+            if (_forceSimulatedMode)
+            {
+                _logger.LogWarning("🎮 TwinCATService en MODO SIMULADO (configurado en Excel: UseSimulatedPlc=TRUE)");
+                _isConnected = true; // En modo simulado, siempre "conectado"
+            }
+            else
+            {
+                _logger.LogInformation("🔧 TwinCATService initialized - Target: {NetId}:{Port}", _config.NetId, _config.Port);
+            }
             
             // Inicializar variables simuladas (fallback)
             InitializeSimulatedVariables();
@@ -257,6 +294,15 @@ namespace SW.PC.API.Backend.Services
         {
             try
             {
+                // ⭐ Si está forzado modo simulado desde Excel, NO intentar conectar al PLC real
+                if (_forceSimulatedMode)
+                {
+                    _logger.LogInformation("🎮 Modo SIMULADO forzado desde Excel (UseSimulatedPlc=TRUE) - NO se conectará al PLC real");
+                    _isConnected = true;
+                    _isSimulatedMode = true;
+                    return true;
+                }
+                
                 _logger.LogInformation("🔌 Attempting to connect to REAL TwinCAT PLC at {NetId}:{Port}", 
                     _config.NetId, _config.Port);
                 
@@ -444,8 +490,64 @@ namespace SW.PC.API.Backend.Services
                 return value;
             }
             
-            _logger.LogWarning("⚠️ Variable {Var} not found in simulated variables", variableName);
-            return null;
+            // ⭐ Auto-generar valor simulado para variables no definidas
+            var autoValue = GenerateSimulatedValue(variableName, dataType);
+            _simulatedVariables[variableName] = autoValue; // Cache para futuras lecturas
+            _logger.LogDebug("🎮 Auto-generated simulated value for {Var}: {Value}", variableName, autoValue);
+            return autoValue;
+        }
+        
+        /// <summary>
+        /// Genera valores simulados automáticamente basándose en el nombre de la variable
+        /// </summary>
+        private object GenerateSimulatedValue(string variableName, Type dataType)
+        {
+            var lowerName = variableName.ToLower();
+            
+            // Detectar tipo de variable por nombre y generar valor apropiado
+            if (lowerName.Contains("state") || lowerName.Contains("status"))
+            {
+                // Estados: 0=Disabled, 1=Off, 2=On, 3=Alarm - rotar entre valores
+                return _random.Next(0, 3);
+            }
+            else if (lowerName.Contains("position"))
+            {
+                // Posiciones: valor entre 0 y 1000
+                return (float)(_random.NextDouble() * 1000);
+            }
+            else if (lowerName.Contains("temperature") || lowerName.Contains("temp"))
+            {
+                // Temperatura: entre 15 y 35 grados
+                return (float)(15 + _random.NextDouble() * 20);
+            }
+            else if (lowerName.Contains("pressure"))
+            {
+                // Presión: entre 0 y 10 bar
+                return (float)(_random.NextDouble() * 10);
+            }
+            else if (lowerName.Contains("counter") || lowerName.Contains("count"))
+            {
+                return _random.Next(0, 1000);
+            }
+            else if (lowerName.Contains("alarm") || lowerName.Contains("error"))
+            {
+                return false; // Sin alarmas por defecto
+            }
+            else if (dataType == typeof(bool))
+            {
+                return _random.Next(2) == 1;
+            }
+            else if (dataType == typeof(int) || dataType == typeof(short))
+            {
+                return _random.Next(0, 100);
+            }
+            else if (dataType == typeof(float) || dataType == typeof(double))
+            {
+                return (float)(_random.NextDouble() * 100);
+            }
+            
+            // Default: entero entre 0 y 10
+            return _random.Next(0, 10);
         }
         
         public async Task<bool> WriteVariableAsync(string variableName, object value, Type dataType)
