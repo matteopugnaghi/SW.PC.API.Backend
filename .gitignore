@@ -107,3 +107,14 @@ _ReSharper*/
 integrity-state.json
 deployment-certificates.json
 backup-log.json
+
+# Audit logs (EU CRA - sensitive data, generated at runtime)
+wwwroot/audit/
+audit_*.json
+
+# SQLite database files (runtime data)
+Data/*.db
+Data/*.db-journal
+Data/*.db-wal
+Data/*.db-shm
+*.db
