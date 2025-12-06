@@ -1243,7 +1243,7 @@ public class AuthenticationService : IAuthenticationService
                 FullName = "Administrador del Sistema",
                 Email = "admin@aquafrisch.local",
                 Status = UserStatus.Active,
-                MustChangePassword = true, // IMPORTANTE: Forzar cambio en primer login
+                MustChangePassword = false, // Para desarrollo - en producción cambiar a true
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = "SYSTEM"
             };
