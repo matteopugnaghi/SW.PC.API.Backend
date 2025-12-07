@@ -22,6 +22,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly ILogger<SystemController> _logger;
         private readonly IConfiguration _configuration;
         private readonly IExcelConfigService _excelConfigService;
+        private readonly IWebHostEnvironment _env;
 
         // Cache de configuración del sistema
         private SystemConfiguration? _cachedConfig;
@@ -31,11 +32,13 @@ namespace SW.PC.API.Backend.Controllers
         public SystemController(
             ILogger<SystemController> logger, 
             IConfiguration configuration,
-            IExcelConfigService excelConfigService)
+            IExcelConfigService excelConfigService,
+            IWebHostEnvironment env)
         {
             _logger = logger;
             _configuration = configuration;
             _excelConfigService = excelConfigService;
+            _env = env;
         }
 
         /// <summary>
@@ -253,6 +256,15 @@ namespace SW.PC.API.Backend.Controllers
                 var kioskArgs = !string.IsNullOrEmpty(config.KioskBrowserArgs)
                     ? config.KioskBrowserArgs
                     : _configuration["SystemTools:KioskUrl"] ?? "--kiosk http://localhost:3001";
+
+                // 🔧 En desarrollo, NO usar modo kiosk para facilitar pruebas
+                var isDevelopment = _env.IsDevelopment();
+                if (isDevelopment)
+                {
+                    // Quitar --kiosk de los argumentos en desarrollo
+                    kioskArgs = kioskArgs.Replace("--kiosk ", "").Replace("--kiosk", "");
+                    _logger.LogInformation("🔧 Modo desarrollo: Deshabilitando --kiosk para facilitar pruebas");
+                }
 
                 if (browserPath != null)
                 {
