@@ -111,6 +111,7 @@ builder.Services.AddDbContext<AquafrischDbContext>(options =>
 
 // Register Authentication Service
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+builder.Services.AddScoped<IRecoveryCodeService, RecoveryCodeService>(); // 🔐 EU CRA - Recovery Codes Offline
 
 // Register SCADA Services
 builder.Services.AddScoped<IModelService, ModelService>();

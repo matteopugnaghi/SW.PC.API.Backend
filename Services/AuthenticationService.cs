@@ -64,11 +64,31 @@ public interface IAuthenticationService
     Task<List<UserListDto>> GetAllUsersAsync();
     Task<UserListDto?> GetUserByIdAsync(int userId);
     
+    /// <summary>Obtiene usuarios filtrados según el rol del solicitante (EU CRA)</summary>
+    Task<List<UserListDto>> GetUsersForRoleAsync(SystemRole requestingRole);
+    
+    /// <summary>Verifica si un usuario tiene un rol específico</summary>
+    Task<bool> UserHasRoleAsync(int userId, SystemRole role);
+    
+    /// <summary>Obtiene el rol más alto (menor número) de un usuario</summary>
+    Task<SystemRole?> GetHighestRoleAsync(int userId);
+    
     // Gestión de sesiones (Phase 3)
     Task<List<SessionInfoDto>> GetUserSessionsAsync(int userId);
     Task<List<SessionInfoDto>> GetAllActiveSessionsAsync();
     Task<AuthOperationResponse> CloseSessionAsync(int sessionId, int requestingUserId, string requestingUsername);
     Task<AuthOperationResponse> AdminCloseSessionAsync(int sessionId, string adminUsername);
+    
+    /// <summary>
+    /// Reset de contraseña usando código de recuperación Aquafrisch (EU CRA - Offline)
+    /// </summary>
+    Task<AuthOperationResponse> ResetPasswordWithRecoveryCodeAsync(string username, string newPassword);
+    
+    /// <summary>
+    /// Obtiene lista de usuarios disponibles para login (pantalla táctil IPC)
+    /// Solo devuelve información pública: username, nombre completo, rol
+    /// </summary>
+    Task<List<AvailableUserInfo>> GetAvailableUsersForLoginAsync();
     
     // Inicialización
     Task InitializeAsync();
@@ -1117,6 +1137,106 @@ public class AuthenticationService : IAuthenticationService
         }
     }
     
+    /// <summary>
+    /// 🔐 EU CRA - Reset de contraseña usando código de recuperación Aquafrisch
+    /// Funciona SIN INTERNET usando código generado por teléfono
+    /// </summary>
+    public async Task<AuthOperationResponse> ResetPasswordWithRecoveryCodeAsync(string username, string newPassword)
+    {
+        try
+        {
+            var user = await _context.Users
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Username.ToLower() == username.ToLower());
+            
+            if (user == null)
+            {
+                return new AuthOperationResponse { Success = false, Message = "Usuario no encontrado" };
+            }
+            
+            // Validar nueva contraseña
+            var validation = ValidatePassword(newPassword);
+            if (!validation.IsValid)
+            {
+                return new AuthOperationResponse 
+                { 
+                    Success = false, 
+                    Message = "La contraseña no cumple los requisitos: " + string.Join(", ", validation.Errors) 
+                };
+            }
+            
+            // Actualizar contraseña
+            user.PasswordHash = HashPassword(newPassword);
+            user.MustChangePassword = false; // Ya la acaba de elegir
+            user.PasswordChangedAt = DateTime.UtcNow;
+            user.ModifiedAt = DateTime.UtcNow;
+            user.ModifiedBy = "RECOVERY_SYSTEM";
+            user.FailedLoginAttempts = 0; // Desbloquear si estaba bloqueado
+            user.LockedUntil = null;
+            user.Status = UserStatus.Active; // Reactivar si estaba bloqueado
+            
+            await _context.SaveChangesAsync();
+            
+            // Revocar todas las sesiones existentes por seguridad
+            await LogoutAllSessionsAsync(user.Id, "Reset de contraseña vía código Aquafrisch");
+            
+            await _auditLog.LogAsync(
+                AuditCategory.Authentication, 
+                AuditAction.PasswordReset, 
+                AuditResult.Success,
+                $"Contraseña de {user.Username} reseteada usando código de recuperación Aquafrisch",
+                user.Id.ToString(), 
+                "RECOVERY_SYSTEM");
+            
+            _logger.LogInformation("✅ Contraseña reseteada para {Username} usando código Aquafrisch", username);
+            
+            return new AuthOperationResponse 
+            { 
+                Success = true, 
+                Message = "Contraseña actualizada correctamente" 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reseteando contraseña con código de recuperación para {Username}", username);
+            return new AuthOperationResponse { Success = false, Message = "Error al resetear contraseña" };
+        }
+    }
+    
+    /// <summary>
+    /// Obtiene lista de usuarios disponibles para login (pantalla táctil IPC)
+    /// Solo devuelve información pública: username, nombre completo, rol principal
+    /// Excluye usuarios inactivos y bloqueados
+    /// </summary>
+    public async Task<List<AvailableUserInfo>> GetAvailableUsersForLoginAsync()
+    {
+        try
+        {
+            var users = await _context.Users
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .Where(u => u.Status == UserStatus.Active && u.LockedUntil == null)
+                .OrderBy(u => u.UserRoles.Min(ur => (int)ur.Role!.SystemRole)) // Ordenar por rol (SuperAdmin primero)
+                .ThenBy(u => u.Username)
+                .Select(u => new AvailableUserInfo
+                {
+                    Username = u.Username,
+                    FullName = u.FullName,
+                    Role = u.UserRoles.OrderBy(ur => (int)ur.Role!.SystemRole).Select(ur => ur.Role!.Name).FirstOrDefault() ?? "Usuario",
+                    IsActive = true
+                })
+                .ToListAsync();
+            
+            return users;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo usuarios disponibles para login");
+            return new List<AvailableUserInfo>();
+        }
+    }
+    
     public async Task<List<UserListDto>> GetAllUsersAsync()
     {
         return await _context.Users
@@ -1135,6 +1255,64 @@ public class AuthenticationService : IAuthenticationService
                 CreatedAt = u.CreatedAt
             })
             .ToListAsync();
+    }
+    
+    /// <summary>
+    /// Obtiene usuarios filtrados según el rol del solicitante.
+    /// Administrator NO puede ver usuarios SuperAdmin.
+    /// SuperAdmin puede ver TODOS los usuarios.
+    /// </summary>
+    public async Task<List<UserListDto>> GetUsersForRoleAsync(SystemRole requestingRole)
+    {
+        var query = _context.Users
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .AsQueryable();
+        
+        // Si el solicitante es Administrator (no SuperAdmin), excluir SuperAdmins
+        if (requestingRole == SystemRole.Administrator)
+        {
+            query = query.Where(u => !u.UserRoles.Any(ur => ur.Role!.SystemRole == SystemRole.SuperAdmin));
+        }
+        
+        return await query
+            .Select(u => new UserListDto
+            {
+                Id = u.Id,
+                Username = u.Username,
+                FullName = u.FullName,
+                Email = u.Email,
+                Roles = u.UserRoles.Select(ur => ur.Role!.Name).ToList(),
+                Status = u.Status,
+                IsActiveDirectoryUser = u.IsActiveDirectoryUser,
+                LastLoginAt = u.LastLoginAt,
+                CreatedAt = u.CreatedAt
+            })
+            .ToListAsync();
+    }
+    
+    /// <summary>
+    /// Verifica si un usuario tiene un rol específico
+    /// </summary>
+    public async Task<bool> UserHasRoleAsync(int userId, SystemRole role)
+    {
+        return await _context.UserRoles
+            .Include(ur => ur.Role)
+            .AnyAsync(ur => ur.UserId == userId && ur.Role!.SystemRole == role);
+    }
+    
+    /// <summary>
+    /// Obtiene el rol más alto de un usuario
+    /// </summary>
+    public async Task<SystemRole?> GetHighestRoleAsync(int userId)
+    {
+        var roles = await _context.UserRoles
+            .Include(ur => ur.Role)
+            .Where(ur => ur.UserId == userId)
+            .Select(ur => ur.Role!.SystemRole)
+            .ToListAsync();
+        
+        return roles.Count > 0 ? roles.Min() : null; // Menor número = mayor privilegio
     }
     
     public async Task<UserListDto?> GetUserByIdAsync(int userId)
@@ -1213,13 +1391,124 @@ public class AuthenticationService : IAuthenticationService
         // Asegurar que la base de datos existe
         await AquafrischDbContextFactory.EnsureDatabaseCreatedAsync(_context);
         
-        // Asegurar que existe usuario admin
+        // Asegurar que existe rol SuperAdmin en la base de datos
+        await EnsureSuperAdminRoleExistsAsync();
+        
+        // Asegurar que existe usuario superadmin (fabricante)
+        await EnsureSuperAdminUserExistsAsync();
+        
+        // Asegurar que existe usuario admin (cliente)
         await EnsureAdminUserExistsAsync();
         
         // Limpiar sesiones expiradas
         await CleanupExpiredSessionsAsync();
         
         _logger.LogInformation("Servicio de autenticación inicializado correctamente");
+    }
+    
+    /// <summary>
+    /// Asegura que el rol SuperAdmin existe en la base de datos
+    /// </summary>
+    private async Task EnsureSuperAdminRoleExistsAsync()
+    {
+        var superAdminRole = await _context.Roles.FirstOrDefaultAsync(r => r.SystemRole == SystemRole.SuperAdmin);
+        if (superAdminRole == null)
+        {
+            _logger.LogWarning("Rol SuperAdmin no encontrado. Creando...");
+            
+            var newRole = new Role
+            {
+                Name = "SuperAdmin",
+                Description = "Super Administrador (Solo Fabricante Aquafrisch) - Acceso TOTAL incluyendo PLC, TwinCAT, firmware y código fuente. NO se entrega al cliente.",
+                SystemRole = SystemRole.SuperAdmin,
+                IsSystemRole = true,
+                PermissionsJson = """
+                {
+                    "users": ["create", "read", "update", "delete", "manage_all"],
+                    "roles": ["create", "read", "update", "delete", "assign_superadmin"],
+                    "audit": ["read", "export", "purge"],
+                    "config": ["read", "update", "system"],
+                    "plc": ["read", "write", "config", "program", "twincat"],
+                    "alarms": ["read", "acknowledge", "config", "system"],
+                    "recipes": ["create", "read", "update", "delete", "execute", "import", "export"],
+                    "reports": ["read", "create", "export", "system"],
+                    "security": ["read", "update", "system"],
+                    "backup": ["create", "restore", "system"],
+                    "firmware": ["read", "update"],
+                    "system": ["read", "update", "restart", "maintenance"],
+                    "license": ["read", "update"]
+                }
+                """
+            };
+            
+            _context.Roles.Add(newRole);
+            await _context.SaveChangesAsync();
+            
+            _logger.LogInformation("Rol SuperAdmin creado exitosamente");
+        }
+    }
+    
+    /// <summary>
+    /// Asegura que existe el usuario SuperAdmin del fabricante
+    /// Credenciales internas de Aquafrisch - NO se entregan al cliente
+    /// </summary>
+    private async Task EnsureSuperAdminUserExistsAsync()
+    {
+        var superAdminExists = await _context.Users
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .AnyAsync(u => u.UserRoles.Any(ur => ur.Role!.SystemRole == SystemRole.SuperAdmin));
+        
+        if (!superAdminExists)
+        {
+            _logger.LogWarning("No se encontró usuario SuperAdmin. Creando usuario superadmin del fabricante...");
+            
+            // Contraseña segura para el fabricante - DEBE cambiarse en producción
+            var superAdminPassword = "Aquafrisch@SuperAdmin2024!";
+            
+            var superAdminUser = new User
+            {
+                Username = "superadmin",
+                PasswordHash = HashPassword(superAdminPassword),
+                FullName = "Super Administrador Aquafrisch",
+                Email = "superadmin@aquafrisch.com",
+                Status = UserStatus.Active,
+                MustChangePassword = false, // El fabricante gestiona esto internamente
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "SYSTEM",
+                Notes = "Usuario del fabricante Aquafrisch. NO compartir credenciales con el cliente."
+            };
+            
+            _context.Users.Add(superAdminUser);
+            await _context.SaveChangesAsync();
+            
+            // Asignar rol SuperAdmin
+            var superAdminRole = await _context.Roles
+                .FirstOrDefaultAsync(r => r.SystemRole == SystemRole.SuperAdmin);
+            
+            if (superAdminRole != null)
+            {
+                _context.UserRoles.Add(new UserRole
+                {
+                    UserId = superAdminUser.Id,
+                    RoleId = superAdminRole.Id,
+                    AssignedAt = DateTime.UtcNow,
+                    AssignedBy = "SYSTEM"
+                });
+                
+                await _context.SaveChangesAsync();
+            }
+            
+            await _auditLog.LogAsync(
+                AuditCategory.Authentication, 
+                AuditAction.AdminCreated, 
+                AuditResult.Warning,
+                "Usuario SuperAdmin del fabricante creado. Credenciales internas de Aquafrisch.",
+                superAdminUser.Id.ToString(), "SYSTEM");
+            
+            _logger.LogWarning("🔐 Usuario SuperAdmin (fabricante) creado: superadmin / {Password}", superAdminPassword);
+            _logger.LogWarning("⚠️ IMPORTANTE: Este usuario es INTERNO de Aquafrisch. NO compartir con el cliente.");
+        }
     }
     
     public async Task EnsureAdminUserExistsAsync()
@@ -1243,7 +1532,7 @@ public class AuthenticationService : IAuthenticationService
                 FullName = "Administrador del Sistema",
                 Email = "admin@aquafrisch.local",
                 Status = UserStatus.Active,
-                MustChangePassword = false, // Para desarrollo - en producción cambiar a true
+                MustChangePassword = true, // ✅ PRODUCCIÓN: Forzar cambio de contraseña en primer acceso
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = "SYSTEM"
             };

@@ -147,30 +147,64 @@ public class AquafrischDbContext : DbContext
     }
 
     /// <summary>
-    /// Seed inicial de roles del sistema
+    /// Seed inicial de roles del sistema según EU CRA
+    /// Jerarquía: SuperAdmin (Fabricante) > Administrator (Cliente) > Operator > Maintenance > Viewer/Auditor
     /// </summary>
     private static void SeedRoles(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Role>().HasData(
+            // ============================================
+            // SUPERADMIN - Solo Fabricante (Aquafrisch)
+            // Acceso TOTAL: PLC, TwinCAT, firmware, código, todos los usuarios
+            // ============================================
+            new Role
+            {
+                Id = 6, // Nuevo ID para no conflictar con existentes
+                Name = "SuperAdmin",
+                Description = "Super Administrador (Solo Fabricante Aquafrisch) - Acceso TOTAL incluyendo PLC, TwinCAT, firmware y código fuente. NO se entrega al cliente.",
+                SystemRole = SystemRole.SuperAdmin,
+                IsSystemRole = true,
+                PermissionsJson = """
+                {
+                    "users": ["create", "read", "update", "delete", "manage_all"],
+                    "roles": ["create", "read", "update", "delete", "assign_superadmin"],
+                    "audit": ["read", "export", "purge"],
+                    "config": ["read", "update", "system"],
+                    "plc": ["read", "write", "config", "program", "twincat"],
+                    "alarms": ["read", "acknowledge", "config", "system"],
+                    "recipes": ["create", "read", "update", "delete", "execute", "import", "export"],
+                    "reports": ["read", "create", "export", "system"],
+                    "security": ["read", "update", "system"],
+                    "backup": ["create", "restore", "system"],
+                    "firmware": ["read", "update"],
+                    "system": ["read", "update", "restart", "maintenance"],
+                    "license": ["read", "update"]
+                }
+                """
+            },
+            // ============================================
+            // ADMINISTRATOR - Cliente (Responsable Seguridad)
+            // Gestión de usuarios de SU instalación, SIN acceso a PLC/código
+            // ============================================
             new Role
             {
                 Id = 1,
                 Name = "Administrator",
-                Description = "Administrador del sistema - Acceso total a todas las funciones incluyendo gestión de usuarios y seguridad",
+                Description = "Administrador del Cliente - Gestión de usuarios de su instalación, configuración operativa. SIN acceso a PLC, TwinCAT, firmware o código.",
                 SystemRole = SystemRole.Administrator,
                 IsSystemRole = true,
                 PermissionsJson = """
                 {
                     "users": ["create", "read", "update", "delete"],
-                    "roles": ["create", "read", "update", "delete"],
+                    "roles": ["read", "assign"],
                     "audit": ["read", "export"],
                     "config": ["read", "update"],
-                    "plc": ["read", "write", "config"],
+                    "plc": ["read"],
                     "alarms": ["read", "acknowledge", "config"],
                     "recipes": ["create", "read", "update", "delete", "execute"],
                     "reports": ["read", "create", "export"],
-                    "security": ["read", "update"],
-                    "backup": ["create", "restore"]
+                    "security": ["read"],
+                    "backup": ["create"]
                 }
                 """
             },

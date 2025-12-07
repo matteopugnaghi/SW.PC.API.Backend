@@ -52,6 +52,10 @@ namespace SW.PC.API.Backend.Models
         UserUpdated,
         UserDeleted,
         AdminCreated,
+        UserViewed,
+        UsersListed,
+        PermissionDenied,
+        RoleChanged,
         
         // Configuración
         ConfigChange,

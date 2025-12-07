@@ -706,6 +706,125 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Si true: Admin > Maintenance > Operator > Viewer
         /// </summary>
         public bool AuthEnableRoleHierarchy { get; set; } = false;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🖥️ KIOSK MODE - Herramientas del Sistema (IPCs industriales)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar modo kiosk (herramientas de sistema disponibles)
+        /// </summary>
+        public bool KioskModeEnabled { get; set; } = true;
+
+        /// <summary>
+        /// ID único de la instalación (para soporte técnico)
+        /// Ej: "AQF-ALSTOM-001", "AQF-TISSEO-042"
+        /// </summary>
+        public string InstallationId { get; set; } = "AQF-DEFAULT-001";
+
+        /// <summary>
+        /// Roles autorizados para usar herramientas del sistema
+        /// Separados por coma. Ej: "SuperAdmin,Administrator,Maintenance"
+        /// </summary>
+        public string AllowedSystemToolsRoles { get; set; } = "SuperAdmin,Administrator,Maintenance";
+
+        /// <summary>
+        /// Habilitar botón de cerrar sesión de Windows
+        /// </summary>
+        public bool WindowsLogoutEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Habilitar botón de reiniciar aplicación/kiosk
+        /// </summary>
+        public bool AppRestartEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Habilitar diagnóstico de red
+        /// </summary>
+        public bool NetworkDiagnosticEnabled { get; set; } = true;
+
+        /// <summary>
+        /// IP del gateway para diagnóstico de red
+        /// </summary>
+        public string GatewayIP { get; set; } = "192.168.1.1";
+
+        /// <summary>
+        /// Ruta al navegador/aplicación del kiosk (para reiniciar)
+        /// </summary>
+        public string KioskBrowserPath { get; set; } = "";
+
+        /// <summary>
+        /// Argumentos para iniciar el navegador en modo kiosk
+        /// Ej: "--kiosk http://localhost:3001"
+        /// </summary>
+        public string KioskBrowserArgs { get; set; } = "--kiosk http://localhost:3001";
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🖥️ TEAMVIEWER - Soporte Remoto
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar botón de TeamViewer
+        /// </summary>
+        public bool TeamViewerEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Ruta personalizada a TeamViewer (vacío = autodetectar)
+        /// </summary>
+        public string TeamViewerPath { get; set; } = "";
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🔌 CUSTOM TOOLS - Software Adicional Configurable
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        // --- HERRAMIENTA PERSONALIZADA 1 ---
+        public bool CustomTool1Enabled { get; set; } = false;
+        public string CustomTool1Name { get; set; } = "";
+        public string CustomTool1Path { get; set; } = "";
+        public string CustomTool1Args { get; set; } = "";
+        public string CustomTool1Icon { get; set; } = "🔧";
+
+        // --- HERRAMIENTA PERSONALIZADA 2 ---
+        public bool CustomTool2Enabled { get; set; } = false;
+        public string CustomTool2Name { get; set; } = "";
+        public string CustomTool2Path { get; set; } = "";
+        public string CustomTool2Args { get; set; } = "";
+        public string CustomTool2Icon { get; set; } = "⚙️";
+
+        // --- HERRAMIENTA PERSONALIZADA 3 ---
+        public bool CustomTool3Enabled { get; set; } = false;
+        public string CustomTool3Name { get; set; } = "";
+        public string CustomTool3Path { get; set; } = "";
+        public string CustomTool3Args { get; set; } = "";
+        public string CustomTool3Icon { get; set; } = "🔌";
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 📞 SOPORTE AQUAFRISCH - "Llamar a Aquafrisch" (cualquier usuario)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar función "Llamar a Aquafrisch" (visible para TODOS los usuarios)
+        /// </summary>
+        public bool SupportUnlockEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Teléfono de soporte técnico Aquafrisch
+        /// </summary>
+        public string SupportPhoneNumber { get; set; } = "+34 900 123 456";
+
+        /// <summary>
+        /// Email de soporte técnico Aquafrisch
+        /// </summary>
+        public string SupportEmail { get; set; } = "soporte@aquafrisch.com";
+
+        /// <summary>
+        /// Duración del desbloqueo temporal en minutos (tras código de soporte)
+        /// </summary>
+        public int SupportUnlockDurationMinutes { get; set; } = 30;
+
+        // NOTA: SupportChallengeSecret NO se configura desde Excel
+        // Está hardcodeado en SupportController.cs (igual que RecoveryCodeService)
+        // Solo Aquafrisch conoce el secreto
     }
 
     /// <summary>

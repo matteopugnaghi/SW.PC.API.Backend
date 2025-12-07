@@ -13,11 +13,15 @@ namespace SW.PC.API.Backend.Models;
 #region Enumeraciones
 
 /// <summary>
-/// Roles predefinidos del sistema según CADRA Cyber SYS
+/// Roles predefinidos del sistema según EU CRA y CADRA Cyber SYS
+/// SuperAdmin (Fabricante) > Administrator (Cliente) > Operator > Maintenance > Viewer/Auditor
 /// </summary>
 public enum SystemRole
 {
-    /// <summary>Administrador del sistema - Acceso total</summary>
+    /// <summary>Super Administrador - Solo fabricante (Aquafrisch). Acceso TOTAL incluyendo PLC, firmware, código</summary>
+    SuperAdmin = 0,
+    
+    /// <summary>Administrador del cliente - Gestión de usuarios de SU instalación, sin acceso a PLC/código</summary>
     Administrator = 1,
     
     /// <summary>Operador - Control de proceso, sin configuración</summary>
@@ -651,6 +655,18 @@ public class SessionConfigDto
     public List<string> SingleSessionRoles { get; set; } = new();
     public int InactivityTimeoutMinutes { get; set; }
     public int SessionTimeoutMinutes { get; set; }
+}
+
+/// <summary>
+/// Información básica de usuario para selector de login (pantalla táctil IPC)
+/// No incluye información sensible - solo para mostrar en dropdown
+/// </summary>
+public class AvailableUserInfo
+{
+    public string Username { get; set; } = string.Empty;
+    public string? FullName { get; set; }
+    public string Role { get; set; } = string.Empty;
+    public bool IsActive { get; set; } = true;
 }
 
 #endregion

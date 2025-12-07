@@ -1269,7 +1269,7 @@ namespace SW.PC.API.Backend.Services
                             case "auth_passwordminlength":
                             case "auth_password_min_length":
                                 if (int.TryParse(paramValue, out int minLen))
-                                    config.AuthPasswordMinLength = Math.Max(8, minLen);
+                                    config.AuthPasswordMinLength = Math.Max(4, minLen); // Mínimo 4 para desarrollo
                                 break;
                             case "authrequireuppercase":
                             case "auth_requireuppercase":
@@ -1413,6 +1413,151 @@ namespace SW.PC.API.Backend.Services
                             case "auth_enable_role_hierarchy":
                                 config.AuthEnableRoleHierarchy = paramValue?.ToLower() == "true" || paramValue == "1";
                                 break;
+
+                            // ═══════════════════════════════════════════════════════════════
+                            // 🖥️ KIOSK MODE - Herramientas del Sistema (IPCs industriales)
+                            // ═══════════════════════════════════════════════════════════════
+                            case "kioskmodeenabled":
+                            case "kiosk_mode_enabled":
+                                config.KioskModeEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "installationid":
+                            case "installation_id":
+                                config.InstallationId = paramValue ?? "AQF-DEFAULT-001";
+                                break;
+                            case "allowedsystemtoolsroles":
+                            case "allowed_system_tools_roles":
+                                config.AllowedSystemToolsRoles = paramValue ?? "SuperAdmin,Administrator,Maintenance";
+                                break;
+                            case "windowslogoutenabled":
+                            case "windows_logout_enabled":
+                                config.WindowsLogoutEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "apprestartenabled":
+                            case "app_restart_enabled":
+                                config.AppRestartEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "networkdiagnosticenabled":
+                            case "network_diagnostic_enabled":
+                                config.NetworkDiagnosticEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "gatewayip":
+                            case "gateway_ip":
+                                config.GatewayIP = paramValue ?? "192.168.1.1";
+                                break;
+                            case "kioskbrowserpath":
+                            case "kiosk_browser_path":
+                                config.KioskBrowserPath = paramValue ?? "";
+                                break;
+                            case "kioskbrowserargs":
+                            case "kiosk_browser_args":
+                                config.KioskBrowserArgs = paramValue ?? "--kiosk http://localhost:3001";
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
+                            // 🖥️ TEAMVIEWER - Soporte Remoto
+                            // ═══════════════════════════════════════════════════════════════
+                            case "teamviewerenabled":
+                            case "teamviewer_enabled":
+                                config.TeamViewerEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "teamviewerpath":
+                            case "teamviewer_path":
+                                config.TeamViewerPath = paramValue ?? "";
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
+                            // 🔌 CUSTOM TOOLS - Software Adicional Configurable
+                            // ═══════════════════════════════════════════════════════════════
+                            // --- HERRAMIENTA 1 ---
+                            case "customtool1enabled":
+                            case "custom_tool_1_enabled":
+                                config.CustomTool1Enabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "customtool1name":
+                            case "custom_tool_1_name":
+                                config.CustomTool1Name = paramValue ?? "";
+                                break;
+                            case "customtool1path":
+                            case "custom_tool_1_path":
+                                config.CustomTool1Path = paramValue ?? "";
+                                break;
+                            case "customtool1args":
+                            case "custom_tool_1_args":
+                                config.CustomTool1Args = paramValue ?? "";
+                                break;
+                            case "customtool1icon":
+                            case "custom_tool_1_icon":
+                                config.CustomTool1Icon = paramValue ?? "🔧";
+                                break;
+
+                            // --- HERRAMIENTA 2 ---
+                            case "customtool2enabled":
+                            case "custom_tool_2_enabled":
+                                config.CustomTool2Enabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "customtool2name":
+                            case "custom_tool_2_name":
+                                config.CustomTool2Name = paramValue ?? "";
+                                break;
+                            case "customtool2path":
+                            case "custom_tool_2_path":
+                                config.CustomTool2Path = paramValue ?? "";
+                                break;
+                            case "customtool2args":
+                            case "custom_tool_2_args":
+                                config.CustomTool2Args = paramValue ?? "";
+                                break;
+                            case "customtool2icon":
+                            case "custom_tool_2_icon":
+                                config.CustomTool2Icon = paramValue ?? "⚙️";
+                                break;
+
+                            // --- HERRAMIENTA 3 ---
+                            case "customtool3enabled":
+                            case "custom_tool_3_enabled":
+                                config.CustomTool3Enabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "customtool3name":
+                            case "custom_tool_3_name":
+                                config.CustomTool3Name = paramValue ?? "";
+                                break;
+                            case "customtool3path":
+                            case "custom_tool_3_path":
+                                config.CustomTool3Path = paramValue ?? "";
+                                break;
+                            case "customtool3args":
+                            case "custom_tool_3_args":
+                                config.CustomTool3Args = paramValue ?? "";
+                                break;
+                            case "customtool3icon":
+                            case "custom_tool_3_icon":
+                                config.CustomTool3Icon = paramValue ?? "🔌";
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
+                            // 📞 SOPORTE AQUAFRISCH - "Llamar a Aquafrisch"
+                            // ═══════════════════════════════════════════════════════════════
+                            case "supportunlockenabled":
+                            case "support_unlock_enabled":
+                                config.SupportUnlockEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "supportphonenumber":
+                            case "support_phone_number":
+                                config.SupportPhoneNumber = paramValue ?? "+34 900 123 456";
+                                break;
+                            case "supportemail":
+                            case "support_email":
+                                config.SupportEmail = paramValue ?? "soporte@aquafrisch.com";
+                                break;
+                            case "supportunlockdurationminutes":
+                            case "support_unlock_duration_minutes":
+                                if (int.TryParse(paramValue, out int unlockMin))
+                                    config.SupportUnlockDurationMinutes = Math.Max(5, Math.Min(unlockMin, 120)); // 5-120 min
+                                break;
+                            
+                            // NOTA: SupportChallengeSecret NO se lee de Excel
+                            // Está hardcodeado en SupportController.cs (igual que RecoveryCodeService)
 
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);

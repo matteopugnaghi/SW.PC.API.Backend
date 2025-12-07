@@ -135,6 +135,43 @@ namespace SW.PC.API.Backend.Controllers
         }
         
         /// <summary>
+        /// Get installation ID for support identification
+        /// </summary>
+        /// <returns>Installation ID and system info</returns>
+        [HttpGet("installation-id")]
+        [ProducesResponseType(200)]
+        public ActionResult GetInstallationId()
+        {
+            try
+            {
+                // Obtener ID de instalación desde configuración o generar uno basado en la máquina
+                var installationId = Environment.GetEnvironmentVariable("AQUAFRISCH_INSTALLATION_ID");
+                
+                if (string.IsNullOrEmpty(installationId))
+                {
+                    // Generar ID basado en nombre de máquina + fecha de instalación
+                    var machineName = Environment.MachineName;
+                    var hash = machineName.GetHashCode().ToString("X8");
+                    installationId = $"AQF-{DateTime.Now.Year}-{hash}";
+                }
+                
+                return Ok(new
+                {
+                    installationId,
+                    machineName = Environment.MachineName,
+                    osVersion = Environment.OSVersion.ToString(),
+                    backendVersion = "1.0.0",
+                    timestamp = DateTime.Now
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving installation ID");
+                return StatusCode(500, "Error retrieving installation ID");
+            }
+        }
+        
+        /// <summary>
         /// Get only viewer configuration
         /// </summary>
         /// <returns>Viewer configuration</returns>
