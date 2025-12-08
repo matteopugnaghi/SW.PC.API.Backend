@@ -12,17 +12,20 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IConfigurationService _configurationService;
         private readonly IExcelConfigService _excelConfigService;
         private readonly IMetricsService _metricsService;
+        private readonly IRecoveryCodeService _recoveryCodeService;
         private readonly ILogger<ConfigController> _logger;
         
         public ConfigController(
             IConfigurationService configurationService, 
             IExcelConfigService excelConfigService,
             IMetricsService metricsService,
+            IRecoveryCodeService recoveryCodeService,
             ILogger<ConfigController> logger)
         {
             _configurationService = configurationService;
             _excelConfigService = excelConfigService;
             _metricsService = metricsService;
+            _recoveryCodeService = recoveryCodeService;
             _logger = logger;
         }
         
@@ -144,16 +147,8 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                // Obtener ID de instalación desde configuración o generar uno basado en la máquina
-                var installationId = Environment.GetEnvironmentVariable("AQUAFRISCH_INSTALLATION_ID");
-                
-                if (string.IsNullOrEmpty(installationId))
-                {
-                    // Generar ID basado en nombre de máquina + fecha de instalación
-                    var machineName = Environment.MachineName;
-                    var hash = machineName.GetHashCode().ToString("X8");
-                    installationId = $"AQF-{DateTime.Now.Year}-{hash}";
-                }
+                // Usar el servicio centralizado que lee del Excel
+                var installationId = _recoveryCodeService.GetInstallationId();
                 
                 return Ok(new
                 {

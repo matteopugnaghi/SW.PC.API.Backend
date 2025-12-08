@@ -185,6 +185,26 @@ public class RecoveryController : ControllerBase
     }
 
     /// <summary>
+    /// 🔧 DEBUG: Generar código para verificar algoritmo (SOLO DESARROLLO)
+    /// </summary>
+    [HttpGet("debug-generate/{username}")]
+    public ActionResult DebugGenerateCode(string username)
+    {
+        var installationId = _recoveryCodeService.GetInstallationId();
+        var todayCode = _recoveryCodeService.GenerateRecoveryCode(installationId, username, DateTime.Today);
+        var dateString = DateTime.Today.ToString("yyyy-MM-dd");
+        
+        return Ok(new 
+        { 
+            installationId,
+            username = username.ToLowerInvariant().Trim(),
+            date = dateString,
+            expectedCode = todayCode,
+            note = "SOLO PARA DEBUG - ELIMINAR EN PRODUCCIÓN"
+        });
+    }
+
+    /// <summary>
     /// 🔍 Verificar si un código es válido (sin resetear contraseña)
     /// 
     /// Útil para validar el código antes de pedir la nueva contraseña

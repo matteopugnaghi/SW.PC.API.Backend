@@ -40,6 +40,8 @@ public class RecoveryCodeService : IRecoveryCodeService
 {
     private readonly ILogger<RecoveryCodeService> _logger;
     private readonly IConfiguration _configuration;
+    private readonly IExcelConfigService _excelConfigService;
+    private string? _cachedInstallationId;
     
     // 🔐 SECRETO CONOCIDO SOLO POR AQUAFRISCH
     // Este valor DEBE ser el mismo en:
@@ -50,10 +52,12 @@ public class RecoveryCodeService : IRecoveryCodeService
     
     public RecoveryCodeService(
         ILogger<RecoveryCodeService> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IExcelConfigService excelConfigService)
     {
         _logger = logger;
         _configuration = configuration;
+        _excelConfigService = excelConfigService;
     }
     
     /// <summary>
@@ -122,18 +126,55 @@ public class RecoveryCodeService : IRecoveryCodeService
     
     /// <summary>
     /// Obtiene el Installation ID configurado para este sistema
+    /// Lee desde: 1) Excel SystemConfig, 2) appsettings, 3) variable entorno, 4) fallback
     /// </summary>
     public string GetInstallationId()
     {
-        // Buscar en configuración, o generar uno basado en machine name
+        // Usar cache si ya lo tenemos
+        if (!string.IsNullOrEmpty(_cachedInstallationId))
+            return _cachedInstallationId;
+        
+        // 1. Buscar en Excel (fuente principal) - solo pasar nombre de archivo
+        try
+        {
+            var excelFileName = _configuration["PlcPolling:ExcelFileName"] ?? "ProjectConfig.xlsm";
+            
+            // ExcelConfigService maneja el path internamente
+            var systemConfig = _excelConfigService.LoadSystemConfigurationAsync(excelFileName).GetAwaiter().GetResult();
+            if (systemConfig != null && !string.IsNullOrEmpty(systemConfig.InstallationId) && systemConfig.InstallationId != "AQF-DEFAULT-001")
+            {
+                _cachedInstallationId = systemConfig.InstallationId;
+                _logger.LogInformation("InstallationId cargado desde Excel: {InstallationId}", _cachedInstallationId);
+                return _cachedInstallationId;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudo cargar InstallationId desde Excel, usando fallback");
+        }
+        
+        // 2. Buscar en configuración explícita (appsettings.json)
         var configuredId = _configuration["Installation:Id"];
-        
         if (!string.IsNullOrEmpty(configuredId))
-            return configuredId;
+        {
+            _cachedInstallationId = configuredId;
+            return _cachedInstallationId;
+        }
         
-        // Fallback: generar basado en machine name (para desarrollo)
+        // 3. Buscar en variable de entorno
+        var envId = Environment.GetEnvironmentVariable("AQUAFRISCH_INSTALLATION_ID");
+        if (!string.IsNullOrEmpty(envId))
+        {
+            _cachedInstallationId = envId;
+            return _cachedInstallationId;
+        }
+        
+        // 4. Fallback: generar basado en machine name
         var machineName = Environment.MachineName;
-        return $"AQFR-DEV-{machineName.GetHashCode():X8}".ToUpperInvariant();
+        var hash = machineName.GetHashCode().ToString("X8");
+        _cachedInstallationId = $"AQF-{DateTime.Now.Year}-{hash}";
+        _logger.LogWarning("Usando InstallationId generado automáticamente: {InstallationId}. Configure uno en el Excel.", _cachedInstallationId);
+        return _cachedInstallationId;
     }
     
     /// <summary>

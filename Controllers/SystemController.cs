@@ -62,9 +62,24 @@ namespace SW.PC.API.Backend.Controllers
 
         /// <summary>
         /// Verifica si el rol está autorizado para acciones del sistema
+        /// También acepta sesiones de soporte válidas (X-Support-Session header)
         /// </summary>
         private async Task<bool> IsAuthorizedRoleAsync(string role)
         {
+            // 1. Primero verificar si hay una sesión de soporte activa
+            var supportSessionId = Request.Headers["X-Support-Session"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(supportSessionId))
+            {
+                // Verificar sesión llamando al endpoint interno
+                var isValidSession = await VerifySupportSessionAsync(supportSessionId);
+                if (isValidSession)
+                {
+                    _logger.LogInformation("✅ Acceso autorizado via sesión de soporte: {SessionId}", supportSessionId);
+                    return true;
+                }
+            }
+            
+            // 2. Si no hay sesión de soporte, verificar rol normal
             var config = await GetSystemConfigAsync();
             var allowedRoles = config.AllowedSystemToolsRoles
                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
@@ -72,6 +87,32 @@ namespace SW.PC.API.Backend.Controllers
                 .ToArray();
             
             return allowedRoles.Contains(role, StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Verifica si una sesión de soporte es válida consultando SupportController
+        /// </summary>
+        private async Task<bool> VerifySupportSessionAsync(string sessionId)
+        {
+            try
+            {
+                // Usar HttpClient para verificar la sesión
+                using var client = new HttpClient();
+                var baseUrl = $"{Request.Scheme}://{Request.Host}";
+                var response = await client.GetAsync($"{baseUrl}/api/support/session/{sessionId}");
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    // Si la respuesta contiene "valid": true, la sesión es válida
+                    return content.Contains("\"valid\":true") || content.Contains("\"valid\": true");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error verificando sesión de soporte: {SessionId}", sessionId);
+            }
+            return false;
         }
 
         /// <summary>
