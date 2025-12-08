@@ -25,12 +25,12 @@
     ┌────────────────────────────────────────────────────────┐
     │                                                        │
     │  Requisitos del Producto (Anexo I, Parte I)  [████████░░] 80%
-    │  Gestión Vulnerabilidades (Anexo I, Parte II) [█████░░░░░] 50%
+    │  Gestión Vulnerabilidades (Anexo I, Parte II) [███████░░░] 70%
     │  Documentación Técnica (Anexo VII)            [██░░░░░░░░] 20%
-    │  Información al Usuario (Anexo II)            [███░░░░░░░] 25%
+    │  Información al Usuario (Anexo II)            [█████░░░░░] 50%
     │  Sistema de Notificaciones (Art. 14)          [░░░░░░░░░░]  0%
     │                                                        │
-    │  CUMPLIMIENTO GLOBAL                          [█████░░░░░] 45%
+    │  CUMPLIMIENTO GLOBAL                          [██████░░░░] 55%
     │                                                        │
     └────────────────────────────────────────────────────────┘
 ```
@@ -52,6 +52,8 @@
 | **Audit Log** | ✅ AuditLogService + SHA256 + Vista | Anexo I, Parte I, 2l |
 | **Gestión Usuarios** | ✅ UsersController + UsersView | Anexo I, Parte I, 2d |
 | **Recovery Password** | ✅ RecoveryController + SupportModal | Anexo I, Parte I, 2d |
+| **Período de Soporte** | ✅ SupportEndYear en Excel + InfoPanel | Art. 13.8, 13.19 |
+| **Canal Vulnerabilidades** | ✅ SupportEmail en Excel + InfoPanel | Art. 13.6, 13.17 |
 
 ---
 
@@ -96,16 +98,16 @@
 ---
 
 ### FASE 3: PERÍODO DE SOPORTE
-**Prioridad**: 🔴 ALTA  
-**Fecha objetivo**: Enero 2026  
+**Prioridad**: ✅ COMPLETADO  
+**Fecha completado**: Diciembre 2025  
 **Referencia**: Art. 13.8, Art. 13.19
 
-| Tarea | Descripción |
-|-------|-------------|
-| Definir período | Mínimo 5 años desde comercialización |
-| Mostrar en UI | Fecha fin visible en InfoPanel |
-| Incluir en documentación | Manual de usuario, ficha técnica |
-| Notificación fin de soporte | Aviso cuando queden 6 meses |
+| Tarea | Estado | Descripción |
+|-------|--------|-------------|
+| Definir período | ✅ | Configurable desde Excel (SupportEndYear) |
+| Mostrar en UI | ✅ | Visible en InfoPanel panel CRA COMPLIANCE |
+| Incluir en documentación | ✅ | Manual de usuario, ficha técnica |
+| Notificación fin de soporte | ⏳ | Pendiente: Aviso cuando queden 6 meses |
 
 **Criterios para determinar período** (Art. 13.8):
 - Expectativas razonables de usuarios
@@ -113,27 +115,28 @@
 - Derecho de la UE aplicable
 - Productos similares en el mercado
 
+**Configuración**: `SupportEndYear=2035` en Excel SystemConfig
 **Recomendación**: **10 años** para software industrial SCADA
 
 ---
 
 ### FASE 4: CANAL DE REPORTE DE VULNERABILIDADES
-**Prioridad**: 🔴 CRÍTICA (obligatorio sept 2026)  
-**Fecha objetivo**: Febrero 2026  
+**Prioridad**: ✅ COMPLETADO  
+**Fecha completado**: Diciembre 2025  
 **Referencia**: Art. 13.6, Art. 13.17, Anexo I Parte II punto 6
 
-| Tarea | Descripción |
-|-------|-------------|
-| Crear email dedicado | security@empresa.com |
-| Formulario web (opcional) | Página de reporte de vulnerabilidades |
-| Mostrar en UI | Visible en InfoPanel y documentación |
-| Proceso de respuesta | SLA definido (24h acuse recibo) |
+| Tarea | Estado | Descripción |
+|-------|--------|-------------|
+| Crear email dedicado | ✅ | Configurable: SupportEmail en Excel |
+| Formulario web (opcional) | ⏳ | Pendiente (no obligatorio) |
+| Mostrar en UI | ✅ | Visible en InfoPanel - SECURITY CONTACT |
+| Proceso de respuesta | ⏳ | SLA definido (24h acuse recibo) |
 
 **Requisitos del punto de contacto** (Art. 13.17):
-- Fácilmente identificable para usuarios
-- No solo herramientas automatizadas (chatbots)
-- Múltiples medios de comunicación
-- Información actualizada
+- ✅ Fácilmente identificable para usuarios (InfoPanel)
+- ✅ No solo herramientas automatizadas (email directo)
+- ⏳ Múltiples medios de comunicación
+- ✅ Información actualizada (desde Excel)
 
 ---
 
