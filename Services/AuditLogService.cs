@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SW.PC.API.Backend.Services
 {
@@ -61,7 +62,9 @@ namespace SW.PC.API.Backend.Services
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            // 📋 Serializar enums como strings para legibilidad (Git, Authentication, etc.)
+            Converters = { new JsonStringEnumConverter() }
         };
 
         public AuditLogService(
