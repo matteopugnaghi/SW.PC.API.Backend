@@ -448,6 +448,37 @@ namespace SW.PC.API.Backend.Models.Excel
         public string VulnScanApiKey { get; set; } = "";
 
         // ═══════════════════════════════════════════════════════════════════════════
+        // 📤 VULNERABILITY REPORT - EU CRA Art. 14 (Notificación de vulnerabilidades)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar envío de reportes de vulnerabilidades a servidor externo.
+        /// Requerido por EU CRA para notificación a autoridades (ENISA) o SOC/SIEM interno.
+        /// </summary>
+        public bool VulnReportEnabled { get; set; } = false;
+
+        /// <summary>
+        /// URL del servidor destino para enviar reportes de vulnerabilidades.
+        /// Ejemplos:
+        /// - SOC/SIEM interno: https://soc.cliente.com/api/vulnerabilities
+        /// - ENISA (futuro): https://api.enisa.europa.eu/notifications
+        /// - Custom: http://192.168.1.100:8080/api/vuln-report
+        /// </summary>
+        public string VulnReportApiUrl { get; set; } = "";
+
+        /// <summary>
+        /// Tipo de destino para formatear el payload correctamente.
+        /// Valores: SOC_SIEM, ENISA, Custom
+        /// </summary>
+        public string VulnReportApiType { get; set; } = "SOC_SIEM";
+
+        /// <summary>
+        /// Enviar automáticamente cuando se detecte vulnerabilidad crítica.
+        /// Si false, solo envío manual desde UI.
+        /// </summary>
+        public bool VulnReportAutoSendOnCritical { get; set; } = false;
+
+        // ═══════════════════════════════════════════════════════════════════════════
         // 💻 IPC HARDWARE INFO - EU CRA Compliance (System Documentation)
         // ═══════════════════════════════════════════════════════════════════════════
 

@@ -1168,6 +1168,29 @@ namespace SW.PC.API.Backend.Services
                                 break;
 
                             // ═══════════════════════════════════════════════════════════════
+                            // 📤 VULNERABILITY REPORT - EU CRA Art. 14
+                            // ═══════════════════════════════════════════════════════════════
+                            case "vulnreportenabled":
+                            case "vulnreport_enabled":
+                                config.VulnReportEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "vulnreportapiurl":
+                            case "vulnreport_apiurl":
+                            case "vulnreport_api_url":
+                                config.VulnReportApiUrl = paramValue ?? "";
+                                break;
+                            case "vulnreportapitype":
+                            case "vulnreport_apitype":
+                            case "vulnreport_api_type":
+                                config.VulnReportApiType = paramValue ?? "SOC_SIEM";
+                                break;
+                            case "vulnreportautosendoncritical":
+                            case "vulnreport_autosendoncritical":
+                            case "vulnreport_autosend_on_critical":
+                                config.VulnReportAutoSendOnCritical = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
                             // 💻 IPC HARDWARE INFO - EU CRA Compliance
                             // ═══════════════════════════════════════════════════════════════
                             case "ipcinfoenabled":

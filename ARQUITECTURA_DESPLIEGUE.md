@@ -258,6 +258,41 @@ sc.exe start "SCADA_Backend"
 - [ ] Pruebas de modelos 3D (carga y animación)
 - [ ] Documentación entregada al cliente
 
+## 📊 Estados de Servicios Externos (BACKEND EXTERNAL SERVICES)
+
+El panel InfoPanel muestra el estado de cada servicio externo con el siguiente modelo:
+
+| Icono | Estado | Significado |
+|-------|--------|-------------|
+| 🟢 | **CONNECTED** | Servicio configurado en Excel, habilitado (`*_Enabled=true`), y funcionando correctamente |
+| 🔴 | **ERROR** | Servicio configurado y habilitado, pero hay fallo de conexión o comunicación |
+| ⚫ | **DISABLED** | Servicio configurado en Excel pero deshabilitado por el usuario (`*_Enabled=false`) |
+| 🟡 | **SIMULATED** | Modo simulación activo (solo desarrollo) |
+| ⚪ | **N/A** | Servicio no configurado en Excel |
+
+### Servicios Monitorizados
+
+| Servicio | Parámetro Excel | Descripción |
+|----------|-----------------|-------------|
+| TwinCAT Runtime | `PlcPollingEnabled` | Comunicación con PLC Beckhoff |
+| Database | `DatabaseEnabled` | Base de datos SQLite local |
+| CVE Scanner | `VulnScan_Enabled` | Escaneo de vulnerabilidades (OSV API) |
+| Vuln Reporter | `VulnReport_Enabled` | Reporte a SOC/SIEM/ENISA |
+| Remote Repos | Detección automática | Estado de red para verificación Git |
+
+### Lógica de Estados
+
+```
+SI servicio NO configurado en Excel → ⚪ N/A
+SI servicio configurado PERO Enabled=false → ⚫ DISABLED  
+SI servicio Enabled=true Y conecta OK → 🟢 CONNECTED
+SI servicio Enabled=true Y falla conexión → 🔴 ERROR
+```
+
+Esta lógica permite al operador distinguir claramente entre:
+- Un servicio que **no está activo porque el administrador lo deshabilitó** (⚫)
+- Un servicio que **debería estar activo pero tiene problemas** (🔴)
+
 ---
 
 **🎯 Resultado**: Sistema SCADA completamente funcional, aislado, en tiempo real, personalizado para cada sitio industrial.
