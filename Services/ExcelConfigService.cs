@@ -1555,6 +1555,11 @@ namespace SW.PC.API.Backend.Services
                                 if (int.TryParse(paramValue, out int unlockMin))
                                     config.SupportUnlockDurationMinutes = Math.Max(5, Math.Min(unlockMin, 120)); // 5-120 min
                                 break;
+                            case "supportendyear":
+                            case "support_end_year":
+                                if (int.TryParse(paramValue, out int supportYear))
+                                    config.SupportEndYear = Math.Max(2025, Math.Min(supportYear, 2100)); // 2025-2100
+                                break;
                             
                             // NOTA: SupportChallengeSecret NO se lee de Excel
                             // Está hardcodeado en SupportController.cs (igual que RecoveryCodeService)

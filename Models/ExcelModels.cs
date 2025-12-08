@@ -822,6 +822,11 @@ namespace SW.PC.API.Backend.Models.Excel
         /// </summary>
         public int SupportUnlockDurationMinutes { get; set; } = 30;
 
+        /// <summary>
+        /// Fecha fin de soporte CRA (EU Cyber Resilience Act) - Año hasta el cual se garantiza soporte
+        /// </summary>
+        public int SupportEndYear { get; set; } = 2035;
+
         // NOTA: SupportChallengeSecret NO se configura desde Excel
         // Está hardcodeado en SupportController.cs (igual que RecoveryCodeService)
         // Solo Aquafrisch conoce el secreto

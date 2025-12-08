@@ -124,6 +124,7 @@ namespace SW.PC.API.Backend.Models
     {
         public bool IsEnabled { get; set; }
         public int TotalEntries { get; set; }
+        public int TodayEntries { get; set; }
         public DateTime? OldestEntry { get; set; }
         public DateTime? NewestEntry { get; set; }
         public string StoragePath { get; set; } = string.Empty;

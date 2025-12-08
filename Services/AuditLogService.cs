@@ -459,6 +459,10 @@ namespace SW.PC.API.Backend.Services
                 var allEntries = await GetAllEntriesAsync();
                 status.TotalEntries = allEntries.Count;
                 
+                // Calcular entradas de hoy
+                var today = DateTime.UtcNow.Date;
+                status.TodayEntries = allEntries.Count(e => e.Timestamp.Date == today);
+                
                 if (allEntries.Any())
                 {
                     status.OldestEntry = allEntries.Min(e => e.Timestamp);

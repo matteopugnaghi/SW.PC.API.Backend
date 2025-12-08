@@ -24,13 +24,13 @@
                     CUMPLIMIENTO CRA - DICIEMBRE 2025
     ┌────────────────────────────────────────────────────────┐
     │                                                        │
-    │  Requisitos del Producto (Anexo I, Parte I)  [████████░░] 75%
-    │  Gestión Vulnerabilidades (Anexo I, Parte II) [████░░░░░░] 35%
+    │  Requisitos del Producto (Anexo I, Parte I)  [████████░░] 80%
+    │  Gestión Vulnerabilidades (Anexo I, Parte II) [█████░░░░░] 50%
     │  Documentación Técnica (Anexo VII)            [██░░░░░░░░] 20%
     │  Información al Usuario (Anexo II)            [███░░░░░░░] 25%
     │  Sistema de Notificaciones (Art. 14)          [░░░░░░░░░░]  0%
     │                                                        │
-    │  CUMPLIMIENTO GLOBAL                          [████░░░░░░] 35%
+    │  CUMPLIMIENTO GLOBAL                          [█████░░░░░] 45%
     │                                                        │
     └────────────────────────────────────────────────────────┘
 ```
@@ -43,10 +43,15 @@
 |---------------|----------------------|----------------|
 | Integridad del código | ✅ Git + GPG/SSH signatures | Anexo I, Parte I, 2f |
 | Trazabilidad de versiones | ✅ Panel SOFTWARE VERSIONS | Art. 13.7 |
-| Autenticación | ✅ JWT implementado | Anexo I, Parte I, 2d |
-| Control de acceso | ✅ Sistema de roles | Anexo I, Parte I, 2d |
+| Autenticación | ✅ JWT + bloqueo por intentos | Anexo I, Parte I, 2d |
+| Control de acceso | ✅ Sistema de roles (Admin, Operator, Viewer, Auditor) | Anexo I, Parte I, 2d |
 | Verificación por componente | ✅ Backend/Frontend/PLC | Anexo I, Parte II, 1 |
 | Identificación del producto | ✅ Versiones visibles | Art. 13.15 |
+| **SBOM** | ✅ SbomService + API + Vista | Anexo I, Parte II, 1 |
+| **Vulnerability Scanner** | ✅ VulnerabilityService + OSV API | Anexo I, Parte II, 2 |
+| **Audit Log** | ✅ AuditLogService + SHA256 + Vista | Anexo I, Parte I, 2l |
+| **Gestión Usuarios** | ✅ UsersController + UsersView | Anexo I, Parte I, 2d |
+| **Recovery Password** | ✅ RecoveryController + SupportModal | Anexo I, Parte I, 2d |
 
 ---
 
@@ -67,17 +72,20 @@
 ---
 
 ### FASE 2: SBOM - SOFTWARE BILL OF MATERIALS
-**Prioridad**: 🔴 ALTA  
-**Fecha objetivo**: Enero 2026  
+**Prioridad**: ✅ COMPLETADO  
+**Fecha completado**: Diciembre 2025  
 **Referencia**: Anexo I, Parte II, punto 1
 
-| Tarea | Descripción |
-|-------|-------------|
-| Instalar CycloneDX (.NET) | `dotnet tool install --global CycloneDX` |
-| Instalar CycloneDX (npm) | `npm install -g @cyclonedx/cyclonedx-npm` |
-| Generar SBOM Backend | Formato JSON CycloneDX |
-| Generar SBOM Frontend | Formato JSON CycloneDX |
-| Integrar en build | Generación automática en cada release |
+| Tarea | Estado | Descripción |
+|-------|--------|-------------|
+| SbomService.cs | ✅ | Generación automática de SBOM |
+| SbomController.cs | ✅ | API endpoints |
+| Backend packages | ✅ | Lee NuGet packages de .csproj |
+| Frontend packages | ✅ | Lee npm packages de package.json |
+| Formato CycloneDX | ✅ | JSON compatible |
+| Vista en InfoPanel | ✅ | Muestra componentes y estado |
+| Almacenamiento | ✅ | wwwroot/sbom/ con histórico |
+| Audit logging | ✅ | Registra generaciones en AuditLog |
 | Almacenar con releases | Conservar 10 años mínimo |
 
 **Entregables**:
@@ -258,18 +266,30 @@ Contenido obligatorio (Anexo V):
 
 ---
 
-### FASE 11: LOGGING DE SEGURIDAD
-**Prioridad**: 🟢 MEDIA-BAJA  
-**Fecha objetivo**: Octubre 2026  
+### FASE 11: LOGGING DE SEGURIDAD (AUDIT LOG)
+**Prioridad**: ✅ COMPLETADO  
+**Fecha completado**: Diciembre 2025  
 **Referencia**: Anexo I, Parte I, 2l
 
-| Evento a registrar | Información |
-|-------------------|-------------|
-| Accesos al sistema | Usuario, fecha, IP, resultado |
-| Cambios de configuración | Qué cambió, quién, cuándo |
-| Errores de autenticación | Intentos fallidos |
-| Modificación de datos | Qué datos, quién, cuándo |
-| Accesos a funciones sensibles | PLC, configuración, admin |
+| Evento a registrar | Información | Estado |
+|-------------------|-------------|--------|
+| Accesos al sistema | Usuario, fecha, IP, resultado | ✅ Implementado |
+| Cambios de configuración | Qué cambió, quién, cuándo | ✅ Implementado |
+| Errores de autenticación | Intentos fallidos, bloqueos | ✅ Implementado |
+| Modificación de datos | Qué datos, quién, cuándo | ✅ Implementado |
+| Accesos a funciones sensibles | PLC, configuración, admin | ✅ Implementado |
+
+**Características implementadas**:
+- ✅ `AuditLogService.cs` - Servicio completo de logging
+- ✅ `AuditController.cs` - API endpoints para consulta/export
+- ✅ Firma SHA256 de cada entrada (integridad)
+- ✅ Cadena de hashes (blockchain-style) para detectar manipulaciones
+- ✅ Envío a SOC/SIEM externo (configurable desde Excel)
+- ✅ Retención automática configurable (días)
+- ✅ Vista en InfoPanel con estadísticas
+- ✅ Export JSON para auditorías
+- ✅ Categorías: Authentication, Integrity, SBOM, Vulnerability, Git, Certificate, System, Configuration
+- ✅ Configuración desde Excel (SystemConfig sheet)
 
 ---
 
