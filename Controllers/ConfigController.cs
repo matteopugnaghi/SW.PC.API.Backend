@@ -13,6 +13,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IExcelConfigService _excelConfigService;
         private readonly IMetricsService _metricsService;
         private readonly IRecoveryCodeService _recoveryCodeService;
+        private readonly IAuditLogService _auditLog;
         private readonly ILogger<ConfigController> _logger;
         
         public ConfigController(
@@ -20,12 +21,14 @@ namespace SW.PC.API.Backend.Controllers
             IExcelConfigService excelConfigService,
             IMetricsService metricsService,
             IRecoveryCodeService recoveryCodeService,
+            IAuditLogService auditLog,
             ILogger<ConfigController> logger)
         {
             _configurationService = configurationService;
             _excelConfigService = excelConfigService;
             _metricsService = metricsService;
             _recoveryCodeService = recoveryCodeService;
+            _auditLog = auditLog;
             _logger = logger;
         }
         
@@ -68,6 +71,14 @@ namespace SW.PC.API.Backend.Controllers
                 
                 var success = await _configurationService.UpdateConfigurationAsync(configuration);
                 
+                // 📋 AUDIT LOG: Configuration Change
+                await _auditLog.LogAsync(
+                    AuditCategory.Configuration,
+                    AuditAction.ConfigChange,
+                    success ? AuditResult.Success : AuditResult.Failure,
+                    $"Actualización de configuración general del sistema",
+                    null, User.Identity?.Name ?? "System");
+                
                 if (!success)
                 {
                     return StatusCode(500, "Failed to update configuration");
@@ -101,6 +112,14 @@ namespace SW.PC.API.Backend.Controllers
                 }
                 
                 var success = await _configurationService.UpdateColorConfigurationAsync(colorConfig);
+                
+                // 📋 AUDIT LOG: Color Configuration Change
+                await _auditLog.LogAsync(
+                    AuditCategory.Configuration,
+                    AuditAction.ConfigChange,
+                    success ? AuditResult.Success : AuditResult.Failure,
+                    $"Actualización de configuración de colores",
+                    null, User.Identity?.Name ?? "System");
                 
                 if (!success)
                 {

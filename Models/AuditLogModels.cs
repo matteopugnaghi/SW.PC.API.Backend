@@ -4,9 +4,11 @@ namespace SW.PC.API.Backend.Models
 {
     /// <summary>
     /// 📋 EU CRA - Categorías de auditoría
+    /// Incluye todas las categorías para cumplimiento CRA/CADRA
     /// </summary>
     public enum AuditCategory
     {
+        // ✅ IMPLEMENTADAS
         Integrity,      // Verificación de integridad
         Sbom,           // Generación/consulta de SBOM
         Vulnerability,  // Escaneo de vulnerabilidades
@@ -14,29 +16,47 @@ namespace SW.PC.API.Backend.Models
         Configuration,  // Cambios de configuración
         Git,            // Operaciones Git
         Certificate,    // Gestión de certificados
-        System          // Eventos del sistema
+        System,         // Eventos del sistema
+        
+        // 🔴 PENDIENTES - Para implementar con futuras funcionalidades
+        Plc,            // Operaciones PLC (conexión, escritura, modo)
+        Alarm,          // Gestión de alarmas (reconocimiento, silencio)
+        Recipe,         // Gestión de recetas (carga, ejecución, guardado)
+        Setpoint,       // Cambios de consignas/setpoints
+        Process,        // Acciones de proceso (start, stop, modo)
+        Statistics,     // Acceso a estadísticas/reportes
+        Export,         // Exportación de datos
+        Backup,         // Backup y restauración
+        Model3D,        // Carga/configuración de modelos 3D
+        Maintenance     // Acciones de mantenimiento
     }
 
     /// <summary>
     /// 📋 EU CRA - Acciones auditables
+    /// Incluye todas las acciones para cumplimiento CRA/CADRA
+    /// ✅ = Implementada | 🔴 = Pendiente de implementar
     /// </summary>
     public enum AuditAction
     {
-        // Integridad
+        // ═══════════════════════════════════════════════════════════
+        // ✅ IMPLEMENTADAS - Ya registrando en AuditLog
+        // ═══════════════════════════════════════════════════════════
+        
+        // Integridad ✅
         IntegrityVerify,
         IntegrityAutoVerify,
         
-        // SBOM
+        // SBOM ✅
         SbomGenerate,
         SbomExport,
         SbomView,
         
-        // Vulnerabilidades
+        // Vulnerabilidades ✅
         VulnerabilityScan,
         VulnerabilityReport,
         VulnerabilityExport,
         
-        // Autenticación
+        // Autenticación ✅
         Login,
         Logout,
         LoginFailed,
@@ -47,7 +67,7 @@ namespace SW.PC.API.Backend.Models
         PasswordChangeFailed,
         PasswordReset,
         
-        // Gestión de usuarios
+        // Gestión de usuarios ✅
         UserCreated,
         UserUpdated,
         UserDeleted,
@@ -57,24 +77,118 @@ namespace SW.PC.API.Backend.Models
         PermissionDenied,
         RoleChanged,
         
-        // Configuración
+        // Configuración ✅ (parcial)
         ConfigChange,
         ConfigLoad,
         
-        // Git
+        // Git ✅
         GitCommit,
         GitPush,
         GitPull,
         
-        // Certificados
+        // Certificados ✅
         CertificateGenerate,
         CertificateRevoke,
         
-        // Sistema
+        // Sistema ✅ (parcial)
         SystemStart,
         SystemStop,
         ServiceStart,
-        ServiceStop
+        ServiceStop,
+        
+        // ═══════════════════════════════════════════════════════════
+        // 🔴 PENDIENTES - Para implementar con futuras funcionalidades
+        // ═══════════════════════════════════════════════════════════
+        
+        // PLC Operations 🔴
+        PlcConnect,             // Conexión a PLC
+        PlcDisconnect,          // Desconexión de PLC
+        PlcConnectionLost,      // Pérdida de conexión
+        PlcVariableRead,        // Lectura de variable (solo si es sensible)
+        PlcVariableWrite,       // Escritura de variable - CRÍTICO
+        PlcModeChange,          // Cambio de modo RUN/STOP/CONFIG
+        PlcProgramDownload,     // Descarga de programa al PLC
+        PlcFirmwareUpdate,      // Actualización de firmware
+        
+        // Alarmas 🔴
+        AlarmTriggered,         // Alarma activada (para log, no audit)
+        AlarmAcknowledge,       // Reconocimiento de alarma - CRÍTICO
+        AlarmReset,             // Reset de alarma
+        AlarmSilence,           // Silenciar alarmas
+        AlarmSilenceEnd,        // Fin de silencio
+        AlarmConfigChange,      // Cambio en configuración de alarmas
+        AlarmHistoryExport,     // Exportación de histórico
+        
+        // Recetas 🔴
+        RecipeCreate,           // Crear receta
+        RecipeUpdate,           // Modificar receta
+        RecipeDelete,           // Eliminar receta
+        RecipeLoad,             // Cargar receta en máquina - CRÍTICO
+        RecipeUnload,           // Descargar receta
+        RecipeExecute,          // Ejecutar/iniciar receta - CRÍTICO
+        RecipePause,            // Pausar receta
+        RecipeResume,           // Reanudar receta
+        RecipeAbort,            // Abortar receta - CRÍTICO
+        RecipeComplete,         // Receta completada
+        RecipeExport,           // Exportar receta
+        RecipeImport,           // Importar receta
+        
+        // Setpoints/Consignas 🔴
+        SetpointChange,         // Cambio de setpoint - CRÍTICO
+        SetpointOverride,       // Override manual de setpoint
+        SetpointReset,          // Reset a valor default
+        LimitChange,            // Cambio de límites
+        
+        // Control de Proceso 🔴
+        ProcessStart,           // Arranque de proceso
+        ProcessStop,            // Parada de proceso
+        ProcessPause,           // Pausa de proceso
+        ProcessResume,          // Reanudación de proceso
+        ProcessEmergencyStop,   // Parada de emergencia - CRÍTICO
+        ProcessModeChange,      // Cambio AUTO/MANUAL/etc
+        ProcessPhaseChange,     // Cambio de fase
+        CommandExecute,         // Ejecución de comando manual
+        
+        // Estadísticas/Reportes 🔴
+        StatisticsView,         // Visualización de estadísticas
+        StatisticsExport,       // Exportación de estadísticas
+        ReportGenerate,         // Generación de reporte
+        ReportExport,           // Exportación de reporte
+        ReportSchedule,         // Programación de reporte
+        
+        // Exportación de Datos 🔴
+        DataExport,             // Exportación genérica
+        DataExportScheduled,    // Exportación programada
+        TrendExport,            // Exportación de tendencias
+        HistorianQuery,         // Consulta a histórico
+        
+        // Backup/Restore 🔴
+        BackupCreate,           // Creación de backup
+        BackupRestore,          // Restauración de backup - CRÍTICO
+        BackupSchedule,         // Programación de backup
+        BackupDelete,           // Eliminación de backup
+        
+        // Modelos 3D 🔴
+        Model3DLoad,            // Carga de modelo 3D
+        Model3DConfigChange,    // Cambio de configuración de modelo
+        Model3DBindingChange,   // Cambio de binding PLC
+        
+        // Mantenimiento 🔴
+        MaintenanceStart,       // Inicio de mantenimiento
+        MaintenanceEnd,         // Fin de mantenimiento
+        MaintenanceSchedule,    // Programación de mantenimiento
+        CalibrationStart,       // Inicio de calibración
+        CalibrationComplete,    // Calibración completada
+        
+        // Comunicaciones 🔴
+        ExternalApiCall,        // Llamada a API externa
+        SignalRConnect,         // Conexión SignalR
+        SignalRDisconnect,      // Desconexión SignalR
+        
+        // Excel Config 🔴 (para mejor trazabilidad)
+        ExcelConfigLoad,        // Carga de configuración Excel
+        ExcelConfigReload,      // Recarga de configuración
+        ExcelConfigError        // Error en configuración
     }
 
     /// <summary>

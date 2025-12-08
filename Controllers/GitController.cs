@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using SW.PC.API.Backend.Services;
+using SW.PC.API.Backend.Models;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -39,13 +40,15 @@ public class DeploymentCertificate
 public class GitController : ControllerBase
 {
     private readonly IGitOperationsService _gitService;
+    private readonly IAuditLogService _auditLog;
     private readonly ILogger<GitController> _logger;
     private static readonly string BackupLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "backup_log.json");
     private static readonly string DeploymentLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "deployment_certificates.json");
 
-    public GitController(IGitOperationsService gitService, ILogger<GitController> logger)
+    public GitController(IGitOperationsService gitService, IAuditLogService auditLog, ILogger<GitController> logger)
     {
         _gitService = gitService;
+        _auditLog = auditLog;
         _logger = logger;
     }
 
@@ -118,6 +121,16 @@ public class GitController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Message)) return BadRequest("Commit message is required");
         _logger.LogInformation("Commit request for {Repo}: {Message}", repoName, request.Message);
         var result = await _gitService.CommitAsync(repoPath, request.Message);
+        
+        // 📋 AUDIT LOG: Git Commit
+        var author = ExtractAuthorFromMessage(request.Message);
+        await _auditLog.LogAsync(
+            AuditCategory.Git,
+            AuditAction.GitCommit,
+            result.Success ? AuditResult.Success : AuditResult.Failure,
+            $"Commit en {repoName}: {request.Message}",
+            null, author);
+        
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -129,6 +142,14 @@ public class GitController : ControllerBase
             return NotFound($"Repository '{repoName}' not found");
         _logger.LogInformation("Push request for {Repo}", repoName);
         var result = await _gitService.PushAsync(repoPath);
+        
+        // 📋 AUDIT LOG: Git Push
+        await _auditLog.LogAsync(
+            AuditCategory.Git,
+            AuditAction.GitPush,
+            result.Success ? AuditResult.Success : AuditResult.Failure,
+            $"Push en {repoName} al remoto",
+            null, operatorName ?? "System");
         
         // Generar certificado automático después de push exitoso
         if (result.Success)
@@ -147,6 +168,14 @@ public class GitController : ControllerBase
             return NotFound($"Repository '{repoName}' not found");
         _logger.LogWarning("⚠️ FORCE PUSH request for {Repo}", repoName);
         var result = await _gitService.ForcePushAsync(repoPath);
+        
+        // 📋 AUDIT LOG: Force Push (Warning por ser operación peligrosa)
+        await _auditLog.LogAsync(
+            AuditCategory.Git,
+            AuditAction.GitPush,
+            result.Success ? AuditResult.Warning : AuditResult.Failure,
+            $"⚠️ FORCE PUSH en {repoName} - Operación forzada",
+            null, operatorName ?? "System");
         
         // Generar certificado automático después de force push exitoso
         if (result.Success)
@@ -173,6 +202,14 @@ public class GitController : ControllerBase
         var operatorName = ExtractAuthorFromMessage(request.Message);
         await GenerateDeploymentCertificateAsync(repoName, repoPath, operatorName, $"Commit+Push: {request.Message}");
         
+        // 📋 AUDIT LOG: Commit + Push
+        await _auditLog.LogAsync(
+            AuditCategory.Git,
+            AuditAction.GitCommit,
+            AuditResult.Success,
+            $"Commit+Push en {repoName}: {request.Message}",
+            null, operatorName);
+        
         return Ok(new GitOperationResult { Success = true, Message = "Commit and push completed successfully. Deployment certificate generated." });
     }
 
@@ -184,6 +221,18 @@ public class GitController : ControllerBase
             return NotFound($"Repository '{repoName}' not found");
         _logger.LogWarning("Discard request for {Repo}, file: {File}", repoName, request?.FilePath ?? "ALL");
         var result = await _gitService.DiscardChangesAsync(repoPath, request?.FilePath);
+        
+        // 📋 AUDIT LOG: Discard Changes (Warning por pérdida de datos)
+        if (result.Success)
+        {
+            await _auditLog.LogAsync(
+                AuditCategory.Git,
+                AuditAction.GitCommit, // No hay acción específica de discard
+                AuditResult.Warning,
+                $"⚠️ Descartados cambios en {repoName}: {request?.FilePath ?? "TODOS los archivos"}",
+                null, "Operator");
+        }
+        
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -196,6 +245,15 @@ public class GitController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.CommitHash)) return BadRequest("Commit hash is required");
         _logger.LogWarning("REVERT request for {Repo} to commit {Hash}", repoName, request.CommitHash);
         var result = await _gitService.RevertToCommitAsync(repoPath, request.CommitHash);
+        
+        // 📋 AUDIT LOG: Revert (Warning por ser operación crítica)
+        await _auditLog.LogAsync(
+            AuditCategory.Git,
+            AuditAction.GitCommit,
+            result.Success ? AuditResult.Warning : AuditResult.Failure,
+            $"⚠️ REVERT en {repoName} al commit {request.CommitHash}",
+            null, "Operator");
+        
         return result.Success ? Ok(result) : BadRequest(result);
     }
 

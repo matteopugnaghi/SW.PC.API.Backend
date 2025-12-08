@@ -125,7 +125,8 @@ builder.Services.AddSingleton<IGitOperationsService, GitOperationsService>(); //
 builder.Services.AddScoped<ISbomService, SbomService>(); // 📋 SBOM - EU CRA Compliance
 builder.Services.AddScoped<IVulnerabilityService, VulnerabilityService>(); // 🛡️ Vulnerability Scanner - EU CRA
 builder.Services.AddSingleton<IIpcInfoService, IpcInfoService>(); // 💻 IPC System Info
-builder.Services.AddSingleton<IAuditLogService, AuditLogService>(); // 📋 Audit Log - EU CRA Compliance
+builder.Services.AddSingleton<IAuditLogService, AuditLogService>(); // 📋 Audit Log (Nivel 1) - EU CRA Compliance
+builder.Services.AddSingleton<IOperationLogService, OperationLogService>(); // 📋 Operation Log (Nivel 2) - Acciones de operador
 
 // Register HttpClient for Vulnerability Scanner
 builder.Services.AddHttpClient("VulnerabilityScanner", client =>
@@ -407,5 +408,42 @@ app.MapControllers();
 
 // Map SignalR Hub
 app.MapHub<ScadaHub>("/hubs/scada");
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📋 AUDIT LOG: System Startup & Shutdown Events (EU CRA / CADRA Compliance)
+// ═══════════════════════════════════════════════════════════════════════════════
+{
+    var auditLogService = app.Services.GetRequiredService<IAuditLogService>();
+    
+    // 🟢 Log System Startup
+    await auditLogService.LogAsync(
+        AuditCategory.System,
+        AuditAction.SystemStart,
+        AuditResult.Success,
+        $"Sistema iniciado - Versión Backend, Environment: {app.Environment.EnvironmentName}",
+        null, "System");
+    
+    app.Logger.LogInformation("📋 System startup logged to audit");
+    
+    // 🔴 Register System Shutdown Event
+    app.Lifetime.ApplicationStopping.Register(() =>
+    {
+        try
+        {
+            auditLogService.LogAsync(
+                AuditCategory.System,
+                AuditAction.SystemStop,
+                AuditResult.Success,
+                "Sistema detenido normalmente",
+                null, "System").GetAwaiter().GetResult();
+            
+            app.Logger.LogInformation("📋 System shutdown logged to audit");
+        }
+        catch (Exception ex)
+        {
+            app.Logger.LogError(ex, "Failed to log system shutdown to audit");
+        }
+    });
+}
 
 app.Run();

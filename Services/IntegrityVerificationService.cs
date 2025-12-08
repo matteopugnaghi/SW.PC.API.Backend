@@ -97,35 +97,132 @@ namespace SW.PC.API.Backend.Services
             
             stopwatch.Stop();
 
+            // Obtener detalles de cada componente para mensajes detallados
+            var versionInfo = integrityService.GetSoftwareVersionInfo();
+            var componentDetails = GetComponentDetailsMessage(versionInfo);
+
             if (result)
             {
-                _logger.LogInformation("✅ Integrity verification PASSED in {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
+                _logger.LogInformation("✅ Integrity verification PASSED in {ElapsedMs}ms - {Details}", 
+                    stopwatch.ElapsedMilliseconds, componentDetails);
                 
                 // 📝 Audit Log: Register successful auto-verification
                 await auditLog.LogAsync(
                     AuditCategory.Integrity,
                     AuditAction.IntegrityAutoVerify,
                     AuditResult.Success,
-                    "Automatic integrity verification PASSED",
+                    $"Automatic integrity verification PASSED - {componentDetails}",
                     "System",
                     durationMs: stopwatch.ElapsedMilliseconds
                 );
             }
             else
             {
-                _logger.LogWarning("⚠️ Integrity verification completed with warnings in {ElapsedMs}ms", 
-                    stopwatch.ElapsedMilliseconds);
+                // Construir mensaje detallado de warnings
+                var warningDetails = GetWarningDetailsMessage(versionInfo);
+                
+                _logger.LogWarning("⚠️ Integrity verification completed with WARNINGS in {ElapsedMs}ms - {Details}", 
+                    stopwatch.ElapsedMilliseconds, warningDetails);
                     
-                // 📝 Audit Log: Register verification with warnings
+                // 📝 Audit Log: Register verification with warnings (con detalle)
                 await auditLog.LogAsync(
                     AuditCategory.Integrity,
                     AuditAction.IntegrityAutoVerify,
                     AuditResult.Warning,
-                    "Automatic integrity verification completed with WARNINGS - possible code modifications detected",
+                    $"Automatic integrity verification with WARNINGS - {warningDetails}",
                     "System",
                     durationMs: stopwatch.ElapsedMilliseconds
                 );
             }
+        }
+
+        /// <summary>
+        /// Genera mensaje resumido del estado de cada componente
+        /// </summary>
+        private string GetComponentDetailsMessage(SoftwareVersionInfo versionInfo)
+        {
+            var parts = new List<string>();
+
+            if (versionInfo.Backend != null)
+                parts.Add($"Backend: {versionInfo.Backend.Integrity ?? "unknown"}");
+            
+            if (versionInfo.Frontend != null)
+                parts.Add($"Frontend: {versionInfo.Frontend.Integrity ?? "unknown"}");
+            
+            if (versionInfo.TwinCatPlc != null)
+                parts.Add($"TwinCAT: {versionInfo.TwinCatPlc.Integrity ?? "unknown"}");
+
+            return string.Join(" | ", parts);
+        }
+
+        /// <summary>
+        /// Genera mensaje detallado de warnings con archivos modificados
+        /// </summary>
+        private string GetWarningDetailsMessage(SoftwareVersionInfo versionInfo)
+        {
+            var warnings = new List<string>();
+
+            // Backend
+            if (versionInfo.Backend != null)
+            {
+                if (versionInfo.Backend.Integrity == "modified")
+                {
+                    var files = versionInfo.Backend.ModifiedFiles > 0 
+                        ? $"{versionInfo.Backend.ModifiedFiles} files" 
+                        : "uncommitted changes";
+                    warnings.Add($"Backend: MODIFIED ({files})");
+                }
+                else if (versionInfo.Backend.Integrity == "unknown")
+                {
+                    warnings.Add("Backend: UNKNOWN (repo not found)");
+                }
+                else
+                {
+                    warnings.Add($"Backend: {versionInfo.Backend.Integrity}");
+                }
+            }
+
+            // Frontend
+            if (versionInfo.Frontend != null)
+            {
+                if (versionInfo.Frontend.Integrity == "modified")
+                {
+                    var files = versionInfo.Frontend.ModifiedFiles > 0 
+                        ? $"{versionInfo.Frontend.ModifiedFiles} files" 
+                        : "uncommitted changes";
+                    warnings.Add($"Frontend: MODIFIED ({files})");
+                }
+                else if (versionInfo.Frontend.Integrity == "unknown")
+                {
+                    warnings.Add("Frontend: UNKNOWN (repo not found)");
+                }
+                else
+                {
+                    warnings.Add($"Frontend: {versionInfo.Frontend.Integrity}");
+                }
+            }
+
+            // TwinCAT PLC
+            if (versionInfo.TwinCatPlc != null)
+            {
+                if (versionInfo.TwinCatPlc.Integrity == "modified")
+                {
+                    var files = versionInfo.TwinCatPlc.ModifiedFiles > 0 
+                        ? $"{versionInfo.TwinCatPlc.ModifiedFiles} files" 
+                        : "uncommitted changes";
+                    warnings.Add($"TwinCAT: MODIFIED ({files})");
+                }
+                else if (versionInfo.TwinCatPlc.Integrity == "unknown")
+                {
+                    warnings.Add("TwinCAT: UNKNOWN (repo not found)");
+                }
+                else
+                {
+                    warnings.Add($"TwinCAT: {versionInfo.TwinCatPlc.Integrity}");
+                }
+            }
+
+            return string.Join(" | ", warnings);
         }
 
         private void UpdateNextVerificationInfo()

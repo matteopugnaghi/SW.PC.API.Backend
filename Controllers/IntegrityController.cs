@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using SW.PC.API.Backend.Services;
+using SW.PC.API.Backend.Models;
 using System.Text.Json;
 
 namespace SW.PC.API.Backend.Controllers
@@ -12,13 +13,16 @@ namespace SW.PC.API.Backend.Controllers
     public class IntegrityController : ControllerBase
     {
         private readonly ISoftwareIntegrityService _integrityService;
+        private readonly IAuditLogService _auditLog;
         private readonly ILogger<IntegrityController> _logger;
 
         public IntegrityController(
             ISoftwareIntegrityService integrityService,
+            IAuditLogService auditLog,
             ILogger<IntegrityController> logger)
         {
             _integrityService = integrityService;
+            _auditLog = auditLog;
             _logger = logger;
         }
 
@@ -102,6 +106,14 @@ namespace SW.PC.API.Backend.Controllers
             var certificate = await _integrityService.GenerateIntegrityCertificateAsync(
                 request.MachineId, request.OperatorName);
 
+            // 📋 AUDIT LOG: Certificate Generation
+            await _auditLog.LogAsync(
+                AuditCategory.Certificate,
+                AuditAction.CertificateGenerate,
+                AuditResult.Success,
+                $"Certificado de integridad generado para máquina {request.MachineId}",
+                null, request.OperatorName);
+
             return Ok(certificate);
         }
 
@@ -119,6 +131,14 @@ namespace SW.PC.API.Backend.Controllers
             var certificate = await _integrityService.GenerateIntegrityCertificateAsync(
                 request.MachineId, request.OperatorName ?? "System");
 
+            // 📋 AUDIT LOG: Certificate Download
+            await _auditLog.LogAsync(
+                AuditCategory.Certificate,
+                AuditAction.CertificateGenerate,
+                AuditResult.Success,
+                $"Certificado de integridad descargado para máquina {request.MachineId}",
+                null, request.OperatorName ?? "System");
+
             var json = JsonSerializer.Serialize(certificate, new JsonSerializerOptions
             {
                 WriteIndented = true
@@ -134,7 +154,7 @@ namespace SW.PC.API.Backend.Controllers
         /// Verificar firma de un certificado existente
         /// </summary>
         [HttpPost("certificate/verify")]
-        public IActionResult VerifyCertificate([FromBody] IntegrityCertificate certificate)
+        public async Task<IActionResult> VerifyCertificate([FromBody] IntegrityCertificate certificate)
         {
             if (certificate == null || string.IsNullOrWhiteSpace(certificate.CertificateId))
             {
@@ -142,6 +162,14 @@ namespace SW.PC.API.Backend.Controllers
             }
 
             var isValid = _integrityService.VerifyCertificateSignature(certificate);
+
+            // 📋 AUDIT LOG: Certificate Verification
+            await _auditLog.LogAsync(
+                AuditCategory.Certificate,
+                AuditAction.CertificateGenerate, // Usamos la misma acción ya que no hay una específica de verify
+                isValid ? AuditResult.Success : AuditResult.Warning,
+                $"Verificación de certificado {certificate.CertificateId}: {(isValid ? "VÁLIDO" : "INVÁLIDO")}",
+                null, "System");
 
             return Ok(new
             {

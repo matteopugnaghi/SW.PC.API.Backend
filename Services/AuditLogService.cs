@@ -406,8 +406,20 @@ namespace SW.PC.API.Backend.Services
                 
                 if (File.Exists(filePath))
                 {
-                    var json = await File.ReadAllTextAsync(filePath);
-                    existingEntries = JsonSerializer.Deserialize<List<AuditLogEntry>>(json, JsonOptions) ?? new();
+                    try
+                    {
+                        var json = await File.ReadAllTextAsync(filePath);
+                        // Solo deserializar si el archivo tiene contenido válido
+                        if (!string.IsNullOrWhiteSpace(json) && json.Trim().StartsWith("["))
+                        {
+                            existingEntries = JsonSerializer.Deserialize<List<AuditLogEntry>>(json, JsonOptions) ?? new();
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        _logger.LogWarning("⚠️ Corrupted audit file detected during flush, will overwrite: {File}", filePath);
+                        existingEntries = new List<AuditLogEntry>();
+                    }
                 }
 
                 existingEntries.AddRange(entries);
@@ -423,6 +435,7 @@ namespace SW.PC.API.Backend.Services
                 await File.WriteAllTextAsync(filePath, JsonSerializer.Serialize(existingEntries, JsonOptions));
 
                 _lastFlush = DateTime.UtcNow;
+                _logger.LogDebug("📋 Flushed {Count} audit entries to {File}", entries.Count, filePath);
             }
             catch (Exception ex)
             {
@@ -628,9 +641,46 @@ namespace SW.PC.API.Backend.Services
                 try
                 {
                     var json = await File.ReadAllTextAsync(file);
+                    
+                    // Verificar si el archivo está vacío o contiene solo whitespace
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        _logger.LogWarning("⚠️ Audit file is empty, initializing: {File}", file);
+                        // Inicializar archivo vacío con array JSON válido
+                        await File.WriteAllTextAsync(file, "[]");
+                        continue;
+                    }
+                    
+                    // Verificar que empiece con [ para ser un array JSON válido
+                    var trimmed = json.Trim();
+                    if (!trimmed.StartsWith("["))
+                    {
+                        _logger.LogWarning("⚠️ Audit file is not a valid JSON array, backing up and reinitializing: {File}", file);
+                        // Backup del archivo corrupto
+                        var backupPath = file + ".corrupted." + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+                        File.Move(file, backupPath);
+                        await File.WriteAllTextAsync(file, "[]");
+                        continue;
+                    }
+                    
                     var entries = JsonSerializer.Deserialize<List<AuditLogEntry>>(json, JsonOptions);
                     if (entries != null)
                         allEntries.AddRange(entries);
+                }
+                catch (JsonException jsonEx)
+                {
+                    _logger.LogWarning("⚠️ Invalid JSON in audit file, backing up and reinitializing: {File} - {Error}", file, jsonEx.Message);
+                    try
+                    {
+                        // Backup del archivo corrupto
+                        var backupPath = file + ".corrupted." + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+                        File.Move(file, backupPath);
+                        await File.WriteAllTextAsync(file, "[]");
+                    }
+                    catch (Exception moveEx)
+                    {
+                        _logger.LogError(moveEx, "❌ Could not backup corrupted audit file: {File}", file);
+                    }
                 }
                 catch (Exception ex)
                 {
