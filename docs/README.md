@@ -17,6 +17,7 @@ Esta carpeta contiene toda la documentación técnica del sistema organizada por
 
 | Documento | Descripción |
 |-----------|-------------|
+| [MULTI_PROJECT_SYSTEM.md](architecture/MULTI_PROJECT_SYSTEM.md) | 📌 **Sistema Multi-Proyecto** - Gestión de múltiples instalaciones |
 | [ARQUITECTURA_DESPLIEGUE.md](architecture/ARQUITECTURA_DESPLIEGUE.md) | Arquitectura general del sistema y despliegue |
 | [ARQUITECTURA_LOGS.md](architecture/ARQUITECTURA_LOGS.md) | Sistema de logging y auditoría |
 | [MODELOS_3D_IMPLEMENTATION.md](architecture/MODELOS_3D_IMPLEMENTATION.md) | Implementación de modelos 3D con Babylon.js |

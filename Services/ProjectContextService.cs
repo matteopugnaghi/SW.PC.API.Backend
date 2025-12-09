@@ -1,0 +1,433 @@
+using System.Text.Json;
+
+namespace SW.PC.API.Backend.Services
+{
+    /// <summary>
+    /// Servicio que gestiona el contexto del proyecto activo.
+    /// Lee el proyecto activo desde active-project.json y proporciona
+    /// las rutas correctas para config, models, data y backups.
+    /// </summary>
+    public interface IProjectContextService
+    {
+        /// <summary>
+        /// ID del proyecto activo (ej: "AQF-ALSTOM-001")
+        /// </summary>
+        string ActiveProjectId { get; }
+        
+        /// <summary>
+        /// Ruta base del proyecto activo (ej: "Projects/AQF-ALSTOM-001")
+        /// </summary>
+        string ProjectBasePath { get; }
+        
+        /// <summary>
+        /// Ruta a la carpeta de configuración del proyecto (Excel, etc.)
+        /// </summary>
+        string ConfigPath { get; }
+        
+        /// <summary>
+        /// Ruta a la carpeta de modelos 3D del proyecto
+        /// </summary>
+        string ModelsPath { get; }
+        
+        /// <summary>
+        /// Ruta a la carpeta de datos del proyecto (SQLite, etc.)
+        /// </summary>
+        string DataPath { get; }
+        
+        /// <summary>
+        /// Ruta a la carpeta de backups del proyecto
+        /// </summary>
+        string BackupsPath { get; }
+        
+        /// <summary>
+        /// Ruta completa al archivo Excel de configuración del proyecto
+        /// </summary>
+        string ExcelConfigPath { get; }
+        
+        /// <summary>
+        /// Ruta completa a la base de datos SQLite del proyecto
+        /// </summary>
+        string DatabasePath { get; }
+        
+        /// <summary>
+        /// Indica si el proyecto está usando la estructura multi-proyecto
+        /// o la estructura legacy (ExcelConfigs/, wwwroot/models/, Data/)
+        /// </summary>
+        bool IsMultiProjectMode { get; }
+        
+        /// <summary>
+        /// Lista todos los proyectos disponibles en la carpeta Projects/
+        /// </summary>
+        IEnumerable<ProjectInfo> GetAvailableProjects();
+        
+        /// <summary>
+        /// Verifica si existe un proyecto con el ID especificado
+        /// </summary>
+        bool ProjectExists(string projectId);
+        
+        /// <summary>
+        /// Crea la estructura de carpetas para un nuevo proyecto
+        /// </summary>
+        Task<bool> CreateProjectStructureAsync(string projectId);
+        
+        /// <summary>
+        /// Recarga la configuración del proyecto activo desde active-project.json
+        /// </summary>
+        void ReloadActiveProject();
+    }
+    
+    /// <summary>
+    /// Información básica de un proyecto
+    /// </summary>
+    public class ProjectInfo
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Path { get; set; } = "";
+        public bool HasConfig { get; set; }
+        public bool HasModels { get; set; }
+        public bool HasDatabase { get; set; }
+        public DateTime? LastModified { get; set; }
+        public bool IsActive { get; set; }
+    }
+    
+    public class ProjectContextService : IProjectContextService
+    {
+        private readonly ILogger<ProjectContextService> _logger;
+        private readonly IWebHostEnvironment _environment;
+        private readonly string _contentRootPath;
+        private readonly string _projectsRootPath;
+        private readonly string _activeProjectFilePath;
+        
+        private string _activeProjectId = "default";
+        private bool _isMultiProjectMode = false;
+        
+        // Rutas legacy (compatibilidad hacia atrás)
+        private readonly string _legacyExcelConfigPath;
+        private readonly string _legacyModelsPath;
+        private readonly string _legacyDataPath;
+        
+        public ProjectContextService(
+            IWebHostEnvironment environment,
+            ILogger<ProjectContextService> logger)
+        {
+            _environment = environment;
+            _logger = logger;
+            _contentRootPath = environment.ContentRootPath;
+            _projectsRootPath = Path.Combine(_contentRootPath, "Projects");
+            _activeProjectFilePath = Path.Combine(_contentRootPath, "active-project.json");
+            
+            // Rutas legacy
+            _legacyExcelConfigPath = Path.Combine(_contentRootPath, "ExcelConfigs");
+            _legacyModelsPath = Path.Combine(environment.WebRootPath, "models");
+            _legacyDataPath = Path.Combine(_contentRootPath, "Data");
+            
+            // Cargar proyecto activo al iniciar
+            LoadActiveProject();
+            
+            // Asegurar que existe la estructura base
+            EnsureProjectsDirectoryExists();
+        }
+        
+        public string ActiveProjectId => _activeProjectId;
+        
+        public string ProjectBasePath => _isMultiProjectMode 
+            ? Path.Combine(_projectsRootPath, _activeProjectId)
+            : _contentRootPath;
+        
+        public string ConfigPath => _isMultiProjectMode
+            ? Path.Combine(ProjectBasePath, "config")
+            : _legacyExcelConfigPath;
+        
+        public string ModelsPath => _isMultiProjectMode
+            ? Path.Combine(ProjectBasePath, "models")
+            : _legacyModelsPath;
+        
+        public string DataPath => _isMultiProjectMode
+            ? Path.Combine(ProjectBasePath, "data")
+            : _legacyDataPath;
+        
+        public string BackupsPath => Path.Combine(
+            _isMultiProjectMode ? ProjectBasePath : _contentRootPath, 
+            "backups");
+        
+        public string ExcelConfigPath
+        {
+            get
+            {
+                if (_isMultiProjectMode)
+                {
+                    // Buscar archivos Excel en la carpeta config del proyecto
+                    var configDir = ConfigPath;
+                    if (Directory.Exists(configDir))
+                    {
+                        var excelFiles = Directory.GetFiles(configDir, "*.xlsm")
+                            .Concat(Directory.GetFiles(configDir, "*.xlsx"))
+                            .ToArray();
+                        
+                        if (excelFiles.Length > 0)
+                        {
+                            // Priorizar ProjectConfig.xlsm
+                            var projectConfig = excelFiles.FirstOrDefault(f => 
+                                Path.GetFileName(f).Equals("ProjectConfig.xlsm", StringComparison.OrdinalIgnoreCase));
+                            
+                            return projectConfig ?? excelFiles[0];
+                        }
+                    }
+                }
+                
+                // Legacy: buscar en ExcelConfigs/
+                return Path.Combine(_legacyExcelConfigPath, "ProjectConfig.xlsm");
+            }
+        }
+        
+        public string DatabasePath => _isMultiProjectMode
+            ? Path.Combine(DataPath, "project.db")
+            : Path.Combine(_legacyDataPath, "Aquafrisch.db");
+        
+        public bool IsMultiProjectMode => _isMultiProjectMode;
+        
+        public IEnumerable<ProjectInfo> GetAvailableProjects()
+        {
+            var projects = new List<ProjectInfo>();
+            
+            // Añadir proyecto "default" (legacy mode)
+            projects.Add(new ProjectInfo
+            {
+                Id = "default",
+                Name = "Default (Legacy Mode)",
+                Path = _contentRootPath,
+                HasConfig = Directory.Exists(_legacyExcelConfigPath) && 
+                           Directory.GetFiles(_legacyExcelConfigPath, "*.xls*").Any(),
+                HasModels = Directory.Exists(_legacyModelsPath) &&
+                           Directory.GetFiles(_legacyModelsPath, "*.glb").Any(),
+                HasDatabase = File.Exists(Path.Combine(_legacyDataPath, "Aquafrisch.db")),
+                LastModified = Directory.Exists(_legacyExcelConfigPath) 
+                    ? new DirectoryInfo(_legacyExcelConfigPath).LastWriteTime 
+                    : null,
+                IsActive = _activeProjectId == "default"
+            });
+            
+            // Escanear carpeta Projects/
+            if (Directory.Exists(_projectsRootPath))
+            {
+                foreach (var projectDir in Directory.GetDirectories(_projectsRootPath))
+                {
+                    var projectId = Path.GetFileName(projectDir);
+                    
+                    // Ignorar carpetas especiales
+                    if (projectId.StartsWith("_") || projectId.StartsWith("."))
+                        continue;
+                    
+                    var configPath = Path.Combine(projectDir, "config");
+                    var modelsPath = Path.Combine(projectDir, "models");
+                    var dataPath = Path.Combine(projectDir, "data");
+                    
+                    projects.Add(new ProjectInfo
+                    {
+                        Id = projectId,
+                        Name = projectId.Replace("-", " ").Replace("_", " "),
+                        Path = projectDir,
+                        HasConfig = Directory.Exists(configPath) && 
+                                   Directory.GetFiles(configPath, "*.xls*").Any(),
+                        HasModels = Directory.Exists(modelsPath) &&
+                                   Directory.EnumerateFiles(modelsPath, "*.glb", SearchOption.AllDirectories).Any(),
+                        HasDatabase = File.Exists(Path.Combine(dataPath, "project.db")),
+                        LastModified = new DirectoryInfo(projectDir).LastWriteTime,
+                        IsActive = _activeProjectId == projectId
+                    });
+                }
+            }
+            
+            return projects.OrderBy(p => p.Id == "default" ? 0 : 1).ThenBy(p => p.Name);
+        }
+        
+        public bool ProjectExists(string projectId)
+        {
+            if (projectId == "default")
+                return true;
+            
+            var projectPath = Path.Combine(_projectsRootPath, projectId);
+            return Directory.Exists(projectPath);
+        }
+        
+        public async Task<bool> CreateProjectStructureAsync(string projectId)
+        {
+            try
+            {
+                var projectPath = Path.Combine(_projectsRootPath, projectId);
+                
+                if (Directory.Exists(projectPath))
+                {
+                    _logger.LogWarning("Project {ProjectId} already exists", projectId);
+                    return false;
+                }
+                
+                // Crear estructura de carpetas
+                Directory.CreateDirectory(projectPath);
+                Directory.CreateDirectory(Path.Combine(projectPath, "config"));
+                Directory.CreateDirectory(Path.Combine(projectPath, "models"));
+                Directory.CreateDirectory(Path.Combine(projectPath, "data"));
+                Directory.CreateDirectory(Path.Combine(projectPath, "backups"));
+                
+                // Crear archivo README
+                var readmePath = Path.Combine(projectPath, "README.md");
+                await File.WriteAllTextAsync(readmePath, $@"# Proyecto: {projectId}
+
+## Estructura de carpetas
+
+- **config/**: Archivos de configuración Excel (ProjectConfig.xlsm)
+- **models/**: Modelos 3D (.glb, .gltf)
+- **data/**: Base de datos SQLite (project.db)
+- **backups/**: Copias de seguridad automáticas y manuales
+
+## Creado
+
+- Fecha: {DateTime.Now:yyyy-MM-dd HH:mm:ss}
+- Por: Sistema Multi-Proyecto SW.PC.API.Backend
+
+## Notas
+
+Copiar el archivo ProjectConfig.xlsm a la carpeta config/ y configurar según necesidades.
+");
+                
+                _logger.LogInformation("✅ Project structure created: {ProjectId}", projectId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating project structure for {ProjectId}", projectId);
+                return false;
+            }
+        }
+        
+        public void ReloadActiveProject()
+        {
+            LoadActiveProject();
+        }
+        
+        private void LoadActiveProject()
+        {
+            try
+            {
+                if (!File.Exists(_activeProjectFilePath))
+                {
+                    _logger.LogInformation("📁 active-project.json not found, using default (legacy mode)");
+                    _activeProjectId = "default";
+                    _isMultiProjectMode = false;
+                    return;
+                }
+                
+                var json = File.ReadAllText(_activeProjectFilePath);
+                var config = JsonSerializer.Deserialize<ActiveProjectConfig>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                
+                if (config == null || string.IsNullOrWhiteSpace(config.ActiveProject))
+                {
+                    _logger.LogWarning("⚠️ Invalid active-project.json, using default");
+                    _activeProjectId = "default";
+                    _isMultiProjectMode = false;
+                    return;
+                }
+                
+                _activeProjectId = config.ActiveProject;
+                
+                // Determinar si es modo multi-proyecto o legacy
+                if (_activeProjectId == "default")
+                {
+                    _isMultiProjectMode = false;
+                    _logger.LogInformation("📁 Active project: default (legacy mode)");
+                }
+                else
+                {
+                    var projectPath = Path.Combine(_projectsRootPath, _activeProjectId);
+                    _isMultiProjectMode = Directory.Exists(projectPath);
+                    
+                    if (_isMultiProjectMode)
+                    {
+                        _logger.LogInformation("📁 Active project: {ProjectId} (multi-project mode)", _activeProjectId);
+                        _logger.LogInformation("   Config: {Path}", ConfigPath);
+                        _logger.LogInformation("   Models: {Path}", ModelsPath);
+                        _logger.LogInformation("   Data: {Path}", DataPath);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("⚠️ Project folder not found: {Path}, falling back to legacy mode", projectPath);
+                        _activeProjectId = "default";
+                        _isMultiProjectMode = false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading active project configuration");
+                _activeProjectId = "default";
+                _isMultiProjectMode = false;
+            }
+        }
+        
+        private void EnsureProjectsDirectoryExists()
+        {
+            try
+            {
+                if (!Directory.Exists(_projectsRootPath))
+                {
+                    Directory.CreateDirectory(_projectsRootPath);
+                    _logger.LogInformation("📁 Created Projects directory: {Path}", _projectsRootPath);
+                }
+                
+                // Crear carpeta _template si no existe
+                var templatePath = Path.Combine(_projectsRootPath, "_template");
+                if (!Directory.Exists(templatePath))
+                {
+                    Directory.CreateDirectory(templatePath);
+                    Directory.CreateDirectory(Path.Combine(templatePath, "config"));
+                    Directory.CreateDirectory(Path.Combine(templatePath, "models"));
+                    Directory.CreateDirectory(Path.Combine(templatePath, "data"));
+                    Directory.CreateDirectory(Path.Combine(templatePath, "backups"));
+                    
+                    // Crear README en template
+                    File.WriteAllText(Path.Combine(templatePath, "README.md"), @"# Plantilla de Proyecto
+
+Esta carpeta sirve como plantilla para crear nuevos proyectos.
+
+## Para crear un nuevo proyecto:
+
+1. Copiar toda esta carpeta con el nombre del nuevo proyecto (ej: `AQF-CLIENTE-001`)
+2. Añadir el archivo Excel de configuración en `config/ProjectConfig.xlsm`
+3. Añadir los modelos 3D en `models/`
+4. Modificar `active-project.json` en la raíz del backend con el nuevo ID
+
+## Estructura:
+
+```
+{PROJECT_ID}/
+├── config/
+│   └── ProjectConfig.xlsm    ← Configuración Excel del proyecto
+├── models/
+│   └── *.glb                 ← Modelos 3D
+├── data/
+│   └── project.db            ← Base de datos SQLite (auto-generada)
+└── backups/
+    └── *.zip                 ← Backups automáticos y manuales
+```
+");
+                    
+                    _logger.LogInformation("📁 Created _template directory: {Path}", templatePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error ensuring Projects directory exists");
+            }
+        }
+        
+        private class ActiveProjectConfig
+        {
+            public string ActiveProject { get; set; } = "default";
+            public string? Description { get; set; }
+        }
+    }
+}

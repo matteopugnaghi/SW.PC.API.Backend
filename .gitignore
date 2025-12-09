@@ -103,6 +103,16 @@ _ReSharper*/
 # JetBrains Rider
 *.sln.iml
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 📁 MULTI-PROJECT: Project data folders (customer-specific, not versioned)
+# ═══════════════════════════════════════════════════════════════════════════════
+Projects/
+!Projects/_template/
+!Projects/_template/**
+
+# Active project configuration (runtime state)
+active-project.json
+
 # Runtime state files (change constantly)
 integrity-state.json
 deployment-certificates.json

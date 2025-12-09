@@ -116,6 +116,7 @@ builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IRecoveryCodeService, RecoveryCodeService>(); // 🔐 EU CRA - Recovery Codes Offline
 
 // Register SCADA Services
+builder.Services.AddSingleton<IProjectContextService, ProjectContextService>(); // 📁 Multi-Project Support
 builder.Services.AddScoped<IModelService, ModelService>();
 builder.Services.AddScoped<IConfigurationService, ConfigurationService>();
 builder.Services.AddSingleton<IExcelConfigService, ExcelConfigService>(); // ✅ SINGLETON para mantener caché
@@ -159,12 +160,37 @@ builder.Services.AddLogging(logging =>
 
 var app = builder.Build();
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📁 MULTI-PROJECT: Initialize Project Context Service
+// ═══════════════════════════════════════════════════════════════════════════════
+{
+    var projectContext = app.Services.GetRequiredService<IProjectContextService>();
+    var excelConfigService = app.Services.GetRequiredService<IExcelConfigService>();
+    
+    // Configurar ExcelConfigService con el contexto de proyecto
+    excelConfigService.SetProjectContext(projectContext);
+    
+    app.Logger.LogInformation("═══════════════════════════════════════════════════════════════");
+    app.Logger.LogInformation("📁 MULTI-PROJECT SYSTEM INITIALIZED");
+    app.Logger.LogInformation("   Active Project: {ProjectId}", projectContext.ActiveProjectId);
+    app.Logger.LogInformation("   Mode: {Mode}", projectContext.IsMultiProjectMode ? "Multi-Project" : "Legacy");
+    if (projectContext.IsMultiProjectMode)
+    {
+        app.Logger.LogInformation("   Config Path: {Path}", projectContext.ConfigPath);
+        app.Logger.LogInformation("   Models Path: {Path}", projectContext.ModelsPath);
+        app.Logger.LogInformation("   Data Path: {Path}", projectContext.DataPath);
+        app.Logger.LogInformation("   Excel Path: {Path}", projectContext.ExcelConfigPath);
+    }
+    app.Logger.LogInformation("═══════════════════════════════════════════════════════════════");
+}
+
 // 🔐 Conectar servicio de integridad con métricas y TwinCAT
 {
     var metricsService = app.Services.GetRequiredService<IMetricsService>();
     var integrityService = app.Services.GetRequiredService<ISoftwareIntegrityService>();
     var twinCatService = app.Services.GetRequiredService<ITwinCATService>();
     var excelConfigService = app.Services.GetRequiredService<IExcelConfigService>();
+    var projectContext = app.Services.GetRequiredService<IProjectContextService>();
     
     metricsService.SetSoftwareIntegrityService(integrityService);
     
@@ -173,15 +199,31 @@ var app = builder.Build();
     // 📋 Cargar rutas Git desde Excel (System Config filas A20-A22)
     try
     {
-        // Buscar Excel en múltiples ubicaciones
-        var possiblePaths = new[]
-        {
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExcelConfigs", "ProjectConfig.xlsm"),
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "ExcelConfigs", "ProjectConfig.xlsm"),
-            @"C:\Users\mpugnaghi.AQUAFRISCH\Documents\Work_In_Process\_Web\AI test\SW.PC.API.Backend_\ExcelConfigs\ProjectConfig.xlsm"
-        };
+        // Usar ruta del proyecto activo si está en modo multi-proyecto
+        string? excelPath = null;
         
-        var excelPath = possiblePaths.FirstOrDefault(File.Exists);
+        if (projectContext.IsMultiProjectMode)
+        {
+            excelPath = projectContext.ExcelConfigPath;
+            if (!File.Exists(excelPath))
+            {
+                app.Logger.LogWarning("⚠️ Project Excel not found at: {Path}", excelPath);
+                excelPath = null;
+            }
+        }
+        
+        // Fallback: buscar Excel en ubicaciones legacy
+        if (excelPath == null)
+        {
+            var possiblePaths = new[]
+            {
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExcelConfigs", "ProjectConfig.xlsm"),
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "ExcelConfigs", "ProjectConfig.xlsm"),
+                @"C:\Users\mpugnaghi.AQUAFRISCH\Documents\Work_In_Process\_Web\AI test\SW.PC.API.Backend_\ExcelConfigs\ProjectConfig.xlsm"
+            };
+            
+            excelPath = possiblePaths.FirstOrDefault(File.Exists);
+        }
         
         if (excelPath != null)
         {
@@ -377,37 +419,51 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-// Serve /models directory explicitly with MIME types
-app.UseStaticFiles(new StaticFileOptions
+// 📁 MULTI-PROJECT: Serve /models from project folder or legacy wwwroot/models
 {
-    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
-        Path.Combine(app.Environment.WebRootPath, "models")),
-    RequestPath = "/models",
-    ContentTypeProvider = provider,
-    ServeUnknownFileTypes = false,
-    HttpsCompression = Microsoft.AspNetCore.Http.Features.HttpsCompressionMode.Compress,
-    OnPrepareResponse = ctx =>
+    var projectContextForModels = app.Services.GetRequiredService<IProjectContextService>();
+    var modelsPhysicalPath = projectContextForModels.ModelsPath;
+    
+    // Asegurar que existe la carpeta de modelos
+    if (!Directory.Exists(modelsPhysicalPath))
     {
-        app.Logger.LogInformation("✅ Serving model file: {Path} with ContentType: {ContentType}", 
-            ctx.File.PhysicalPath, ctx.Context.Response.ContentType);
-        ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
-        ctx.Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS";
-        ctx.Context.Response.Headers["Access-Control-Allow-Headers"] = "*";
-        
-        // 🔄 CACHE-BUSTING: Deshabilitar caché para modelos 3D (GLB/GLTF)
-        // Esto asegura que los cambios en los archivos se reflejen inmediatamente
-        var fileName = ctx.File.Name.ToLower();
-        if (fileName.EndsWith(".glb") || fileName.EndsWith(".gltf") || 
-            fileName.EndsWith(".obj") || fileName.EndsWith(".mtl"))
-        {
-            ctx.Context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
-            ctx.Context.Response.Headers["Pragma"] = "no-cache";
-            ctx.Context.Response.Headers["Expires"] = "0";
-            // Añadir ETag basado en la fecha de modificación del archivo
-            ctx.Context.Response.Headers["ETag"] = $"\"{ctx.File.LastModified.Ticks}\"";
-        }
+        Directory.CreateDirectory(modelsPhysicalPath);
+        app.Logger.LogInformation("📁 Created models directory: {Path}", modelsPhysicalPath);
     }
-});
+    
+    app.Logger.LogInformation("📁 Serving models from: {Path}", modelsPhysicalPath);
+    
+    // Serve /models directory explicitly with MIME types
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(modelsPhysicalPath),
+        RequestPath = "/models",
+        ContentTypeProvider = provider,
+        ServeUnknownFileTypes = false,
+        HttpsCompression = Microsoft.AspNetCore.Http.Features.HttpsCompressionMode.Compress,
+        OnPrepareResponse = ctx =>
+        {
+            app.Logger.LogInformation("✅ Serving model file: {Path} with ContentType: {ContentType}", 
+                ctx.File.PhysicalPath, ctx.Context.Response.ContentType);
+            ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+            ctx.Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS";
+            ctx.Context.Response.Headers["Access-Control-Allow-Headers"] = "*";
+            
+            // 🔄 CACHE-BUSTING: Deshabilitar caché para modelos 3D (GLB/GLTF)
+            // Esto asegura que los cambios en los archivos se reflejen inmediatamente
+            var fileName = ctx.File.Name.ToLower();
+            if (fileName.EndsWith(".glb") || fileName.EndsWith(".gltf") || 
+                fileName.EndsWith(".obj") || fileName.EndsWith(".mtl"))
+            {
+                ctx.Context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+                ctx.Context.Response.Headers["Pragma"] = "no-cache";
+                ctx.Context.Response.Headers["Expires"] = "0";
+                // Añadir ETag basado en la fecha de modificación del archivo
+                ctx.Context.Response.Headers["ETag"] = $"\"{ctx.File.LastModified.Ticks}\"";
+            }
+        }
+    });
+}
 
 // Enable routing AFTER static files
 app.UseRouting();

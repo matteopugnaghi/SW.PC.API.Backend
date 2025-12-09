@@ -4,15 +4,59 @@ This is a dual-stack industrial automation system: **ASP.NET Core backend + Reac
 
 ## 🏭 Architecture Overview
 
-**One Backend Per Industrial Installation** - Each PC runs an independent backend managing a single project configured via Excel.
+**Multi-Project Architecture** - One shared codebase supports multiple industrial installations. Each project has its own configuration, 3D models, and database.
 
 ```
 PC Industrial → Backend (HTTP: 5000 / HTTPS: 5001) → TwinCAT PLC (ADS)
                    ↓
               React Frontend (Port 3001) ← SignalR Real-time
+                   ↓
+              Projects/{projectId}/ ← Config, Models, Data per project
 ```
 
 **Security**: Self-contained deployment with HTTPS support (self-signed certificate, recommended for production).
+
+## 📂 Multi-Project System
+
+### Project Selection (`active-project.json`)
+```json
+{
+  "activeProject": "default"     // Legacy mode: uses ExcelConfigs/, wwwroot/models/, Data/
+}
+// OR
+{
+  "activeProject": "cliente-abc" // Multi-project: uses Projects/cliente-abc/
+}
+```
+
+### Project Folder Structure
+```
+Projects/
+├── cliente-abc/
+│   ├── config/
+│   │   └── ProjectConfig.xlsm    ← Excel configuration
+│   ├── models/
+│   │   └── *.glb                 ← 3D models
+│   ├── data/
+│   │   └── project.db            ← SQLite database
+│   ├── backups/                  ← Automatic backups
+│   └── README.md
+└── _template/                    ← Template for new projects
+```
+
+### Project Management APIs
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/projects` | GET | List all available projects |
+| `/api/projects/active` | GET | Get active project info and paths |
+| `/api/projects/{id}/create` | POST | Create new project structure |
+| `/api/projects/backup` | POST | Create backup of active project |
+| `/api/projects/backups` | GET | List available backups |
+| `/api/projects/backup/{id}/download` | GET | Download backup ZIP |
+
+### Key Services
+- **ProjectContextService** (`Services/ProjectContextService.cs`) - Manages active project context
+- **ProjectsController** (`Controllers/ProjectsController.cs`) - REST API for project management
 
 ## 🔧 Technology Stack
 
@@ -20,8 +64,8 @@ PC Industrial → Backend (HTTP: 5000 / HTTPS: 5001) → TwinCAT PLC (ADS)
 - **ASP.NET Core 8.0** with JWT authentication
 - **SignalR Hub** (`/hubs/scada`) for real-time PLC data
 - **TwinCAT.Ads** integration (simulated for development)
-- **Excel configuration** via EPPlus (`ExcelConfigs/ProjectConfig.xlsx`)
-- **Entity Framework Core** with SQL Server
+- **Excel configuration** via EPPlus (per-project `ProjectConfig.xlsm`)
+- **SQLite** database (per-project `project.db`)
 
 ### Frontend (my-3d-app/)
 - **React 19.2** with Babylon.js 8.33 for 3D rendering
@@ -56,11 +100,17 @@ npm run start:backend  # Backend integration mode
 
 ## 📋 Configuration System
 
-### Excel-Based Project Configuration (`ExcelConfigs/`)
-- **ProjectConfig.xlsx** defines the entire system configuration
-- **Sheets**: `General`, `PLC_Variables`, `HMI_Screens`, `3D_Models`
-- Service: `ExcelConfigService.cs` loads configurations
-- Pattern: Each installation = One Excel file = One project
+### Excel-Based Project Configuration
+- **ProjectConfig.xlsm** defines the entire system configuration
+- **Location**: `Projects/{projectId}/config/` (multi-project) or `ExcelConfigs/` (legacy)
+- **Sheets**: `General`, `PLC_Variables`, `HMI_Screens`, `3D_Models`, `System Config`
+- **Service**: `ExcelConfigService.cs` loads configurations based on active project
+
+### Configuration Modes
+| Mode | `activeProject` | Config Path | Models Path | Database |
+|------|-----------------|-------------|-------------|----------|
+| Legacy | `"default"` | `ExcelConfigs/` | `wwwroot/models/` | `Data/Aquafrisch.db` |
+| Multi-Project | `"proyecto-x"` | `Projects/proyecto-x/config/` | `Projects/proyecto-x/models/` | `Projects/proyecto-x/data/project.db` |
 
 ### Key Models (`Models/`)
 - `ProjectConfiguration` - Main project structure from Excel
@@ -129,6 +179,8 @@ policy.WithOrigins("http://localhost:3001", "http://localhost:3000", "http://loc
 ## 📁 Critical File Locations
 
 - **Backend entry**: `Program.cs` (DI container, CORS, SignalR setup)
+- **Project context**: `Services/ProjectContextService.cs` (multi-project management)
+- **Active project**: `active-project.json` (determines which project is active)
 - **PLC simulation**: `Services/TwinCATService.cs` (replace with real ADS for production)
 - **Excel parsing**: `Services/ExcelConfigService.cs` (project configuration loader)
 - **3D scene**: `my-3d-app/src/BabylonScene.js` (Babylon.js integration)
@@ -147,13 +199,15 @@ policy.WithOrigins("http://localhost:3001", "http://localhost:3000", "http://loc
 | Source (Development) | Destination (Production) | Notes |
 |---------------------|--------------------------|-------|
 | `publish\*` | `Backend\*.exe,dll` | Self-contained (includes .NET) |
-| `wwwroot\models\*` | `Backend\wwwroot\models\` | **3D models from Backend** |
-| `ExcelConfigs\*` | `ExcelConfigs\` | Project configuration |
-| `Data\Aquafrisch.db` | `Backend\Data\` | Only first install (backup on update) |
+| `Projects\{id}\*` | `Backend\Projects\{id}\` | **Project-specific files** |
+| `wwwroot\models\*` | `Backend\wwwroot\models\` | Legacy mode 3D models |
+| `ExcelConfigs\*` | `Backend\ExcelConfigs\` | Legacy mode configuration |
+| `Data\Aquafrisch.db` | `Backend\Data\` | Legacy mode database |
 | `my-3d-app\build\*` | `Backend\wwwroot\` | React frontend (html, js, css) |
+| `active-project.json` | `Backend\active-project.json` | **Project selector** |
 
-> **Important**: 3D models come from **Backend** `wwwroot/models/`, NOT from Frontend.
-> The Backend manages everything according to Excel configuration.
+> **Important**: In multi-project mode, 3D models come from `Projects/{id}/models/`.
+> In legacy mode (default), they come from `wwwroot/models/`.
 
 ### Production URLs
 - HTTP: `http://192.168.2.161:5000`

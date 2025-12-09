@@ -14,13 +14,18 @@ namespace SW.PC.API.Backend.Services
         Task<SystemConfiguration> LoadSystemConfigurationAsync(string filePath);
         void InvalidateCache(); // ✅ MÉTODO PARA FORZAR RECARGA
         Task<List<Model3DConfig>> Load3DModelsAsync(string filePath);
+        
+        // 📁 Soporte Multi-Proyecto
+        void SetProjectContext(IProjectContextService projectContext);
+        string GetExcelConfigPath();
     }
     
     public class ExcelConfigService : IExcelConfigService
     {
         private readonly ILogger<ExcelConfigService> _logger;
         private readonly IMetricsService _metricsService;
-        private readonly string _configFolder;
+        private readonly IWebHostEnvironment _environment;
+        private string _configFolder;
         
         // ✅ CACHÉ para evitar recargar Excel constantemente
         private SystemConfiguration? _cachedSystemConfig;
@@ -29,6 +34,9 @@ namespace SW.PC.API.Backend.Services
         private DateTime? _stateColorsCacheTimestamp;
         private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(5); // Cache válido por 5 minutos
         
+        // 📁 Soporte Multi-Proyecto
+        private IProjectContextService? _projectContext;
+        
         public ExcelConfigService(
             IWebHostEnvironment environment, 
             ILogger<ExcelConfigService> logger,
@@ -36,6 +44,7 @@ namespace SW.PC.API.Backend.Services
         {
             _logger = logger;
             _metricsService = metricsService;
+            _environment = environment;
             _configFolder = Path.Combine(environment.ContentRootPath, "ExcelConfigs");
             
             // Asegurar que existe la carpeta
@@ -46,6 +55,45 @@ namespace SW.PC.API.Backend.Services
             
             // Configurar licencia EPPlus (NonCommercial o Commercial)
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+        }
+        
+        /// <summary>
+        /// Configura el servicio de contexto de proyecto para soporte multi-proyecto.
+        /// Debe llamarse después de la inicialización del DI container.
+        /// </summary>
+        public void SetProjectContext(IProjectContextService projectContext)
+        {
+            _projectContext = projectContext;
+            
+            // Actualizar carpeta de configuración según el proyecto activo
+            if (_projectContext != null && _projectContext.IsMultiProjectMode)
+            {
+                _configFolder = _projectContext.ConfigPath;
+                _logger.LogInformation("📁 ExcelConfigService: Config folder updated to {Path}", _configFolder);
+                
+                // Asegurar que existe la carpeta
+                if (!Directory.Exists(_configFolder))
+                {
+                    Directory.CreateDirectory(_configFolder);
+                }
+                
+                // Invalidar caché para forzar recarga desde nueva ubicación
+                InvalidateCache();
+            }
+        }
+        
+        /// <summary>
+        /// Obtiene la ruta completa al archivo Excel de configuración.
+        /// Usa el contexto de proyecto si está disponible.
+        /// </summary>
+        public string GetExcelConfigPath()
+        {
+            if (_projectContext != null && _projectContext.IsMultiProjectMode)
+            {
+                return _projectContext.ExcelConfigPath;
+            }
+            
+            return Path.Combine(_configFolder, "ProjectConfig.xlsm");
         }
         
         public async Task<ProjectConfiguration> LoadProjectConfigurationAsync(string filePath)

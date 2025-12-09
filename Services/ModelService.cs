@@ -9,15 +9,22 @@ namespace SW.PC.API.Backend.Services
         Task<Model3D?> GetModelAsync(string id);
         Task<byte[]?> GetModelFileAsync(string fileName);
         Task<string?> GetModelFilePathAsync(string fileName);
+        
+        // 📁 Soporte Multi-Proyecto
+        void SetProjectContext(IProjectContextService projectContext);
+        string GetModelsPath();
     }
     
     public class ModelService : IModelService
     {
-        private readonly string _modelsPath;
+        private string _modelsPath;
+        private readonly IWebHostEnvironment _environment;
         private readonly ILogger<ModelService> _logger;
+        private IProjectContextService? _projectContext;
         
         public ModelService(IWebHostEnvironment environment, ILogger<ModelService> logger)
         {
+            _environment = environment;
             _modelsPath = Path.Combine(environment.WebRootPath, "models");
             _logger = logger;
             
@@ -27,6 +34,32 @@ namespace SW.PC.API.Backend.Services
                 Directory.CreateDirectory(_modelsPath);
             }
         }
+        
+        /// <summary>
+        /// Configura el servicio de contexto de proyecto para soporte multi-proyecto.
+        /// </summary>
+        public void SetProjectContext(IProjectContextService projectContext)
+        {
+            _projectContext = projectContext;
+            
+            // Actualizar carpeta de modelos según el proyecto activo
+            if (_projectContext != null && _projectContext.IsMultiProjectMode)
+            {
+                _modelsPath = _projectContext.ModelsPath;
+                _logger.LogInformation("📁 ModelService: Models folder updated to {Path}", _modelsPath);
+                
+                // Asegurar que existe la carpeta
+                if (!Directory.Exists(_modelsPath))
+                {
+                    Directory.CreateDirectory(_modelsPath);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Obtiene la ruta actual de la carpeta de modelos.
+        /// </summary>
+        public string GetModelsPath() => _modelsPath;
         
         public async Task<IEnumerable<Model3D>> GetAllModelsAsync()
         {
