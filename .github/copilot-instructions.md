@@ -7,10 +7,12 @@ This is a dual-stack industrial automation system: **ASP.NET Core backend + Reac
 **One Backend Per Industrial Installation** - Each PC runs an independent backend managing a single project configured via Excel.
 
 ```
-PC Industrial → Backend (Port 5000) → TwinCAT PLC (ADS)
+PC Industrial → Backend (HTTP: 5000 / HTTPS: 5001) → TwinCAT PLC (ADS)
                    ↓
               React Frontend (Port 3001) ← SignalR Real-time
 ```
+
+**Security**: Self-contained deployment with HTTPS support (self-signed certificate, recommended for production).
 
 ## 🔧 Technology Stack
 
@@ -46,10 +48,11 @@ npm run start:backend  # Backend integration mode
 ```
 
 ### Integration Testing
-1. Start backend: `dotnet run` (port 5000)
+1. Start backend: `dotnet run` (port 5000 HTTP, 5001 HTTPS)
 2. Start frontend: `npm run start:dev` (port 3001)
 3. Check console logs for SignalR connection status
 4. Swagger UI: `http://localhost:5000`
+5. **Production**: Use HTTPS (port 5001) for secure communication
 
 ## 📋 Configuration System
 
@@ -130,11 +133,53 @@ policy.WithOrigins("http://localhost:3001", "http://localhost:3000", "http://loc
 - **Excel parsing**: `Services/ExcelConfigService.cs` (project configuration loader)
 - **3D scene**: `my-3d-app/src/BabylonScene.js` (Babylon.js integration)
 - **API integration**: `my-3d-app/src/services/api.js` & `signalr.js`
-- **Project docs**: `ARQUITECTURA_DESPLIEGUE.md`, `MODELOS_3D_IMPLEMENTATION.md`
+- **Deploy script**: `Deploy-Manual-Remote.ps1` (automated production deployment)
+
+## 🚀 Production Deployment
+
+### Deploy Command
+```powershell
+.\Deploy-Manual-Remote.ps1  # Deploys to 192.168.2.161
+```
+
+### File Mapping: Development → Production
+
+| Source (Development) | Destination (Production) | Notes |
+|---------------------|--------------------------|-------|
+| `publish\*` | `Backend\*.exe,dll` | Self-contained (includes .NET) |
+| `wwwroot\models\*` | `Backend\wwwroot\models\` | **3D models from Backend** |
+| `ExcelConfigs\*` | `ExcelConfigs\` | Project configuration |
+| `Data\Aquafrisch.db` | `Backend\Data\` | Only first install (backup on update) |
+| `my-3d-app\build\*` | `Backend\wwwroot\` | React frontend (html, js, css) |
+
+> **Important**: 3D models come from **Backend** `wwwroot/models/`, NOT from Frontend.
+> The Backend manages everything according to Excel configuration.
+
+### Production URLs
+- HTTP: `http://192.168.2.161:5000`
+- HTTPS: `https://192.168.2.161:5001` (recommended)
+
+## 📚 Documentation Structure (`docs/`)
+
+All technical documentation is organized in the `docs/` folder:
+
+| Folder | Content |
+|--------|---------|
+| `docs/architecture/` | System architecture, logs, 3D models |
+| `docs/compliance/` | EU CRA compliance, security, terceros |
+| `docs/development/` | API examples, integration guides, troubleshooting |
+| `docs/configuration/` | Excel mapping, SystemConfig |
+| `docs/deployment/` | Deploy manuals, Kiosk setup |
+| `docs/user-guides/` | End-user manuals (EU CRA Anexo II) |
+| `docs/internal/` | ⚠️ Internal only - credentials, processes |
+| `docs/changelog/` | Integration status, work logs |
+
+**Key docs**: `docs/README.md` (index), `docs/compliance/ROADMAP_CUMPLIMIENTO_CRA.md`
 
 ## ⚠️ Development Notes
 
-- **Database disabled** temporarily (EF Core culture issues)
+- **SQLite database**: `Data/Aquafrisch.db` (users, sessions, audit logs)
 - **TwinCAT simulation** active (real PLC integration available)
-- **Excel configuration** system ready but partially commented
+- **Excel configuration** system fully operational
 - **Multi-language support** implemented (ES/EN via i18next)
+- **Self-contained deployment**: Includes .NET 8.0 runtime, no installation needed on production PC

@@ -5,12 +5,14 @@ ASP.NET Core 8.0 Web API para sistema SCADA/HMI industrial con visualización 3D
 ## 🏭 Arquitectura
 
 ```
-PC Industrial → Backend (Port 5000) → TwinCAT PLC (ADS)
+PC Industrial → Backend (HTTP: 5000 / HTTPS: 5001) → TwinCAT PLC (ADS)
                    ↓
-              React Frontend (Port 3001) ← SignalR Real-time
+              React Frontend (Port 3001) ← SignalR Real-time (HTTPS)
 ```
 
 **One Backend Per Industrial Installation** - Cada PC ejecuta un backend independiente gestionando un único proyecto configurado via Excel.
+
+**Seguridad**: El backend soporta HTTPS con certificado SSL auto-firmado (recomendado para producción).
 
 ---
 
@@ -31,7 +33,8 @@ dotnet watch run
 ```
 
 **URLs:**
-- API: `http://localhost:5000`
+- API HTTP: `http://localhost:5000`
+- API HTTPS: `https://localhost:5001` (recomendado)
 - Swagger: `http://localhost:5000` (raíz)
 
 ---

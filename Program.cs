@@ -342,6 +342,17 @@ using (var scope = app.Services.CreateScope())
 // Enable CORS FIRST (debe ir al principio)
 app.UseCors("ReactFrontend");
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🌐 SERVE REACT SPA - Default Files & Static Files
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// UseDefaultFiles MUST come before UseStaticFiles
+// This makes index.html the default document for "/"
+app.UseDefaultFiles(new DefaultFilesOptions
+{
+    DefaultFileNames = new List<string> { "index.html" }
+});
+
 // Configure MIME types for 3D models
 var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
 provider.Mappings[".glb"] = "model/gltf-binary";
@@ -410,6 +421,13 @@ app.MapControllers();
 
 // Map SignalR Hub
 app.MapHub<ScadaHub>("/hubs/scada");
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🌐 SPA FALLBACK - React Router Support
+// ═══════════════════════════════════════════════════════════════════════════════
+// For React SPA: any route not matching API or static files falls back to index.html
+// This allows React Router to handle client-side routing
+app.MapFallbackToFile("index.html");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 📋 AUDIT LOG: System Startup & Shutdown Events (EU CRA / CADRA Compliance)
