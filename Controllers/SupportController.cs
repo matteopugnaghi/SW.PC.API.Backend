@@ -31,6 +31,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly ILogger<SupportController> _logger;
         private readonly IExcelConfigService _excelConfigService;
         private readonly IConfiguration _configuration;
+        private readonly IRequestProjectContext _projectContext;
 
         // 🔐 SECRETO CONOCIDO SOLO POR AQUAFRISCH
         // Este valor DEBE ser el mismo en:
@@ -47,20 +48,23 @@ namespace SW.PC.API.Backend.Controllers
         public SupportController(
             ILogger<SupportController> logger,
             IExcelConfigService excelConfigService,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IRequestProjectContext projectContext)
         {
             _logger = logger;
             _excelConfigService = excelConfigService;
             _configuration = configuration;
+            _projectContext = projectContext;
         }
 
         /// <summary>
-        /// Obtiene la configuración del sistema desde Excel
+        /// Obtiene la configuración del sistema desde Excel (usa proyecto del request)
         /// </summary>
         private async Task<SystemConfiguration> GetSystemConfigAsync()
         {
-            var excelFile = _configuration["Excel:ConfigFile"] ?? "ProjectConfig.xlsm";
-            return await _excelConfigService.LoadSystemConfigurationAsync(excelFile);
+            var excelPath = _projectContext.ExcelConfigPath;
+            _logger.LogDebug("📁 SupportController: Cargando config desde {Path}", excelPath);
+            return await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
         }
 
         // ========================================

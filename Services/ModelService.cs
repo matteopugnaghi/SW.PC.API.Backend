@@ -9,66 +9,54 @@ namespace SW.PC.API.Backend.Services
         Task<Model3D?> GetModelAsync(string id);
         Task<byte[]?> GetModelFileAsync(string fileName);
         Task<string?> GetModelFilePathAsync(string fileName);
-        
-        // 📁 Soporte Multi-Proyecto
-        void SetProjectContext(IProjectContextService projectContext);
         string GetModelsPath();
     }
     
     public class ModelService : IModelService
     {
-        private string _modelsPath;
         private readonly IWebHostEnvironment _environment;
         private readonly ILogger<ModelService> _logger;
-        private IProjectContextService? _projectContext;
+        private readonly IRequestProjectContext _projectContext;
         
-        public ModelService(IWebHostEnvironment environment, ILogger<ModelService> logger)
+        public ModelService(
+            IWebHostEnvironment environment, 
+            ILogger<ModelService> logger,
+            IRequestProjectContext projectContext)
         {
             _environment = environment;
-            _modelsPath = Path.Combine(environment.WebRootPath, "models");
             _logger = logger;
-            
-            // Ensure models directory exists
-            if (!Directory.Exists(_modelsPath))
-            {
-                Directory.CreateDirectory(_modelsPath);
-            }
-        }
-        
-        /// <summary>
-        /// Configura el servicio de contexto de proyecto para soporte multi-proyecto.
-        /// </summary>
-        public void SetProjectContext(IProjectContextService projectContext)
-        {
             _projectContext = projectContext;
-            
-            // Actualizar carpeta de modelos según el proyecto activo
-            if (_projectContext != null && _projectContext.IsMultiProjectMode)
-            {
-                _modelsPath = _projectContext.ModelsPath;
-                _logger.LogInformation("📁 ModelService: Models folder updated to {Path}", _modelsPath);
-                
-                // Asegurar que existe la carpeta
-                if (!Directory.Exists(_modelsPath))
-                {
-                    Directory.CreateDirectory(_modelsPath);
-                }
-            }
         }
         
         /// <summary>
-        /// Obtiene la ruta actual de la carpeta de modelos.
+        /// Obtiene la ruta actual de la carpeta de modelos (del proyecto actual del request).
         /// </summary>
-        public string GetModelsPath() => _modelsPath;
+        public string GetModelsPath()
+        {
+            var modelsPath = _projectContext.ModelsPath;
+            
+            // Asegurar que existe la carpeta
+            if (!Directory.Exists(modelsPath))
+            {
+                Directory.CreateDirectory(modelsPath);
+                _logger.LogInformation("📁 ModelService: Created models folder at {Path}", modelsPath);
+            }
+            
+            return modelsPath;
+        }
         
         public async Task<IEnumerable<Model3D>> GetAllModelsAsync()
         {
             try
             {
+                var modelsPath = GetModelsPath();
+                _logger.LogDebug("📁 ModelService: Loading models from {Path} (proyecto: {Project})", 
+                    modelsPath, _projectContext.ProjectId);
+                
                 var models = new List<Model3D>();
                 var supportedExtensions = new[] { ".glb", ".gltf", ".obj", ".stl" };
                 
-                var modelFiles = Directory.GetFiles(_modelsPath)
+                var modelFiles = Directory.GetFiles(modelsPath)
                     .Where(file => supportedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()));
                 
                 foreach (var filePath in modelFiles)
@@ -96,7 +84,7 @@ namespace SW.PC.API.Backend.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving models from directory: {ModelsPath}", _modelsPath);
+                _logger.LogError(ex, "Error retrieving models from directory: {ModelsPath}", GetModelsPath());
                 return new List<Model3D>();
             }
         }
@@ -111,11 +99,12 @@ namespace SW.PC.API.Backend.Services
         {
             try
             {
-                var filePath = Path.Combine(_modelsPath, fileName);
+                var modelsPath = GetModelsPath();
+                var filePath = Path.Combine(modelsPath, fileName);
                 
                 if (!File.Exists(filePath))
                 {
-                    _logger.LogWarning("Model file not found: {FileName}", fileName);
+                    _logger.LogWarning("Model file not found: {FileName} in {Path}", fileName, modelsPath);
                     return null;
                 }
                 
@@ -132,11 +121,12 @@ namespace SW.PC.API.Backend.Services
         {
             try
             {
-                var filePath = Path.Combine(_modelsPath, fileName);
+                var modelsPath = GetModelsPath();
+                var filePath = Path.Combine(modelsPath, fileName);
                 
                 if (!File.Exists(filePath))
                 {
-                    _logger.LogWarning("Model file not found: {FileName}", fileName);
+                    _logger.LogWarning("Model file not found: {FileName} in {Path}", fileName, modelsPath);
                     return null;
                 }
                 

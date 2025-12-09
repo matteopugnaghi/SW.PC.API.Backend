@@ -2,6 +2,23 @@
 
 ## 🎉 SISTEMA FUNCIONANDO
 
+### 📂 Sistema Multi-Proyecto ✅ (NUEVO - Diciembre 2025)
+- **ProjectSelector**: Visible en pantalla de Login (solo modo desarrollo)
+- **Header X-Project-Id**: Enviado en todas las llamadas API via `api.getProjectHeaders()`
+- **Datos por proyecto**: Excel config, modelos 3D, base de datos independientes
+- **Servicios backend**:
+  - `IRequestProjectContext` - Contexto de proyecto por request (Scoped)
+  - `IProjectDbContextFactory` - Factory para DbContext por proyecto
+  - `ProjectContextMiddleware` - Lee header X-Project-Id en desarrollo
+- **Archivos frontend**:
+  - `src/services/api.js` - `getProjectHeaders()` incluye header
+  - `src/components/ProjectSelector.js` - Selector visual
+  - `src/components/Login.js` - Integra selector + headers en auth
+
+> 📚 Documentación completa: [Sistema Multi-Proyecto](../architecture/MULTI_PROJECT_SYSTEM.md)
+
+---
+
 ### Backend ASP.NET Core ✅
 - **Estado**: Corriendo
 - **Puerto**: http://localhost:5000

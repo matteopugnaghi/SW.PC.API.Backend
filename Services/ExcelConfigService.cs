@@ -12,7 +12,7 @@ namespace SW.PC.API.Backend.Services
         Task<List<StateColorConfig>> LoadStateColorsAsync(string filePath);
         Task<List<string>> GetMonitoredVariableNamesAsync(string filePath);
         Task<SystemConfiguration> LoadSystemConfigurationAsync(string filePath);
-        void InvalidateCache(); // ✅ MÉTODO PARA FORZAR RECARGA
+        void InvalidateCache(string? filePath = null); // ✅ MÉTODO PARA FORZAR RECARGA (opcional: por archivo)
         Task<List<Model3DConfig>> Load3DModelsAsync(string filePath);
         
         // 📁 Soporte Multi-Proyecto
@@ -27,12 +27,12 @@ namespace SW.PC.API.Backend.Services
         private readonly IWebHostEnvironment _environment;
         private string _configFolder;
         
-        // ✅ CACHÉ para evitar recargar Excel constantemente
-        private SystemConfiguration? _cachedSystemConfig;
-        private List<StateColorConfig>? _cachedStateColors;
-        private DateTime? _systemConfigCacheTimestamp;
-        private DateTime? _stateColorsCacheTimestamp;
+        // ✅ CACHÉ por archivo/proyecto para evitar recargar Excel constantemente
+        // Diccionarios keyed por filePath absoluto normalizado
+        private readonly Dictionary<string, (SystemConfiguration Config, DateTime Timestamp)> _systemConfigCache = new();
+        private readonly Dictionary<string, (List<StateColorConfig> Colors, DateTime Timestamp)> _stateColorsCache = new();
         private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(5); // Cache válido por 5 minutos
+        private readonly object _cacheLock = new(); // Thread-safety
         
         // 📁 Soporte Multi-Proyecto
         private IProjectContextService? _projectContext;
@@ -472,39 +472,45 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         public async Task<List<StateColorConfig>> LoadStateColorsAsync(string filePath)
         {
-            // ✅ VERIFICAR CACHÉ PRIMERO
-            if (_cachedStateColors != null && _stateColorsCacheTimestamp.HasValue)
+            var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+            var cacheKey = fullPath.ToLowerInvariant(); // Normalizar para comparación
+            
+            // ✅ VERIFICAR CACHÉ POR ARCHIVO
+            lock (_cacheLock)
             {
-                var cacheAge = DateTime.UtcNow - _stateColorsCacheTimestamp.Value;
-                if (cacheAge < _cacheExpiration)
+                if (_stateColorsCache.TryGetValue(cacheKey, out var cached))
                 {
-                    _logger.LogInformation("📦 Usando state colors desde CACHÉ (edad: {Age:F1}s, {Count} configs)", cacheAge.TotalSeconds, _cachedStateColors.Count);
-                    _metricsService.RecordExcelLoadTime(0.1); // ✅ Cache hit = casi 0ms
-                    return _cachedStateColors;
+                    var cacheAge = DateTime.UtcNow - cached.Timestamp;
+                    if (cacheAge < _cacheExpiration)
+                    {
+                        _logger.LogInformation("📦 Usando state colors desde CACHÉ para {Path} (edad: {Age:F1}s, {Count} configs)", 
+                            Path.GetFileName(fullPath), cacheAge.TotalSeconds, cached.Colors.Count);
+                        _metricsService.RecordExcelLoadTime(0.1); // ✅ Cache hit = casi 0ms
+                        return cached.Colors;
+                    }
+                    else
+                    {
+                        _logger.LogInformation("⏰ Caché de state colors expirado para {Path}, recargando", Path.GetFileName(fullPath));
+                    }
                 }
                 else
                 {
-                    _logger.LogInformation("⏰ Caché de state colors expirado, recargando");
+                    _logger.LogInformation("🔍 No hay caché de state colors para {Path}, cargando desde Excel", Path.GetFileName(fullPath));
                 }
-            }
-            else
-            {
-                _logger.LogInformation("🔍 No hay caché de state colors, cargando desde Excel (cachedStateColors null: {IsNull}, timestamp null: {TimestampNull})", 
-                    _cachedStateColors == null, !_stateColorsCacheTimestamp.HasValue);
             }
             
             try
             {
-                var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
-                
                 if (!File.Exists(fullPath))
                 {
                     _logger.LogWarning("Excel file not found: {Path}. Returning empty state colors.", fullPath);
                     var emptyList = new List<StateColorConfig>();
                     
                     // ✅ CACHEAR LISTA VACÍA TAMBIÉN
-                    _cachedStateColors = emptyList;
-                    _stateColorsCacheTimestamp = DateTime.UtcNow;
+                    lock (_cacheLock)
+                    {
+                        _stateColorsCache[cacheKey] = (emptyList, DateTime.UtcNow);
+                    }
                     
                     return emptyList;
                 }
@@ -515,10 +521,12 @@ namespace SW.PC.API.Backend.Services
                 {
                     var stateColors = await LoadStateColorsFromSheetAsync(package);
                     
-                    // ✅ GUARDAR EN CACHÉ
-                    _cachedStateColors = stateColors;
-                    _stateColorsCacheTimestamp = DateTime.UtcNow;
-                    _logger.LogDebug("💾 State colors guardados en caché ({Count} configs)", stateColors.Count);
+                    // ✅ GUARDAR EN CACHÉ POR ARCHIVO
+                    lock (_cacheLock)
+                    {
+                        _stateColorsCache[cacheKey] = (stateColors, DateTime.UtcNow);
+                    }
+                    _logger.LogDebug("💾 State colors guardados en caché para {Path} ({Count} configs)", Path.GetFileName(fullPath), stateColors.Count);
                     
                     return stateColors;
                 }
@@ -529,8 +537,10 @@ namespace SW.PC.API.Backend.Services
                 var errorList = new List<StateColorConfig>();
                 
                 // ✅ CACHEAR LISTA VACÍA EN ERROR
-                _cachedStateColors = errorList;
-                _stateColorsCacheTimestamp = DateTime.UtcNow;
+                lock (_cacheLock)
+                {
+                    _stateColorsCache[cacheKey] = (errorList, DateTime.UtcNow);
+                }
                 
                 return errorList;
             }
@@ -990,19 +1000,27 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         public async Task<SystemConfiguration> LoadSystemConfigurationAsync(string filePath)
         {
-            // ✅ VERIFICAR CACHÉ PRIMERO
-            if (_cachedSystemConfig != null && _systemConfigCacheTimestamp.HasValue)
+            var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+            var cacheKey = fullPath.ToLowerInvariant(); // Normalizar para comparación
+            
+            // ✅ VERIFICAR CACHÉ POR ARCHIVO
+            lock (_cacheLock)
             {
-                var cacheAge = DateTime.UtcNow - _systemConfigCacheTimestamp.Value;
-                if (cacheAge < _cacheExpiration)
+                if (_systemConfigCache.TryGetValue(cacheKey, out var cached))
                 {
-                    _logger.LogInformation("📦 Usando configuración del sistema desde CACHÉ (edad: {Age:F1}s)", cacheAge.TotalSeconds);
-                    _metricsService.RecordExcelLoadTime(0.1); // ✅ Cache hit = casi 0ms
-                    return _cachedSystemConfig;
-                }
-                else
-                {
-                    _logger.LogInformation("⏰ Caché expirado (edad: {Age:F1}min), recargando desde Excel", cacheAge.TotalMinutes);
+                    var cacheAge = DateTime.UtcNow - cached.Timestamp;
+                    if (cacheAge < _cacheExpiration)
+                    {
+                        _logger.LogInformation("📦 Usando configuración del sistema desde CACHÉ para {Path} (edad: {Age:F1}s)", 
+                            Path.GetFileName(fullPath), cacheAge.TotalSeconds);
+                        _metricsService.RecordExcelLoadTime(0.1); // ✅ Cache hit = casi 0ms
+                        return cached.Config;
+                    }
+                    else
+                    {
+                        _logger.LogInformation("⏰ Caché expirado para {Path} (edad: {Age:F1}min), recargando desde Excel", 
+                            Path.GetFileName(fullPath), cacheAge.TotalMinutes);
+                    }
                 }
             }
             
@@ -1010,16 +1028,16 @@ namespace SW.PC.API.Backend.Services
             
             try
             {
-                var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
-                
                 if (!File.Exists(fullPath))
                 {
                     _logger.LogWarning("Excel file not found: {Path}. Returning default system configuration.", fullPath);
                     var defaultConfig = new SystemConfiguration();
                     
                     // ✅ CACHEAR CONFIG POR DEFECTO TAMBIÉN
-                    _cachedSystemConfig = defaultConfig;
-                    _systemConfigCacheTimestamp = DateTime.UtcNow;
+                    lock (_cacheLock)
+                    {
+                        _systemConfigCache[cacheKey] = (defaultConfig, DateTime.UtcNow);
+                    }
                     
                     return defaultConfig;
                 }
@@ -1656,10 +1674,13 @@ namespace SW.PC.API.Backend.Services
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);
                     _logger.LogDebug("⏱️ System configuration loaded in {Time}ms", stopwatch.Elapsed.TotalMilliseconds);
                     
-                    // ✅ GUARDAR EN CACHÉ
-                    _cachedSystemConfig = config;
-                    _systemConfigCacheTimestamp = DateTime.UtcNow;
-                    _logger.LogDebug("💾 Configuración guardada en caché (válida por {Minutes} minutos)", _cacheExpiration.TotalMinutes);
+                    // ✅ GUARDAR EN CACHÉ POR ARCHIVO
+                    lock (_cacheLock)
+                    {
+                        _systemConfigCache[cacheKey] = (config, DateTime.UtcNow);
+                    }
+                    _logger.LogDebug("💾 Configuración guardada en caché para {Path} (válida por {Minutes} minutos)", 
+                        Path.GetFileName(fullPath), _cacheExpiration.TotalMinutes);
                     
                     return config;
                 }
@@ -1672,8 +1693,10 @@ namespace SW.PC.API.Backend.Services
                 var errorConfig = new SystemConfiguration();
                 
                 // ✅ CACHEAR CONFIG POR DEFECTO TAMBIÉN EN ERROR
-                _cachedSystemConfig = errorConfig;
-                _systemConfigCacheTimestamp = DateTime.UtcNow;
+                lock (_cacheLock)
+                {
+                    _systemConfigCache[cacheKey] = (errorConfig, DateTime.UtcNow);
+                }
                 
                 return errorConfig;
             }
@@ -1733,15 +1756,32 @@ namespace SW.PC.API.Backend.Services
         }
         
         /// <summary>
-        /// Invalida el caché de configuración del sistema para forzar una recarga desde Excel
+        /// Invalida el caché de configuración del sistema para forzar una recarga desde Excel.
+        /// Si se proporciona filePath, solo invalida el cache de ese archivo.
+        /// Si no se proporciona, invalida todo el cache.
         /// </summary>
-        public void InvalidateCache()
+        public void InvalidateCache(string? filePath = null)
         {
-            _cachedSystemConfig = null;
-            _cachedStateColors = null;
-            _systemConfigCacheTimestamp = null;
-            _stateColorsCacheTimestamp = null;
-            _logger.LogInformation("🔄 Caché invalidado - se recargará en la próxima petición");
+            lock (_cacheLock)
+            {
+                if (string.IsNullOrEmpty(filePath))
+                {
+                    // Invalidar todo el cache
+                    _systemConfigCache.Clear();
+                    _stateColorsCache.Clear();
+                    _logger.LogInformation("🔄 Todo el caché invalidado - se recargará en la próxima petición");
+                }
+                else
+                {
+                    // Invalidar solo el archivo específico
+                    var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+                    var cacheKey = fullPath.ToLowerInvariant();
+                    
+                    _systemConfigCache.Remove(cacheKey);
+                    _stateColorsCache.Remove(cacheKey);
+                    _logger.LogInformation("🔄 Caché invalidado para {Path} - se recargará en la próxima petición", Path.GetFileName(fullPath));
+                }
+            }
         }
     }
 }

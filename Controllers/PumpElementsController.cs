@@ -10,17 +10,25 @@ namespace SW.PC.API.Backend.Controllers
     {
         private readonly IPumpElementService _pumpElementService;
         private readonly ITwinCATService _twinCATService;
+        private readonly IRequestProjectContext _projectContext;
         private readonly ILogger<PumpElementsController> _logger;
 
         public PumpElementsController(
             IPumpElementService pumpElementService,
             ITwinCATService twinCATService,
+            IRequestProjectContext projectContext,
             ILogger<PumpElementsController> logger)
         {
             _pumpElementService = pumpElementService;
             _twinCATService = twinCATService;
+            _projectContext = projectContext;
             _logger = logger;
         }
+
+        /// <summary>
+        /// Obtiene la ruta del archivo Excel de configuración del proyecto actual
+        /// </summary>
+        private string GetExcelPath() => _projectContext.ExcelConfigPath;
 
         /// <summary>
         /// Obtener todos los elementos de bombas desde Excel
@@ -31,7 +39,10 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var elements = await _pumpElementService.LoadPumpElementsAsync("ProjectConfig.xlsm");
+                var excelPath = GetExcelPath();
+                _logger.LogInformation("📁 Loading pump elements from: {ExcelPath} (proyecto: {Project})", excelPath, _projectContext.ProjectId);
+                
+                var elements = await _pumpElementService.LoadPumpElementsAsync(excelPath);
                 
                 _logger.LogInformation("Returning {Count} pump elements", elements.Count);
                 
@@ -59,7 +70,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var elements = await _pumpElementService.LoadPumpElementsAsync("ProjectConfig.xlsm");
+                var elements = await _pumpElementService.LoadPumpElementsAsync(GetExcelPath());
                 var element = elements.FirstOrDefault(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
                 if (element == null)
@@ -86,7 +97,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var elements = await _pumpElementService.LoadPumpElementsAsync("ProjectConfig.xlsm");
+                var elements = await _pumpElementService.LoadPumpElementsAsync(GetExcelPath());
                 var filtered = elements.Where(e => e.Category.Equals(category, StringComparison.OrdinalIgnoreCase)).ToList();
 
                 return Ok(filtered);
@@ -107,7 +118,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var elements = await _pumpElementService.LoadPumpElementsAsync("ProjectConfig.xlsm");
+                var elements = await _pumpElementService.LoadPumpElementsAsync(GetExcelPath());
 
                 var stats = new
                 {
@@ -266,14 +277,17 @@ namespace SW.PC.API.Backend.Controllers
         /// Obtener configuración de colores por estado PLC desde Excel
         /// Convierte los colores de los elementos en un formato usable por el frontend
         /// </summary>
-        /// <param name="fileName">Nombre del archivo Excel (default: ProjectConfig.xlsm)</param>
+        /// <param name="fileName">Nombre del archivo Excel (default: del proyecto activo)</param>
         /// <returns>Array de configuraciones de color por estado</returns>
         [HttpGet("state-colors")]
-        public async Task<ActionResult<object>> GetStateColors([FromQuery] string fileName = "ProjectConfig.xlsm")
+        public async Task<ActionResult<object>> GetStateColors([FromQuery] string? fileName = null)
         {
             try
             {
-                var elements = await _pumpElementService.LoadPumpElementsAsync(fileName);
+                var excelPath = fileName ?? GetExcelPath();
+                _logger.LogInformation("📁 Loading state colors from: {ExcelPath} (proyecto: {Project})", excelPath, _projectContext.ProjectId);
+                
+                var elements = await _pumpElementService.LoadPumpElementsAsync(excelPath);
                 var stateColors = new List<object>();
 
                 foreach (var element in elements)
@@ -309,12 +323,12 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
-                _logger.LogInformation("Generated {Count} state color configurations from {FileName}", stateColors.Count, fileName);
+                _logger.LogInformation("Generated {Count} state color configurations from {ExcelPath} (proyecto: {Project})", stateColors.Count, excelPath, _projectContext.ProjectId);
                 return Ok(stateColors);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error generating state colors from {FileName}", fileName);
+                _logger.LogError(ex, "Error generating state colors from {ExcelPath}", fileName ?? GetExcelPath());
                 return StatusCode(500, new { message = "Error loading state colors", error = ex.Message });
             }
         }

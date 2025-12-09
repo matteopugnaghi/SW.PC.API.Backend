@@ -14,6 +14,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IMetricsService _metricsService;
         private readonly IRecoveryCodeService _recoveryCodeService;
         private readonly IAuditLogService _auditLog;
+        private readonly IRequestProjectContext _projectContext;
         private readonly ILogger<ConfigController> _logger;
         
         public ConfigController(
@@ -22,6 +23,7 @@ namespace SW.PC.API.Backend.Controllers
             IMetricsService metricsService,
             IRecoveryCodeService recoveryCodeService,
             IAuditLogService auditLog,
+            IRequestProjectContext projectContext,
             ILogger<ConfigController> logger)
         {
             _configurationService = configurationService;
@@ -29,6 +31,7 @@ namespace SW.PC.API.Backend.Controllers
             _metricsService = metricsService;
             _recoveryCodeService = recoveryCodeService;
             _auditLog = auditLog;
+            _projectContext = projectContext;
             _logger = logger;
         }
         
@@ -253,17 +256,19 @@ namespace SW.PC.API.Backend.Controllers
         /// <summary>
         /// Get 3D models configuration from Excel (hoja "3D_Models") with children metadata
         /// </summary>
-        /// <param name="fileName">Excel file name (default: ProjectConfig.xlsm)</param>
+        /// <param name="fileName">Excel file name or full path (default: project's ProjectConfig.xlsm)</param>
         /// <returns>List of 3D models with children configuration</returns>
         [HttpGet("3d-elements")]
         [ProducesResponseType(typeof(List<Model3DConfig>), 200)]
-        public async Task<ActionResult<List<Model3DConfig>>> Get3DElements([FromQuery] string fileName = "ProjectConfig.xlsm")
+        public async Task<ActionResult<List<Model3DConfig>>> Get3DElements([FromQuery] string? fileName = null)
         {
             try
             {
-                _logger.LogInformation("📦 Loading 3D elements from Excel: {FileName}", fileName);
+                // Usar ruta del proyecto si no se especifica fileName
+                var excelPath = fileName ?? _projectContext.ExcelConfigPath;
+                _logger.LogInformation("📦 Loading 3D elements from Excel: {ExcelPath} (proyecto: {Project})", excelPath, _projectContext.ProjectId);
                 
-                var models = await _excelConfigService.Load3DModelsAsync(fileName);
+                var models = await _excelConfigService.Load3DModelsAsync(excelPath);
                 
                 if (models == null || models.Count == 0)
                 {
@@ -295,17 +300,19 @@ namespace SW.PC.API.Backend.Controllers
         /// <summary>
         /// Get system configuration from Excel (hoja "System Config")
         /// </summary>
-        /// <param name="fileName">Excel file name (default: ProjectConfig.xlsm)</param>
+        /// <param name="fileName">Excel file name or full path (default: project's ProjectConfig.xlsm)</param>
         /// <returns>System configuration with service settings, PLC config, etc.</returns>
         [HttpGet("system")]
         [ProducesResponseType(typeof(SystemConfiguration), 200)]
-        public async Task<ActionResult<SystemConfiguration>> GetSystemConfiguration([FromQuery] string fileName = "ProjectConfig.xlsm")
+        public async Task<ActionResult<SystemConfiguration>> GetSystemConfiguration([FromQuery] string? fileName = null)
         {
             try
             {
-                _logger.LogInformation("?? Loading system configuration from Excel: {FileName}", fileName);
+                // Usar ruta del proyecto si no se especifica fileName
+                var excelPath = fileName ?? _projectContext.ExcelConfigPath;
+                _logger.LogInformation("📄 Loading system configuration from Excel: {ExcelPath} (proyecto: {Project})", excelPath, _projectContext.ProjectId);
                 
-                var systemConfig = await _excelConfigService.LoadSystemConfigurationAsync(fileName);
+                var systemConfig = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
                 
                 if (systemConfig == null)
                 {

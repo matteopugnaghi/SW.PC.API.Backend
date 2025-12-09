@@ -6,19 +6,28 @@ namespace SW.PC.API.Backend.Controllers
     /// <summary>
     /// Controller para gestión de proyectos multi-proyecto.
     /// Permite listar proyectos, ver el activo, crear backups, etc.
+    /// 
+    /// En Development: Soporta multi-tenant via header X-Project-Id
+    /// En Production: Siempre usa el proyecto de active-project.json
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class ProjectsController : ControllerBase
     {
-        private readonly IProjectContextService _projectContext;
+        private readonly IProjectContextService _globalContext;
+        private readonly IRequestProjectContext _requestContext;
+        private readonly IWebHostEnvironment _environment;
         private readonly ILogger<ProjectsController> _logger;
         
         public ProjectsController(
-            IProjectContextService projectContext,
+            IProjectContextService globalContext,
+            IRequestProjectContext requestContext,
+            IWebHostEnvironment environment,
             ILogger<ProjectsController> logger)
         {
-            _projectContext = projectContext;
+            _globalContext = globalContext;
+            _requestContext = requestContext;
+            _environment = environment;
             _logger = logger;
         }
         
@@ -30,7 +39,14 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var projects = _projectContext.GetAvailableProjects();
+                var projects = _globalContext.GetAvailableProjects().ToList();
+                
+                // Marcar el proyecto activo del request actual (en development puede diferir del global)
+                foreach (var project in projects)
+                {
+                    project.IsActive = project.Id == _requestContext.ProjectId;
+                }
+                
                 return Ok(projects);
             }
             catch (Exception ex)
@@ -41,7 +57,9 @@ namespace SW.PC.API.Backend.Controllers
         }
         
         /// <summary>
-        /// Obtiene información del proyecto activo
+        /// Obtiene información del proyecto activo para este request
+        /// En Development: Puede ser diferente al global si se usa header X-Project-Id
+        /// En Production: Siempre igual al proyecto de active-project.json
         /// </summary>
         [HttpGet("active")]
         public ActionResult<object> GetActiveProject()
@@ -50,17 +68,19 @@ namespace SW.PC.API.Backend.Controllers
             {
                 return Ok(new
                 {
-                    projectId = _projectContext.ActiveProjectId,
-                    isMultiProjectMode = _projectContext.IsMultiProjectMode,
+                    projectId = _requestContext.ProjectId,
+                    isMultiProjectMode = _requestContext.IsMultiProjectMode,
+                    isDevelopmentMode = _environment.IsDevelopment(),
+                    globalProjectId = _globalContext.ActiveProjectId, // El configurado en active-project.json
                     paths = new
                     {
-                        basePath = _projectContext.ProjectBasePath,
-                        configPath = _projectContext.ConfigPath,
-                        modelsPath = _projectContext.ModelsPath,
-                        dataPath = _projectContext.DataPath,
-                        backupsPath = _projectContext.BackupsPath,
-                        excelConfigPath = _projectContext.ExcelConfigPath,
-                        databasePath = _projectContext.DatabasePath
+                        basePath = _requestContext.ProjectBasePath,
+                        configPath = _requestContext.ConfigPath,
+                        modelsPath = _requestContext.ModelsPath,
+                        dataPath = _requestContext.DataPath,
+                        backupsPath = _requestContext.BackupsPath,
+                        excelConfigPath = _requestContext.ExcelConfigPath,
+                        databasePath = _requestContext.DatabasePath
                     }
                 });
             }
@@ -79,7 +99,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var exists = _projectContext.ProjectExists(projectId);
+                var exists = _globalContext.ProjectExists(projectId);
                 return Ok(new { projectId, exists });
             }
             catch (Exception ex)
@@ -109,12 +129,12 @@ namespace SW.PC.API.Backend.Controllers
                     return BadRequest(new { error = "Project ID can only contain letters, numbers, hyphens and underscores" });
                 }
                 
-                if (_projectContext.ProjectExists(projectId))
+                if (_globalContext.ProjectExists(projectId))
                 {
                     return Conflict(new { error = $"Project '{projectId}' already exists" });
                 }
                 
-                var success = await _projectContext.CreateProjectStructureAsync(projectId);
+                var success = await _globalContext.CreateProjectStructureAsync(projectId);
                 
                 if (success)
                 {
@@ -153,14 +173,14 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                if (!_projectContext.ProjectExists(projectId))
+                if (!_globalContext.ProjectExists(projectId))
                 {
                     return NotFound(new { error = $"Project '{projectId}' not found" });
                 }
                 
                 return Ok(new
                 {
-                    currentProject = _projectContext.ActiveProjectId,
+                    currentProject = _globalContext.ActiveProjectId,
                     targetProject = projectId,
                     instructions = new[]
                     {
@@ -192,9 +212,9 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var previousProject = _projectContext.ActiveProjectId;
-                _projectContext.ReloadActiveProject();
-                var currentProject = _projectContext.ActiveProjectId;
+                var previousProject = _globalContext.ActiveProjectId;
+                _globalContext.ReloadActiveProject();
+                var currentProject = _globalContext.ActiveProjectId;
                 
                 return Ok(new
                 {
@@ -215,20 +235,21 @@ namespace SW.PC.API.Backend.Controllers
         }
         
         /// <summary>
-        /// Lista los backups disponibles del proyecto activo
+        /// Lista los backups disponibles del proyecto activo (según request)
         /// </summary>
         [HttpGet("backups")]
         public ActionResult<object> GetBackups()
         {
             try
             {
-                var backupsPath = _projectContext.BackupsPath;
+                var projectId = _requestContext.ProjectId;
+                var backupsPath = _requestContext.BackupsPath;
                 
                 if (!Directory.Exists(backupsPath))
                 {
                     return Ok(new
                     {
-                        projectId = _projectContext.ActiveProjectId,
+                        projectId,
                         backupsPath,
                         backups = Array.Empty<object>()
                     });
@@ -250,7 +271,7 @@ namespace SW.PC.API.Backend.Controllers
                 
                 return Ok(new
                 {
-                    projectId = _projectContext.ActiveProjectId,
+                    projectId,
                     backupsPath,
                     count = backupFiles.Count,
                     backups = backupFiles
@@ -264,15 +285,15 @@ namespace SW.PC.API.Backend.Controllers
         }
         
         /// <summary>
-        /// Crea un backup del proyecto activo
+        /// Crea un backup del proyecto activo (según request)
         /// </summary>
         [HttpPost("backup")]
         public async Task<ActionResult<object>> CreateBackup([FromQuery] bool includeDatabase = true, [FromQuery] bool includeModels = true)
         {
             try
             {
-                var projectId = _projectContext.ActiveProjectId;
-                var backupsPath = _projectContext.BackupsPath;
+                var projectId = _requestContext.ProjectId;
+                var backupsPath = _requestContext.BackupsPath;
                 var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HHmmss");
                 var backupFileName = $"{projectId}_backup_{timestamp}.zip";
                 var backupFilePath = Path.Combine(backupsPath, backupFileName);
@@ -292,7 +313,7 @@ namespace SW.PC.API.Backend.Controllers
                     var includedItems = new List<string>();
                     
                     // Copiar config
-                    var configSource = _projectContext.ConfigPath;
+                    var configSource = _requestContext.ConfigPath;
                     if (Directory.Exists(configSource))
                     {
                         var configDest = Path.Combine(tempDir, "config");
@@ -303,7 +324,7 @@ namespace SW.PC.API.Backend.Controllers
                     // Copiar modelos (opcional)
                     if (includeModels)
                     {
-                        var modelsSource = _projectContext.ModelsPath;
+                        var modelsSource = _requestContext.ModelsPath;
                         if (Directory.Exists(modelsSource))
                         {
                             var modelsDest = Path.Combine(tempDir, "models");
@@ -315,7 +336,7 @@ namespace SW.PC.API.Backend.Controllers
                     // Copiar database (opcional)
                     if (includeDatabase)
                     {
-                        var dbSource = _projectContext.DatabasePath;
+                        var dbSource = _requestContext.DatabasePath;
                         if (System.IO.File.Exists(dbSource))
                         {
                             var dataDest = Path.Combine(tempDir, "data");
@@ -377,14 +398,14 @@ namespace SW.PC.API.Backend.Controllers
         }
         
         /// <summary>
-        /// Descarga un backup específico
+        /// Descarga un backup específico (del proyecto del request)
         /// </summary>
         [HttpGet("backup/{fileName}/download")]
         public ActionResult DownloadBackup(string fileName)
         {
             try
             {
-                var backupsPath = _projectContext.BackupsPath;
+                var backupsPath = _requestContext.BackupsPath;
                 var filePath = Path.Combine(backupsPath, fileName);
                 
                 if (!System.IO.File.Exists(filePath))

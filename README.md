@@ -8,11 +8,18 @@ ASP.NET Core 8.0 Web API para sistema SCADA/HMI industrial con visualización 3D
 PC Industrial → Backend (HTTP: 5000 / HTTPS: 5001) → TwinCAT PLC (ADS)
                    ↓
               React Frontend (Port 3001) ← SignalR Real-time (HTTPS)
+                   ↓
+              Projects/{projectId}/ ← Config, Models, Data per project
 ```
 
-**One Backend Per Industrial Installation** - Cada PC ejecuta un backend independiente gestionando un único proyecto configurado via Excel.
+**Multi-Project Architecture** - Un único código fuente soporta múltiples instalaciones industriales. Cada proyecto tiene sus propios archivos de configuración Excel, modelos 3D, y base de datos independiente.
+
+- **Producción**: Un proyecto fijo seleccionado via `active-project.json`
+- **Desarrollo**: Selección dinámica de proyecto via header `X-Project-Id`
 
 **Seguridad**: El backend soporta HTTPS con certificado SSL auto-firmado (recomendado para producción).
+
+> 📚 Documentación completa: [Sistema Multi-Proyecto](docs/architecture/MULTI_PROJECT_SYSTEM.md)
 
 ---
 
@@ -195,15 +202,52 @@ SW.PC.API.Backend/
 │   └── AppConfiguration.cs      # Configuración de la app
 ├── Hubs/
 │   └── ScadaHub.cs              # SignalR para tiempo real
+├── Middleware/
+│   └── ProjectContextMiddleware.cs  # Multi-tenant por request (dev mode)
+├── Data/
+│   ├── AquafrischDbContext.cs       # DbContext con rutas dinámicas
+│   └── ProjectDbContextFactory.cs   # Factory para DbContext por proyecto
 ├── ExcelConfigs/
-│   └── ProjectConfig.xlsm       # Configuración del proyecto
+│   └── ProjectConfig.xlsm       # Configuración legacy (modo default)
+├── Projects/                    # 📁 Sistema Multi-Proyecto
+│   ├── cliente-abc/
+│   │   ├── config/ProjectConfig.xlsm
+│   │   ├── models/*.glb
+│   │   ├── data/project.db
+│   │   └── backups/
+│   └── _template/               # Plantilla para nuevos proyectos
 ├── wwwroot/
-│   └── models/                  # Archivos de modelos 3D
+│   └── models/                  # Modelos 3D legacy (modo default)
+├── active-project.json          # Selector de proyecto activo
 ├── CRA_COMPLIANCE/              # Documentación EU CRA
 ├── Program.cs                   # Entry point + DI
 ├── appsettings.json            # Configuración
 └── app-config.json             # Configuración de la aplicación
 ```
+
+---
+
+## 📂 Sistema Multi-Proyecto
+
+Cada proyecto tiene su propia configuración, modelos y base de datos:
+
+| Recurso | Modo Legacy (`default`) | Modo Multi-Proyecto |
+|---------|------------------------|---------------------|
+| Excel Config | `ExcelConfigs/` | `Projects/{id}/config/` |
+| Modelos 3D | `wwwroot/models/` | `Projects/{id}/models/` |
+| Base de datos | `Data/Aquafrisch.db` | `Projects/{id}/data/project.db` |
+| Backups | `backups/` | `Projects/{id}/backups/` |
+
+### API de Proyectos
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/projects` | Lista proyectos disponibles |
+| GET | `/api/projects/active` | Info del proyecto activo |
+| POST | `/api/projects/{id}/create` | Crear nuevo proyecto |
+| POST | `/api/projects/backup` | Crear backup |
+| GET | `/api/projects/backups` | Listar backups |
+
+> 📚 Documentación completa: [Sistema Multi-Proyecto](docs/architecture/MULTI_PROJECT_SYSTEM.md)
 
 ---
 

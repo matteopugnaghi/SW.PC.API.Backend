@@ -16,15 +16,18 @@ public class IpcInfoController : ControllerBase
 {
     private readonly IIpcInfoService _ipcInfoService;
     private readonly IExcelConfigService _excelConfigService;
+    private readonly IRequestProjectContext _projectContext;
     private readonly ILogger<IpcInfoController> _logger;
 
     public IpcInfoController(
         IIpcInfoService ipcInfoService,
         IExcelConfigService excelConfigService,
+        IRequestProjectContext projectContext,
         ILogger<IpcInfoController> logger)
     {
         _ipcInfoService = ipcInfoService;
         _excelConfigService = excelConfigService;
+        _projectContext = projectContext;
         _logger = logger;
     }
 
@@ -37,7 +40,8 @@ public class IpcInfoController : ControllerBase
     {
         try
         {
-            var config = await _excelConfigService.LoadSystemConfigurationAsync("ProjectConfig.xlsm");
+            var excelPath = _projectContext.ExcelConfigPath;
+            var config = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
             return Ok(new
             {
                 isEnabled = config.IpcInfoEnabled,
@@ -72,7 +76,8 @@ public class IpcInfoController : ControllerBase
         try
         {
             // Check if enabled
-            var config = await _excelConfigService.LoadSystemConfigurationAsync("ProjectConfig.xlsm");
+            var excelPath = _projectContext.ExcelConfigPath;
+            var config = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
             if (!config.IpcInfoEnabled)
             {
                 return Ok(new { 

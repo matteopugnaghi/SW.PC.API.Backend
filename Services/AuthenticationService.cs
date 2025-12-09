@@ -98,9 +98,9 @@ public interface IAuthenticationService
 /// <summary>
 /// Implementación del servicio de autenticación
 /// </summary>
-public class AuthenticationService : IAuthenticationService
+public class AuthenticationService : IAuthenticationService, IDisposable
 {
-    private readonly AquafrischDbContext _context;
+    private readonly IProjectDbContextFactory _dbContextFactory;
     private readonly IAuditLogService _auditLog;
     private readonly ILogger<AuthenticationService> _logger;
     private readonly IConfiguration _configuration;
@@ -109,14 +109,18 @@ public class AuthenticationService : IAuthenticationService
     // BCrypt work factor (12 = ~250ms hash time, buen balance seguridad/rendimiento)
     private const int BCRYPT_WORK_FACTOR = 12;
     
+    // DbContext creado por la factory para este request
+    private AquafrischDbContext? _context;
+    private AquafrischDbContext Context => _context ??= _dbContextFactory.CreateDbContext();
+    
     public AuthenticationService(
-        AquafrischDbContext context,
+        IProjectDbContextFactory dbContextFactory,
         IAuditLogService auditLog,
         ILogger<AuthenticationService> logger,
         IExcelConfigService excelConfig,
         IConfiguration configuration)
     {
-        _context = context;
+        _dbContextFactory = dbContextFactory;
         _auditLog = auditLog;
         _logger = logger;
         _configuration = configuration;
@@ -156,7 +160,7 @@ public class AuthenticationService : IAuthenticationService
                 request.Username, ipAddress ?? "unknown");
             
             // Buscar usuario
-            var user = await _context.Users
+            var user = await Context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.Username.ToLower() == request.Username.ToLower());
@@ -257,7 +261,7 @@ public class AuthenticationService : IAuthenticationService
                         $"Cuenta {request.Username} bloqueada por {user.FailedLoginAttempts} intentos fallidos",
                         request.Username, request.Username, ipAddress);
                     
-                    await _context.SaveChangesAsync();
+                    await Context.SaveChangesAsync();
                     
                     return new LoginResponse
                     {
@@ -267,7 +271,7 @@ public class AuthenticationService : IAuthenticationService
                     };
                 }
                 
-                await _context.SaveChangesAsync();
+                await Context.SaveChangesAsync();
                 
                 await LogLoginAttemptAsync(request.Username, false, AuthEventType.LoginFailed, 
                     ipAddress, userAgent, "Contraseña incorrecta", authMethod);
@@ -301,7 +305,7 @@ public class AuthenticationService : IAuthenticationService
                 if (_config.SingleSessionRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
                 {
                     // Buscar si hay otro usuario con este rol activo
-                    var existingRoleSession = await _context.UserSessions
+                    var existingRoleSession = await Context.UserSessions
                         .Include(s => s.User)
                             .ThenInclude(u => u.UserRoles)
                                 .ThenInclude(ur => ur.Role)
@@ -346,7 +350,7 @@ public class AuthenticationService : IAuthenticationService
             // 2. Verificar máximo de sesiones concurrentes por usuario
             if (_config.MaxConcurrentSessions > 0)
             {
-                var activeSessions = await _context.UserSessions
+                var activeSessions = await Context.UserSessions
                     .Where(s => s.UserId == user.Id && !s.IsRevoked && s.ExpiresAt > DateTime.UtcNow)
                     .OrderBy(s => s.CreatedAt)
                     .ToListAsync();
@@ -388,8 +392,8 @@ public class AuthenticationService : IAuthenticationService
                 LastActivityAt = DateTime.UtcNow
             };
             
-            _context.UserSessions.Add(session);
-            await _context.SaveChangesAsync();
+            Context.UserSessions.Add(session);
+            await Context.SaveChangesAsync();
             
             // Log exitoso
             await LogLoginAttemptAsync(request.Username, true, AuthEventType.LoginSuccess, 
@@ -440,7 +444,7 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var session = await _context.UserSessions
+            var session = await Context.UserSessions
                 .Include(s => s.User)
                 .FirstOrDefaultAsync(s => s.Token == token && !s.IsRevoked);
             
@@ -453,7 +457,7 @@ public class AuthenticationService : IAuthenticationService
             session.RevokedAt = DateTime.UtcNow;
             session.RevokedReason = "Logout por usuario";
             
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
             await LogLoginAttemptAsync(session.User?.Username ?? "unknown", true, 
                 AuthEventType.Logout, session.IpAddress, session.UserAgent, null, "Token");
@@ -478,7 +482,7 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var sessions = await _context.UserSessions
+            var sessions = await Context.UserSessions
                 .Where(s => s.UserId == userId && !s.IsRevoked)
                 .ToListAsync();
             
@@ -489,9 +493,9 @@ public class AuthenticationService : IAuthenticationService
                 session.RevokedReason = reason;
             }
             
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
-            var user = await _context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(userId);
             await _auditLog.LogAsync(
                 AuditCategory.Authentication, 
                 AuditAction.LogoutAllSessions, 
@@ -517,7 +521,7 @@ public class AuthenticationService : IAuthenticationService
         try
         {
             // Verificar si el token está revocado
-            var session = await _context.UserSessions
+            var session = await Context.UserSessions
                 .Include(s => s.User)
                 .ThenInclude(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
@@ -538,7 +542,7 @@ public class AuthenticationService : IAuthenticationService
                     session.IsRevoked = true;
                     session.RevokedAt = DateTime.UtcNow;
                     session.RevokedReason = $"Sesión expirada por inactividad ({(int)inactiveMinutes} minutos)";
-                    await _context.SaveChangesAsync();
+                    await Context.SaveChangesAsync();
                     
                     await _auditLog.LogAsync(
                         AuditCategory.Authentication, 
@@ -581,7 +585,7 @@ public class AuthenticationService : IAuthenticationService
             if (_config.TrackLastActivity)
             {
                 session.LastActivityAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                await Context.SaveChangesAsync();
             }
             
             return (true, MapToUserProfile(session.User!));
@@ -597,7 +601,7 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var session = await _context.UserSessions
+            var session = await Context.UserSessions
                 .Include(s => s.User)
                 .ThenInclude(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
@@ -630,8 +634,8 @@ public class AuthenticationService : IAuthenticationService
                 LastActivityAt = DateTime.UtcNow
             };
             
-            _context.UserSessions.Add(newSession);
-            await _context.SaveChangesAsync();
+            Context.UserSessions.Add(newSession);
+            await Context.SaveChangesAsync();
             
             await LogLoginAttemptAsync(session.User.Username, true, AuthEventType.SessionRefreshed, 
                 ipAddress, session.UserAgent, null, "RefreshToken");
@@ -661,7 +665,7 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var user = await _context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(userId);
             if (user == null)
             {
                 return new ChangePasswordResponse 
@@ -737,7 +741,7 @@ public class AuthenticationService : IAuthenticationService
             user.MustChangePassword = false;
             user.ModifiedAt = DateTime.UtcNow;
             
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
             // Revocar todas las sesiones anteriores por seguridad
             await LogoutAllSessionsAsync(userId, "Cambio de contraseña");
@@ -826,7 +830,7 @@ public class AuthenticationService : IAuthenticationService
     
     public async Task<UserProfileDto?> GetUserProfileAsync(int userId)
     {
-        var user = await _context.Users
+        var user = await Context.Users
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
             .FirstOrDefaultAsync(u => u.Id == userId);
@@ -839,7 +843,7 @@ public class AuthenticationService : IAuthenticationService
         try
         {
             // Verificar si usuario ya existe
-            if (await _context.Users.AnyAsync(u => u.Username.ToLower() == request.Username.ToLower()))
+            if (await Context.Users.AnyAsync(u => u.Username.ToLower() == request.Username.ToLower()))
             {
                 return new AuthOperationResponse 
                 { 
@@ -886,16 +890,16 @@ public class AuthenticationService : IAuthenticationService
                 Notes = request.Notes
             };
             
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            Context.Users.Add(user);
+            await Context.SaveChangesAsync();
             
             // Asignar roles
             foreach (var roleName in request.Roles)
             {
-                var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name.ToLower() == roleName.ToLower());
+                var role = await Context.Roles.FirstOrDefaultAsync(r => r.Name.ToLower() == roleName.ToLower());
                 if (role != null)
                 {
-                    _context.UserRoles.Add(new UserRole
+                    Context.UserRoles.Add(new UserRole
                     {
                         UserId = user.Id,
                         RoleId = role.Id,
@@ -905,7 +909,7 @@ public class AuthenticationService : IAuthenticationService
                 }
             }
             
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
             await _auditLog.LogAsync(
                 AuditCategory.Authentication, 
@@ -934,7 +938,7 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var user = await _context.Users
+            var user = await Context.Users
                 .Include(u => u.UserRoles)
                 .FirstOrDefaultAsync(u => u.Id == userId);
             
@@ -957,15 +961,15 @@ public class AuthenticationService : IAuthenticationService
             if (request.Roles != null)
             {
                 // Remover roles actuales
-                _context.UserRoles.RemoveRange(user.UserRoles);
+                Context.UserRoles.RemoveRange(user.UserRoles);
                 
                 // Asignar nuevos roles
                 foreach (var roleName in request.Roles)
                 {
-                    var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name.ToLower() == roleName.ToLower());
+                    var role = await Context.Roles.FirstOrDefaultAsync(r => r.Name.ToLower() == roleName.ToLower());
                     if (role != null)
                     {
-                        _context.UserRoles.Add(new UserRole
+                        Context.UserRoles.Add(new UserRole
                         {
                             UserId = user.Id,
                             RoleId = role.Id,
@@ -976,7 +980,7 @@ public class AuthenticationService : IAuthenticationService
                 }
             }
             
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
             await _auditLog.LogAsync(
                 AuditCategory.Authentication, 
@@ -998,20 +1002,20 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var user = await _context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(userId);
             if (user == null)
             {
                 return new AuthOperationResponse { Success = false, Message = "Usuario no encontrado" };
             }
             
             // No permitir eliminar el último administrador
-            var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.SystemRole == SystemRole.Administrator);
+            var adminRole = await Context.Roles.FirstOrDefaultAsync(r => r.SystemRole == SystemRole.Administrator);
             if (adminRole != null)
             {
-                var isAdmin = await _context.UserRoles.AnyAsync(ur => ur.UserId == userId && ur.RoleId == adminRole.Id);
+                var isAdmin = await Context.UserRoles.AnyAsync(ur => ur.UserId == userId && ur.RoleId == adminRole.Id);
                 if (isAdmin)
                 {
-                    var adminCount = await _context.UserRoles.CountAsync(ur => ur.RoleId == adminRole.Id);
+                    var adminCount = await Context.UserRoles.CountAsync(ur => ur.RoleId == adminRole.Id);
                     if (adminCount <= 1)
                     {
                         return new AuthOperationResponse 
@@ -1028,8 +1032,8 @@ public class AuthenticationService : IAuthenticationService
             // Revocar todas las sesiones
             await LogoutAllSessionsAsync(userId, "Usuario eliminado");
             
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
+            Context.Users.Remove(user);
+            await Context.SaveChangesAsync();
             
             await _auditLog.LogAsync(
                 AuditCategory.Authentication, 
@@ -1051,7 +1055,7 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var user = await _context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(userId);
             if (user == null)
             {
                 return new AuthOperationResponse { Success = false, Message = "Usuario no encontrado" };
@@ -1063,7 +1067,7 @@ public class AuthenticationService : IAuthenticationService
             user.ModifiedAt = DateTime.UtcNow;
             user.ModifiedBy = unlockedBy;
             
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
             await _auditLog.LogAsync(
                 AuditCategory.Authentication, 
@@ -1085,7 +1089,7 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var user = await _context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(userId);
             if (user == null)
             {
                 return new AuthOperationResponse { Success = false, Message = "Usuario no encontrado" };
@@ -1116,7 +1120,7 @@ public class AuthenticationService : IAuthenticationService
             user.ModifiedAt = DateTime.UtcNow;
             user.ModifiedBy = resetBy;
             
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
             // Revocar todas las sesiones
             await LogoutAllSessionsAsync(userId, "Reset de contraseña");
@@ -1145,7 +1149,7 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var user = await _context.Users
+            var user = await Context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.Username.ToLower() == username.ToLower());
@@ -1176,7 +1180,7 @@ public class AuthenticationService : IAuthenticationService
             user.LockedUntil = null;
             user.Status = UserStatus.Active; // Reactivar si estaba bloqueado
             
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
             // Revocar todas las sesiones existentes por seguridad
             await LogoutAllSessionsAsync(user.Id, "Reset de contraseña vía código Aquafrisch");
@@ -1213,7 +1217,7 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var users = await _context.Users
+            var users = await Context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .Where(u => u.Status == UserStatus.Active && u.LockedUntil == null)
@@ -1239,7 +1243,7 @@ public class AuthenticationService : IAuthenticationService
     
     public async Task<List<UserListDto>> GetAllUsersAsync()
     {
-        return await _context.Users
+        return await Context.Users
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
             .Select(u => new UserListDto
@@ -1264,7 +1268,7 @@ public class AuthenticationService : IAuthenticationService
     /// </summary>
     public async Task<List<UserListDto>> GetUsersForRoleAsync(SystemRole requestingRole)
     {
-        var query = _context.Users
+        var query = Context.Users
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
             .AsQueryable();
@@ -1296,7 +1300,7 @@ public class AuthenticationService : IAuthenticationService
     /// </summary>
     public async Task<bool> UserHasRoleAsync(int userId, SystemRole role)
     {
-        return await _context.UserRoles
+        return await Context.UserRoles
             .Include(ur => ur.Role)
             .AnyAsync(ur => ur.UserId == userId && ur.Role!.SystemRole == role);
     }
@@ -1306,7 +1310,7 @@ public class AuthenticationService : IAuthenticationService
     /// </summary>
     public async Task<SystemRole?> GetHighestRoleAsync(int userId)
     {
-        var roles = await _context.UserRoles
+        var roles = await Context.UserRoles
             .Include(ur => ur.Role)
             .Where(ur => ur.UserId == userId)
             .Select(ur => ur.Role!.SystemRole)
@@ -1317,7 +1321,7 @@ public class AuthenticationService : IAuthenticationService
     
     public async Task<UserListDto?> GetUserByIdAsync(int userId)
     {
-        return await _context.Users
+        return await Context.Users
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
             .Where(u => u.Id == userId)
@@ -1342,13 +1346,13 @@ public class AuthenticationService : IAuthenticationService
     
     public async Task<AuthSystemStatus> GetSystemStatusAsync()
     {
-        var totalUsers = await _context.Users.CountAsync();
-        var activeSessions = await _context.UserSessions
+        var totalUsers = await Context.Users.CountAsync();
+        var activeSessions = await Context.UserSessions
             .CountAsync(s => !s.IsRevoked && s.ExpiresAt > DateTime.UtcNow);
-        var lockedAccounts = await _context.Users
+        var lockedAccounts = await Context.Users
             .CountAsync(u => u.Status == UserStatus.Locked || 
                             (u.LockedUntil.HasValue && u.LockedUntil > DateTime.UtcNow));
-        var lastLoginAttempt = await _context.LoginAttempts
+        var lastLoginAttempt = await Context.LoginAttempts
             .OrderByDescending(l => l.Timestamp)
             .Select(l => l.Timestamp)
             .FirstOrDefaultAsync();
@@ -1388,8 +1392,8 @@ public class AuthenticationService : IAuthenticationService
     {
         _logger.LogInformation("Inicializando servicio de autenticación...");
         
-        // Asegurar que la base de datos existe
-        await AquafrischDbContextFactory.EnsureDatabaseCreatedAsync(_context);
+        // Asegurar que la base de datos existe (usa la factory multi-proyecto)
+        await _dbContextFactory.EnsureDatabaseExistsAsync();
         
         // Asegurar que existe rol SuperAdmin en la base de datos
         await EnsureSuperAdminRoleExistsAsync();
@@ -1411,7 +1415,7 @@ public class AuthenticationService : IAuthenticationService
     /// </summary>
     private async Task EnsureSuperAdminRoleExistsAsync()
     {
-        var superAdminRole = await _context.Roles.FirstOrDefaultAsync(r => r.SystemRole == SystemRole.SuperAdmin);
+        var superAdminRole = await Context.Roles.FirstOrDefaultAsync(r => r.SystemRole == SystemRole.SuperAdmin);
         if (superAdminRole == null)
         {
             _logger.LogWarning("Rol SuperAdmin no encontrado. Creando...");
@@ -1441,8 +1445,8 @@ public class AuthenticationService : IAuthenticationService
                 """
             };
             
-            _context.Roles.Add(newRole);
-            await _context.SaveChangesAsync();
+            Context.Roles.Add(newRole);
+            await Context.SaveChangesAsync();
             
             _logger.LogInformation("Rol SuperAdmin creado exitosamente");
         }
@@ -1454,7 +1458,7 @@ public class AuthenticationService : IAuthenticationService
     /// </summary>
     private async Task EnsureSuperAdminUserExistsAsync()
     {
-        var superAdminExists = await _context.Users
+        var superAdminExists = await Context.Users
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
             .AnyAsync(u => u.UserRoles.Any(ur => ur.Role!.SystemRole == SystemRole.SuperAdmin));
@@ -1479,16 +1483,16 @@ public class AuthenticationService : IAuthenticationService
                 Notes = "Usuario del fabricante Aquafrisch. NO compartir credenciales con el cliente."
             };
             
-            _context.Users.Add(superAdminUser);
-            await _context.SaveChangesAsync();
+            Context.Users.Add(superAdminUser);
+            await Context.SaveChangesAsync();
             
             // Asignar rol SuperAdmin
-            var superAdminRole = await _context.Roles
+            var superAdminRole = await Context.Roles
                 .FirstOrDefaultAsync(r => r.SystemRole == SystemRole.SuperAdmin);
             
             if (superAdminRole != null)
             {
-                _context.UserRoles.Add(new UserRole
+                Context.UserRoles.Add(new UserRole
                 {
                     UserId = superAdminUser.Id,
                     RoleId = superAdminRole.Id,
@@ -1496,7 +1500,7 @@ public class AuthenticationService : IAuthenticationService
                     AssignedBy = "SYSTEM"
                 });
                 
-                await _context.SaveChangesAsync();
+                await Context.SaveChangesAsync();
             }
             
             await _auditLog.LogAsync(
@@ -1513,7 +1517,7 @@ public class AuthenticationService : IAuthenticationService
     
     public async Task EnsureAdminUserExistsAsync()
     {
-        var adminExists = await _context.Users
+        var adminExists = await Context.Users
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
             .AnyAsync(u => u.UserRoles.Any(ur => ur.Role!.SystemRole == SystemRole.Administrator));
@@ -1537,16 +1541,16 @@ public class AuthenticationService : IAuthenticationService
                 CreatedBy = "SYSTEM"
             };
             
-            _context.Users.Add(adminUser);
-            await _context.SaveChangesAsync();
+            Context.Users.Add(adminUser);
+            await Context.SaveChangesAsync();
             
             // Asignar rol Administrator
-            var adminRole = await _context.Roles
+            var adminRole = await Context.Roles
                 .FirstOrDefaultAsync(r => r.SystemRole == SystemRole.Administrator);
             
             if (adminRole != null)
             {
-                _context.UserRoles.Add(new UserRole
+                Context.UserRoles.Add(new UserRole
                 {
                     UserId = adminUser.Id,
                     RoleId = adminRole.Id,
@@ -1554,7 +1558,7 @@ public class AuthenticationService : IAuthenticationService
                     AssignedBy = "SYSTEM"
                 });
                 
-                await _context.SaveChangesAsync();
+                await Context.SaveChangesAsync();
             }
             
             await _auditLog.LogAsync(
@@ -1571,7 +1575,7 @@ public class AuthenticationService : IAuthenticationService
     
     private async Task CleanupExpiredSessionsAsync()
     {
-        var expiredSessions = await _context.UserSessions
+        var expiredSessions = await Context.UserSessions
             .Where(s => !s.IsRevoked && s.ExpiresAt < DateTime.UtcNow)
             .ToListAsync();
         
@@ -1584,7 +1588,7 @@ public class AuthenticationService : IAuthenticationService
         
         if (expiredSessions.Count > 0)
         {
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             _logger.LogInformation("Se limpiaron {Count} sesiones expiradas", expiredSessions.Count);
         }
     }
@@ -1721,8 +1725,8 @@ public class AuthenticationService : IAuthenticationService
             Timestamp = DateTime.UtcNow
         };
         
-        _context.LoginAttempts.Add(attempt);
-        await _context.SaveChangesAsync();
+        Context.LoginAttempts.Add(attempt);
+        await Context.SaveChangesAsync();
     }
     
     private static UserProfileDto MapToUserProfile(User user)
@@ -1764,7 +1768,7 @@ public class AuthenticationService : IAuthenticationService
     
     public async Task<List<SessionInfoDto>> GetUserSessionsAsync(int userId)
     {
-        var sessions = await _context.UserSessions
+        var sessions = await Context.UserSessions
             .Include(s => s.User)
                 .ThenInclude(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
@@ -1789,7 +1793,7 @@ public class AuthenticationService : IAuthenticationService
     
     public async Task<List<SessionInfoDto>> GetAllActiveSessionsAsync()
     {
-        var sessions = await _context.UserSessions
+        var sessions = await Context.UserSessions
             .Include(s => s.User)
                 .ThenInclude(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
@@ -1816,7 +1820,7 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var session = await _context.UserSessions
+            var session = await Context.UserSessions
                 .Include(s => s.User)
                 .FirstOrDefaultAsync(s => s.Id == sessionId);
             
@@ -1835,7 +1839,7 @@ public class AuthenticationService : IAuthenticationService
             session.RevokedAt = DateTime.UtcNow;
             session.RevokedReason = $"Cerrada por el usuario desde otra sesión";
             
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
             await _auditLog.LogAsync(
                 AuditCategory.Authentication, 
@@ -1857,7 +1861,7 @@ public class AuthenticationService : IAuthenticationService
     {
         try
         {
-            var session = await _context.UserSessions
+            var session = await Context.UserSessions
                 .Include(s => s.User)
                 .FirstOrDefaultAsync(s => s.Id == sessionId);
             
@@ -1872,7 +1876,7 @@ public class AuthenticationService : IAuthenticationService
             session.RevokedAt = DateTime.UtcNow;
             session.RevokedReason = $"Cerrada por administrador {adminUsername}";
             
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
             await _auditLog.LogAsync(
                 AuditCategory.Authentication, 
@@ -2019,6 +2023,15 @@ public class AuthenticationService : IAuthenticationService
         }
         
         return config;
+    }
+    
+    #endregion
+    
+    #region IDisposable
+    
+    public void Dispose()
+    {
+        _context?.Dispose();
     }
     
     #endregion

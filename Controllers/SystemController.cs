@@ -23,41 +23,47 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IConfiguration _configuration;
         private readonly IExcelConfigService _excelConfigService;
         private readonly IWebHostEnvironment _env;
+        private readonly IRequestProjectContext _projectContext;
 
-        // Cache de configuración del sistema
-        private SystemConfiguration? _cachedConfig;
-        private DateTime? _cacheTimestamp;
+        // Cache de configuración del sistema (por proyecto)
+        private static readonly Dictionary<string, (SystemConfiguration Config, DateTime Timestamp)> _configCache = new();
         private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(5);
 
         public SystemController(
             ILogger<SystemController> logger, 
             IConfiguration configuration,
             IExcelConfigService excelConfigService,
-            IWebHostEnvironment env)
+            IWebHostEnvironment env,
+            IRequestProjectContext projectContext)
         {
             _logger = logger;
             _configuration = configuration;
             _excelConfigService = excelConfigService;
             _env = env;
+            _projectContext = projectContext;
         }
 
         /// <summary>
-        /// Obtiene la configuración del sistema desde Excel (con cache)
+        /// Obtiene la configuración del sistema desde Excel (con cache por proyecto)
         /// </summary>
         private async Task<SystemConfiguration> GetSystemConfigAsync()
         {
-            if (_cachedConfig != null && _cacheTimestamp.HasValue)
+            var projectId = _projectContext.ProjectId;
+            var excelPath = _projectContext.ExcelConfigPath;
+            
+            // Verificar cache por proyecto
+            if (_configCache.TryGetValue(projectId, out var cached))
             {
-                if (DateTime.UtcNow - _cacheTimestamp.Value < _cacheExpiration)
+                if (DateTime.UtcNow - cached.Timestamp < _cacheExpiration)
                 {
-                    return _cachedConfig;
+                    return cached.Config;
                 }
             }
 
-            var excelFile = _configuration["Excel:ConfigFile"] ?? "ProjectConfig.xlsm";
-            _cachedConfig = await _excelConfigService.LoadSystemConfigurationAsync(excelFile);
-            _cacheTimestamp = DateTime.UtcNow;
-            return _cachedConfig;
+            _logger.LogInformation("📁 SystemController: Cargando config desde {Path} (proyecto: {Project})", excelPath, projectId);
+            var config = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
+            _configCache[projectId] = (config, DateTime.UtcNow);
+            return config;
         }
 
         /// <summary>

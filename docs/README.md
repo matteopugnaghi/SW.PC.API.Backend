@@ -47,6 +47,7 @@ Esta carpeta contiene toda la documentación técnica del sistema organizada por
 
 | Documento | Descripción |
 |-----------|-------------|
+| [GUIA_DESARROLLO.md](development/GUIA_DESARROLLO.md) | 📌 **Guía de Desarrollo** - Contexto completo del sistema |
 | [BACKEND_API_EXAMPLE.md](development/BACKEND_API_EXAMPLE.md) | Ejemplos de uso de la API Backend |
 | [INTEGRACION_BACKEND.md](development/INTEGRACION_BACKEND.md) | Guía de integración con el Backend |
 | [INTEGRACION_FRONTEND_PUMPS.md](development/INTEGRACION_FRONTEND_PUMPS.md) | Integración de bombas en Frontend |
@@ -121,7 +122,7 @@ Esta carpeta contiene toda la documentación técnica del sistema organizada por
 - `../../SW.PC.REACT.Frontend/my-3d-app/README.md` - README del Frontend
 
 ### Configuración de desarrollo
-- `../.github/copilot-instructions.md` - Instrucciones para GitHub Copilot
+- `development/GUIA_DESARROLLO.md` - Guía de desarrollo del sistema
 
 ---
 

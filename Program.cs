@@ -2,6 +2,7 @@ using SW.PC.API.Backend.Services;
 using SW.PC.API.Backend.Data;
 using SW.PC.API.Backend.Hubs;
 using SW.PC.API.Backend.Models;
+using SW.PC.API.Backend.Middleware;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -105,18 +106,28 @@ builder.Services.Configure<PlcPollingConfiguration>(
 // 🔐 PHASE 2: Authentication System - SQLite Database (EU CRA / CADRA Compliance)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Configure SQLite Database for Authentication (path configurable from Excel: DatabaseConnectionString)
-// Default: Data/Aquafrisch.db - Can be enabled/disabled via Excel: EnableDatabase
+// 📁 Multi-Project Database Support
+// La base de datos ahora es POR PROYECTO:
+// - default: Data/Aquafrisch.db (modo legacy)
+// - proyecto-x: Projects/proyecto-x/data/project.db
+// Usamos una factory para crear DbContext con la ruta correcta según el request
+
+// Registrar DbContext con una configuración base (se sobrescribe en runtime)
 var defaultDbPath = "Data/Aquafrisch.db";
 builder.Services.AddDbContext<AquafrischDbContext>(options =>
-    options.UseSqlite($"Data Source={defaultDbPath}"));
+    options.UseSqlite($"Data Source={defaultDbPath}"), 
+    ServiceLifetime.Scoped);
+
+// Registrar la factory de DbContext multi-proyecto
+builder.Services.AddScoped<IProjectDbContextFactory, ProjectDbContextFactory>();
 
 // Register Authentication Service
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IRecoveryCodeService, RecoveryCodeService>(); // 🔐 EU CRA - Recovery Codes Offline
 
 // Register SCADA Services
-builder.Services.AddSingleton<IProjectContextService, ProjectContextService>(); // 📁 Multi-Project Support
+builder.Services.AddSingleton<IProjectContextService, ProjectContextService>(); // 📁 Multi-Project Support (global)
+builder.Services.AddScoped<IRequestProjectContext, RequestProjectContextService>(); // 📁 Multi-Project per-request (development multi-tenant)
 builder.Services.AddScoped<IModelService, ModelService>();
 builder.Services.AddScoped<IConfigurationService, ConfigurationService>();
 builder.Services.AddSingleton<IExcelConfigService, ExcelConfigService>(); // ✅ SINGLETON para mantener caché
@@ -383,6 +394,10 @@ using (var scope = app.Services.CreateScope())
 
 // Enable CORS FIRST (debe ir al principio)
 app.UseCors("ReactFrontend");
+
+// 📁 MULTI-TENANT: Project Context Middleware (solo activo en Development)
+// Permite seleccionar proyecto via header X-Project-Id o query param ?projectId=
+app.UseProjectContext();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🌐 SERVE REACT SPA - Default Files & Static Files
