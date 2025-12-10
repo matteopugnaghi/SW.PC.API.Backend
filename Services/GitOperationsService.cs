@@ -297,7 +297,8 @@ public class GitOperationsService : IGitOperationsService
             }
 
             _logger.LogInformation("Pushing changes from {Path}", repoPath);
-            var result = await RunGitCommandAsync(repoPath, "push");
+            // 120s timeout para primera conexión SSH (puede tardar en establecer)
+            var result = await RunGitCommandAsync(repoPath, "push", 120000);
             if (result.Success) 
             {
                 // 🔐 Actualizar información de integridad después de push
@@ -333,7 +334,8 @@ public class GitOperationsService : IGitOperationsService
             }
 
             _logger.LogWarning("⚠️ FORCE PUSHING changes from {Path} - This will overwrite remote!", repoPath);
-            var result = await RunGitCommandAsync(repoPath, "push --force");
+            // 120s timeout para primera conexión SSH
+            var result = await RunGitCommandAsync(repoPath, "push --force", 120000);
             if (result.Success) 
             {
                 // 🔐 Actualizar información de integridad después de force push
@@ -404,7 +406,7 @@ public class GitOperationsService : IGitOperationsService
         return files;
     }
 
-    private async Task<(bool Success, string? Output, string? Error)> RunGitCommandAsync(string workingDirectory, string arguments)
+    private async Task<(bool Success, string? Output, string? Error)> RunGitCommandAsync(string workingDirectory, string arguments, int timeoutMs = 30000)
     {
         try
         {
@@ -419,8 +421,8 @@ public class GitOperationsService : IGitOperationsService
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
-            var completed = await Task.Run(() => process.WaitForExit(30000));
-            if (!completed) { process.Kill(); return (false, null, "Command timed out"); }
+            var completed = await Task.Run(() => process.WaitForExit(timeoutMs));
+            if (!completed) { process.Kill(); return (false, null, $"Command timed out after {timeoutMs/1000}s"); }
             return (process.ExitCode == 0, outputBuilder.ToString(), errorBuilder.ToString());
         }
         catch (Exception ex) { _logger.LogError(ex, "Error running git command: {Args}", arguments); return (false, null, ex.Message); }
