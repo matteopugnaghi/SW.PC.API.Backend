@@ -254,10 +254,12 @@ public class GitOperationsService : IGitOperationsService
             }
 
             _logger.LogInformation("Creating commit in {Path}: {Message}", repoPath, message);
-            var addResult = await RunGitCommandAsync(repoPath, "add -A");
+            // 60s timeout para add (puede haber muchos archivos)
+            var addResult = await RunGitCommandAsync(repoPath, "add -A", 60000);
             if (!addResult.Success) return new GitOperationResult { Success = false, Message = $"Failed to stage changes: {addResult.Error}" };
             var escapedMessage = message.Replace("\"", "\\\"");
-            var commitResult = await RunGitCommandAsync(repoPath, $"commit -m \"{escapedMessage}\"");
+            // 60s timeout para commit
+            var commitResult = await RunGitCommandAsync(repoPath, $"commit -m \"{escapedMessage}\"", 60000);
             if (commitResult.Success) 
             {
                 // 🔐 Actualizar información de firma en el servicio de integridad
