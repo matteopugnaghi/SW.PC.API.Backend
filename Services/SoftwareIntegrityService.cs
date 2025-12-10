@@ -363,13 +363,18 @@ namespace SW.PC.API.Backend.Services
                 // Usar la ruta del proyecto activo
                 var deployVersionPath = GetProjectDeployVersionPath();
                 
+                _logger.LogInformation("📦 Intentando cargar deploy-version.json desde: {Path} para componente: {Component}", 
+                    deployVersionPath, componentName);
+                
                 if (!File.Exists(deployVersionPath))
                 {
-                    _logger.LogDebug("📦 deploy-version.json no encontrado en: {Path}", deployVersionPath);
+                    _logger.LogWarning("📦 deploy-version.json NO encontrado en: {Path}", deployVersionPath);
                     return null;
                 }
 
                 var json = await File.ReadAllTextAsync(deployVersionPath);
+                _logger.LogDebug("📦 Contenido del deploy-version.json: {Json}", json.Substring(0, Math.Min(500, json.Length)));
+                
                 var projectDeploy = JsonSerializer.Deserialize<ProjectDeployVersionInfo>(json, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
@@ -377,8 +382,14 @@ namespace SW.PC.API.Backend.Services
 
                 if (projectDeploy == null)
                 {
+                    _logger.LogWarning("📦 No se pudo deserializar deploy-version.json");
                     return null;
                 }
+
+                _logger.LogInformation("📦 deploy-version.json deserializado: ProjectId={ProjectId}, Backend={HasBackend}, Frontend={HasFrontend}", 
+                    projectDeploy.ProjectId, 
+                    projectDeploy.Backend != null,
+                    projectDeploy.Frontend != null);
 
                 // Seleccionar el componente correcto según el nombre
                 DeployComponentInfo? deployInfo = componentName.ToLower() switch
@@ -390,7 +401,7 @@ namespace SW.PC.API.Backend.Services
 
                 if (deployInfo == null)
                 {
-                    _logger.LogDebug("📦 Componente '{Component}' no encontrado en deploy-version.json", componentName);
+                    _logger.LogWarning("📦 Componente '{Component}' es NULL en deploy-version.json", componentName);
                     return null;
                 }
 

@@ -204,6 +204,55 @@ namespace SW.PC.API.Backend.Controllers
                 systemStatus = info.SystemStatus
             });
         }
+
+        /// <summary>
+        /// 🔧 Endpoint de diagnóstico para verificar estado del deploy-version.json
+        /// Útil para debuggear problemas de N/A en Software Integrity
+        /// </summary>
+        [HttpGet("diagnostic")]
+        public IActionResult GetDiagnostic()
+        {
+            var info = _integrityService.GetSoftwareVersionInfo();
+            var paths = _integrityService.GetRepositoryPaths();
+            
+            return Ok(new
+            {
+                diagnostic = new
+                {
+                    timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                    environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Unknown",
+                    baseDirectory = AppDomain.CurrentDomain.BaseDirectory
+                },
+                repositoryPaths = new
+                {
+                    backend = paths.Backend,
+                    frontend = paths.Frontend,
+                    twincat = paths.TwinCAT
+                },
+                backend = new
+                {
+                    hasData = info.Backend != null,
+                    name = info.Backend?.Name,
+                    version = info.Backend?.Version,
+                    commitSha = info.Backend?.CommitSha,
+                    integrity = info.Backend?.Integrity,
+                    signatureStatus = info.Backend?.SignatureStatus,
+                    branch = info.Backend?.Branch
+                },
+                frontend = new
+                {
+                    hasData = info.Frontend != null,
+                    name = info.Frontend?.Name,
+                    version = info.Frontend?.Version,
+                    commitSha = info.Frontend?.CommitSha,
+                    integrity = info.Frontend?.Integrity,
+                    signatureStatus = info.Frontend?.SignatureStatus,
+                    branch = info.Frontend?.Branch
+                },
+                systemStatus = info.SystemStatus,
+                lastVerification = info.LastVerificationDate
+            });
+        }
     }
 
     #region Request DTOs

@@ -511,6 +511,7 @@ $cleanupItems = @(
     "$RemotePath\ExcelConfigs",                           # Legacy folder (ya no se usa)
     "$RemotePath\Backend\ExcelConfigs",                   # Legacy folder dentro de Backend
     "$RemotePath\Backend\Data",                           # Legacy folder (Aquafrisch.db ya no se usa)
+    "$RemotePath\Backend\backups",                        # Legacy backups folder (ahora en Projects/{id}/backups)
     "$RemotePath\Backend\n",                              # Carpeta errónea
     "$RemotePath\Backend\wwwroot\robots.txt",             # SEO file (no necesario)
     "$RemotePath\Backend\wwwroot\asset-manifest.json",    # Debug file
