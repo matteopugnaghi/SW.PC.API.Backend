@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Aquafrisch Supervisor - Deploy Manual (Remote)
@@ -493,10 +493,14 @@ Write-Header "PASO 5.1: Limpieza de archivos innecesarios"
 
 # 🧹 Lista de archivos/carpetas a ELIMINAR si existen de deploys anteriores
 $cleanupItems = @(
-    "$RemotePath\ExcelConfigs",                        # Legacy folder (ya no se usa)
-    "$RemotePath\Backend\wwwroot\robots.txt",          # SEO file (no necesario)
-    "$RemotePath\Backend\wwwroot\asset-manifest.json", # Debug file
-    "$RemotePath\Backend\wwwroot\docs"                 # Documentación (ya en desarrollo)
+    "$RemotePath\ExcelConfigs",                           # Legacy folder (ya no se usa)
+    "$RemotePath\Backend\wwwroot\robots.txt",             # SEO file (no necesario)
+    "$RemotePath\Backend\wwwroot\asset-manifest.json",    # Debug file
+    "$RemotePath\Backend\wwwroot\docs",                   # Documentación (ya en desarrollo)
+    "$RemotePath\Backend\wwwroot\audit",                  # Logs de auditoría (se generan en runtime)
+    "$RemotePath\Backend\wwwroot\models",                 # Modelos legacy (ahora en Projects/{id}/models)
+    "$RemotePath\Backend\wwwroot\sbom",                   # SBOM generados (se regeneran en runtime)
+    "$RemotePath\Backend\Projects\_template"              # Template de proyecto (solo para desarrollo)
 )
 
 $cleanedCount = 0
@@ -534,7 +538,15 @@ if ($BackupExisting -and (Test-Path "$RemotePath\Backend\SW.PC.API.Backend.exe")
     if (Test-Path $projectRemotePath) {
         Write-Step "Backup del proyecto: $ProjectId"
         Copy-Item -Path $projectRemotePath -Destination "$backupPath\Backend\Projects\$ProjectId" -Recurse -Force
-        Write-Info "  - Config, Models, Data, deploy-version.json"
+        Write-Info "  - Config, Models, Data"
+        
+        # Verificar que deploy-version.json existe (importante para trazabilidad)
+        $deployVersionFile = "$projectRemotePath\deploy-version.json"
+        if (Test-Path $deployVersionFile) {
+            Write-Info "  - deploy-version.json ✓ (trazabilidad de versión)"
+        } else {
+            Write-Warning "  ⚠️ deploy-version.json no encontrado - se generará en este deploy"
+        }
     }
     
     # 2. active-project.json
@@ -669,6 +681,53 @@ Write-Info "Excluidos: $($excludeFiles -join ', '), carpetas: $($excludeFolders 
 # ❌ PASO 8.1 ELIMINADO: Modo legacy no se usa en producción
 # Los modelos 3D siempre vienen de Projects/{projectId}/models/
 Write-Info "📦 Modelos 3D: se copiarán desde Projects/$ProjectId/models/ (paso 9.0)"
+
+# ============================================================
+# PASO 8.2: Copiar SBOM pre-generado (EU CRA Compliance)
+# ============================================================
+Write-Header "PASO 8.2: Copiando SBOM pre-generado (EU CRA)"
+
+$sbomSourcePath = "$BackendPath\wwwroot\sbom"
+$sbomDestPath = "$RemotePath\Backend\wwwroot\sbom"
+
+if (Test-Path $sbomSourcePath) {
+    Write-Step "Copiando SBOM pre-generado para producción..."
+    
+    # Crear carpeta sbom en destino
+    if (-not (Test-Path $sbomDestPath)) {
+        New-Item -ItemType Directory -Path $sbomDestPath -Force | Out-Null
+    }
+    
+    # Copiar sbom-combined.json (el principal)
+    $sbomFile = Join-Path $sbomSourcePath "sbom-combined.json"
+    if (Test-Path $sbomFile) {
+        Copy-Item -Path $sbomFile -Destination $sbomDestPath -Force
+        Write-Success "SBOM copiado: sbom-combined.json"
+        
+        # Leer y mostrar resumen
+        try {
+            $sbomContent = Get-Content $sbomFile -Raw | ConvertFrom-Json
+            $totalComponents = $sbomContent.components.Count
+            $nugetCount = ($sbomContent.components | Where-Object { $_.purl -like "pkg:nuget*" }).Count
+            $npmCount = ($sbomContent.components | Where-Object { $_.purl -like "pkg:npm*" }).Count
+            Write-Info "  📦 Total componentes: $totalComponents (NuGet: $nugetCount, npm: $npmCount)"
+        } catch {
+            Write-Info "  SBOM copiado pero no se pudo leer el resumen"
+        }
+    } else {
+        Write-Warning "⚠️ No se encontró sbom-combined.json - Ejecuta 'Generate SBOM' en desarrollo primero"
+    }
+    
+    # Copiar history si existe
+    $sbomHistory = Join-Path $sbomSourcePath "history"
+    if (Test-Path $sbomHistory) {
+        Copy-Item -Path $sbomHistory -Destination $sbomDestPath -Recurse -Force
+        Write-Info "  📜 Historial SBOM copiado"
+    }
+} else {
+    Write-Warning "⚠️ No existe carpeta SBOM en desarrollo: $sbomSourcePath"
+    Write-Info "   Ejecuta 'Generate SBOM' en InfoPanel antes de desplegar"
+}
 
 # ============================================
 # PASO 9: Verificar ProjectId (NO legacy en producción)

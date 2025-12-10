@@ -1,0 +1,97 @@
+{
+  "viewer": {
+    "buttons": {
+      "viewAll": "View All Objects",
+      "resetView": "Reset View",
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out"
+    },
+    "language": {
+      "select": "Select language",
+      "es": "Spanish",
+      "en": "English"
+    },
+    "camera": {
+      "position": "Camera Position",
+      "alpha": "Horizontal",
+      "beta": "Vertical",
+      "radius": "Distance"
+    },
+    "objects": {
+      "title": "Objects Position",
+      "coordinates": {
+        "x": "X",
+        "y": "Y",
+        "z": "Z"
+      }
+    },
+    "loading": {
+      "models": "Loading models...",
+      "error": "Error loading models"
+    }
+  },
+  "operationLogs": {
+    "title": "Operation Logs",
+    "subtitle": "Level 2 - Operator Actions",
+    "allCategories": "All categories",
+    "refresh": "Refresh",
+    "loading": "Loading logs...",
+    "noData": "No logs to display",
+    "category": {
+      "alarm": "Alarms",
+      "recipe": "Recipes",
+      "process": "Processes",
+      "setpoint": "Setpoints",
+      "statistics": "Statistics",
+      "export": "Exports",
+      "navigation": "Navigation"
+    },
+    "columns": {
+      "timestamp": "Date/Time",
+      "category": "Category",
+      "action": "Action",
+      "user": "User",
+      "description": "Description",
+      "ip": "IP"
+    },
+    "filters": {
+      "category": "Category",
+      "user": "User",
+      "userPlaceholder": "Filter by user...",
+      "startDate": "From",
+      "endDate": "To",
+      "search": "Search",
+      "searchPlaceholder": "Search in description..."
+    },
+    "stats": {
+      "total": "Total Records"
+    },
+    "pagination": {
+      "prev": "Previous",
+      "next": "Next",
+      "page": "Page",
+      "of": "of"
+    },
+    "errors": {
+      "noPermission": "You do not have permission to view this section"
+    },
+    "help": {
+      "button": "Help",
+      "title": "Operation Logs (Level 2)",
+      "description": "This view shows all actions performed by operators in the application. Unlike the Audit Log (Level 1) which records security events, the Operation Log records day-to-day operational actions.",
+      "whatIsLogged": "What is logged?",
+      "whatIsLoggedContent": "• View changes in the application\n• Alarm acknowledgments\n• Recipe loading and execution\n• Setpoint changes\n• Data exports\n• Process actions",
+      "retention": "Data retention",
+      "retentionContent": "Operation logs are kept for 1-5 years according to system configuration. This period is configurable in the Excel configuration file.",
+      "futureFeatures": "Future features",
+      "futureFeaturesContent": "Currently this view shows example data. When the Alarms, Recipes, and Statistics views are implemented, the corresponding logs will be automatically added.",
+      "compliance": "Regulatory Compliance",
+      "complianceContent": "The Operation Log (Level 2) complements the Audit Log (Level 1) which is mandatory under EU CRA. While the Audit Log records security events, the Operation Log provides operational traceability useful for diagnostics and continuous improvement."
+    },
+    "footer": {
+      "level2": "Level 2 - Operation Log",
+      "level1Link": "The Audit Log (Level 1) records security events",
+      "note": "Full logs will be enabled when features are implemented"
+    }
+  }
+}

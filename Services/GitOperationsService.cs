@@ -80,16 +80,28 @@ public class GitOperationsService : IGitOperationsService
             _logger.LogWarning(ex, "⚠️ Could not read EnvironmentMode from Excel, defaulting to 'development'");
         }
         
-        var isProduction = environmentMode == "production";
-        
         var paths = GetRepoPaths();
+        
+        // 🏭 AUTO-DETECTAR PRODUCCIÓN: Si no hay .git en Backend/Frontend, es producción
+        // Esto permite detectar automáticamente sin depender del Excel
+        var hasBackendGit = Directory.Exists(Path.Combine(paths.Backend ?? "", ".git"));
+        var hasFrontendGit = Directory.Exists(Path.Combine(paths.Frontend ?? "", ".git"));
+        
+        // Si el Excel no especifica producción pero no hay repos Git, forzar producción
+        if (environmentMode != "production" && !hasBackendGit && !hasFrontendGit)
+        {
+            _logger.LogInformation("🏭 Auto-detecting PRODUCTION mode: No Git repos found for Backend/Frontend");
+            environmentMode = "production";
+        }
+        
+        var isProduction = environmentMode == "production";
         
         // En producción: solo TwinCAT es editable
         // En desarrollo: todos son editables (si tienen .git)
         var permissions = new Dictionary<string, bool>
         {
-            ["backend"] = !isProduction && Directory.Exists(Path.Combine(paths.Backend ?? "", ".git")),
-            ["frontend"] = !isProduction && Directory.Exists(Path.Combine(paths.Frontend ?? "", ".git")),
+            ["backend"] = !isProduction && hasBackendGit,
+            ["frontend"] = !isProduction && hasFrontendGit,
             ["twincat"] = Directory.Exists(Path.Combine(paths.TwinCAT ?? "", ".git")) // TwinCAT siempre editable si tiene .git
         };
 

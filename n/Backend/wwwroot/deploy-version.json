@@ -1,0 +1,19 @@
+﻿{
+    "CommitDate":  "2025-12-10 11:56:11 +0100",
+    "Branch":  "main",
+    "CommitAuthor":  "matteopugnaghi",
+    "LatestRelease":  "2025.12.07",
+    "SignatureKey":  "SHA256:2iCNET68+0Yol7u6awNvbD5peIyZboMuCpTZ4wG6mYM",
+    "LatestReleaseDate":  "",
+    "DeployedAt":  "2025-12-10 12:14:23",
+    "CommitAuthorEmail":  "matte_pugnaghi@hotmail.it",
+    "CommitMessage":  "[Autor: Matteo] feat: Optimizaci├│n deploy producci├│n + Git Management SuperAdmin + estructura multi-proyecto",
+    "ComponentName":  "Frontend",
+    "DeployedBy":  "mpugnaghi",
+    "CommitShaFull":  "fe8476a11ece67b58cee2539c4bcccf263e95114",
+    "DeployedFrom":  "PT22MATTEO",
+    "Version":  "2025.12.07-2-gfe8476a",
+    "SignatureSigner":  "matte_pugnaghi@hotmail.it",
+    "CommitSha":  "fe8476a",
+    "SignatureStatus":  "SIGNED"
+}

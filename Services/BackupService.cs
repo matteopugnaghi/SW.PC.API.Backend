@@ -223,16 +223,16 @@ namespace SW.PC.API.Backend.Services
                         }
                     }
                     
-                    // Agregar modelos 3D
+                    // Agregar modelos 3D y archivos relacionados
                     if (request.IncludeModels)
                     {
                         var modelsPath = projectPaths.ModelsPath;
                         if (Directory.Exists(modelsPath))
                         {
-                            var modelFiles = Directory.GetFiles(modelsPath, "*.*", SearchOption.AllDirectories)
-                                .Where(f => IsModelFile(f)).ToArray();
+                            // Incluir TODOS los archivos de la carpeta models (modelos 3D + README, texturas, etc.)
+                            var allModelFiles = Directory.GetFiles(modelsPath, "*.*", SearchOption.AllDirectories);
                             
-                            foreach (var file in modelFiles)
+                            foreach (var file in allModelFiles)
                             {
                                 var relativePath = Path.GetRelativePath(projectPaths.ProjectRoot, file);
                                 zipArchive.CreateEntryFromFile(file, relativePath);
@@ -246,7 +246,8 @@ namespace SW.PC.API.Backend.Services
                                 });
                             }
                             backupInfo.Contents.HasModels = true;
-                            backupInfo.Contents.ModelsCount = modelFiles.Length;
+                            // Contar solo archivos de modelo 3D para el conteo
+                            backupInfo.Contents.ModelsCount = allModelFiles.Count(f => IsModelFile(f));
                         }
                     }
                     
@@ -291,6 +292,40 @@ namespace SW.PC.API.Backend.Services
                                 }
                             }
                         }
+                    }
+                    
+                    // Agregar deploy-version.json (trazabilidad de versión - EU CRA)
+                    var deployVersionPath = Path.Combine(projectPaths.ProjectRoot, "deploy-version.json");
+                    if (File.Exists(deployVersionPath))
+                    {
+                        var relativePath = "deploy-version.json";
+                        zipArchive.CreateEntryFromFile(deployVersionPath, relativePath);
+                        
+                        manifest.Files.Add(new BackupFileEntry
+                        {
+                            RelativePath = relativePath,
+                            Hash = await ComputeFileHashAsync(deployVersionPath),
+                            SizeBytes = new FileInfo(deployVersionPath).Length,
+                            ModifiedAt = File.GetLastWriteTimeUtc(deployVersionPath)
+                        });
+                        
+                        _logger.LogInformation("✅ deploy-version.json incluido en backup (trazabilidad EU CRA)");
+                    }
+                    
+                    // Agregar README.md del proyecto (documentación)
+                    var readmePath = Path.Combine(projectPaths.ProjectRoot, "README.md");
+                    if (File.Exists(readmePath))
+                    {
+                        var relativePath = "README.md";
+                        zipArchive.CreateEntryFromFile(readmePath, relativePath);
+                        
+                        manifest.Files.Add(new BackupFileEntry
+                        {
+                            RelativePath = relativePath,
+                            Hash = await ComputeFileHashAsync(readmePath),
+                            SizeBytes = new FileInfo(readmePath).Length,
+                            ModifiedAt = File.GetLastWriteTimeUtc(readmePath)
+                        });
                     }
                     
                     // Agregar manifest al ZIP
@@ -422,10 +457,20 @@ namespace SW.PC.API.Backend.Services
                             shouldRestore = true;
                         else if (entry.FullName.StartsWith("data/") && request.RestoreDatabase)
                             shouldRestore = true;
-                        
-                        if (shouldRestore && !string.IsNullOrEmpty(directory))
+                        else if (entry.FullName == "deploy-version.json" || entry.FullName == "README.md")
                         {
-                            Directory.CreateDirectory(directory);
+                            // Siempre restaurar archivos de trazabilidad y documentación
+                            shouldRestore = true;
+                            _logger.LogInformation("✅ Restaurando {FileName}", entry.FullName);
+                        }
+                        
+                        if (shouldRestore)
+                        {
+                            // Crear directorio si existe, o extraer directamente en raíz
+                            if (!string.IsNullOrEmpty(directory))
+                            {
+                                Directory.CreateDirectory(directory);
+                            }
                             entry.ExtractToFile(fullPath, overwrite: true);
                         }
                     }

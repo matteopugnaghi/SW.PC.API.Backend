@@ -134,6 +134,15 @@ public class SbomService : ISbomService
     }
 
     /// <summary>
+    /// Check if we're running in production mode (no source files available)
+    /// </summary>
+    private bool IsProductionMode()
+    {
+        // In production, the .csproj file won't exist - only compiled DLLs
+        return !File.Exists(_backendProjectPath);
+    }
+
+    /// <summary>
     /// Generate new SBOM document
     /// </summary>
     public async Task<SbomGenerateResult> GenerateAsync(SbomGenerateRequest request)
@@ -142,6 +151,31 @@ public class SbomService : ISbomService
         
         try
         {
+            // 🏭 PRODUCTION CHECK: Cannot generate new SBOM without source files
+            if (IsProductionMode())
+            {
+                _logger.LogWarning("⚠️ Cannot generate SBOM in production mode - source files not available");
+                
+                // Check if pre-generated SBOM exists
+                var existingStatus = await GetStatusAsync();
+                if (existingStatus.Exists)
+                {
+                    result.Success = false;
+                    result.Message = "🏭 Modo Producción: El SBOM fue pre-generado durante el despliegue. " +
+                                   $"Contiene {existingStatus.TotalComponents} componentes. " +
+                                   "Para regenerar, hazlo desde el entorno de desarrollo.";
+                    result.Status = existingStatus;
+                }
+                else
+                {
+                    result.Success = false;
+                    result.Message = "🏭 Modo Producción: No hay SBOM disponible. " +
+                                   "El SBOM debe generarse en desarrollo y desplegarse con Deploy-Manual-Remote.ps1";
+                }
+                
+                return result;
+            }
+            
             _logger.LogInformation("🔄 Generating SBOM... Requested by: {RequestedBy}", request.RequestedBy);
             
             var sbom = new SbomDocument
