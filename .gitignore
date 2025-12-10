@@ -22,6 +22,9 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+publish/
+LocalDeploys/
+n/
 
 # Visual Studio cache/options directory
 .vs/

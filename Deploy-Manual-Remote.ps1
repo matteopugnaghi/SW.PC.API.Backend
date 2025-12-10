@@ -494,21 +494,30 @@ Write-Header "PASO 5.1: Limpieza de archivos innecesarios"
 # 🧹 Lista de archivos/carpetas a ELIMINAR si existen de deploys anteriores
 $cleanupItems = @(
     "$RemotePath\ExcelConfigs",                           # Legacy folder (ya no se usa)
+    "$RemotePath\Backend\ExcelConfigs",                   # Legacy folder dentro de Backend
+    "$RemotePath\Backend\n",                              # Carpeta errónea
     "$RemotePath\Backend\wwwroot\robots.txt",             # SEO file (no necesario)
     "$RemotePath\Backend\wwwroot\asset-manifest.json",    # Debug file
     "$RemotePath\Backend\wwwroot\docs",                   # Documentación (ya en desarrollo)
     "$RemotePath\Backend\wwwroot\audit",                  # Logs de auditoría (se generan en runtime)
     "$RemotePath\Backend\wwwroot\models",                 # Modelos legacy (ahora en Projects/{id}/models)
     "$RemotePath\Backend\wwwroot\sbom",                   # SBOM generados (se regeneran en runtime)
+    "$RemotePath\Backend\wwwroot\locales",                # Archivos de traducción (se copian de build)
     "$RemotePath\Backend\Projects\_template"              # Template de proyecto (solo para desarrollo)
 )
+
+Write-Info "Verificando $($cleanupItems.Count) elementos para limpiar..."
 
 $cleanedCount = 0
 foreach ($item in $cleanupItems) {
     if (Test-Path $item) {
-        Remove-Item -Path $item -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Info "🧹 Eliminado: $item"
-        $cleanedCount++
+        try {
+            Remove-Item -Path $item -Recurse -Force -ErrorAction Stop
+            Write-Info "🧹 Eliminado: $item"
+            $cleanedCount++
+        } catch {
+            Write-Warning "⚠️ No se pudo eliminar: $item - $($_.Exception.Message)"
+        }
     }
 }
 
