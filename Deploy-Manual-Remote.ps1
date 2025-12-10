@@ -471,12 +471,12 @@ Write-Header "PASO 5: Creando estructura de carpetas"
 
 # 📦 Estructura optimizada para producción:
 # - NO crear ExcelConfigs/ externo (legacy eliminado)
+# - NO crear Backend/Data/ (legacy - Aquafrisch.db ya no se usa)
 # - NO crear Backend/Projects/ genérico (solo el proyecto activo)
 $folders = @(
     $RemotePath,
     "$RemotePath\Backend",
-    "$RemotePath\Backend\wwwroot",
-    "$RemotePath\Backend\Data"
+    "$RemotePath\Backend\wwwroot"
 )
 
 # Añadir carpeta del proyecto activo (SOLO el proyecto que se despliega)
@@ -487,6 +487,7 @@ if ($ProjectId -ne "default") {
     $folders += "$RemotePath\Backend\Projects\$ProjectId\models"
     $folders += "$RemotePath\Backend\Projects\$ProjectId\data"
     $folders += "$RemotePath\Backend\Projects\$ProjectId\backups"
+    $folders += "$RemotePath\Backend\Projects\$ProjectId\sbom"  # SBOM por proyecto (EU CRA)
 }
 
 foreach ($folder in $folders) {
@@ -508,6 +509,7 @@ Write-Header "PASO 5.1: Limpieza de archivos innecesarios"
 $cleanupItems = @(
     "$RemotePath\ExcelConfigs",                           # Legacy folder (ya no se usa)
     "$RemotePath\Backend\ExcelConfigs",                   # Legacy folder dentro de Backend
+    "$RemotePath\Backend\Data",                           # Legacy folder (Aquafrisch.db ya no se usa)
     "$RemotePath\Backend\n",                              # Carpeta errónea
     "$RemotePath\Backend\wwwroot\robots.txt",             # SEO file (no necesario)
     "$RemotePath\Backend\wwwroot\asset-manifest.json",    # Debug file
@@ -703,53 +705,10 @@ Write-Info "Excluidos: $($excludeFiles -join ', '), carpetas: $($excludeFolders 
 # ❌ PASO 8.1 ELIMINADO: Modo legacy no se usa en producción
 # Los modelos 3D siempre vienen de Projects/{projectId}/models/
 Write-Info "📦 Modelos 3D: se copiarán desde Projects/$ProjectId/models/ (paso 9.0)"
+Write-Info "📦 SBOM: se copiará a Projects/$ProjectId/sbom/ (paso 9.0)"
 
-# ============================================================
-# PASO 8.2: Copiar SBOM pre-generado (EU CRA Compliance)
-# ============================================================
-Write-Header "PASO 8.2: Copiando SBOM pre-generado (EU CRA)"
-
-$sbomSourcePath = "$BackendPath\wwwroot\sbom"
-$sbomDestPath = "$RemotePath\Backend\wwwroot\sbom"
-
-if (Test-Path $sbomSourcePath) {
-    Write-Step "Copiando SBOM pre-generado para producción..."
-    
-    # Crear carpeta sbom en destino
-    if (-not (Test-Path $sbomDestPath)) {
-        New-Item -ItemType Directory -Path $sbomDestPath -Force | Out-Null
-    }
-    
-    # Copiar sbom-combined.json (el principal)
-    $sbomFile = Join-Path $sbomSourcePath "sbom-combined.json"
-    if (Test-Path $sbomFile) {
-        Copy-Item -Path $sbomFile -Destination $sbomDestPath -Force
-        Write-Success "SBOM copiado: sbom-combined.json"
-        
-        # Leer y mostrar resumen
-        try {
-            $sbomContent = Get-Content $sbomFile -Raw | ConvertFrom-Json
-            $totalComponents = $sbomContent.components.Count
-            $nugetCount = ($sbomContent.components | Where-Object { $_.purl -like "pkg:nuget*" }).Count
-            $npmCount = ($sbomContent.components | Where-Object { $_.purl -like "pkg:npm*" }).Count
-            Write-Info "  📦 Total componentes: $totalComponents (NuGet: $nugetCount, npm: $npmCount)"
-        } catch {
-            Write-Info "  SBOM copiado pero no se pudo leer el resumen"
-        }
-    } else {
-        Write-Warning "⚠️ No se encontró sbom-combined.json - Ejecuta 'Generate SBOM' en desarrollo primero"
-    }
-    
-    # Copiar history si existe
-    $sbomHistory = Join-Path $sbomSourcePath "history"
-    if (Test-Path $sbomHistory) {
-        Copy-Item -Path $sbomHistory -Destination $sbomDestPath -Recurse -Force
-        Write-Info "  📜 Historial SBOM copiado"
-    }
-} else {
-    Write-Warning "⚠️ No existe carpeta SBOM en desarrollo: $sbomSourcePath"
-    Write-Info "   Ejecuta 'Generate SBOM' en InfoPanel antes de desplegar"
-}
+# ✅ PASO 8.2 ELIMINADO: SBOM ahora va a Projects/{projectId}/sbom/
+# El SBOM es por proyecto (cada instalación puede tener diferentes versiones)
 
 # ============================================
 # PASO 9: Verificar ProjectId (NO legacy en producción)
@@ -809,6 +768,24 @@ if (Test-Path $modelsSource) {
     Write-Success "Modelos 3D copiados: $($modelFiles.Count) archivos"
 } else {
     Write-Warning "⚠️ No se encontró carpeta models en el proyecto"
+}
+
+# Copiar sbom (EU CRA Compliance) - SBOM por proyecto
+$sbomSource = Join-Path $projectSourcePath "sbom"
+$sbomSourceAlt = "$BackendPath\wwwroot\sbom"  # Fallback: carpeta desarrollo
+if (Test-Path $sbomSource) {
+    Write-Step "Copiando SBOM del proyecto (EU CRA)..."
+    Copy-Item -Path "$sbomSource\*" -Destination "$projectDestPath\sbom" -Recurse -Force -ErrorAction SilentlyContinue
+    $sbomFiles = Get-ChildItem -Path $sbomSource -File -Recurse -ErrorAction SilentlyContinue
+    Write-Success "SBOM copiado: $($sbomFiles.Count) archivos"
+} elseif (Test-Path $sbomSourceAlt) {
+    # Fallback: copiar desde wwwroot/sbom si no existe en el proyecto
+    Write-Step "Copiando SBOM desde desarrollo (fallback)..."
+    Copy-Item -Path "$sbomSourceAlt\*" -Destination "$projectDestPath\sbom" -Recurse -Force -ErrorAction SilentlyContinue
+    $sbomFiles = Get-ChildItem -Path $sbomSourceAlt -File -Recurse -ErrorAction SilentlyContinue
+    Write-Success "SBOM copiado (desde desarrollo): $($sbomFiles.Count) archivos"
+} else {
+    Write-Warning "⚠️ No se encontró SBOM - Genera el SBOM desde InfoPanel"
 }
 
 # Copiar data (base de datos)
@@ -990,66 +967,13 @@ if ($SaveLocalCopy -and -not [string]::IsNullOrEmpty($LocalCopyPath)) {
 }
 
 # ============================================================
-# PASO 9.1: Gestionar Base de Datos SQLite (con backup)
+# PASO 9.1: ELIMINADO - Aquafrisch.db es LEGACY
 # ============================================================
-Write-Header "PASO 9.1: Gestionando Base de Datos"
-
-$dbSourceDir = "$BackendPath\Data"
-$dbRemoteDir = "$RemotePath\Backend\Data"
-$dbRemotePath = "$dbRemoteDir\Aquafrisch.db"
-$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-
-# Crear carpeta Data si no existe
-if (-not (Test-Path $dbRemoteDir)) {
-    New-Item -ItemType Directory -Path $dbRemoteDir -Force | Out-Null
-    Write-Info "Carpeta Data creada en destino"
-}
-
-# Verificar si existe DB en destino
-if (Test-Path $dbRemotePath) {
-    Write-Info "Base de datos existente encontrada en destino"
-    
-    # Crear backup de la DB existente
-    $backupDir = "$RemotePath\Backend\Data\backups"
-    if (-not (Test-Path $backupDir)) {
-        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-    }
-    
-    $backupPath = "$backupDir\Aquafrisch_backup_$timestamp.db"
-    Write-Step "Creando backup: Aquafrisch_backup_$timestamp.db"
-    Copy-Item -Path $dbRemotePath -Destination $backupPath -Force
-    
-    # También backup de los archivos WAL si existen
-    if (Test-Path "$dbRemoteDir\Aquafrisch.db-wal") {
-        Copy-Item -Path "$dbRemoteDir\Aquafrisch.db-wal" -Destination "$backupDir\Aquafrisch_backup_$timestamp.db-wal" -Force
-    }
-    if (Test-Path "$dbRemoteDir\Aquafrisch.db-shm") {
-        Copy-Item -Path "$dbRemoteDir\Aquafrisch.db-shm" -Destination "$backupDir\Aquafrisch_backup_$timestamp.db-shm" -Force
-    }
-    
-    Write-Success "Backup creado correctamente"
-    Write-Info "La base de datos existente se MANTIENE (usuarios y sesiones preservados)"
-    
-    # Limpiar backups antiguos (mantener últimos 5)
-    $oldBackups = Get-ChildItem "$backupDir\Aquafrisch_backup_*.db" -ErrorAction SilentlyContinue | 
-                  Sort-Object LastWriteTime -Descending | 
-                  Select-Object -Skip 5
-    if ($oldBackups) {
-        $oldBackups | Remove-Item -Force
-        Write-Info "Backups antiguos limpiados (se mantienen los últimos 5)"
-    }
-} else {
-    # Primera instalación - copiar DB inicial si existe
-    $dbSourcePath = "$dbSourceDir\Aquafrisch.db"
-    if (Test-Path $dbSourcePath) {
-        Write-Step "Primera instalación - Copiando base de datos inicial..."
-        Copy-Item -Path $dbSourcePath -Destination $dbRemotePath -Force
-        Write-Success "Base de datos inicial copiada"
-        Write-Info "Usuarios por defecto creados (admin/operator)"
-    } else {
-        Write-Info "No hay DB local. Se creará automáticamente al iniciar el servidor."
-    }
-}
+# ❌ NO se copia Data/Aquafrisch.db - Es solo para modo legacy (default)
+# ✅ En producción se usa Projects/{projectId}/data/project.db
+# La base de datos del proyecto ya se copió en el PASO 9.0
+Write-Info "📦 Base de datos: Projects/$ProjectId/data/project.db (ya copiada en paso 9.0)"
+Write-Info "⚠️ Data/Aquafrisch.db NO se copia (modo legacy no permitido en producción)"
 
 # ============================================================
 # PASO 9.2: Copiar archivos de estado (si no existen)
