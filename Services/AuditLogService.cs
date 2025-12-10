@@ -1,5 +1,6 @@
 // 📋 AUDIT LOG SERVICE - EU CRA Compliance (CADRA/Alstom)
 // Proporciona logging de auditoría con firma SHA256, envío externo y retención
+// Los audit logs se guardan en Projects/{projectId}/audit/ (multi-proyecto)
 
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.Excel;
@@ -32,13 +33,15 @@ namespace SW.PC.API.Backend.Services
     /// <summary>
     /// 📋 EU CRA - Servicio de logging de auditoría
     /// Almacena logs en archivos JSON con firma SHA256 para cumplimiento CADRA/Alstom
+    /// Los logs se guardan en Projects/{projectId}/audit/ para multi-proyecto
     /// </summary>
     public class AuditLogService : IAuditLogService
     {
         private readonly ILogger<AuditLogService> _logger;
         private readonly IExcelConfigService _excelConfigService;
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly string _auditPath;
+        private readonly IProjectContextService _projectContext;
+        private readonly string _contentRoot;
         private readonly SemaphoreSlim _writeLock = new(1, 1);
         private readonly ConcurrentQueue<AuditLogEntry> _cache = new();
         private readonly ConcurrentQueue<AuditLogEntry> _externalQueue = new();
@@ -71,18 +74,21 @@ namespace SW.PC.API.Backend.Services
             ILogger<AuditLogService> logger, 
             IWebHostEnvironment env,
             IExcelConfigService excelConfigService,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IProjectContextService projectContext)
         {
             _logger = logger;
             _excelConfigService = excelConfigService;
             _httpClientFactory = httpClientFactory;
-            _auditPath = Path.Combine(env.WebRootPath ?? "wwwroot", "audit");
+            _projectContext = projectContext;
+            _contentRoot = env.ContentRootPath;
             
-            // Crear directorio si no existe
-            if (!Directory.Exists(_auditPath))
+            // Crear directorio de audit en el proyecto activo
+            var auditPath = GetAuditPath();
+            if (!Directory.Exists(auditPath))
             {
-                Directory.CreateDirectory(_auditPath);
-                _logger.LogInformation("📋 Created audit log directory: {Path}", _auditPath);
+                Directory.CreateDirectory(auditPath);
+                _logger.LogInformation("📋 Created audit log directory: {Path}", auditPath);
             }
             
             // Cargar configuración en background
@@ -94,7 +100,32 @@ namespace SW.PC.API.Backend.Services
             // Iniciar tarea de limpieza periódica
             _ = StartCleanupTaskAsync();
             
-            _logger.LogInformation("📋 AuditLogService initialized - Path: {Path}", _auditPath);
+            _logger.LogInformation("📋 AuditLogService initialized - Path: {Path}", auditPath);
+        }
+        
+        /// <summary>
+        /// Obtener la ruta de audit logs según el proyecto activo
+        /// Multi-proyecto: Projects/{projectId}/audit/
+        /// Legacy: wwwroot/audit/
+        /// </summary>
+        private string GetAuditPath()
+        {
+            var projectId = _projectContext.ActiveProjectId;
+            
+            if (projectId != "default")
+            {
+                // Multi-proyecto: Projects/{projectId}/audit/
+                var projectAuditPath = Path.Combine(_contentRoot, "Projects", projectId, "audit");
+                Directory.CreateDirectory(projectAuditPath);
+                return projectAuditPath;
+            }
+            else
+            {
+                // Legacy: wwwroot/audit/
+                var legacyAuditPath = Path.Combine(_contentRoot, "wwwroot", "audit");
+                Directory.CreateDirectory(legacyAuditPath);
+                return legacyAuditPath;
+            }
         }
 
         /// <summary>
@@ -349,10 +380,11 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         public async Task CleanupOldLogsAsync()
         {
-            if (!Directory.Exists(_auditPath)) return;
+            var auditPath = GetAuditPath();
+            if (!Directory.Exists(auditPath)) return;
 
             var cutoffDate = DateTime.UtcNow.AddDays(-_retentionDays);
-            var files = Directory.GetFiles(_auditPath, "audit_*.json");
+            var files = Directory.GetFiles(auditPath, "audit_*.json");
             var deletedCount = 0;
 
             foreach (var file in files)
@@ -403,7 +435,8 @@ namespace SW.PC.API.Backend.Services
                 if (entries.Count == 0) return;
 
                 var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
-                var filePath = Path.Combine(_auditPath, $"audit_{today}.json");
+                var auditPath = GetAuditPath();
+                var filePath = Path.Combine(auditPath, $"audit_{today}.json");
 
                 List<AuditLogEntry> existingEntries = new();
                 
@@ -430,7 +463,7 @@ namespace SW.PC.API.Backend.Services
                 // Rotar archivo si excede el límite
                 if (existingEntries.Count > _maxEntriesPerFile)
                 {
-                    var archivePath = Path.Combine(_auditPath, $"audit_{today}_{DateTime.UtcNow:HHmmss}.json");
+                    var archivePath = Path.Combine(auditPath, $"audit_{today}_{DateTime.UtcNow:HHmmss}.json");
                     await File.WriteAllTextAsync(archivePath, JsonSerializer.Serialize(existingEntries, JsonOptions));
                     existingEntries = new List<AuditLogEntry>();
                 }
@@ -460,7 +493,7 @@ namespace SW.PC.API.Backend.Services
             var status = new AuditLogStatus
             {
                 IsEnabled = _isEnabled,
-                StoragePath = _auditPath,
+                StoragePath = GetAuditPath(),
                 RetentionDays = _retentionDays,
                 SignatureEnabled = _signatureEnabled,
                 ExternalEnabled = _externalEnabled,
@@ -493,9 +526,9 @@ namespace SW.PC.API.Backend.Services
                         .ToDictionary(g => g.Key, g => g.Count());
                 }
 
-                if (Directory.Exists(_auditPath))
+                if (Directory.Exists(GetAuditPath()))
                 {
-                    var files = Directory.GetFiles(_auditPath, "*.json");
+                    var files = Directory.GetFiles(GetAuditPath(), "*.json");
                     status.StorageSizeBytes = files.Sum(f => new FileInfo(f).Length);
                 }
             }
@@ -632,11 +665,12 @@ namespace SW.PC.API.Backend.Services
         private async Task<List<AuditLogEntry>> GetAllEntriesAsync()
         {
             var allEntries = new List<AuditLogEntry>();
+            var auditPath = GetAuditPath();
 
-            if (!Directory.Exists(_auditPath))
+            if (!Directory.Exists(auditPath))
                 return allEntries;
 
-            var files = Directory.GetFiles(_auditPath, "audit_*.json")
+            var files = Directory.GetFiles(auditPath, "audit_*.json")
                 .OrderByDescending(f => f);
 
             foreach (var file in files)

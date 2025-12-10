@@ -26,6 +26,8 @@ namespace SW.PC.API.Backend.Services
         public string BackupsPath { get; set; } = "";
         public string DatabasePath { get; set; } = "";
         public string ExcelConfigPath { get; set; } = "";
+        public string SbomPath { get; set; } = "";      // EU CRA Compliance
+        public string AuditPath { get; set; } = "";     // EU CRA Compliance
     }
 
     public interface IBackupService
@@ -115,7 +117,9 @@ namespace SW.PC.API.Backend.Services
                     DataPath = Path.Combine(contentRoot, "Data"),
                     BackupsPath = Path.Combine(contentRoot, "backups"),
                     DatabasePath = Path.Combine(contentRoot, "Data", "Aquafrisch.db"),
-                    ExcelConfigPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm")
+                    ExcelConfigPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm"),
+                    SbomPath = Path.Combine(webRoot, "sbom"),           // Legacy: wwwroot/sbom
+                    AuditPath = Path.Combine(webRoot, "audit")          // Legacy: wwwroot/audit
                 };
             }
             
@@ -130,7 +134,9 @@ namespace SW.PC.API.Backend.Services
                 DataPath = Path.Combine(projectRoot, "data"),
                 BackupsPath = Path.Combine(projectRoot, "backups"),
                 DatabasePath = Path.Combine(projectRoot, "data", "project.db"),
-                ExcelConfigPath = Path.Combine(projectRoot, "config", "ProjectConfig.xlsm")
+                ExcelConfigPath = Path.Combine(projectRoot, "config", "ProjectConfig.xlsm"),
+                SbomPath = Path.Combine(projectRoot, "sbom"),           // Multi-proyecto: Projects/{id}/sbom
+                AuditPath = Path.Combine(projectRoot, "audit")          // Multi-proyecto: Projects/{id}/audit
             };
         }
 
@@ -328,6 +334,56 @@ namespace SW.PC.API.Backend.Services
                         });
                     }
                     
+                    // Agregar SBOM (EU CRA Compliance - trazabilidad de dependencias)
+                    var sbomPath = projectPaths.SbomPath;
+                    if (Directory.Exists(sbomPath))
+                    {
+                        var sbomFiles = Directory.GetFiles(sbomPath, "*.*", SearchOption.AllDirectories);
+                        foreach (var sbomFile in sbomFiles)
+                        {
+                            var relativePath = Path.Combine("sbom", Path.GetRelativePath(sbomPath, sbomFile));
+                            zipArchive.CreateEntryFromFile(sbomFile, relativePath);
+                            
+                            manifest.Files.Add(new BackupFileEntry
+                            {
+                                RelativePath = relativePath,
+                                Hash = await ComputeFileHashAsync(sbomFile),
+                                SizeBytes = new FileInfo(sbomFile).Length,
+                                ModifiedAt = File.GetLastWriteTimeUtc(sbomFile)
+                            });
+                        }
+                        
+                        if (sbomFiles.Length > 0)
+                        {
+                            _logger.LogInformation("✅ SBOM incluido en backup ({Count} archivos - EU CRA Compliance)", sbomFiles.Length);
+                        }
+                    }
+                    
+                    // Agregar Audit Logs (EU CRA Compliance - trazabilidad de acciones)
+                    var auditPath = projectPaths.AuditPath;
+                    if (Directory.Exists(auditPath))
+                    {
+                        var auditFiles = Directory.GetFiles(auditPath, "*.json", SearchOption.AllDirectories);
+                        foreach (var auditFile in auditFiles)
+                        {
+                            var relativePath = Path.Combine("audit", Path.GetRelativePath(auditPath, auditFile));
+                            zipArchive.CreateEntryFromFile(auditFile, relativePath);
+                            
+                            manifest.Files.Add(new BackupFileEntry
+                            {
+                                RelativePath = relativePath,
+                                Hash = await ComputeFileHashAsync(auditFile),
+                                SizeBytes = new FileInfo(auditFile).Length,
+                                ModifiedAt = File.GetLastWriteTimeUtc(auditFile)
+                            });
+                        }
+                        
+                        if (auditFiles.Length > 0)
+                        {
+                            _logger.LogInformation("✅ Audit logs incluidos en backup ({Count} archivos - EU CRA Compliance)", auditFiles.Length);
+                        }
+                    }
+                    
                     // Agregar manifest al ZIP
                     var manifestEntry = zipArchive.CreateEntry("manifest.json");
                     using (var stream = manifestEntry.Open())
@@ -457,6 +513,18 @@ namespace SW.PC.API.Backend.Services
                             shouldRestore = true;
                         else if (entry.FullName.StartsWith("data/") && request.RestoreDatabase)
                             shouldRestore = true;
+                        else if (entry.FullName.StartsWith("sbom/"))
+                        {
+                            // Siempre restaurar SBOM (EU CRA Compliance)
+                            shouldRestore = true;
+                            _logger.LogInformation("✅ Restaurando SBOM: {FileName}", entry.FullName);
+                        }
+                        else if (entry.FullName.StartsWith("audit/"))
+                        {
+                            // Siempre restaurar Audit Logs (EU CRA Compliance)
+                            shouldRestore = true;
+                            _logger.LogInformation("✅ Restaurando Audit Log: {FileName}", entry.FullName);
+                        }
                         else if (entry.FullName == "deploy-version.json" || entry.FullName == "README.md")
                         {
                             // Siempre restaurar archivos de trazabilidad y documentación

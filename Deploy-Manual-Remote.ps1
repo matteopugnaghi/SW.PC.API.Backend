@@ -487,7 +487,8 @@ if ($ProjectId -ne "default") {
     $folders += "$RemotePath\Backend\Projects\$ProjectId\models"
     $folders += "$RemotePath\Backend\Projects\$ProjectId\data"
     $folders += "$RemotePath\Backend\Projects\$ProjectId\backups"
-    $folders += "$RemotePath\Backend\Projects\$ProjectId\sbom"  # SBOM por proyecto (EU CRA)
+    $folders += "$RemotePath\Backend\Projects\$ProjectId\sbom"   # SBOM por proyecto (EU CRA)
+    $folders += "$RemotePath\Backend\Projects\$ProjectId\audit"  # Audit logs por proyecto (EU CRA)
 }
 
 foreach ($folder in $folders) {
