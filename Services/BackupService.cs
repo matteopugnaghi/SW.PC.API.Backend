@@ -360,6 +360,9 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // Agregar Audit Logs (EU CRA Compliance - trazabilidad de acciones)
+                    // ⚠️ IMPORTANTE: Forzar flush antes de copiar para incluir entradas en cache
+                    await _auditLog.FlushAsync();
+                    
                     var auditPath = projectPaths.AuditPath;
                     if (Directory.Exists(auditPath))
                     {

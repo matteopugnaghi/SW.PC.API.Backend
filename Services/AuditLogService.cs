@@ -28,6 +28,11 @@ namespace SW.PC.API.Backend.Services
         Task<AuditSummary> GetSummaryAsync(int days = 7);
         Task<bool> VerifyLogIntegrityAsync(string logId);
         Task CleanupOldLogsAsync();
+        
+        /// <summary>
+        /// Forzar escritura del cache a disco (útil antes de backups)
+        /// </summary>
+        Task FlushAsync();
     }
 
     /// <summary>
@@ -481,6 +486,16 @@ namespace SW.PC.API.Backend.Services
             {
                 _writeLock.Release();
             }
+        }
+
+        /// <summary>
+        /// Forzar escritura del cache a disco (método público para uso externo, ej: antes de backup)
+        /// </summary>
+        public async Task FlushAsync()
+        {
+            _logger.LogInformation("📋 Forzando flush de audit logs a disco...");
+            await FlushCacheAsync();
+            _logger.LogInformation("📋 Flush de audit logs completado");
         }
 
         /// <summary>
