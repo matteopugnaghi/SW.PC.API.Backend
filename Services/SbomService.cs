@@ -36,11 +36,12 @@ public class SbomService : ISbomService
     private readonly IConfiguration _configuration;
     private readonly IWebHostEnvironment _environment;
     private readonly IAuditLogService _auditLogService;
+    private readonly IProjectContextService _projectContext;
     
     // Paths
     private readonly string _backendProjectPath;
     private readonly string _frontendPath;
-    private readonly string _sbomOutputPath;
+    private readonly string _contentRoot;
     
     // JSON options for CycloneDX format
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -54,26 +55,47 @@ public class SbomService : ISbomService
         ILogger<SbomService> logger,
         IConfiguration configuration,
         IWebHostEnvironment environment,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        IProjectContextService projectContext)
     {
         _logger = logger;
         _configuration = configuration;
         _environment = environment;
         _auditLogService = auditLogService;
+        _projectContext = projectContext;
         
         // Get paths from configuration or use defaults
-        var contentRoot = environment.ContentRootPath;
-        _backendProjectPath = Path.Combine(contentRoot, "SW.PC.API.Backend.csproj");
+        _contentRoot = environment.ContentRootPath;
+        _backendProjectPath = Path.Combine(_contentRoot, "SW.PC.API.Backend.csproj");
         
         // Frontend path - relative to backend
         var frontendRelativePath = configuration["Paths:FrontendPath"] ?? "../SW.PC.REACT.Frontend/my-3d-app";
-        _frontendPath = Path.GetFullPath(Path.Combine(contentRoot, frontendRelativePath));
+        _frontendPath = Path.GetFullPath(Path.Combine(_contentRoot, frontendRelativePath));
+    }
+    
+    /// <summary>
+    /// Get SBOM output path based on active project
+    /// In production: Projects/{projectId}/sbom/
+    /// In development: wwwroot/sbom/ (for legacy compatibility)
+    /// </summary>
+    private string GetSbomOutputPath()
+    {
+        var projectId = _projectContext.ActiveProjectId;
         
-        // SBOM output directory
-        _sbomOutputPath = Path.Combine(contentRoot, "wwwroot", "sbom");
-        
-        // Ensure output directory exists
-        Directory.CreateDirectory(_sbomOutputPath);
+        if (projectId != "default")
+        {
+            // Multi-proyecto: Projects/{projectId}/sbom/
+            var projectSbomPath = Path.Combine(_contentRoot, "Projects", projectId, "sbom");
+            Directory.CreateDirectory(projectSbomPath);
+            return projectSbomPath;
+        }
+        else
+        {
+            // Legacy: wwwroot/sbom/
+            var legacySbomPath = Path.Combine(_contentRoot, "wwwroot", "sbom");
+            Directory.CreateDirectory(legacySbomPath);
+            return legacySbomPath;
+        }
     }
 
     /// <summary>
@@ -85,7 +107,8 @@ public class SbomService : ISbomService
         
         try
         {
-            var sbomFilePath = Path.Combine(_sbomOutputPath, "sbom-combined.json");
+            var sbomOutputPath = GetSbomOutputPath();
+            var sbomFilePath = Path.Combine(sbomOutputPath, "sbom-combined.json");
             
             if (File.Exists(sbomFilePath))
             {
@@ -227,11 +250,12 @@ public class SbomService : ISbomService
             var sbomJson = JsonSerializer.Serialize(sbom, JsonOptions);
             
             // Save combined SBOM
-            var combinedPath = Path.Combine(_sbomOutputPath, "sbom-combined.json");
+            var sbomOutputPath = GetSbomOutputPath();
+            var combinedPath = Path.Combine(sbomOutputPath, "sbom-combined.json");
             await File.WriteAllTextAsync(combinedPath, sbomJson);
             
             // Save timestamped version for history
-            var historyPath = Path.Combine(_sbomOutputPath, "history");
+            var historyPath = Path.Combine(sbomOutputPath, "history");
             Directory.CreateDirectory(historyPath);
             var timestampedPath = Path.Combine(historyPath, $"sbom-{DateTime.UtcNow:yyyy-MM-dd-HHmmss}.json");
             await File.WriteAllTextAsync(timestampedPath, sbomJson);
@@ -280,7 +304,7 @@ public class SbomService : ISbomService
     {
         try
         {
-            var sbomFilePath = Path.Combine(_sbomOutputPath, "sbom-combined.json");
+            var sbomFilePath = Path.Combine(GetSbomOutputPath(), "sbom-combined.json");
             
             if (!File.Exists(sbomFilePath))
             {
@@ -304,7 +328,7 @@ public class SbomService : ISbomService
     {
         try
         {
-            var sbomFilePath = Path.Combine(_sbomOutputPath, "sbom-combined.json");
+            var sbomFilePath = Path.Combine(GetSbomOutputPath(), "sbom-combined.json");
             
             if (!File.Exists(sbomFilePath))
             {
