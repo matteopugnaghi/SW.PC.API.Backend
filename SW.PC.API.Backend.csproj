@@ -29,4 +29,15 @@
     <PackageReference Include="System.Management" Version="10.0.0" />
   </ItemGroup>
 
+  <!-- Excluir carpetas de desarrollo de wwwroot del publish -->
+  <ItemGroup>
+    <!-- Estos archivos/carpetas se generan en runtime o son solo para desarrollo -->
+    <Content Remove="wwwroot\audit\**" />
+    <Content Remove="wwwroot\models\**" />
+    <Content Remove="wwwroot\sbom\**" />
+    <None Remove="wwwroot\audit\**" />
+    <None Remove="wwwroot\models\**" />
+    <None Remove="wwwroot\sbom\**" />
+  </ItemGroup>
+
 </Project>

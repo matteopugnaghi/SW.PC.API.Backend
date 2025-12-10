@@ -240,6 +240,19 @@ if ($SkipBackendBuild) {
         
         Write-Success "Backend compilado (self-contained) en: $BackendPath\publish"
         Write-Info "El runtime .NET esta incluido - no requiere instalacion en destino"
+        
+        # 🧹 Limpiar carpetas de desarrollo que no deben ir a producción
+        $devFoldersToRemove = @(
+            "$BackendPath\publish\wwwroot\audit",
+            "$BackendPath\publish\wwwroot\models",
+            "$BackendPath\publish\wwwroot\sbom"
+        )
+        foreach ($devFolder in $devFoldersToRemove) {
+            if (Test-Path $devFolder) {
+                Remove-Item -Path $devFolder -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Info "🧹 Eliminado de publish: $($devFolder | Split-Path -Leaf)"
+            }
+        }
     } finally {
         Pop-Location
     }
