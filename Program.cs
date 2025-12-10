@@ -142,6 +142,12 @@ builder.Services.AddSingleton<IIpcInfoService, IpcInfoService>(); // 💻 IPC Sy
 builder.Services.AddSingleton<IAuditLogService, AuditLogService>(); // 📋 Audit Log (Nivel 1) - EU CRA Compliance
 builder.Services.AddSingleton<IOperationLogService, OperationLogService>(); // 📋 Operation Log (Nivel 2) - Acciones de operador
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 💾 DATA MANAGEMENT: Sistema de Backup/Restore (EU CRA Anexo I, Parte I, 2f)
+// ═══════════════════════════════════════════════════════════════════════════════
+builder.Services.AddSingleton<IBackupCertificateService, BackupCertificateService>(); // 🔐 Certificados de backup
+builder.Services.AddScoped<IBackupService, BackupService>(); // 💾 Servicio de backup/restore
+
 // Register HttpClient for Vulnerability Scanner
 builder.Services.AddHttpClient("VulnerabilityScanner", client =>
 {
@@ -160,6 +166,7 @@ builder.Services.AddHttpClient("AuditExternal", client =>
 // builder.Services.AddHostedService<PlcNotificationService>(); // Servicio legacy - reemplazado por PlcPollingService
 builder.Services.AddHostedService<PlcPollingService>(); // ✅ Nuevo servicio profesional
 builder.Services.AddHostedService<IntegrityVerificationService>(); // 🔐 Verificación periódica de integridad (cada 2 min)
+builder.Services.AddHostedService<BackupSchedulerService>(); // 💾 Backup automático programado (DATA MANAGEMENT)
 
 // Add logging
 builder.Services.AddLogging(logging =>
