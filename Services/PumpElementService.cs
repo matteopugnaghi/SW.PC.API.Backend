@@ -13,15 +13,19 @@ namespace SW.PC.API.Backend.Services
     {
         private readonly ILogger<PumpElementService> _logger;
         private readonly string _configFolder;
+        private readonly IWebHostEnvironment _environment;
 
         public PumpElementService(IWebHostEnvironment environment, ILogger<PumpElementService> logger)
         {
             _logger = logger;
+            _environment = environment;
             _configFolder = Path.Combine(environment.ContentRootPath, "ExcelConfigs");
 
-            if (!Directory.Exists(_configFolder))
+            // Solo crear carpeta ExcelConfigs en desarrollo - en producción debe ya existir
+            if (environment.IsDevelopment() && !Directory.Exists(_configFolder))
             {
                 Directory.CreateDirectory(_configFolder);
+                _logger.LogInformation("📁 PumpElementService: Created ExcelConfigs folder (development mode)");
             }
 
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;

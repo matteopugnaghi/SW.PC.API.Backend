@@ -312,6 +312,7 @@ namespace SW.PC.API.Backend.Services
             public string? CommitMessage { get; set; }
             public string? LatestRelease { get; set; }
             public string? LatestReleaseDate { get; set; }
+            public bool? IsSigned { get; set; }
             public string? SignatureStatus { get; set; }
             public string? SignatureSigner { get; set; }
             public string? SignatureKey { get; set; }
@@ -408,6 +409,23 @@ namespace SW.PC.API.Backend.Services
                 _logger.LogInformation("📦 Loading deploy-version.json for {Component}: v{Version} ({Sha}) - Project: {Project}", 
                     componentName, deployInfo.Version, deployInfo.CommitSha, projectDeploy.ProjectId);
 
+                // Inferir IsSigned a partir de SignatureStatus si no está explícito en el JSON
+                var signatureStatus = (deployInfo.SignatureStatus ?? "N/A").ToUpperInvariant();
+                var isSigned = deployInfo.IsSigned ?? signatureStatus switch
+                {
+                    "SIGNED" => true,
+                    "VALID" => true,
+                    "BAD" => true,      // Tiene firma pero es mala
+                    "UNTRUSTED" => true, // Tiene firma pero key no confiable
+                    "EXPIRED" => true,   // Tiene firma pero expirada
+                    "EXPIRED_KEY" => true,
+                    "REVOKED" => true,   // Tiene firma pero revocada
+                    _ => false
+                };
+
+                // Inferir SignatureType si hay firma
+                var signatureType = isSigned ? "GPG" : "none";
+
                 return new GitVersionComponent
                 {
                     Name = componentName,
@@ -422,7 +440,9 @@ namespace SW.PC.API.Backend.Services
                     CommitMessage = deployInfo.CommitMessage ?? "",
                     LatestRelease = deployInfo.LatestRelease ?? "",
                     LatestReleaseDate = deployInfo.LatestReleaseDate ?? "",
-                    SignatureStatus = deployInfo.SignatureStatus ?? "N/A",
+                    IsSigned = isSigned,
+                    SignatureStatus = signatureStatus,
+                    SignatureType = signatureType,
                     SignatureSigner = deployInfo.SignatureSigner ?? "",
                     SignatureKeyId = deployInfo.SignatureKey ?? "",
                     WorkingDirStatus = "deployed", // En producción siempre está "deployed"

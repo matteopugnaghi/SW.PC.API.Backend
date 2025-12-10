@@ -88,13 +88,10 @@ namespace SW.PC.API.Backend.Services
             _projectContext = projectContext;
             _contentRoot = env.ContentRootPath;
             
-            // Crear directorio de audit en el proyecto activo
+            // NO crear directorio aquí - se crea dinámicamente cuando se necesite en GetAuditPath()
+            // Esto evita crear carpetas legacy como wwwroot/audit si el proyecto aún no está cargado
             var auditPath = GetAuditPath();
-            if (!Directory.Exists(auditPath))
-            {
-                Directory.CreateDirectory(auditPath);
-                _logger.LogInformation("📋 Created audit log directory: {Path}", auditPath);
-            }
+            _logger.LogInformation("📋 AuditLogService initialized - Path will be: {Path}", auditPath);
             
             // Cargar configuración en background
             _ = LoadConfigurationAsync();

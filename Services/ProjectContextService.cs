@@ -372,24 +372,38 @@ Copiar el archivo ProjectConfig.xlsm a la carpeta config/ y configurar según ne
         {
             try
             {
+                // Solo crear estructura en desarrollo, no en producción
+                var isDevelopment = _environment.IsDevelopment();
+                
                 if (!Directory.Exists(_projectsRootPath))
                 {
-                    Directory.CreateDirectory(_projectsRootPath);
-                    _logger.LogInformation("📁 Created Projects directory: {Path}", _projectsRootPath);
+                    // Solo crear Projects/ si estamos en desarrollo
+                    if (isDevelopment)
+                    {
+                        Directory.CreateDirectory(_projectsRootPath);
+                        _logger.LogInformation("📁 Created Projects directory: {Path}", _projectsRootPath);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("📁 Projects directory does not exist in production: {Path}", _projectsRootPath);
+                        return; // No crear nada en producción
+                    }
                 }
                 
-                // Crear carpeta _template si no existe
-                var templatePath = Path.Combine(_projectsRootPath, "_template");
-                if (!Directory.Exists(templatePath))
+                // Solo crear _template en desarrollo
+                if (isDevelopment)
                 {
-                    Directory.CreateDirectory(templatePath);
-                    Directory.CreateDirectory(Path.Combine(templatePath, "config"));
-                    Directory.CreateDirectory(Path.Combine(templatePath, "models"));
-                    Directory.CreateDirectory(Path.Combine(templatePath, "data"));
-                    Directory.CreateDirectory(Path.Combine(templatePath, "backups"));
-                    
-                    // Crear README en template
-                    File.WriteAllText(Path.Combine(templatePath, "README.md"), @"# Plantilla de Proyecto
+                    var templatePath = Path.Combine(_projectsRootPath, "_template");
+                    if (!Directory.Exists(templatePath))
+                    {
+                        Directory.CreateDirectory(templatePath);
+                        Directory.CreateDirectory(Path.Combine(templatePath, "config"));
+                        Directory.CreateDirectory(Path.Combine(templatePath, "models"));
+                        Directory.CreateDirectory(Path.Combine(templatePath, "data"));
+                        Directory.CreateDirectory(Path.Combine(templatePath, "backups"));
+                        
+                        // Crear README en template
+                        File.WriteAllText(Path.Combine(templatePath, "README.md"), @"# Plantilla de Proyecto
 
 Esta carpeta sirve como plantilla para crear nuevos proyectos.
 
@@ -414,8 +428,9 @@ Esta carpeta sirve como plantilla para crear nuevos proyectos.
     └── *.zip                 ← Backups automáticos y manuales
 ```
 ");
-                    
-                    _logger.LogInformation("📁 Created _template directory: {Path}", templatePath);
+                        
+                        _logger.LogInformation("📁 Created _template directory: {Path}", templatePath);
+                    }
                 }
             }
             catch (Exception ex)

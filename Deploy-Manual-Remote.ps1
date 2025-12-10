@@ -304,6 +304,9 @@ function Get-GitVersionInfo {
             default { "N/A" }
         }
         
+        # Determinar si está firmado (G=good, B=bad signature, U=untrusted, X/Y=expired)
+        $isSigned = $signatureCode -in @("G", "B", "U", "X", "Y", "R")
+        
         return @{
             ComponentName = $ComponentName
             Version = if ($version) { $version } else { "0.0.0" }
@@ -316,6 +319,7 @@ function Get-GitVersionInfo {
             CommitMessage = if ($message) { $message } else { "" }
             LatestRelease = if ($latestTag) { $latestTag } else { "" }
             LatestReleaseDate = ""
+            IsSigned = $isSigned
             SignatureStatus = $signatureStatus
             SignatureSigner = if ($signatureSigner) { $signatureSigner } else { "" }
             SignatureKey = if ($signatureKey) { $signatureKey } else { "" }
@@ -509,16 +513,18 @@ Write-Header "PASO 5.1: Limpieza de archivos innecesarios"
 # 🧹 Lista de archivos/carpetas a ELIMINAR si existen de deploys anteriores
 $cleanupItems = @(
     "$RemotePath\ExcelConfigs",                           # Legacy folder (ya no se usa)
+    "$RemotePath\ExcelConfig",                            # Legacy folder sin 's' (ya no se usa)
     "$RemotePath\Backend\ExcelConfigs",                   # Legacy folder dentro de Backend
+    "$RemotePath\Backend\ExcelConfig",                    # Legacy folder sin 's' dentro de Backend
     "$RemotePath\Backend\Data",                           # Legacy folder (Aquafrisch.db ya no se usa)
     "$RemotePath\Backend\backups",                        # Legacy backups folder (ahora en Projects/{id}/backups)
     "$RemotePath\Backend\n",                              # Carpeta errónea
     "$RemotePath\Backend\wwwroot\robots.txt",             # SEO file (no necesario)
     "$RemotePath\Backend\wwwroot\asset-manifest.json",    # Debug file
     "$RemotePath\Backend\wwwroot\docs",                   # Documentación (ya en desarrollo)
-    "$RemotePath\Backend\wwwroot\audit",                  # Logs de auditoría (se generan en runtime)
+    "$RemotePath\Backend\wwwroot\audit",                  # Logs de auditoría legacy (ahora en Projects/{id}/audit)
     "$RemotePath\Backend\wwwroot\models",                 # Modelos legacy (ahora en Projects/{id}/models)
-    "$RemotePath\Backend\wwwroot\sbom",                   # SBOM generados (se regeneran en runtime)
+    "$RemotePath\Backend\wwwroot\sbom",                   # SBOM legacy (ahora en Projects/{id}/sbom)
     "$RemotePath\Backend\wwwroot\locales",                # Archivos de traducción (se copian de build)
     "$RemotePath\Backend\Projects\_template"              # Template de proyecto (solo para desarrollo)
 )

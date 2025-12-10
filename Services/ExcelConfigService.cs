@@ -47,10 +47,12 @@ namespace SW.PC.API.Backend.Services
             _environment = environment;
             _configFolder = Path.Combine(environment.ContentRootPath, "ExcelConfigs");
             
-            // Asegurar que existe la carpeta
-            if (!Directory.Exists(_configFolder))
+            // Solo crear carpeta ExcelConfigs en desarrollo - en producción debe ya existir
+            // o el proyecto usa multi-proyecto con Projects/{id}/config/
+            if (environment.IsDevelopment() && !Directory.Exists(_configFolder))
             {
                 Directory.CreateDirectory(_configFolder);
+                _logger.LogInformation("📁 ExcelConfigService: Created ExcelConfigs folder (development mode)");
             }
             
             // Configurar licencia EPPlus (NonCommercial o Commercial)
