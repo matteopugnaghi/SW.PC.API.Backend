@@ -1,5 +1,26 @@
 # 🔗 Guía de Integración Frontend-Backend
 
+## 📂 Sistema Multi-Proyecto
+
+> **Actualización Diciembre 2025**: El sistema ahora soporta múltiples proyectos con datos independientes (Excel config, modelos 3D, base de datos).
+
+### Cómo funciona
+En modo desarrollo, el frontend puede seleccionar diferentes proyectos via header `X-Project-Id`:
+
+1. **ProjectSelector** aparece en la pantalla de Login
+2. Usuario selecciona proyecto → se guarda en `localStorage`
+3. Todas las llamadas API incluyen el header `X-Project-Id`
+4. Backend responde con datos de ESE proyecto
+
+### Archivos clave:
+- `src/services/api.js` - Método `getProjectHeaders()` incluye el header
+- `src/components/ProjectSelector.js` - Selector visual de proyectos
+- `src/components/Login.js` - Integra ProjectSelector y envía headers en autenticación
+
+> 📚 Documentación completa: [Sistema Multi-Proyecto](../SW.PC.API.Backend_/docs/architecture/MULTI_PROJECT_SYSTEM.md)
+
+---
+
 ## ✅ Configuración Completada
 
 ### Backend (ASP.NET Core) - Puerto 5000

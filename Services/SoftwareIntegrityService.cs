@@ -73,6 +73,7 @@ namespace SW.PC.API.Backend.Services
     {
         private readonly ILogger<SoftwareIntegrityService> _logger;
         private readonly IConfiguration _configuration;
+        private readonly IProjectContextService _projectContext;
         private readonly object _lock = new object();
 
         // Información de versiones
@@ -89,10 +90,12 @@ namespace SW.PC.API.Backend.Services
 
         public SoftwareIntegrityService(
             ILogger<SoftwareIntegrityService> logger,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IProjectContextService projectContext)
         {
             _logger = logger;
             _configuration = configuration;
+            _projectContext = projectContext;
 
             // Rutas por defecto (auto-detectadas) - se pueden sobrescribir desde Excel
             _backendRepoPath = FindGitRoot(AppDomain.CurrentDomain.BaseDirectory) 
@@ -291,6 +294,141 @@ namespace SW.PC.API.Backend.Services
 
         #endregion
 
+        #region 📦 DEPLOY VERSION (Producción sin .git)
+
+        /// <summary>
+        /// Modelo para la información de un componente en deploy-version.json
+        /// </summary>
+        private class DeployComponentInfo
+        {
+            public string? ComponentName { get; set; }
+            public string? Version { get; set; }
+            public string? CommitSha { get; set; }
+            public string? CommitShaFull { get; set; }
+            public string? Branch { get; set; }
+            public string? CommitDate { get; set; }
+            public string? CommitAuthor { get; set; }
+            public string? CommitAuthorEmail { get; set; }
+            public string? CommitMessage { get; set; }
+            public string? LatestRelease { get; set; }
+            public string? LatestReleaseDate { get; set; }
+            public string? SignatureStatus { get; set; }
+            public string? SignatureSigner { get; set; }
+            public string? SignatureKey { get; set; }
+            public string? DeployedAt { get; set; }
+            public string? DeployedFrom { get; set; }
+            public string? DeployedBy { get; set; }
+        }
+
+        /// <summary>
+        /// Modelo completo para deploy-version.json del proyecto
+        /// </summary>
+        private class ProjectDeployVersionInfo
+        {
+            public string? ProjectId { get; set; }
+            public string? DeployedAt { get; set; }
+            public string? DeployedFrom { get; set; }
+            public string? DeployedBy { get; set; }
+            public DeployComponentInfo? Backend { get; set; }
+            public DeployComponentInfo? Frontend { get; set; }
+        }
+
+        /// <summary>
+        /// Obtener la ruta del deploy-version.json del proyecto activo
+        /// </summary>
+        private string GetProjectDeployVersionPath()
+        {
+            var projectId = _projectContext.ActiveProjectId;
+            var basePath = AppDomain.CurrentDomain.BaseDirectory;
+            
+            if (projectId != "default")
+            {
+                // Multi-proyecto: Projects/{projectId}/deploy-version.json
+                return Path.Combine(basePath, "Projects", projectId, "deploy-version.json");
+            }
+            else
+            {
+                // Legacy: deploy-version.json en raíz
+                return Path.Combine(basePath, "deploy-version.json");
+            }
+        }
+
+        /// <summary>
+        /// Intentar cargar información de versión desde deploy-version.json del proyecto
+        /// </summary>
+        private async Task<GitVersionComponent?> TryLoadDeployVersionAsync(string componentName, string ignoredPath)
+        {
+            try
+            {
+                // Usar la ruta del proyecto activo
+                var deployVersionPath = GetProjectDeployVersionPath();
+                
+                if (!File.Exists(deployVersionPath))
+                {
+                    _logger.LogDebug("📦 deploy-version.json no encontrado en: {Path}", deployVersionPath);
+                    return null;
+                }
+
+                var json = await File.ReadAllTextAsync(deployVersionPath);
+                var projectDeploy = JsonSerializer.Deserialize<ProjectDeployVersionInfo>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (projectDeploy == null)
+                {
+                    return null;
+                }
+
+                // Seleccionar el componente correcto según el nombre
+                DeployComponentInfo? deployInfo = componentName.ToLower() switch
+                {
+                    "backend" => projectDeploy.Backend,
+                    "frontend" => projectDeploy.Frontend,
+                    _ => null
+                };
+
+                if (deployInfo == null)
+                {
+                    _logger.LogDebug("📦 Componente '{Component}' no encontrado en deploy-version.json", componentName);
+                    return null;
+                }
+
+                _logger.LogInformation("📦 Loading deploy-version.json for {Component}: v{Version} ({Sha}) - Project: {Project}", 
+                    componentName, deployInfo.Version, deployInfo.CommitSha, projectDeploy.ProjectId);
+
+                return new GitVersionComponent
+                {
+                    Name = componentName,
+                    RepoPath = Path.GetDirectoryName(deployVersionPath) ?? "",
+                    Version = deployInfo.Version ?? "0.0.0",
+                    CommitSha = deployInfo.CommitSha ?? "unknown",
+                    CommitShaFull = deployInfo.CommitShaFull ?? "unknown",
+                    Branch = deployInfo.Branch ?? "deployed",
+                    CommitDate = deployInfo.CommitDate ?? "",
+                    CommitAuthor = deployInfo.CommitAuthor ?? "",
+                    CommitAuthorEmail = deployInfo.CommitAuthorEmail ?? "",
+                    CommitMessage = deployInfo.CommitMessage ?? "",
+                    LatestRelease = deployInfo.LatestRelease ?? "",
+                    LatestReleaseDate = deployInfo.LatestReleaseDate ?? "",
+                    SignatureStatus = deployInfo.SignatureStatus ?? "N/A",
+                    SignatureSigner = deployInfo.SignatureSigner ?? "",
+                    SignatureKeyId = deployInfo.SignatureKey ?? "",
+                    WorkingDirStatus = "deployed", // En producción siempre está "deployed"
+                    ModifiedFiles = 0,
+                    Integrity = "deployed", // Estado especial para producción
+                    LastVerified = projectDeploy.DeployedAt ?? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Could not load deploy-version.json from project folder");
+                return null;
+            }
+        }
+
+        #endregion
+
         private string GetDatabaseVersion()
         {
             var connectionString = _configuration.GetConnectionString("DefaultConnection");
@@ -316,7 +454,16 @@ namespace SW.PC.API.Backend.Services
 
             try
             {
-                // Verificar si es un repositorio Git
+                // 🚀 PRODUCCIÓN: Primero intentar leer deploy-version.json (generado durante deploy)
+                var deployVersionPath = Path.Combine(repoPath, "deploy-version.json");
+                var deployedComponent = await TryLoadDeployVersionAsync(name, deployVersionPath);
+                if (deployedComponent != null)
+                {
+                    _logger.LogInformation("📦 {Name}: Loaded from deploy-version.json (production mode)", name);
+                    return deployedComponent;
+                }
+
+                // 🔧 DESARROLLO: Verificar si es un repositorio Git
                 var gitDir = Path.Combine(repoPath, ".git");
                 if (!Directory.Exists(gitDir) && !File.Exists(gitDir))
                 {

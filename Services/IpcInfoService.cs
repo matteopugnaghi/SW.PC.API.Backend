@@ -183,11 +183,36 @@ public class IpcInfoService : IIpcInfoService
         try
         {
             using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
-            return key?.GetValue("ProductName")?.ToString() ?? "Windows";
+            var productName = key?.GetValue("ProductName")?.ToString() ?? "Windows";
+            
+            // 🔧 Fix: Windows 10 IoT Enterprise LTSC 2024 is actually based on Windows 11 (build 22000+)
+            // Microsoft keeps "Windows 10" in ProductName for industrial compatibility, but it's Windows 11 kernel
+            var buildNumber = GetWindowsBuildNumber();
+            if (buildNumber >= 22000 && productName.Contains("Windows 10"))
+            {
+                // Replace "Windows 10" with "Windows 11" for builds >= 22000
+                productName = productName.Replace("Windows 10", "Windows 11");
+            }
+            
+            return productName;
         }
         catch
         {
             return "Windows";
+        }
+    }
+
+    private int GetWindowsBuildNumber()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+            var buildStr = key?.GetValue("CurrentBuildNumber")?.ToString() ?? "0";
+            return int.TryParse(buildStr, out var build) ? build : 0;
+        }
+        catch
+        {
+            return 0;
         }
     }
 
