@@ -11,41 +11,83 @@
 
 ---
 
-## 📁 Estructura de Carpetas en PC Producción
+## 📁 Estructura de Carpetas en PC Producción (Multi-Proyecto)
 
 ```
 C:\Aquafrisch Supervisor\
-├── Backend\                          # Aplicación ASP.NET Core (Self-contained)
-│   ├── SW.PC.API.Backend.exe         # Ejecutable principal (incluye .NET Runtime)
-│   ├── SW.PC.API.Backend.dll         # Librería principal
-│   ├── appsettings.json              # Configuración del backend
-│   ├── certificate.pfx               # 🔒 Certificado SSL (HTTPS)
-│   ├── integrity-state.json          # Estado de integridad (EU CRA)
-│   ├── Data\                         # 📊 Base de datos
-│   │   ├── Aquafrisch.db             # SQLite (usuarios, sesiones, logs)
-│   │   └── backups\                  # Backups automáticos
-│   │       └── Aquafrisch_backup_*.db
-│   ├── wwwroot\                      # Frontend React (archivos estáticos)
-│   │   ├── index.html                # Página principal
+├── Backend\                              # Aplicación ASP.NET Core (Self-contained)
+│   ├── SW.PC.API.Backend.exe             # Ejecutable principal (incluye .NET Runtime)
+│   ├── SW.PC.API.Backend.dll             # Librería principal
+│   ├── appsettings.json                  # Configuración del backend
+│   ├── active-project.json               # 🎯 Selector de proyecto activo
+│   ├── certificate.pfx                   # 🔒 Certificado SSL (HTTPS)
+│   ├── integrity-state.json              # Estado de integridad (EU CRA)
+│   │
+│   ├── Projects/                         # 📁 MULTI-PROYECTO
+│   │   └── {ProjectId}/                  # Carpeta por proyecto (ej: A70.AMITWP)
+│   │       ├── config/                   # Configuración Excel
+│   │       │   └── ProjectConfig.xlsm
+│   │       ├── models/                   # 🎮 Modelos 3D del proyecto
+│   │       │   └── *.glb, *.gltf
+│   │       ├── data/                     # Base de datos del proyecto
+│   │       │   └── project.db
+│   │       ├── backups/                  # 💾 Backups del proyecto
+│   │       │   └── backup_*.zip
+│   │       ├── audit/                    # 📋 Logs de auditoría (EU CRA)
+│   │       │   └── audit_*.json
+│   │       └── sbom/                     # 📦 SBOM (EU CRA)
+│   │           └── sbom-combined.json
+│   │
+│   ├── wwwroot/                          # Frontend React (archivos estáticos)
+│   │   ├── index.html                    # Página principal
 │   │   ├── manifest.json
-│   │   ├── robots.txt
-│   │   ├── audit\                    # Logs de auditoría (EU CRA)
-│   │   ├── locales\                  # Traducciones (i18n)
-│   │   │   ├── en\translation.json
-│   │   │   └── es\translation.json
-│   │   ├── models\                   # 🎮 Modelos 3D (desde Backend)
-│   │   │   ├── *.glb, *.obj, *.stl
-│   │   │   └── Pumps\                # Subcarpetas de modelos
-│   │   └── static\                   # Assets compilados (React)
-│   │       ├── css\
-│   │       └── js\
+│   │   ├── locales/                      # Traducciones (i18n)
+│   │   │   ├── en/translation.json
+│   │   │   └── es/translation.json
+│   │   └── static/                       # Assets compilados (React)
+│   │       ├── css/
+│   │       └── js/
+│   │
 │   └── ... (DLLs y dependencias)
 │
-├── ExcelConfigs\                     # Configuración Excel
-│   └── ProjectConfig.xlsm            # Configuración de colores/modelos
-│
-└── Start-Supervisor.bat              # Script de inicio manual
+└── Backups/                              # Backups del deploy (automáticos)
+    └── Backup_YYYYMMDD_HHmmss/
 ```
+
+### ⚠️ Carpetas que NO deben existir en producción:
+- `Backend\publish\` - Carpeta de compilación local
+- `Backend\ExcelConfigs\` - Solo para desarrollo (legacy)
+- `Backend\Projects\_template\` - Solo para desarrollo
+- `Backend\wwwroot\audit\` - Legacy (ahora en Projects/{id}/audit)
+- `Backend\wwwroot\sbom\` - Legacy (ahora en Projects/{id}/sbom)
+- `Backend\wwwroot\models\` - Legacy (ahora en Projects/{id}/models)
+- `Backend\backups\` - Legacy (ahora en Projects/{id}/backups)
+
+---
+
+## 🎯 Sistema Multi-Proyecto
+
+### Selector de Proyecto (`active-project.json`)
+```json
+{
+  "activeProject": "A70.AMITWP"
+}
+```
+
+| Valor | Comportamiento |
+|-------|----------------|
+| `"default"` | Modo legacy (usa ExcelConfigs/, wwwroot/models/, Data/) |
+| `"A70.AMITWP"` | Multi-proyecto (usa Projects/A70.AMITWP/) |
+
+### Rutas según modo:
+| Recurso | Legacy (default) | Multi-Proyecto |
+|---------|------------------|----------------|
+| Config Excel | `ExcelConfigs/` | `Projects/{id}/config/` |
+| Modelos 3D | `wwwroot/models/` | `Projects/{id}/models/` |
+| Base de datos | `Data/Aquafrisch.db` | `Projects/{id}/data/project.db` |
+| Backups | `backups/` | `Projects/{id}/backups/` |
+| Audit logs | `wwwroot/audit/` | `Projects/{id}/audit/` |
+| SBOM | `wwwroot/sbom/` | `Projects/{id}/sbom/` |
 
 ---
 
@@ -97,19 +139,46 @@ Desde el PC de desarrollo, ejecutar:
 2. ✅ Compila el Frontend (`npm run build`)
 3. ✅ Verifica/detiene procesos existentes en PC remoto
 4. ✅ Conecta al PC remoto via SMB
-5. ✅ Crea estructura de carpetas
-6. ✅ Copia el Backend a `C:\Aquafrisch Supervisor\Backend\`
-7. ✅ Copia el Frontend (React) a `Backend\wwwroot\`
-8. ✅ **Copia Modelos 3D del Backend** a `Backend\wwwroot\models\`
-9. ✅ Copia Excel Config a `ExcelConfigs\`
-10. ✅ **Gestiona Base de Datos** (backup si existe, copia si es nueva)
-11. ✅ Copia archivos de estado (integrity-state.json)
-12. ✅ Genera certificado SSL auto-firmado (10 años validez)
-13. ✅ Configura Firewall (puertos 5000 HTTP y 5001 HTTPS)
-14. ✅ Crea acceso directo en escritorio
-15. ✅ Muestra resumen con estado de todos los archivos
+5. ✅ **Limpia carpetas residuales** (publish, ExcelConfigs legacy, _template, etc.)
+6. ✅ Crea estructura multi-proyecto (`Projects/{id}/`)
+7. ✅ Copia el Backend a `C:\Aquafrisch Supervisor\Backend\`
+8. ✅ Copia el Frontend (React) a `Backend\wwwroot\`
+9. ✅ Copia Modelos 3D a `Projects/{id}/models/` (multi-proyecto)
+10. ✅ Copia Excel Config a `Projects/{id}/config/`
+11. ✅ **Gestiona Base de Datos** (backup si existe, preserva DB existente)
+12. ✅ Copia archivo `active-project.json` (selector de proyecto)
+13. ✅ Genera `deploy-version.json` con metadatos del deploy
+14. ✅ Genera certificado SSL auto-firmado (10 años validez)
+15. ✅ Configura Firewall (puertos 5000 HTTP y 5001 HTTPS)
+16. ✅ Crea acceso directo en escritorio
+17. ✅ Muestra resumen con estado de todos los archivos
 
 > **Nota**: El deployment es **self-contained** - incluye .NET Runtime, NO requiere instalación adicional.
+
+---
+
+### 📋 Archivos copiados por el Deploy Script
+
+| Origen (Desarrollo) | Destino (Producción) | Descripción |
+|---------------------|---------------------|-------------|
+| `publish\*` | `Backend\` | Ejecutables y DLLs (.NET self-contained) |
+| `my-3d-app\build\*` | `Backend\wwwroot\` | Frontend React compilado |
+| `Projects\{id}\config\*` | `Backend\Projects\{id}\config\` | Excel de configuración |
+| `Projects\{id}\models\*` | `Backend\Projects\{id}\models\` | Modelos 3D (GLB/GLTF) |
+| `active-project.json` | `Backend\active-project.json` | Selector de proyecto activo |
+| `integrity-state.json` | `Backend\integrity-state.json` | Estado de integridad |
+| `appsettings.json` | `Backend\appsettings.json` | Solo si no existe en destino |
+| *Generado* | `Backend\deploy-version.json` | Metadatos del deploy (versión, fecha, firma) |
+| *Generado* | `Backend\certificate.pfx` | Certificado SSL (si no existe) |
+
+### 📂 Carpetas que se limpian automáticamente
+El script elimina estas carpetas residuales de versiones anteriores:
+- `Backend\publish\` - Carpeta de compilación local
+- `Backend\backups\` - Legacy (ahora en Projects/{id}/)
+- `Backend\ExcelConfigs\` - Legacy (ahora en Projects/{id}/config)
+- `Backend\Projects\_template\` - Solo para desarrollo
+- `Backend\wwwroot\audit\` - Legacy (ahora en Projects/{id}/audit)
+- `Backend\wwwroot\sbom\` - Legacy (ahora en Projects/{id}/sbom)
 
 ---
 
@@ -121,7 +190,7 @@ Desde el PC de desarrollo, ejecutar:
 ```powershell
 # Backend
 cd "c:\...\SW.PC.API.Backend_"
-dotnet publish -c Release -o .\publish
+dotnet publish -c Release -o .\publish --self-contained -r win-x64
 
 # Frontend
 cd "c:\...\SW.PC.REACT.Frontend\my-3d-app"
@@ -131,19 +200,23 @@ npm run build
 2. Copiar al PC de producción:
    - `.\publish\*` → `C:\Aquafrisch Supervisor\Backend\`
    - `.\build\*` → `C:\Aquafrisch Supervisor\Backend\wwwroot\`
+   - `.\Projects\{id}\` → `C:\Aquafrisch Supervisor\Backend\Projects\{id}\`
+   - `active-project.json` → `C:\Aquafrisch Supervisor\Backend\`
 
-#### Paso 2: Instalar .NET Runtime
-
-Si no está instalado, ejecutar en el PC de producción:
-```cmd
-C:\Aquafrisch Supervisor\Installers\aspnetcore-runtime-8.0.22-win-x64.exe /install /quiet
+#### Paso 2: Configurar Proyecto Activo
+Crear/editar `Backend\active-project.json`:
+```json
+{
+  "activeProject": "A70.AMITWP"
+}
 ```
 
 #### Paso 3: Configurar Firewall
 
 En PowerShell (como Administrador):
 ```powershell
-New-NetFirewallRule -DisplayName "Aquafrisch Supervisor" -Direction Inbound -Port 5000 -Protocol TCP -Action Allow
+New-NetFirewallRule -DisplayName "Aquafrisch Supervisor HTTP" -Direction Inbound -Port 5000 -Protocol TCP -Action Allow
+New-NetFirewallRule -DisplayName "Aquafrisch Supervisor HTTPS" -Direction Inbound -Port 5001 -Protocol TCP -Action Allow
 ```
 
 ---
@@ -333,21 +406,22 @@ Esta tabla muestra exactamente qué archivos se copian y de dónde vienen:
 | `SW.PC.API.Backend_\publish\*` | `Backend\*.exe, *.dll` | Sobrescribe siempre |
 | `my-3d-app\build\index.html, static\*` | `Backend\wwwroot\` | Sobrescribe siempre |
 | `my-3d-app\build\locales\*` | `Backend\wwwroot\locales\` | Sobrescribe siempre |
-| **`SW.PC.API.Backend_\wwwroot\models\*`** | **`Backend\wwwroot\models\`** | **Sobrescribe siempre** |
-| `SW.PC.API.Backend_\ExcelConfigs\*` | `ExcelConfigs\` | Sobrescribe siempre |
-| `SW.PC.API.Backend_\Data\Aquafrisch.db` | `Backend\Data\Aquafrisch.db` | Solo si NO existe (primera instalación) |
+| **`SW.PC.API.Backend_\Projects\{id}\models\*`** | **`Backend\Projects\{id}\models\`** | **Sobrescribe siempre** |
+| **`SW.PC.API.Backend_\Projects\{id}\config\*`** | **`Backend\Projects\{id}\config\`** | **Sobrescribe siempre** |
+| `SW.PC.API.Backend_\active-project.json` | `Backend\active-project.json` | Sobrescribe siempre |
 | `SW.PC.API.Backend_\integrity-state.json` | `Backend\integrity-state.json` | Solo si NO existe |
+| (generado) | `Backend\deploy-version.json` | Genera siempre (metadatos del deploy) |
 | (generado) | `Backend\certificate.pfx` | Solo si NO existe |
 
 ### Gestión de Base de Datos:
 
 | Escenario | Comportamiento |
 |-----------|----------------|
-| **Primera instalación** | Copia `Aquafrisch.db` desde desarrollo |
-| **Actualización** | Crea backup automático en `Data\backups\` y **preserva** la DB existente |
-| **Backups** | Se mantienen los últimos 5 backups automáticamente |
+| **Primera instalación** | Copia `Projects/{id}/data/project.db` desde desarrollo |
+| **Actualización** | Preserva la DB existente (usuarios, sesiones, logs) |
+| **Backups** | Se almacenan en `Projects/{id}/backups/` (si habilitado en Excel) |
 
-### Diagrama de flujo:
+### Diagrama de flujo (Multi-Proyecto):
 
 ```
 PC DESARROLLO                              PC PRODUCCIÓN (192.168.2.161)
@@ -357,23 +431,40 @@ SW.PC.API.Backend_\
 ├── publish\                    ────────►  C:\Aquafrisch Supervisor\Backend\
 │   └── *.exe, *.dll                       ├── SW.PC.API.Backend.exe
 │                                          ├── *.dll
-├── wwwroot\models\             ────────►  ├── wwwroot\models\
-│   ├── Box.glb                            │   ├── Box.glb
-│   ├── Pumps\*.glb                        │   ├── Pumps\*.glb
-│   └── ...                                │   └── ...
-│
-├── Data\Aquafrisch.db          ────────►  ├── Data\Aquafrisch.db (solo 1ª vez)
-│                                          │   └── backups\ (automático)
-│
-├── ExcelConfigs\               ────────►  ExcelConfigs\
-│   └── ProjectConfig.xlsm                 └── ProjectConfig.xlsm
+│                                          │
+├── Projects\                              ├── Projects\
+│   └── A70.AMITWP\             ────────►  │   └── A70.AMITWP\
+│       ├── config\                        │       ├── config\
+│       │   └── ProjectConfig.xlsm         │       │   └── ProjectConfig.xlsm
+│       ├── models\                        │       ├── models\
+│       │   └── *.glb                      │       │   └── *.glb
+│       └── data\                          │       └── data\
+│           └── project.db (1ª vez)        │           └── project.db
+│                                          │
+├── active-project.json         ────────►  ├── active-project.json
+│                                          │
+└── integrity-state.json        ────────►  └── integrity-state.json (1ª vez)
 
 my-3d-app\
 └── build\                      ────────►  Backend\wwwroot\
     ├── index.html                         ├── index.html
     ├── static\                            ├── static\
     └── locales\                           └── locales\
+
+(Generado por script)           ────────►  ├── deploy-version.json
+(Generado si no existe)         ────────►  └── certificate.pfx
 ```
+
+### Carpetas Limpiadas Automáticamente:
+
+El script elimina estas carpetas residuales antes de copiar:
+- `Backend\publish\`
+- `Backend\backups\`
+- `Backend\ExcelConfigs\`
+- `Backend\Projects\_template\`
+- `Backend\wwwroot\audit\`
+- `Backend\wwwroot\sbom\`
+
 
 > **Importante**: Los modelos 3D vienen del **Backend** (`wwwroot\models\`), NO del Frontend.
 > El Backend gestiona todo según la configuración Excel.

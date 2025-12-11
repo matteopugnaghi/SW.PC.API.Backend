@@ -88,9 +88,9 @@ namespace SW.PC.API.Backend.Services
             _projectContext = projectContext;
             _contentRoot = env.ContentRootPath;
             
-            // NO crear directorio aquí - se crea dinámicamente cuando se necesite en GetAuditPath()
-            // Esto evita crear carpetas legacy como wwwroot/audit si el proyecto aún no está cargado
-            var auditPath = GetAuditPath();
+            // NO crear directorio aquí - se crea dinámicamente cuando se necesite escribir
+            // Solo loggeamos la ruta que se usará (sin crearla)
+            var auditPath = GetAuditPathWithoutCreate();
             _logger.LogInformation("📋 AuditLogService initialized - Path will be: {Path}", auditPath);
             
             // Cargar configuración en background
@@ -101,33 +101,43 @@ namespace SW.PC.API.Backend.Services
             
             // Iniciar tarea de limpieza periódica
             _ = StartCleanupTaskAsync();
-            
-            _logger.LogInformation("📋 AuditLogService initialized - Path: {Path}", auditPath);
         }
         
         /// <summary>
-        /// Obtener la ruta de audit logs según el proyecto activo
-        /// Multi-proyecto: Projects/{projectId}/audit/
-        /// Legacy: wwwroot/audit/
+        /// Obtener la ruta de audit logs SIN crear el directorio.
+        /// Usar para logging y consultas que no requieren escritura.
         /// </summary>
-        private string GetAuditPath()
+        private string GetAuditPathWithoutCreate()
         {
             var projectId = _projectContext.ActiveProjectId;
             
             if (projectId != "default")
             {
-                // Multi-proyecto: Projects/{projectId}/audit/
-                var projectAuditPath = Path.Combine(_contentRoot, "Projects", projectId, "audit");
-                Directory.CreateDirectory(projectAuditPath);
-                return projectAuditPath;
+                return Path.Combine(_contentRoot, "Projects", projectId, "audit");
             }
             else
             {
-                // Legacy: wwwroot/audit/
-                var legacyAuditPath = Path.Combine(_contentRoot, "wwwroot", "audit");
-                Directory.CreateDirectory(legacyAuditPath);
-                return legacyAuditPath;
+                return Path.Combine(_contentRoot, "wwwroot", "audit");
             }
+        }
+        
+        /// <summary>
+        /// Obtener la ruta de audit logs Y crear el directorio si no existe.
+        /// Usar cuando se necesita escribir archivos.
+        /// Multi-proyecto: Projects/{projectId}/audit/
+        /// Legacy: wwwroot/audit/
+        /// </summary>
+        private string GetAuditPath()
+        {
+            var path = GetAuditPathWithoutCreate();
+            
+            if (!Directory.Exists(path))
+            {
+                Directory.CreateDirectory(path);
+                _logger.LogInformation("📁 Created audit directory: {Path}", path);
+            }
+            
+            return path;
         }
 
         /// <summary>
@@ -502,10 +512,11 @@ namespace SW.PC.API.Backend.Services
         {
             await FlushCacheAsync();
 
+            var auditPath = GetAuditPathWithoutCreate();
             var status = new AuditLogStatus
             {
                 IsEnabled = _isEnabled,
-                StoragePath = GetAuditPath(),
+                StoragePath = auditPath,
                 RetentionDays = _retentionDays,
                 SignatureEnabled = _signatureEnabled,
                 ExternalEnabled = _externalEnabled,
@@ -538,9 +549,9 @@ namespace SW.PC.API.Backend.Services
                         .ToDictionary(g => g.Key, g => g.Count());
                 }
 
-                if (Directory.Exists(GetAuditPath()))
+                if (Directory.Exists(auditPath))
                 {
-                    var files = Directory.GetFiles(GetAuditPath(), "*.json");
+                    var files = Directory.GetFiles(auditPath, "*.json");
                     status.StorageSizeBytes = files.Sum(f => new FileInfo(f).Length);
                 }
             }

@@ -935,13 +935,27 @@ namespace SW.PC.API.Backend.Services
                 var projectPaths = GetProjectPaths(projectId);
                 var excelPath = Path.Combine(projectPaths.ConfigPath, "ProjectConfig.xlsm");
                 
-                // Si no existe el Excel, devolver defaults
+                // Si no existe el Excel, devolver defaults con backup DESHABILITADO
+                // para no crear carpetas innecesarias en producción
                 if (!File.Exists(excelPath))
                 {
-                    _logger.LogDebug("Excel config not found for project {ProjectId}, using backup defaults", projectId);
+                    _logger.LogDebug("Excel config not found for project {ProjectId}, returning disabled backup config", projectId);
+                    return new BackupConfig
+                    {
+                        Enabled = false, // DESHABILITADO por defecto hasta que se configure explícitamente
+                        IntervalHours = 0,
+                        RetentionDays = 30,
+                        SignEnabled = true,
+                        RemoteEnabled = false,
+                        RemoteUrl = null,
+                        RemoteApiKey = null,
+                        BackupBeforeRestore = true,
+                        MaxBackups = 10
+                    };
                 }
                 
                 // Valores por defecto hasta que se implementen los campos en Excel
+                // Si el Excel existe, habilitamos backup con valores razonables
                 return new BackupConfig
                 {
                     Enabled = true,
@@ -957,7 +971,7 @@ namespace SW.PC.API.Backend.Services
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Error reading backup config, using defaults");
+                _logger.LogWarning(ex, "Error reading backup config, using defaults");;
                 return new BackupConfig();
             }
         }

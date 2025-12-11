@@ -176,3 +176,59 @@ public class AntivirusProduct
     public bool IsUpToDate { get; set; }
     public string ProductType { get; set; } = "";    // Antivirus, Firewall, AntiSpyware
 }
+
+// ==================== Network Ports (CRA Compliance) ====================
+
+/// <summary>
+/// Open network ports information for CRA compliance
+/// Provides visibility into which ports are open and what's listening
+/// </summary>
+public class NetworkPortsInfo
+{
+    public DateTime CollectedAt { get; set; } = DateTime.UtcNow;
+    public int TotalListeningPorts { get; set; }
+    public int TotalEstablishedConnections { get; set; }
+    public List<OpenPort> ListeningPorts { get; set; } = new();
+    public List<EstablishedConnection> EstablishedConnections { get; set; } = new();
+    public List<PortsByAdapter> PortsByAdapter { get; set; } = new();
+}
+
+/// <summary>
+/// Open listening port information
+/// </summary>
+public class OpenPort
+{
+    public string Protocol { get; set; } = "";       // TCP, UDP
+    public string LocalAddress { get; set; } = "";   // IP address
+    public int LocalPort { get; set; }               // Port number
+    public string State { get; set; } = "";          // Listen, Established, etc.
+    public int? ProcessId { get; set; }              // Process ID using this port
+    public string ProcessName { get; set; } = "";    // Process name (if available)
+    public string ServiceName { get; set; } = "";    // Known service name (HTTP, HTTPS, etc.)
+}
+
+/// <summary>
+/// Established connection information
+/// </summary>
+public class EstablishedConnection
+{
+    public string Protocol { get; set; } = "TCP";
+    public string LocalAddress { get; set; } = "";
+    public int LocalPort { get; set; }
+    public string RemoteAddress { get; set; } = "";
+    public int RemotePort { get; set; }
+    public string State { get; set; } = "";
+    public int? ProcessId { get; set; }
+    public string ProcessName { get; set; } = "";
+}
+
+/// <summary>
+/// Ports grouped by network adapter
+/// </summary>
+public class PortsByAdapter
+{
+    public string AdapterName { get; set; } = "";
+    public string IpAddress { get; set; } = "";
+    public List<OpenPort> ListeningPorts { get; set; } = new();
+    public List<EstablishedConnection> EstablishedConnections { get; set; } = new();
+}

@@ -173,4 +173,36 @@ public class IpcInfoController : ControllerBase
             return StatusCode(500, new { error = "Failed to get network info", message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Get open network ports (CRA Compliance)
+    /// Provides visibility into which ports are open and what processes are listening
+    /// </summary>
+    /// <returns>Network ports information including TCP/UDP listeners and established connections</returns>
+    [HttpGet("ports")]
+    [ProducesResponseType(typeof(NetworkPortsInfo), StatusCodes.Status200OK)]
+    public async Task<ActionResult<NetworkPortsInfo>> GetNetworkPorts()
+    {
+        try
+        {
+            var excelPath = _projectContext.ExcelConfigPath;
+            var config = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
+            if (!config.IpcInfoEnabled)
+            {
+                return Ok(new { 
+                    error = "IPC Info disabled",
+                    message = "Set IpcInfoEnabled=true in Excel SystemConfig sheet",
+                    isEnabled = false
+                });
+            }
+
+            var ports = await _ipcInfoService.GetNetworkPortsAsync();
+            return Ok(ports);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting network ports");
+            return StatusCode(500, new { error = "Failed to get network ports", message = ex.Message });
+        }
+    }
 }

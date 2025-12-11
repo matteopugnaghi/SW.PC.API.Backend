@@ -220,14 +220,17 @@ policy.WithOrigins("http://localhost:3001", "http://localhost:3000", "http://loc
 |---------------------|--------------------------|-------|
 | `publish\*` | `Backend\*.exe,dll` | Self-contained (includes .NET) |
 | `Projects\{id}\*` | `Backend\Projects\{id}\` | **Project-specific files** |
-| `wwwroot\models\*` | `Backend\wwwroot\models\` | Legacy mode 3D models |
-| `ExcelConfigs\*` | `Backend\ExcelConfigs\` | Legacy mode configuration |
-| `Data\Aquafrisch.db` | `Backend\Data\` | Legacy mode database |
-| `my-3d-app\build\*` | `Backend\wwwroot\` | React frontend (html, js, css) |
 | `active-project.json` | `Backend\active-project.json` | **Project selector** |
+| `my-3d-app\build\*` | `Backend\wwwroot\` | React frontend (html, js, css) |
+| *(generated)* | `Backend\deploy-version.json` | **Deploy metadata (IsSigned, version, date)** |
 
-> **Important**: In multi-project mode, 3D models come from `Projects/{id}/models/`.
-> In legacy mode (default), they come from `wwwroot/models/`.
+> **Important**: In multi-project mode, 3D models/config/data come from `Projects/{id}/`.
+> Legacy mode (`default`) uses `wwwroot/models/`, `ExcelConfigs/`, `Data/`.
+
+### Residual Folders Cleaned by Deploy Script
+The script removes these legacy folders from production:
+- `Backend\publish\`, `Backend\backups\`, `Backend\ExcelConfigs\`
+- `Backend\Projects\_template\`, `Backend\wwwroot\audit\`, `Backend\wwwroot\sbom\`
 
 ### Production URLs
 - HTTP: `http://192.168.2.161:5000`
@@ -239,7 +242,7 @@ All technical documentation is organized in the `docs/` folder:
 
 | Folder | Content |
 |--------|---------|
-| `docs/architecture/` | System architecture, logs, 3D models |
+| `docs/architecture/` | System architecture, **SOFTWARE_INTEGRITY**, DATA_MANAGEMENT, logs, 3D models |
 | `docs/compliance/` | EU CRA compliance, security, terceros |
 | `docs/development/` | API examples, integration guides, troubleshooting |
 | `docs/configuration/` | Excel mapping, SystemConfig |
@@ -247,6 +250,11 @@ All technical documentation is organized in the `docs/` folder:
 | `docs/user-guides/` | End-user manuals (EU CRA Anexo II) |
 | `docs/internal/` | ⚠️ Internal only - credentials, processes |
 | `docs/changelog/` | Integration status, work logs |
+
+### Key Documentation Files
+- **SOFTWARE_INTEGRITY.md** - Panel indicators (lights), badges (SIGNED/DEPLOYED), system status
+- **DATA_MANAGEMENT.md** - Backup system, restore, export/import
+- **INSTALACION_PRODUCCION.md** - Complete deploy guide with file mapping
 
 **Key docs**: `docs/README.md` (index), `docs/compliance/ROADMAP_CUMPLIMIENTO_CRA.md`
 

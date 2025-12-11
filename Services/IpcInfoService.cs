@@ -20,6 +20,9 @@ public interface IIpcInfoService
     
     /// <summary>Get quick summary (for frequent polling)</summary>
     Task<IpcQuickStatus> GetQuickStatusAsync();
+    
+    /// <summary>Get network ports information (CRA compliance)</summary>
+    Task<NetworkPortsInfo> GetNetworkPortsAsync();
 }
 
 /// <summary>
@@ -794,5 +797,289 @@ public class IpcInfoService : IIpcInfoService
         if (uptime.TotalDays >= 1)
             return $"{(int)uptime.TotalDays}d {uptime.Hours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
         return $"{uptime.Hours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
+    }
+
+    // ==================== Network Ports (CRA Compliance) ====================
+
+    /// <summary>
+    /// Get open network ports information for CRA compliance
+    /// </summary>
+    public async Task<NetworkPortsInfo> GetNetworkPortsAsync()
+    {
+        _logger.LogInformation("🔌 Collecting network ports information...");
+
+        var info = new NetworkPortsInfo
+        {
+            CollectedAt = DateTime.UtcNow
+        };
+
+        try
+        {
+            // Get network adapters IP addresses for mapping
+            var adapterIps = GetAdapterIpMapping();
+
+            // Get TCP connections
+            var tcpConnections = System.Net.NetworkInformation.IPGlobalProperties
+                .GetIPGlobalProperties()
+                .GetActiveTcpConnections();
+
+            // Get TCP listeners
+            var tcpListeners = System.Net.NetworkInformation.IPGlobalProperties
+                .GetIPGlobalProperties()
+                .GetActiveTcpListeners();
+
+            // Get UDP listeners
+            var udpListeners = System.Net.NetworkInformation.IPGlobalProperties
+                .GetIPGlobalProperties()
+                .GetActiveUdpListeners();
+
+            // Process TCP Listeners
+            foreach (var endpoint in tcpListeners)
+            {
+                var port = new OpenPort
+                {
+                    Protocol = "TCP",
+                    LocalAddress = endpoint.Address.ToString(),
+                    LocalPort = endpoint.Port,
+                    State = "LISTENING",
+                    ServiceName = GetKnownServiceName(endpoint.Port, "TCP")
+                };
+
+                // Try to get process info
+                await TryGetProcessInfoForPort(port, endpoint.Port, "TCP");
+                info.ListeningPorts.Add(port);
+            }
+
+            // Process UDP Listeners
+            foreach (var endpoint in udpListeners)
+            {
+                var port = new OpenPort
+                {
+                    Protocol = "UDP",
+                    LocalAddress = endpoint.Address.ToString(),
+                    LocalPort = endpoint.Port,
+                    State = "LISTENING",
+                    ServiceName = GetKnownServiceName(endpoint.Port, "UDP")
+                };
+
+                await TryGetProcessInfoForPort(port, endpoint.Port, "UDP");
+                info.ListeningPorts.Add(port);
+            }
+
+            // Process established connections
+            foreach (var conn in tcpConnections)
+            {
+                var established = new EstablishedConnection
+                {
+                    Protocol = "TCP",
+                    LocalAddress = conn.LocalEndPoint.Address.ToString(),
+                    LocalPort = conn.LocalEndPoint.Port,
+                    RemoteAddress = conn.RemoteEndPoint.Address.ToString(),
+                    RemotePort = conn.RemoteEndPoint.Port,
+                    State = conn.State.ToString()
+                };
+
+                info.EstablishedConnections.Add(established);
+            }
+
+            // Group by adapter
+            info.PortsByAdapter = GroupPortsByAdapter(info.ListeningPorts, info.EstablishedConnections, adapterIps);
+
+            info.TotalListeningPorts = info.ListeningPorts.Count;
+            info.TotalEstablishedConnections = info.EstablishedConnections.Count;
+
+            _logger.LogInformation("🔌 Network ports collected: {Listening} listening, {Established} established",
+                info.TotalListeningPorts, info.TotalEstablishedConnections);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error collecting network ports");
+        }
+
+        return info;
+    }
+
+    private Dictionary<string, string> GetAdapterIpMapping()
+    {
+        var mapping = new Dictionary<string, string>();
+        
+        try
+        {
+            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                    continue;
+
+                var ipProps = nic.GetIPProperties();
+                foreach (var addr in ipProps.UnicastAddresses)
+                {
+                    if (addr.Address.AddressFamily == AddressFamily.InterNetwork)
+                    {
+                        mapping[addr.Address.ToString()] = nic.Name;
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // Add special addresses
+        mapping["0.0.0.0"] = "All Interfaces";
+        mapping["127.0.0.1"] = "Localhost";
+        mapping["::"] = "All IPv6";
+        mapping["::1"] = "Localhost IPv6";
+
+        return mapping;
+    }
+
+    private string GetKnownServiceName(int port, string protocol)
+    {
+        return port switch
+        {
+            // Web & API
+            80 => "HTTP",
+            443 => "HTTPS",
+            8080 => "HTTP-ALT",
+            5000 => "ASP.NET HTTP",
+            5001 => "ASP.NET HTTPS",
+            3000 => "React Dev",
+            3001 => "React Dev Alt",
+            
+            // Database
+            1433 => "SQL Server",
+            3306 => "MySQL",
+            5432 => "PostgreSQL",
+            27017 => "MongoDB",
+            
+            // Industrial
+            502 => "Modbus TCP",
+            851 => "TwinCAT ADS",
+            48898 => "TwinCAT ADS Router",
+            4840 => "OPC UA",
+            102 => "S7 (Siemens)",
+            
+            // Remote Access
+            22 => "SSH",
+            23 => "Telnet",
+            3389 => "RDP",
+            5900 => "VNC",
+            
+            // File Transfer
+            20 => "FTP Data",
+            21 => "FTP Control",
+            445 => "SMB/CIFS",
+            139 => "NetBIOS",
+            
+            // Network Services
+            53 => "DNS",
+            67 => "DHCP Server",
+            68 => "DHCP Client",
+            123 => "NTP",
+            161 => "SNMP",
+            
+            // Other
+            25 => "SMTP",
+            110 => "POP3",
+            143 => "IMAP",
+            
+            _ => ""
+        };
+    }
+
+    private async Task TryGetProcessInfoForPort(OpenPort port, int portNumber, string protocol)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return;
+
+        try
+        {
+            // Use netstat to get process ID
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "netstat",
+                Arguments = "-ano",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process == null) return;
+
+            var output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            // Parse output to find matching port
+            var lines = output.Split('\n');
+            foreach (var line in lines)
+            {
+                if (line.Contains($":{portNumber}") && 
+                    line.Contains(protocol, StringComparison.OrdinalIgnoreCase) &&
+                    line.Contains("LISTENING", StringComparison.OrdinalIgnoreCase))
+                {
+                    var parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 5 && int.TryParse(parts[^1], out var pid))
+                    {
+                        port.ProcessId = pid;
+                        try
+                        {
+                            var proc = Process.GetProcessById(pid);
+                            port.ProcessName = proc.ProcessName;
+                        }
+                        catch { }
+                        break;
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
+    private List<PortsByAdapter> GroupPortsByAdapter(
+        List<OpenPort> listeningPorts,
+        List<EstablishedConnection> connections,
+        Dictionary<string, string> adapterIps)
+    {
+        var result = new List<PortsByAdapter>();
+        var grouped = new Dictionary<string, PortsByAdapter>();
+
+        // Group listening ports
+        foreach (var port in listeningPorts)
+        {
+            var adapterName = adapterIps.TryGetValue(port.LocalAddress, out var name) 
+                ? name 
+                : port.LocalAddress;
+
+            if (!grouped.ContainsKey(adapterName))
+            {
+                grouped[adapterName] = new PortsByAdapter
+                {
+                    AdapterName = adapterName,
+                    IpAddress = port.LocalAddress
+                };
+            }
+
+            grouped[adapterName].ListeningPorts.Add(port);
+        }
+
+        // Group established connections
+        foreach (var conn in connections)
+        {
+            var adapterName = adapterIps.TryGetValue(conn.LocalAddress, out var name) 
+                ? name 
+                : conn.LocalAddress;
+
+            if (!grouped.ContainsKey(adapterName))
+            {
+                grouped[adapterName] = new PortsByAdapter
+                {
+                    AdapterName = adapterName,
+                    IpAddress = conn.LocalAddress
+                };
+            }
+
+            grouped[adapterName].EstablishedConnections.Add(conn);
+        }
+
+        return grouped.Values.OrderBy(a => a.AdapterName).ToList();
     }
 }

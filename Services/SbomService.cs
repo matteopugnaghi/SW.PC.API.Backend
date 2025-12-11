@@ -77,6 +77,7 @@ public class SbomService : ISbomService
     /// Get SBOM output path based on active project
     /// In production: Projects/{projectId}/sbom/
     /// In development: wwwroot/sbom/ (for legacy compatibility)
+    /// NOTE: This method does NOT create the directory - call EnsureSbomDirectoryExists() before writing
     /// </summary>
     private string GetSbomOutputPath()
     {
@@ -85,16 +86,24 @@ public class SbomService : ISbomService
         if (projectId != "default")
         {
             // Multi-proyecto: Projects/{projectId}/sbom/
-            var projectSbomPath = Path.Combine(_contentRoot, "Projects", projectId, "sbom");
-            Directory.CreateDirectory(projectSbomPath);
-            return projectSbomPath;
+            return Path.Combine(_contentRoot, "Projects", projectId, "sbom");
         }
         else
         {
             // Legacy: wwwroot/sbom/
-            var legacySbomPath = Path.Combine(_contentRoot, "wwwroot", "sbom");
-            Directory.CreateDirectory(legacySbomPath);
-            return legacySbomPath;
+            return Path.Combine(_contentRoot, "wwwroot", "sbom");
+        }
+    }
+    
+    /// <summary>
+    /// Ensure SBOM output directory exists (call before writing files)
+    /// </summary>
+    private void EnsureSbomDirectoryExists(string sbomPath)
+    {
+        if (!Directory.Exists(sbomPath))
+        {
+            Directory.CreateDirectory(sbomPath);
+            _logger.LogInformation("📁 Created SBOM directory: {Path}", sbomPath);
         }
     }
 
@@ -251,12 +260,13 @@ public class SbomService : ISbomService
             
             // Save combined SBOM
             var sbomOutputPath = GetSbomOutputPath();
+            EnsureSbomDirectoryExists(sbomOutputPath); // Crear directorio solo cuando vamos a escribir
             var combinedPath = Path.Combine(sbomOutputPath, "sbom-combined.json");
             await File.WriteAllTextAsync(combinedPath, sbomJson);
             
             // Save timestamped version for history
             var historyPath = Path.Combine(sbomOutputPath, "history");
-            Directory.CreateDirectory(historyPath);
+            EnsureSbomDirectoryExists(historyPath); // Crear subdirectorio history
             var timestampedPath = Path.Combine(historyPath, $"sbom-{DateTime.UtcNow:yyyy-MM-dd-HHmmss}.json");
             await File.WriteAllTextAsync(timestampedPath, sbomJson);
             

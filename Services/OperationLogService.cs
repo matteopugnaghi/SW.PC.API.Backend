@@ -206,17 +206,25 @@ namespace SW.PC.API.Backend.Services
             _logger = logger;
             _logPath = Path.Combine(env.WebRootPath ?? "wwwroot", "logs", "operations");
             
-            // Crear directorio si no existe
-            if (!Directory.Exists(_logPath))
-            {
-                Directory.CreateDirectory(_logPath);
-                _logger.LogInformation("📋 Created operation log directory: {Path}", _logPath);
-            }
+            // No crear directorios en el constructor - solo crearlos cuando sea necesario escribir
+            // Esto evita crear carpetas innecesarias en producción al inicio
             
             // Iniciar tarea de limpieza periódica
             _ = StartCleanupTaskAsync();
             
             _logger.LogInformation("📋 OperationLogService initialized - Path: {Path}", _logPath);
+        }
+        
+        /// <summary>
+        /// Asegurar que el directorio de logs existe (llamar antes de escribir)
+        /// </summary>
+        private void EnsureLogDirectoryExists()
+        {
+            if (!Directory.Exists(_logPath))
+            {
+                Directory.CreateDirectory(_logPath);
+                _logger.LogInformation("📋 Created operation log directory: {Path}", _logPath);
+            }
         }
 
         /// <summary>
@@ -444,6 +452,9 @@ namespace SW.PC.API.Backend.Services
                 }
 
                 if (entries.Count == 0) return;
+
+                // Asegurar que el directorio existe antes de escribir
+                EnsureLogDirectoryExists();
 
                 var fileName = $"operations_{DateTime.UtcNow:yyyyMMdd}.json";
                 var filePath = Path.Combine(_logPath, fileName);

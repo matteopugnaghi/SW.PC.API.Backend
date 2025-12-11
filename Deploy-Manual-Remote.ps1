@@ -665,6 +665,24 @@ if (-not (Test-Path $publishPath)) {
     exit 1
 }
 
+# 🧹 Limpiar carpetas residuales que NO deberían existir en producción
+Write-Step "Limpiando carpetas residuales en destino..."
+$residualFolders = @(
+    "$RemotePath\Backend\publish",              # Carpeta publish mal copiada
+    "$RemotePath\Backend\backups",              # Creada por BackupScheduler si estaba mal configurado
+    "$RemotePath\Backend\ExcelConfigs",         # Solo para desarrollo
+    "$RemotePath\Backend\Projects\_template",   # Solo para desarrollo
+    "$RemotePath\Backend\wwwroot\audit",        # Legacy - ahora en Projects/{id}/audit
+    "$RemotePath\Backend\wwwroot\sbom",         # Legacy - ahora en Projects/{id}/sbom
+    "$RemotePath\Backend\wwwroot\logs"          # Legacy - logs van en Projects/{id}/ o se crean dinámicamente
+)
+foreach ($folder in $residualFolders) {
+    if (Test-Path $folder) {
+        Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Info "🧹 Eliminada carpeta residual: $($folder | Split-Path -Leaf)"
+    }
+}
+
 Write-Step "Copiando archivos del backend..."
 $backendFiles = Get-ChildItem -Path $publishPath -Recurse
 $totalFiles = $backendFiles.Count
@@ -998,12 +1016,9 @@ if ((Test-Path $integritySource) -and -not (Test-Path $integrityDest)) {
     Write-Info "integrity-state.json preservado en destino"
 }
 
-# Crear carpeta audit si no existe
-$auditDir = "$RemotePath\Backend\wwwroot\audit"
-if (-not (Test-Path $auditDir)) {
-    New-Item -ItemType Directory -Path $auditDir -Force | Out-Null
-    Write-Info "Carpeta audit creada"
-}
+# NOTA: La carpeta wwwroot/audit ya NO se crea aquí
+# Los audit logs ahora van en Projects/{projectId}/audit/ (multi-proyecto)
+# y se crean dinámicamente cuando el backend necesita escribir logs
 
 # ============================================================
 # PASO 9.4: Generar certificado SSL autofirmado

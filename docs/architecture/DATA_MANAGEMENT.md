@@ -276,11 +276,41 @@ const handleDrop = async (e) => {
 
 | Parámetro | Descripción | Default |
 |-----------|-------------|---------|
-| BackupEnabled | Habilita sistema de backup | true |
+| BackupEnabled | Habilita sistema de backup | **false** |
 | BackupMaxCount | Número máximo de backups | 10 |
 | BackupRetentionDays | Días de retención | 30 |
 | BackupAutoEnabled | Backup automático | false |
 | BackupAutoIntervalHours | Intervalo auto-backup | 24 |
+
+### ⚠️ Comportamiento por Defecto
+
+**IMPORTANTE**: Si no existe el archivo Excel de configuración (`ProjectConfig.xlsm`), el sistema usa valores por defecto **seguros**:
+
+```csharp
+// BackupService.GetBackupConfigAsync()
+if (!excelConfigExists)
+{
+    return new BackupConfig
+    {
+        Enabled = false,       // ← Backups DESHABILITADOS por defecto
+        MaxBackups = 10,
+        RetentionDays = 30,
+        AutoBackupEnabled = false,
+        AutoBackupIntervalHours = 24
+    };
+}
+```
+
+**Razón**: En producción, el sistema no debe crear carpetas ni archivos automáticamente sin configuración explícita. Esto cumple con el principio de "mínimos privilegios" y evita comportamientos inesperados.
+
+### Habilitar Backups
+
+Para habilitar backups, crear la hoja `SystemConfig` en el Excel con:
+
+| Parameter | Value |
+|-----------|-------|
+| BackupEnabled | true |
+| BackupMaxCount | 10 |
 
 ---
 
