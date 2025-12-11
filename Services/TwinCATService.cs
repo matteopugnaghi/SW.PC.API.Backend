@@ -27,7 +27,7 @@ namespace SW.PC.API.Backend.Services
         private readonly AdsConfiguration _config;
         private AdsClient? _adsClient;  // ✅ CLASE CORRECTA de Beckhoff 6.x
         private bool _isConnected;
-        private bool _isSimulatedMode = true;  // ✅ Por defecto SIMULADO hasta conexión exitosa
+        private bool _isSimulatedMode = false;  // ⚡ Por defecto FALSE - simulación es opcional
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> _simulatedVariables = new();
         private readonly Random _random = new();
         
@@ -226,24 +226,36 @@ namespace SW.PC.API.Backend.Services
         
         private readonly bool _forceSimulatedMode = false; // Forzar modo simulado desde Excel
         
-        public TwinCATService(IConfiguration configuration, ILogger<TwinCATService> logger, IExcelConfigService excelConfig)
+        public TwinCATService(IConfiguration configuration, ILogger<TwinCATService> logger, IExcelConfigService excelConfig, IProjectContextService projectContext)
         {
             _logger = logger;
             
-            // Cargar configuración desde Excel (prioridad) o appsettings.json (fallback)
+            // Cargar configuración desde Excel del PROYECTO ACTIVO (prioridad) o legacy/fallback
             SystemConfiguration? systemConfig = null;
             try
             {
+                // ⭐ PRIMERO: Usar el sistema multi-proyecto para obtener la ruta correcta
+                var projectExcelPath = Path.Combine(projectContext.ConfigPath, "ProjectConfig.xlsm");
+                
+                // Fallback: rutas legacy si el proyecto es "default" o no existe
                 var possiblePaths = new[]
                 {
+                    projectExcelPath, // ⭐ Ruta del proyecto activo (PRIORIDAD)
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExcelConfigs", "ProjectConfig.xlsm"),
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "ExcelConfigs", "ProjectConfig.xlsm"),
                     @"ExcelConfigs\ProjectConfig.xlsm"
                 };
+                
                 var excelPath = possiblePaths.FirstOrDefault(File.Exists);
                 if (excelPath != null)
                 {
+                    _logger.LogInformation("📂 TwinCATService cargando configuración desde: {Path} (proyecto: {Project})", 
+                        excelPath, projectContext.ActiveProjectId);
                     systemConfig = excelConfig.LoadSystemConfigurationAsync(excelPath).GetAwaiter().GetResult();
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ No se encontró ProjectConfig.xlsm en ninguna ubicación");
                 }
             }
             catch (Exception ex)
@@ -263,6 +275,10 @@ namespace SW.PC.API.Backend.Services
             _forceSimulatedMode = systemConfig?.UseSimulatedPlc ?? false;
             _isSimulatedMode = _forceSimulatedMode; // Inicializar con el valor de Excel
             
+            // 📊 Log detallado del valor leído
+            _logger.LogInformation("📊 UseSimulatedPlc leído desde Excel: {Value} (systemConfig null: {IsNull})", 
+                _forceSimulatedMode, systemConfig == null);
+            
             if (_forceSimulatedMode)
             {
                 _logger.LogWarning("🎮 TwinCATService en MODO SIMULADO (configurado en Excel: UseSimulatedPlc=TRUE)");
@@ -270,7 +286,7 @@ namespace SW.PC.API.Backend.Services
             }
             else
             {
-                _logger.LogInformation("🔧 TwinCATService initialized - Target: {NetId}:{Port}", _config.NetId, _config.Port);
+                _logger.LogInformation("🔧 TwinCATService initialized - Target: {NetId}:{Port} - UseSimulatedPlc=FALSE", _config.NetId, _config.Port);
             }
             
             // Inicializar variables simuladas (fallback)
@@ -327,15 +343,16 @@ namespace SW.PC.API.Backend.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "❌ Cannot connect to REAL TwinCAT PLC - FALLING BACK to simulated mode");
+                    _logger.LogError(ex, "❌ Cannot connect to REAL TwinCAT PLC at {NetId}:{Port}", 
+                        _config.NetId, _config.Port);
                     
-                    // Fallback a modo simulado
-                    await Task.Delay(100);
-                    _isConnected = true;
-                    _isSimulatedMode = true;
-                    _logger.LogWarning("⚠️ Using SIMULATED TwinCAT service - no real PLC connection");
+                    // ⛔ NO hacer fallback a simulado si UseSimulatedPlc=FALSE
+                    // El usuario configuró explícitamente que quiere PLC real
+                    _isConnected = false;
+                    _isSimulatedMode = false;
+                    _logger.LogError("⛔ UseSimulatedPlc=FALSE - NO se usará modo simulado. Verifique la conexión al PLC.");
                     
-                    return true;
+                    return false;
                 }
             }
             catch (Exception ex)

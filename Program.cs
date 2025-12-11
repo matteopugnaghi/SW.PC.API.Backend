@@ -390,7 +390,18 @@ using (var scope = app.Services.CreateScope())
         }
         else
         {
-            logger.LogWarning("⚠️ TwinCAT Service failed to connect");
+            logger.LogWarning("⚠️ TwinCAT Service failed to connect - updating status as DISCONNECTED");
+            
+            // 🔐 Actualizar estado como DESCONECTADO (no simulado)
+            var integrityService = app.Services.GetRequiredService<ISoftwareIntegrityService>();
+            var twinCatInfo = twinCATService.GetVersionInfo();
+            integrityService.UpdateTwinCATRuntimeInfo(
+                "Connection Failed",
+                twinCatInfo.AdsVersion,
+                false,  // isConnected = false
+                false,  // isSimulated = false (NO es simulado, es que falló la conexión)
+                0
+            );
         }
     }
     catch (Exception ex)
