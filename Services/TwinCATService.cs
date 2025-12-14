@@ -31,6 +31,10 @@ namespace SW.PC.API.Backend.Services
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> _simulatedVariables = new();
         private readonly Random _random = new();
         
+        // 🔴 Cache de variables que fallan - evitar reintentar constantemente
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _failedVariables = new();
+        private readonly TimeSpan _failedVariableRetryInterval = TimeSpan.FromMinutes(1); // Reintentar cada minuto
+        
         public event EventHandler<PlcNotification>? OnVariableChanged;
         
         public bool IsConnected => _isConnected;
@@ -412,6 +416,18 @@ namespace SW.PC.API.Backend.Services
                 throw new InvalidOperationException("Not connected to PLC");
             }
             
+            // 🔴 Si esta variable falló recientemente, saltar para evitar spam de errores
+            if (_failedVariables.TryGetValue(variableName, out var failedAt))
+            {
+                if (DateTime.UtcNow - failedAt < _failedVariableRetryInterval)
+                {
+                    // Devolver null silenciosamente - la variable no existe o falla
+                    return null;
+                }
+                // Ya pasó el tiempo de espera, quitar del cache y reintentar
+                _failedVariables.TryRemove(variableName, out _);
+            }
+            
             // Si está en modo REAL (no simulado), intentar leer del PLC real
             if (!_isSimulatedMode && _adsClient != null)
             {
@@ -473,26 +489,31 @@ namespace SW.PC.API.Backend.Services
                 }
                 catch (TwinCAT.Ads.AdsErrorException ex) when ((int)ex.ErrorCode == 1808)
                 {
-                    // Variable no existe en PLC - usar simulado sin loguear error (es esperado)
-                    _logger.LogDebug("📝 Variable {Var} no existe en PLC real, usando valor simulado", variableName);
-                    // Continuar al bloque de simulación
+                    // Variable no existe en PLC - Código 1808 = ADS_E_SYMBOLNOTFOUND
+                    // Agregar al cache de variables fallidas para no reintentar
+                    _failedVariables[variableName] = DateTime.UtcNow;
+                    
+                    // Log solo una vez (se silenciará por 1 minuto)
+                    _logger.LogWarning("⚠️ Variable NO EXISTE en PLC: {Var} - Silenciando por 1 minuto", variableName);
+                    return null;
                 }
                 catch (TwinCAT.Ads.AdsErrorException ex)
                 {
-                    // Error de comunicación ADS - posible desconexión
-                    _logger.LogError(ex, "❌ ADS Error reading variable {Var} - ErrorCode: {ErrorCode}", variableName, ex.ErrorCode);
+                    // Agregar al cache de variables fallidas
+                    _failedVariables[variableName] = DateTime.UtcNow;
                     
-                    // Marcar como desconectado si es error de conexión
-                    _isConnected = false;
-                    throw;
+                    // Solo loguear UNA VEZ por variable diferente (para no spamear)
+                    _logger.LogWarning("⚠️ ADS Error en {Var}: Code={ErrorCode} ({ErrorName}) - Silenciando por 1 minuto", 
+                        variableName, (int)ex.ErrorCode, ex.ErrorCode.ToString());
+                    return null;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "❌ Error reading variable {Var} from REAL PLC - possible disconnection", variableName);
+                    // Agregar al cache de variables fallidas
+                    _failedVariables[variableName] = DateTime.UtcNow;
                     
-                    // Marcar como desconectado en caso de error general
-                    _isConnected = false;
-                    throw;
+                    _logger.LogError(ex, "❌ Error leyendo {Var} del PLC - Silenciando por 1 minuto", variableName);
+                    return null;
                 }
             }
             

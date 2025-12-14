@@ -18,6 +18,17 @@ namespace SW.PC.API.Backend.Controllers
         }
         
         /// <summary>
+        /// Health check endpoint (HEAD request)
+        /// </summary>
+        /// <returns>200 OK if service is healthy</returns>
+        [HttpHead]
+        [ProducesResponseType(200)]
+        public IActionResult HealthCheck()
+        {
+            return Ok();
+        }
+        
+        /// <summary>
         /// Get all available 3D models
         /// </summary>
         /// <returns>List of 3D models with metadata</returns>

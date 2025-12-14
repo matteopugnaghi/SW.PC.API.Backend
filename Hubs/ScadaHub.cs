@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using SW.PC.API.Backend.Models.TwinCAT;
 using SW.PC.API.Backend.Models.Database;
+using SW.PC.API.Backend.Models.Excel;
 using SW.PC.API.Backend.Services;
 
 namespace SW.PC.API.Backend.Hubs
@@ -153,7 +154,47 @@ namespace SW.PC.API.Backend.Hubs
             }
         }
         
-
+        #region Alarm System Methods
+        
+        /// <summary>
+        /// Suscribirse al grupo de alarmas para recibir actualizaciones de estado
+        /// </summary>
+        public async Task SubscribeToAlarms()
+        {
+            _logger.LogInformation("🔔 Client {ConnectionId} subscribed to alarms", Context.ConnectionId);
+            await Groups.AddToGroupAsync(Context.ConnectionId, "alarms");
+        }
+        
+        /// <summary>
+        /// Desuscribirse del grupo de alarmas
+        /// </summary>
+        public async Task UnsubscribeFromAlarms()
+        {
+            _logger.LogInformation("🔔 Client {ConnectionId} unsubscribed from alarms", Context.ConnectionId);
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, "alarms");
+        }
+        
+        /// <summary>
+        /// Suscribirse a un tipo específico de alarma (Alarm, Notification, Info)
+        /// </summary>
+        public async Task SubscribeToAlarmType(string alarmType)
+        {
+            var groupName = $"alarm_{alarmType.ToLower()}";
+            _logger.LogInformation("🔔 Client {ConnectionId} subscribed to {GroupName}", Context.ConnectionId, groupName);
+            await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+        }
+        
+        /// <summary>
+        /// Desuscribirse de un tipo específico de alarma
+        /// </summary>
+        public async Task UnsubscribeFromAlarmType(string alarmType)
+        {
+            var groupName = $"alarm_{alarmType.ToLower()}";
+            _logger.LogInformation("🔔 Client {ConnectionId} unsubscribed from {GroupName}", Context.ConnectionId, groupName);
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+        }
+        
+        #endregion
         
         private Type GetTypeFromString(string typeName)
         {
@@ -230,10 +271,66 @@ namespace SW.PC.API.Backend.Hubs
                         value = notification.NewValue,
                         timestamp = notification.Timestamp
                     });
+                
+                // 🔔 Detectar si es una variable de alarma y notificar al grupo de alarmas
+                if (IsAlarmVariable(notification.VariableName))
+                {
+                    await SendAlarmNotification(notification);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending variable change notification for {VariableName}", 
+                    notification.VariableName);
+            }
+        }
+        
+        /// <summary>
+        /// Verifica si una variable es de tipo alarma
+        /// </summary>
+        private bool IsAlarmVariable(string variableName)
+        {
+            return variableName.Contains("st_alarmPc[") && 
+                   (variableName.EndsWith("].Alarm") || 
+                    variableName.EndsWith("].Notification") || 
+                    variableName.EndsWith("].Info"));
+        }
+        
+        /// <summary>
+        /// Envía notificación de cambio de alarma a los clientes suscritos
+        /// </summary>
+        private async Task SendAlarmNotification(PlcNotification notification)
+        {
+            try
+            {
+                // Determinar tipo de alarma
+                string alarmType = "unknown";
+                if (notification.VariableName.EndsWith("].Alarm")) alarmType = "alarm";
+                else if (notification.VariableName.EndsWith("].Notification")) alarmType = "notification";
+                else if (notification.VariableName.EndsWith("].Info")) alarmType = "info";
+                
+                var alarmUpdate = new
+                {
+                    variableName = notification.VariableName,
+                    alarmType = alarmType,
+                    isActive = Convert.ToBoolean(notification.NewValue),
+                    timestamp = notification.Timestamp
+                };
+                
+                // Notificar al grupo general de alarmas
+                await _hubContext.Clients.Group("alarms")
+                    .SendAsync("AlarmStateChanged", alarmUpdate);
+                
+                // Notificar al grupo específico del tipo de alarma
+                await _hubContext.Clients.Group($"alarm_{alarmType}")
+                    .SendAsync("AlarmStateChanged", alarmUpdate);
+                
+                _logger.LogDebug("🔔 Alarm notification sent: {Variable} = {Value}", 
+                    notification.VariableName, notification.NewValue);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🔔 Error sending alarm notification for {VariableName}", 
                     notification.VariableName);
             }
         }

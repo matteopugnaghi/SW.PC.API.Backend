@@ -227,8 +227,20 @@ namespace SW.PC.API.Backend.Services
 
         private async Task PollSingleVariableAsync(string variableName, CancellationToken cancellationToken)
         {
-            // Leer valor actual del PLC (asumimos Int32 para estados de bombas)
-            var currentValue = await _twinCATService.ReadVariableAsync(variableName, typeof(int));
+            // 🔔 Detectar tipo de dato según el nombre de la variable
+            Type dataType = typeof(int); // Por defecto int para estados de bombas, posiciones, etc.
+            
+            // Variables de alarma son BOOL
+            if (variableName.Contains("st_alarmPc[") && 
+                (variableName.EndsWith("].Alarm") || 
+                 variableName.EndsWith("].Notification") || 
+                 variableName.EndsWith("].Info")))
+            {
+                dataType = typeof(bool);
+            }
+            
+            // Leer valor actual del PLC con el tipo correcto
+            var currentValue = await _twinCATService.ReadVariableAsync(variableName, dataType);
 
             if (currentValue == null)
             {

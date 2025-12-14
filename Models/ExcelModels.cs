@@ -1156,5 +1156,194 @@ namespace SW.PC.API.Backend.Models.Excel
         /// </summary>
         public DateTime LastStatusUpdate { get; set; } = DateTime.UtcNow;
     }
+
+    #region Alarm System Models
+    
+    /// <summary>
+    /// Tipo de alarma del sistema SCADA
+    /// </summary>
+    public enum AlarmType
+    {
+        /// <summary>Alarma crítica - requiere atención inmediata</summary>
+        Alarm = 0,
+        /// <summary>Notificación - aviso importante pero no crítico</summary>
+        Notification = 1,
+        /// <summary>Información - mensaje informativo</summary>
+        Info = 2
+    }
+
+    /// <summary>
+    /// Definición de una alarma desde Excel con soporte multilenguaje.
+    /// Estructura PLC: MAIN.fbMachine.st_alarmPc.{Type}[Index]
+    /// Códigos de idioma ISO 639-2 (3 letras): SPA, ENG, ITA, FRA, RUS, CZE, DAN, VIE, TAI, IND, MAY, GRE
+    /// </summary>
+    public class AlarmDefinition
+    {
+        /// <summary>Índice de la alarma (1-based, coincide con array PLC)</summary>
+        public int Index { get; set; }
+        
+        /// <summary>Tipo de alarma (Alarm, Notification, Info)</summary>
+        public AlarmType Type { get; set; }
+        
+        /// <summary>Variable PLC completa (ej: MAIN.fbMachine.st_alarmPc.Alarm[1])</summary>
+        public string PlcVariable { get; set; } = string.Empty;
+        
+        /// <summary>Textos multilenguaje (clave = código ISO 639-2: "SPA", "ENG", "ITA", etc.)</summary>
+        public Dictionary<string, string> Texts { get; set; } = new();
+        
+        /// <summary>Texto en español (acceso directo)</summary>
+        public string TextSPA => Texts.GetValueOrDefault("SPA", $"Alarma {Type} #{Index}");
+        
+        /// <summary>Texto en inglés (acceso directo)</summary>
+        public string TextENG => Texts.GetValueOrDefault("ENG", $"Alarm {Type} #{Index}");
+        
+        /// <summary>Obtener texto en el idioma especificado con fallback (ISO 639-2)</summary>
+        public string GetText(string languageCode)
+        {
+            var code = languageCode?.ToUpperInvariant() ?? "SPA";
+            
+            // Convertir códigos de 2 letras a 3 letras si es necesario
+            code = ConvertToISO639_2(code);
+            
+            // Intentar idioma exacto
+            if (Texts.TryGetValue(code, out var text))
+                return text;
+            
+            // Fallback a español
+            if (Texts.TryGetValue("SPA", out var textSpa))
+                return textSpa;
+            
+            // Fallback a inglés
+            if (Texts.TryGetValue("ENG", out var textEng))
+                return textEng;
+            
+            // Fallback genérico
+            return $"{Type} #{Index}";
+        }
+        
+        /// <summary>
+        /// Convierte código de idioma de 2 letras (ISO 639-1) a 3 letras (ISO 639-2)
+        /// </summary>
+        private static string ConvertToISO639_2(string code)
+        {
+            if (code.Length == 3) return code;
+            
+            return code.ToUpperInvariant() switch
+            {
+                "ES" => "SPA",
+                "EN" => "ENG",
+                "IT" => "ITA",
+                "FR" => "FRA",
+                "RU" => "RUS",
+                "CS" => "CZE",
+                "DA" => "DAN",
+                "VI" => "VIE",
+                "TH" => "TAI",
+                "ID" => "IND",
+                "MS" => "MAY",
+                "EL" => "GRE",
+                "DE" => "DEU",
+                "PT" => "POR",
+                "NL" => "DUT",
+                "PL" => "POL",
+                "ZH" => "CHI",
+                "JA" => "JPN",
+                "KO" => "KOR",
+                "AR" => "ARA",
+                _ => code // Devolver el código original si no hay mapeo
+            };
+        }
+    }
+
+    /// <summary>
+    /// Estado actual de una alarma (combinación de definición + estado del PLC)
+    /// </summary>
+    public class AlarmState
+    {
+        /// <summary>Definición de la alarma</summary>
+        public AlarmDefinition Definition { get; set; } = new();
+        
+        /// <summary>Estado actual (true = activa)</summary>
+        public bool IsActive { get; set; }
+        
+        /// <summary>Timestamp de activación</summary>
+        public DateTime? ActivatedAt { get; set; }
+        
+        /// <summary>Timestamp de desactivación</summary>
+        public DateTime? DeactivatedAt { get; set; }
+        
+        /// <summary>¿Ha sido reconocida por el operador?</summary>
+        public bool IsAcknowledged { get; set; }
+        
+        /// <summary>Usuario que reconoció la alarma</summary>
+        public string? AcknowledgedBy { get; set; }
+        
+        /// <summary>Timestamp del reconocimiento</summary>
+        public DateTime? AcknowledgedAt { get; set; }
+    }
+
+    /// <summary>
+    /// Configuración completa de alarmas cargada desde Excel
+    /// </summary>
+    public class AlarmConfiguration
+    {
+        /// <summary>Lista de definiciones de alarmas tipo Alarm (máx 300)</summary>
+        public List<AlarmDefinition> Alarms { get; set; } = new();
+        
+        /// <summary>Lista de definiciones de alarmas tipo Notification (máx 100)</summary>
+        public List<AlarmDefinition> Notifications { get; set; } = new();
+        
+        /// <summary>Lista de definiciones de alarmas tipo Info (máx 50)</summary>
+        public List<AlarmDefinition> Infos { get; set; } = new();
+        
+        /// <summary>Idiomas disponibles detectados en Excel (ISO 639-2: SPA, ENG, ITA, etc.)</summary>
+        public List<string> AvailableLanguages { get; set; } = new() { "SPA", "ENG" };
+        
+        /// <summary>Timestamp de última carga desde Excel</summary>
+        public DateTime LoadedAt { get; set; } = DateTime.UtcNow;
+        
+        /// <summary>Ruta del archivo Excel de origen</summary>
+        public string SourceFile { get; set; } = string.Empty;
+        
+        /// <summary>Total de alarmas definidas</summary>
+        public int TotalCount => Alarms.Count + Notifications.Count + Infos.Count;
+        
+        /// <summary>Obtener todas las definiciones como lista plana</summary>
+        public IEnumerable<AlarmDefinition> GetAll() => 
+            Alarms.Concat(Notifications).Concat(Infos);
+        
+        /// <summary>Buscar definición por variable PLC</summary>
+        public AlarmDefinition? FindByPlcVariable(string plcVariable) =>
+            GetAll().FirstOrDefault(a => a.PlcVariable.Equals(plcVariable, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Resumen de alarmas activas para el frontend
+    /// </summary>
+    public class AlarmSummary
+    {
+        /// <summary>Total de alarmas activas</summary>
+        public int ActiveAlarmsCount { get; set; }
+        
+        /// <summary>Total de notificaciones activas</summary>
+        public int ActiveNotificationsCount { get; set; }
+        
+        /// <summary>Total de infos activos</summary>
+        public int ActiveInfosCount { get; set; }
+        
+        /// <summary>Alarmas activas (lista detallada)</summary>
+        public List<AlarmState> ActiveAlarms { get; set; } = new();
+        
+        /// <summary>Notificaciones activas (lista detallada)</summary>
+        public List<AlarmState> ActiveNotifications { get; set; } = new();
+        
+        /// <summary>Infos activos (lista detallada)</summary>
+        public List<AlarmState> ActiveInfos { get; set; } = new();
+        
+        /// <summary>Timestamp de la última actualización</summary>
+        public DateTime LastUpdate { get; set; } = DateTime.UtcNow;
+    }
+
+    #endregion
 }
 

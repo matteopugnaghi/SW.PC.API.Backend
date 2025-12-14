@@ -15,7 +15,10 @@ namespace SW.PC.API.Backend.Services
         void InvalidateCache(string? filePath = null); // ✅ MÉTODO PARA FORZAR RECARGA (opcional: por archivo)
         Task<List<Model3DConfig>> Load3DModelsAsync(string filePath);
         
-        // 📁 Soporte Multi-Proyecto
+        // � Sistema de Alarmas Multilenguaje
+        Task<AlarmConfiguration> LoadAlarmsAsync(string filePath);
+        
+        // �📁 Soporte Multi-Proyecto
         void SetProjectContext(IProjectContextService projectContext);
         string GetExcelConfigPath();
     }
@@ -980,6 +983,39 @@ namespace SW.PC.API.Backend.Services
                         _logger.LogWarning("  ⚠️ No se encontró hoja '3D Elements' para variables de animación");
                     }
 
+                    // 3. Variables de alarmas desde la hoja "Alarms"
+                    var alarmConfig = await LoadAlarmsAsync(fullPath);
+                    int alarmVarsCount = 0;
+                    foreach (var alarm in alarmConfig.Alarms)
+                    {
+                        if (!string.IsNullOrWhiteSpace(alarm.PlcVariable))
+                        {
+                            variableNames.Add(alarm.PlcVariable);
+                            alarmVarsCount++;
+                        }
+                    }
+                    foreach (var notification in alarmConfig.Notifications)
+                    {
+                        if (!string.IsNullOrWhiteSpace(notification.PlcVariable))
+                        {
+                            variableNames.Add(notification.PlcVariable);
+                            alarmVarsCount++;
+                        }
+                    }
+                    foreach (var info in alarmConfig.Infos)
+                    {
+                        if (!string.IsNullOrWhiteSpace(info.PlcVariable))
+                        {
+                            variableNames.Add(info.PlcVariable);
+                            alarmVarsCount++;
+                        }
+                    }
+                    
+                    if (alarmVarsCount > 0)
+                    {
+                        _logger.LogInformation("  🔔 Alarm variables found: {Count}", alarmVarsCount);
+                    }
+
                     var variableList = variableNames.ToList();
                     _logger.LogInformation("📋 Variables a monitorear desde Excel: {Count}", variableList.Count);
                     foreach (var varName in variableList)
@@ -1756,6 +1792,290 @@ namespace SW.PC.API.Backend.Services
                 return new List<Model3DConfig>();
             }
         }
+
+        #region Alarm System Loading
+        
+        /// <summary>
+        /// Carga la configuración de alarmas desde la hoja "Alarms" del Excel.
+        /// Estructura esperada (ISO 639-2 de 3 letras):
+        /// - Columna A: Index (1-based, corresponde al array PLC)
+        /// - Columna B: Alarm_SPA (texto español para Alarm[Index])
+        /// - Columna C: Notification_SPA (texto español para Notification[Index])
+        /// - Columna D: Info_SPA (texto español para Info[Index])
+        /// - Columna E: Alarm_ENG (texto inglés para Alarm[Index])
+        /// - Columna F: Notification_ENG (texto inglés para Notification[Index])
+        /// - Columna G: Info_ENG (texto inglés para Info[Index])
+        /// - Columnas H-M: Más idiomas (ITA, FRA, RUS, etc.) si existen
+        /// Variables PLC generadas: MAIN.fbMachine.st_alarmPc.{Type}[Index]
+        /// </summary>
+        public async Task<AlarmConfiguration> LoadAlarmsAsync(string filePath)
+        {
+            var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+            var config = new AlarmConfiguration
+            {
+                SourceFile = fullPath,
+                LoadedAt = DateTime.UtcNow
+            };
+            
+            try
+            {
+                if (!File.Exists(fullPath))
+                {
+                    _logger.LogWarning("🔔 Excel file not found: {Path}. Returning empty alarm configuration.", fullPath);
+                    return config;
+                }
+                
+                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var package = new ExcelPackage(stream);
+                
+                // 📋 Listar todas las hojas disponibles para debugging
+                var availableSheets = package.Workbook.Worksheets.Select(ws => ws.Name).ToList();
+                _logger.LogInformation("🔔 Hojas disponibles en Excel: [{Sheets}]", string.Join(", ", availableSheets));
+                
+                // Buscar hoja "Alarms" (varios nombres posibles)
+                var sheet = package.Workbook.Worksheets["Alarms"]
+                         ?? package.Workbook.Worksheets["ALARMS"]
+                         ?? package.Workbook.Worksheets["Alarmas"]
+                         ?? package.Workbook.Worksheets["2) Alarms"];
+                
+                if (sheet == null)
+                {
+                    _logger.LogWarning("🔔 No se encontró hoja 'Alarms' en Excel {Path}. Hojas disponibles: [{Sheets}]", fullPath, string.Join(", ", availableSheets));
+                    return config;
+                }
+                
+                _logger.LogInformation("🔔 Cargando alarmas desde hoja: '{SheetName}'", sheet.Name);
+                
+                // Detectar idiomas disponibles desde encabezados (fila 1)
+                var columnMapping = DetectAlarmColumnMapping(sheet);
+                config.AvailableLanguages = columnMapping.Keys.ToList();
+                _logger.LogInformation("🔔 Idiomas detectados: {Languages}", string.Join(", ", config.AvailableLanguages));
+                
+                // Leer definiciones de alarmas (fila 2 en adelante)
+                int row = 2;
+                int emptyRows = 0;
+                const int maxEmptyRows = 10;
+                const int maxRow = 500; // Límite de seguridad
+                
+                _logger.LogInformation("🔔 Iniciando lectura de alarmas desde fila 2...");
+                
+                while (row <= maxRow && emptyRows < maxEmptyRows)
+                {
+                    var indexCell = sheet.Cells[$"A{row}"].Text.Trim();
+                    
+                    // Debug: mostrar las primeras 5 filas
+                    if (row <= 6)
+                    {
+                        _logger.LogInformation("🔔 Fila {Row}: A='{IndexCell}', B='{ColB}', C='{ColC}', D='{ColD}'", 
+                            row, indexCell, 
+                            sheet.Cells[$"B{row}"].Text.Trim(),
+                            sheet.Cells[$"C{row}"].Text.Trim(),
+                            sheet.Cells[$"D{row}"].Text.Trim());
+                    }
+                    
+                    if (string.IsNullOrWhiteSpace(indexCell))
+                    {
+                        emptyRows++;
+                        row++;
+                        continue;
+                    }
+                    
+                    emptyRows = 0; // Reset contador de filas vacías
+                    
+                    if (!int.TryParse(indexCell, out int index))
+                    {
+                        _logger.LogWarning("🔔 Fila {Row}: índice inválido '{Index}', saltando", row, indexCell);
+                        row++;
+                        continue;
+                    }
+                    
+                    // Leer textos de Alarm para cada idioma
+                    var alarmTexts = ReadAlarmTextsForType(sheet, row, "Alarm", columnMapping);
+                    if (alarmTexts.Any(t => !string.IsNullOrWhiteSpace(t.Value)))
+                    {
+                        config.Alarms.Add(new AlarmDefinition
+                        {
+                            Index = index,
+                            Type = AlarmType.Alarm,
+                            PlcVariable = $"MAIN.fbMachine.st_alarmPc[{index}].Alarm",
+                            Texts = alarmTexts
+                        });
+                    }
+                    
+                    // Leer textos de Notification para cada idioma
+                    var notificationTexts = ReadAlarmTextsForType(sheet, row, "Notification", columnMapping);
+                    if (notificationTexts.Any(t => !string.IsNullOrWhiteSpace(t.Value)))
+                    {
+                        config.Notifications.Add(new AlarmDefinition
+                        {
+                            Index = index,
+                            Type = AlarmType.Notification,
+                            PlcVariable = $"MAIN.fbMachine.st_alarmPc[{index}].Notification",
+                            Texts = notificationTexts
+                        });
+                    }
+                    
+                    // Leer textos de Info para cada idioma
+                    var infoTexts = ReadAlarmTextsForType(sheet, row, "Info", columnMapping);
+                    if (infoTexts.Any(t => !string.IsNullOrWhiteSpace(t.Value)))
+                    {
+                        config.Infos.Add(new AlarmDefinition
+                        {
+                            Index = index,
+                            Type = AlarmType.Info,
+                            PlcVariable = $"MAIN.fbMachine.st_alarmPc[{index}].Info",
+                            Texts = infoTexts
+                        });
+                    }
+                    
+                    row++;
+                }
+                
+                _logger.LogInformation("🔔 Alarmas cargadas: {Alarms} Alarm, {Notifications} Notification, {Infos} Info (Total: {Total})",
+                    config.Alarms.Count, config.Notifications.Count, config.Infos.Count, config.TotalCount);
+                
+                return config;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🔔 Error loading alarms from Excel: {Path}", fullPath);
+                return config;
+            }
+        }
+        
+        /// <summary>
+        /// Detecta el mapeo de columnas por idioma desde los encabezados (ISO 639-2: SPA, ENG, ITA, FRA, etc.)
+        /// Estructura: Alarm_SPA, Notification_SPA, Info_SPA, Alarm_ENG, Notification_ENG, Info_ENG, ...
+        /// </summary>
+        private Dictionary<string, AlarmColumnSet> DetectAlarmColumnMapping(ExcelWorksheet sheet)
+        {
+            var mapping = new Dictionary<string, AlarmColumnSet>();
+            
+            // Escanear encabezados desde columna B hasta que estén vacíos
+            int col = 2; // B = 2
+            const int maxCol = 50; // Límite de seguridad
+            
+            while (col <= maxCol)
+            {
+                var header = sheet.Cells[1, col].Text.Trim();
+                
+                if (string.IsNullOrWhiteSpace(header))
+                {
+                    col++;
+                    continue;
+                }
+                
+                // Quitar paréntesis si existen: (Alarm_SPA) → Alarm_SPA
+                header = header.TrimStart('(').TrimEnd(')');
+                
+                // Parsear encabezado (formato: Type_LANG, ej: Alarm_SPA, Notification_ENG)
+                var parts = header.Split('_');
+                if (parts.Length >= 2)
+                {
+                    var alarmType = parts[0]; // Alarm, Notification, Info
+                    var langCode = parts[^1].ToUpperInvariant(); // SPA, ENG, ITA, etc.
+                    
+                    // Crear entrada para el idioma si no existe
+                    if (!mapping.ContainsKey(langCode))
+                    {
+                        mapping[langCode] = new AlarmColumnSet { Language = langCode };
+                    }
+                    
+                    // Asignar columna según tipo
+                    switch (alarmType.ToLower())
+                    {
+                        case "alarm":
+                            mapping[langCode].AlarmColumn = col;
+                            break;
+                        case "notification":
+                            mapping[langCode].NotificationColumn = col;
+                            break;
+                        case "info":
+                            mapping[langCode].InfoColumn = col;
+                            break;
+                    }
+                }
+                
+                col++;
+            }
+            
+            // Si no se detectaron idiomas, usar valores por defecto (B, C, D = SPA; E, F, G = ENG)
+            if (mapping.Count == 0)
+            {
+                _logger.LogWarning("🔔 No se detectaron encabezados de idioma, usando valores por defecto");
+                mapping["SPA"] = new AlarmColumnSet { Language = "SPA", AlarmColumn = 2, NotificationColumn = 3, InfoColumn = 4 };
+                mapping["ENG"] = new AlarmColumnSet { Language = "ENG", AlarmColumn = 5, NotificationColumn = 6, InfoColumn = 7 };
+            }
+            
+            // Log de mapeo detectado
+            foreach (var kvp in mapping)
+            {
+                _logger.LogDebug("🔔 Idioma {Lang}: Alarm=Col{A}, Notification=Col{N}, Info=Col{I}",
+                    kvp.Key, kvp.Value.AlarmColumn, kvp.Value.NotificationColumn, kvp.Value.InfoColumn);
+            }
+            
+            return mapping;
+        }
+        
+        /// <summary>
+        /// Estructura para almacenar columnas por idioma
+        /// </summary>
+        private class AlarmColumnSet
+        {
+            public string Language { get; set; } = string.Empty;
+            public int AlarmColumn { get; set; }
+            public int NotificationColumn { get; set; }
+            public int InfoColumn { get; set; }
+        }
+        
+        /// <summary>
+        /// Lee los textos multilenguaje de un tipo de alarma específico
+        /// </summary>
+        private Dictionary<string, string> ReadAlarmTextsForType(
+            ExcelWorksheet sheet, 
+            int row, 
+            string alarmType, 
+            Dictionary<string, AlarmColumnSet> columnMapping)
+        {
+            var texts = new Dictionary<string, string>();
+            
+            foreach (var kvp in columnMapping)
+            {
+                var langCode = kvp.Key;
+                var columns = kvp.Value;
+                
+                int col = alarmType.ToLower() switch
+                {
+                    "alarm" => columns.AlarmColumn,
+                    "notification" => columns.NotificationColumn,
+                    "info" => columns.InfoColumn,
+                    _ => 0
+                };
+                
+                if (col > 0)
+                {
+                    var text = sheet.Cells[row, col].Text?.Trim();
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        texts[langCode] = text;
+                    }
+                }
+            }
+            
+            // Fallback: si falta un idioma principal, copiar del otro
+            if (!texts.ContainsKey("ENG") && texts.ContainsKey("SPA"))
+            {
+                texts["ENG"] = texts["SPA"];
+            }
+            if (!texts.ContainsKey("SPA") && texts.ContainsKey("ENG"))
+            {
+                texts["SPA"] = texts["ENG"];
+            }
+            
+            return texts;
+        }
+        
+        #endregion
         
         /// <summary>
         /// Invalida el caché de configuración del sistema para forzar una recarga desde Excel.
