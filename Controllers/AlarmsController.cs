@@ -255,6 +255,64 @@ namespace SW.PC.API.Backend.Controllers
             }
         }
         
+        /// <summary>
+        /// Obtiene el estado actual de todas las alarmas leyendo directamente del PLC.
+        /// Útil para sincronizar el estado al cargar la página.
+        /// </summary>
+        /// <returns>Lista de estados de alarmas activas</returns>
+        [HttpGet("current-states")]
+        [ProducesResponseType(typeof(AlarmCurrentStatesResponse), 200)]
+        public async Task<ActionResult<AlarmCurrentStatesResponse>> GetCurrentAlarmStates()
+        {
+            try
+            {
+                var config = await GetCachedAlarmConfigurationAsync();
+                var activeStates = new List<AlarmStateDto>();
+                
+                // Leer todas las variables de alarma del PLC
+                var allVariables = config.Alarms.Select(a => a.PlcVariable)
+                    .Concat(config.Notifications.Select(n => n.PlcVariable))
+                    .Concat(config.Infos.Select(i => i.PlcVariable))
+                    .ToList();
+                
+                foreach (var variable in allVariables)
+                {
+                    try
+                    {
+                        var value = await _twinCATService.ReadVariableAsync(variable, typeof(bool));
+                        if (value != null && (bool)value == true)
+                        {
+                            activeStates.Add(new AlarmStateDto
+                            {
+                                VariableName = variable,
+                                IsActive = true,
+                                Timestamp = DateTime.UtcNow
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug("No se pudo leer {Variable}: {Error}", variable, ex.Message);
+                    }
+                }
+                
+                _logger.LogInformation("🔔 Estados actuales: {Active} alarmas activas de {Total} variables", 
+                    activeStates.Count, allVariables.Count);
+                
+                return Ok(new AlarmCurrentStatesResponse
+                {
+                    ActiveStates = activeStates,
+                    TotalVariables = allVariables.Count,
+                    Timestamp = DateTime.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🔔 Error al obtener estados actuales de alarmas");
+                return StatusCode(500, new { error = "Error al leer estados de alarmas", message = ex.Message });
+            }
+        }
+        
         #region Private Methods
         
         /// <summary>
@@ -396,6 +454,26 @@ namespace SW.PC.API.Backend.Controllers
         public string Type { get; set; } = "Alarm"; // Alarm, Notification, Info
         public int Index { get; set; } = 1;
         public bool IsActive { get; set; } = true;
+    }
+    
+    /// <summary>
+    /// Respuesta con estados actuales de alarmas
+    /// </summary>
+    public class AlarmCurrentStatesResponse
+    {
+        public List<AlarmStateDto> ActiveStates { get; set; } = new();
+        public int TotalVariables { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+    
+    /// <summary>
+    /// DTO para un estado de alarma
+    /// </summary>
+    public class AlarmStateDto
+    {
+        public string VariableName { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public DateTime Timestamp { get; set; }
     }
     
     #endregion
