@@ -75,7 +75,7 @@ public class SbomController : ControllerBase
             return NotFound(new { message = "SBOM not found. Generate one first." });
         }
         
-        var fileName = $"sbom-{DateTime.UtcNow:yyyy-MM-dd}.json";
+        var fileName = $"sbom-{DateTime.Now:yyyy-MM-dd}.json";
         var bytes = System.Text.Encoding.UTF8.GetBytes(sbomJson);
         
         return File(bytes, "application/json", fileName);

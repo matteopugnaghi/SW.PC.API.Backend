@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Text;
 
 namespace SW.PC.API.Backend.Services;
@@ -52,7 +52,7 @@ public class GitOperationsService : IGitOperationsService
         _logger = logger;
         _integrityService = integrityService;
         _excelConfigService = excelConfigService;
-        _logger.LogInformation("🔧 GitOperationsService initialized (using paths from SoftwareIntegrityService)");
+        _logger.LogInformation("?? GitOperationsService initialized (using paths from SoftwareIntegrityService)");
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public class GitOperationsService : IGitOperationsService
     }
 
     /// <summary>
-    /// Detecta el entorno (production/development) basado en configuración Excel (EnvironmentMode)
+    /// Detecta el entorno (production/development) basado en configuraci�n Excel (EnvironmentMode)
     /// </summary>
     public ScadaEnvironmentInfo GetEnvironmentInfo()
     {
@@ -77,26 +77,26 @@ public class GitOperationsService : IGitOperationsService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "⚠️ Could not read EnvironmentMode from Excel, defaulting to 'development'");
+            _logger.LogWarning(ex, "?? Could not read EnvironmentMode from Excel, defaulting to 'development'");
         }
         
         var paths = GetRepoPaths();
         
-        // 🏭 AUTO-DETECTAR PRODUCCIÓN: Si no hay .git en Backend/Frontend, es producción
-        // Esto permite detectar automáticamente sin depender del Excel
+        // ?? AUTO-DETECTAR PRODUCCI�N: Si no hay .git en Backend/Frontend, es producci�n
+        // Esto permite detectar autom�ticamente sin depender del Excel
         var hasBackendGit = Directory.Exists(Path.Combine(paths.Backend ?? "", ".git"));
         var hasFrontendGit = Directory.Exists(Path.Combine(paths.Frontend ?? "", ".git"));
         
-        // Si el Excel no especifica producción pero no hay repos Git, forzar producción
+        // Si el Excel no especifica producci�n pero no hay repos Git, forzar producci�n
         if (environmentMode != "production" && !hasBackendGit && !hasFrontendGit)
         {
-            _logger.LogInformation("🏭 Auto-detecting PRODUCTION mode: No Git repos found for Backend/Frontend");
+            _logger.LogInformation("?? Auto-detecting PRODUCTION mode: No Git repos found for Backend/Frontend");
             environmentMode = "production";
         }
         
         var isProduction = environmentMode == "production";
         
-        // En producción: solo TwinCAT es editable
+        // En producci�n: solo TwinCAT es editable
         // En desarrollo: todos son editables (si tienen .git)
         var permissions = new Dictionary<string, bool>
         {
@@ -105,7 +105,7 @@ public class GitOperationsService : IGitOperationsService
             ["twincat"] = Directory.Exists(Path.Combine(paths.TwinCAT ?? "", ".git")) // TwinCAT siempre editable si tiene .git
         };
 
-        _logger.LogInformation("🌍 Environment: {Env} | Permissions: Backend={B}, Frontend={F}, TwinCAT={T}", 
+        _logger.LogInformation("?? Environment: {Env} | Permissions: Backend={B}, Frontend={F}, TwinCAT={T}", 
             environmentMode, permissions["backend"], permissions["frontend"], permissions["twincat"]);
 
         return new ScadaEnvironmentInfo
@@ -121,7 +121,7 @@ public class GitOperationsService : IGitOperationsService
         var envInfo = GetEnvironmentInfo();
         var result = new AllRepositoriesStatus 
         { 
-            Timestamp = DateTime.UtcNow, 
+            Timestamp = DateTime.Now, 
             Repositories = new Dictionary<string, RepositoryStatus>(),
             EnvironmentInfo = envInfo
         };
@@ -205,7 +205,7 @@ public class GitOperationsService : IGitOperationsService
     }
 
     /// <summary>
-    /// Verifica si el repositorio es editable según el entorno (production/development)
+    /// Verifica si el repositorio es editable seg�n el entorno (production/development)
     /// </summary>
     private GitOperationResult? CheckEditPermission(string repoPath)
     {
@@ -219,12 +219,12 @@ public class GitOperationsService : IGitOperationsService
         
         if (!string.IsNullOrEmpty(repoName) && !envInfo.RepoEditPermissions.GetValueOrDefault(repoName, false))
         {
-            _logger.LogWarning("🚫 Edit blocked: {Repo} not editable in {Env} environment", repoName, envInfo.Environment);
+            _logger.LogWarning("?? Edit blocked: {Repo} not editable in {Env} environment", repoName, envInfo.Environment);
             return new GitOperationResult
             {
                 Success = false,
-                Message = $"🚫 OPERACIÓN BLOQUEADA: El repositorio '{repoName}' no es editable en modo {envInfo.Environment.ToUpper()}.\n" +
-                          (envInfo.IsProduction ? "En producción solo se puede editar TwinCAT." : "Verifica que existe la carpeta .git")
+                Message = $"?? OPERACI�N BLOQUEADA: El repositorio '{repoName}' no es editable en modo {envInfo.Environment.ToUpper()}.\n" +
+                          (envInfo.IsProduction ? "En producci�n solo se puede editar TwinCAT." : "Verifica que existe la carpeta .git")
             };
         }
         
@@ -235,19 +235,19 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // 🏭 Verificar si el repo es editable en este entorno
+            // ?? Verificar si el repo es editable en este entorno
             var editCheck = CheckEditPermission(repoPath);
             if (editCheck != null) return editCheck;
 
-            // 🔐 EU CRA: Verificar autorización de clave antes de permitir commit
+            // ?? EU CRA: Verificar autorizaci�n de clave antes de permitir commit
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
             {
-                _logger.LogWarning("🚫 Commit rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
+                _logger.LogWarning("?? Commit rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
                 return new GitOperationResult 
                 { 
                     Success = false, 
-                    Message = $"🚫 COMMIT RECHAZADO: Tu clave SSH no está en la lista de autorizadas.\n" +
+                    Message = $"?? COMMIT RECHAZADO: Tu clave SSH no est� en la lista de autorizadas.\n" +
                               $"Fingerprint: {authResult.CurrentFingerprint}\n" +
                               $"Contacta al administrador para autorizar tu clave."
                 };
@@ -262,7 +262,7 @@ public class GitOperationsService : IGitOperationsService
             var commitResult = await RunGitCommandAsync(repoPath, $"commit -m \"{escapedMessage}\"", 60000);
             if (commitResult.Success) 
             {
-                // 🔐 Actualizar información de firma en el servicio de integridad
+                // ?? Actualizar informaci�n de firma en el servicio de integridad
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after commit"); }
@@ -279,31 +279,31 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // 🏭 Verificar si el repo es editable en este entorno
+            // ?? Verificar si el repo es editable en este entorno
             var editCheck = CheckEditPermission(repoPath);
             if (editCheck != null) return editCheck;
 
-            // 🔐 EU CRA: Verificar autorización antes de push
+            // ?? EU CRA: Verificar autorizaci�n antes de push
             var authResult = await CheckKeyAuthorizationAsync();
-            _logger.LogWarning("🔍 DEBUG Push - AccessControlEnabled: {Enabled}, IsAuthorized: {Auth}, Message: {Msg}", 
+            _logger.LogWarning("?? DEBUG Push - AccessControlEnabled: {Enabled}, IsAuthorized: {Auth}, Message: {Msg}", 
                 authResult.AccessControlEnabled, authResult.IsAuthorized, authResult.Message);
             
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
             {
-                _logger.LogWarning("🚫 Push rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
+                _logger.LogWarning("?? Push rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
                 return new GitOperationResult 
                 { 
                     Success = false, 
-                    Message = $"🚫 PUSH RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                    Message = $"?? PUSH RECHAZADO: Tu clave SSH no est� autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
                 };
             }
 
             _logger.LogInformation("Pushing changes from {Path}", repoPath);
-            // 120s timeout para primera conexión SSH (puede tardar en establecer)
+            // 120s timeout para primera conexi�n SSH (puede tardar en establecer)
             var result = await RunGitCommandAsync(repoPath, "push", 120000);
             if (result.Success) 
             {
-                // 🔐 Actualizar información de integridad después de push
+                // ?? Actualizar informaci�n de integridad despu�s de push
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after push"); }
@@ -319,33 +319,33 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // 🔐 MODO PRODUCCIÓN: Verificar permisos de edición
+            // ?? MODO PRODUCCI�N: Verificar permisos de edici�n
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
-            // 🔐 EU CRA: Verificar autorización antes de force push
+            // ?? EU CRA: Verificar autorizaci�n antes de force push
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
             {
-                _logger.LogWarning("🚫 Force Push rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
+                _logger.LogWarning("?? Force Push rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
                 return new GitOperationResult 
                 { 
                     Success = false, 
-                    Message = $"🚫 FORCE PUSH RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                    Message = $"?? FORCE PUSH RECHAZADO: Tu clave SSH no est� autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
                 };
             }
 
-            _logger.LogWarning("⚠️ FORCE PUSHING changes from {Path} - This will overwrite remote!", repoPath);
-            // 120s timeout para primera conexión SSH
+            _logger.LogWarning("?? FORCE PUSHING changes from {Path} - This will overwrite remote!", repoPath);
+            // 120s timeout para primera conexi�n SSH
             var result = await RunGitCommandAsync(repoPath, "push --force", 120000);
             if (result.Success) 
             {
-                // 🔐 Actualizar información de integridad después de force push
+                // ?? Actualizar informaci�n de integridad despu�s de force push
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after force push"); }
                 });
-                return new GitOperationResult { Success = true, Message = "✅ Force Push completado - Remoto sincronizado con local", Output = result.Output };
+                return new GitOperationResult { Success = true, Message = "? Force Push completado - Remoto sincronizado con local", Output = result.Output };
             }
             return new GitOperationResult { Success = false, Message = $"Force Push failed: {result.Error}" };
         }
@@ -356,7 +356,7 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // 🔐 MODO PRODUCCIÓN: Verificar permisos de edición
+            // ?? MODO PRODUCCI�N: Verificar permisos de edici�n
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
@@ -373,7 +373,7 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // 🔐 MODO PRODUCCIÓN: Verificar permisos de edición
+            // ?? MODO PRODUCCI�N: Verificar permisos de edici�n
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
@@ -519,19 +519,19 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // 🔐 MODO PRODUCCIÓN: Verificar permisos de edición
+            // ?? MODO PRODUCCI�N: Verificar permisos de edici�n
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
-            // 🔐 EU CRA: Verificar autorización antes de crear tag/release
+            // ?? EU CRA: Verificar autorizaci�n antes de crear tag/release
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
             {
-                _logger.LogWarning("🚫 Tag creation rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
+                _logger.LogWarning("?? Tag creation rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
                 return new GitOperationResult 
                 { 
                     Success = false, 
-                    Message = $"🚫 RELEASE RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                    Message = $"?? RELEASE RECHAZADO: Tu clave SSH no est� autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
                 };
             }
 
@@ -541,7 +541,7 @@ public class GitOperationsService : IGitOperationsService
             
             if (result.Success)
             {
-                // 🔐 Actualizar información de integridad (incluye latest release)
+                // ?? Actualizar informaci�n de integridad (incluye latest release)
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after tag creation"); }
@@ -562,19 +562,19 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // 🔐 MODO PRODUCCIÓN: Verificar permisos de edición
+            // ?? MODO PRODUCCI�N: Verificar permisos de edici�n
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
-            // 🔐 EU CRA: Verificar autorización antes de push tags
+            // ?? EU CRA: Verificar autorizaci�n antes de push tags
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
             {
-                _logger.LogWarning("🚫 Push tags rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
+                _logger.LogWarning("?? Push tags rejected: SSH key not authorized. Fingerprint: {Fingerprint}", authResult.CurrentFingerprint);
                 return new GitOperationResult 
                 { 
                     Success = false, 
-                    Message = $"🚫 PUSH TAGS RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                    Message = $"?? PUSH TAGS RECHAZADO: Tu clave SSH no est� autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
                 };
             }
 
@@ -583,7 +583,7 @@ public class GitOperationsService : IGitOperationsService
             
             if (result.Success)
             {
-                // 🔐 Actualizar información de integridad después de push tags
+                // ?? Actualizar informaci�n de integridad despu�s de push tags
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after push tags"); }
@@ -690,7 +690,7 @@ public class GitOperationsService : IGitOperationsService
                                        !string.IsNullOrEmpty(status.SigningKeyPath) &&
                                        File.Exists(status.SigningKeyPath.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)));
 
-            _logger.LogInformation("🔐 SSH Signing Status: Configured={Configured}, HasKeys={HasKeys}, FullyConfigured={FullyConfigured}",
+            _logger.LogInformation("?? SSH Signing Status: Configured={Configured}, HasKeys={HasKeys}, FullyConfigured={FullyConfigured}",
                 status.IsConfiguredForSsh, status.HasSshKeys, status.IsFullyConfigured);
         }
         catch (Exception ex)
@@ -709,7 +709,7 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            _logger.LogInformation("🔐 Configuring SSH signing with key: {KeyPath}", keyPath);
+            _logger.LogInformation("?? Configuring SSH signing with key: {KeyPath}", keyPath);
 
             // Normalize the key path
             var normalizedPath = keyPath.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
@@ -771,13 +771,13 @@ public class GitOperationsService : IGitOperationsService
     }
 
     /// <summary>
-    /// Desactiva SSH signing - quita la configuración de firma
+    /// Desactiva SSH signing - quita la configuraci�n de firma
     /// </summary>
     public async Task<GitOperationResult> DisableSshSigningAsync()
     {
         try
         {
-            _logger.LogInformation("🔐 Disabling SSH signing...");
+            _logger.LogInformation("?? Disabling SSH signing...");
 
             // Disable commit signing
             var commitResult = await RunGitCommandAsync(".", "config --global --unset commit.gpgsign");
@@ -791,7 +791,7 @@ public class GitOperationsService : IGitOperationsService
             // Reset gpg format to default (optional)
             var formatResult = await RunGitCommandAsync(".", "config --global --unset gpg.format");
 
-            _logger.LogInformation("🔐 SSH signing disabled successfully");
+            _logger.LogInformation("?? SSH signing disabled successfully");
 
             return new GitOperationResult 
             { 
@@ -808,7 +808,7 @@ public class GitOperationsService : IGitOperationsService
 
     /// <summary>
     /// Valida que la identidad del usuario Git coincida con la clave SSH
-    /// Para evitar suplantación de identidad (EU CRA compliance)
+    /// Para evitar suplantaci�n de identidad (EU CRA compliance)
     /// </summary>
     public async Task<IdentityValidationResult> ValidateSigningIdentityAsync()
     {
@@ -869,14 +869,14 @@ public class GitOperationsService : IGitOperationsService
                 if (!result.EmailsMatch)
                 {
                     result.IsValid = false;
-                    result.Message = $"⚠️ IDENTITY MISMATCH: Git email ({result.GitEmail}) doesn't match SSH key email ({result.KeyEmail}). This could indicate identity spoofing!";
-                    result.Warning = "La identidad del commit podría no coincidir con el firmante real.";
-                    _logger.LogWarning("🚨 Identity mismatch detected! Git: {GitEmail}, Key: {KeyEmail}", result.GitEmail, result.KeyEmail);
+                    result.Message = $"?? IDENTITY MISMATCH: Git email ({result.GitEmail}) doesn't match SSH key email ({result.KeyEmail}). This could indicate identity spoofing!";
+                    result.Warning = "La identidad del commit podr�a no coincidir con el firmante real.";
+                    _logger.LogWarning("?? Identity mismatch detected! Git: {GitEmail}, Key: {KeyEmail}", result.GitEmail, result.KeyEmail);
                 }
                 else
                 {
                     result.IsValid = true;
-                    result.Message = "✅ Identity verified: Git email matches SSH key email";
+                    result.Message = "? Identity verified: Git email matches SSH key email";
                 }
             }
             else
@@ -919,7 +919,7 @@ public class GitOperationsService : IGitOperationsService
     private static readonly string AccessControlConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "access_control_config.json");
 
     /// <summary>
-    /// Obtiene la configuración de control de acceso
+    /// Obtiene la configuraci�n de control de acceso
     /// </summary>
     public async Task<AccessControlConfig> GetAccessControlConfigAsync()
     {
@@ -949,19 +949,19 @@ public class GitOperationsService : IGitOperationsService
             var config = new AccessControlConfig 
             { 
                 IsEnabled = enabled,
-                LastModified = DateTime.UtcNow,
+                LastModified = DateTime.Now,
                 ModifiedBy = Environment.UserName
             };
             var json = System.Text.Json.JsonSerializer.Serialize(config, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(AccessControlConfigPath, json);
             
-            _logger.LogInformation("🔒 Access control {Status} by {User}", enabled ? "ENABLED" : "DISABLED", Environment.UserName);
+            _logger.LogInformation("?? Access control {Status} by {User}", enabled ? "ENABLED" : "DISABLED", Environment.UserName);
             return new GitOperationResult 
             { 
                 Success = true, 
                 Message = enabled 
-                    ? "✅ Control de acceso ACTIVADO. Solo claves autorizadas pueden modificar el software." 
-                    : "⚠️ Control de acceso DESACTIVADO. Cualquiera puede modificar el software."
+                    ? "? Control de acceso ACTIVADO. Solo claves autorizadas pueden modificar el software." 
+                    : "?? Control de acceso DESACTIVADO. Cualquiera puede modificar el software."
             };
         }
         catch (Exception ex)
@@ -978,7 +978,7 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            _logger.LogInformation("🗑️ Deleting SSH keys...");
+            _logger.LogInformation("??? Deleting SSH keys...");
             
             // First disable SSH signing
             await DisableSshSigningAsync();
@@ -1008,7 +1008,7 @@ public class GitOperationsService : IGitOperationsService
                 return new GitOperationResult { Success = true, Message = "No SSH keys found to delete." };
             }
 
-            _logger.LogInformation("🗑️ Deleted SSH keys: {Keys}", string.Join(", ", keysDeleted));
+            _logger.LogInformation("??? Deleted SSH keys: {Keys}", string.Join(", ", keysDeleted));
             return new GitOperationResult 
             { 
                 Success = true, 
@@ -1057,7 +1057,7 @@ public class GitOperationsService : IGitOperationsService
 
             result.Success = true;
             result.Message = "SSH key exported successfully. Keep the private key secure!";
-            _logger.LogInformation("📤 SSH key exported for {Email}", result.Email);
+            _logger.LogInformation("?? SSH key exported for {Email}", result.Email);
         }
         catch (Exception ex)
         {
@@ -1069,7 +1069,7 @@ public class GitOperationsService : IGitOperationsService
     }
 
     /// <summary>
-    /// Importa una clave SSH (privada + pública) al sistema
+    /// Importa una clave SSH (privada + p�blica) al sistema
     /// </summary>
     public async Task<GitOperationResult> ImportSshKeyAsync(string privateKey, string publicKey)
     {
@@ -1121,7 +1121,7 @@ public class GitOperationsService : IGitOperationsService
             // On Windows, we need to set proper permissions for the private key
             // This is done automatically by OpenSSH on Windows for user-owned files
 
-            _logger.LogInformation("📥 SSH key imported: {KeyName}", keyName);
+            _logger.LogInformation("?? SSH key imported: {KeyName}", keyName);
             return new GitOperationResult 
             { 
                 Success = true, 
@@ -1158,7 +1158,7 @@ public class GitOperationsService : IGitOperationsService
     }
 
     /// <summary>
-    /// Añade una clave a la lista de autorizados
+    /// A�ade una clave a la lista de autorizados
     /// </summary>
     public async Task<GitOperationResult> AddAuthorizedKeyAsync(string fingerprint, string ownerName, string ownerEmail)
     {
@@ -1182,14 +1182,14 @@ public class GitOperationsService : IGitOperationsService
                 Fingerprint = fingerprint,
                 OwnerName = ownerName,
                 OwnerEmail = ownerEmail,
-                AuthorizedAt = DateTime.UtcNow,
+                AuthorizedAt = DateTime.Now,
                 AuthorizedBy = Environment.UserName
             });
 
             var json = System.Text.Json.JsonSerializer.Serialize(authorizedKeys, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(AuthorizedKeysFilePath, json);
 
-            _logger.LogInformation("✅ Authorized key added for {Owner} ({Email})", ownerName, ownerEmail);
+            _logger.LogInformation("? Authorized key added for {Owner} ({Email})", ownerName, ownerEmail);
             return new GitOperationResult { Success = true, Message = $"Key authorized for {ownerName}." };
         }
         catch (Exception ex)
@@ -1219,7 +1219,7 @@ public class GitOperationsService : IGitOperationsService
             var json = System.Text.Json.JsonSerializer.Serialize(authorizedKeys, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(AuthorizedKeysFilePath, json);
 
-            _logger.LogInformation("🚫 Removed authorized key for {Owner}", keyToRemove.OwnerName);
+            _logger.LogInformation("?? Removed authorized key for {Owner}", keyToRemove.OwnerName);
             return new GitOperationResult { Success = true, Message = $"Key for {keyToRemove.OwnerName} removed from authorized list." };
         }
         catch (Exception ex)
@@ -1230,7 +1230,7 @@ public class GitOperationsService : IGitOperationsService
     }
 
     /// <summary>
-    /// Verifica si la clave SSH actual está en la lista de autorizados
+    /// Verifica si la clave SSH actual est� en la lista de autorizados
     /// </summary>
     public async Task<KeyAuthorizationResult> CheckKeyAuthorizationAsync()
     {
@@ -1270,7 +1270,7 @@ public class GitOperationsService : IGitOperationsService
             if (!accessConfig.IsEnabled)
             {
                 result.IsAuthorized = true;
-                result.Message = "⚠️ Control de acceso DESACTIVADO. Cualquiera puede modificar el software.";
+                result.Message = "?? Control de acceso DESACTIVADO. Cualquiera puede modificar el software.";
                 result.AuthorizationMode = "disabled";
                 return result;
             }
@@ -1282,7 +1282,7 @@ public class GitOperationsService : IGitOperationsService
             {
                 // Access control enabled but no keys = block everyone (must add keys first)
                 result.IsAuthorized = false;
-                result.Message = "🚫 Control de acceso ACTIVADO pero no hay claves autorizadas. Añade claves para poder modificar.";
+                result.Message = "?? Control de acceso ACTIVADO pero no hay claves autorizadas. A�ade claves para poder modificar.";
                 result.AuthorizationMode = "restricted";
                 return result;
             }
@@ -1295,13 +1295,13 @@ public class GitOperationsService : IGitOperationsService
                 result.IsAuthorized = true;
                 result.AuthorizedOwner = matchingKey.OwnerName;
                 result.AuthorizedEmail = matchingKey.OwnerEmail;
-                result.Message = $"✅ Clave autorizada para: {matchingKey.OwnerName} ({matchingKey.OwnerEmail})";
+                result.Message = $"? Clave autorizada para: {matchingKey.OwnerName} ({matchingKey.OwnerEmail})";
                 result.AuthorizationMode = "restricted";
             }
             else
             {
                 result.IsAuthorized = false;
-                result.Message = $"🚫 ACCESO DENEGADO: Tu clave ({result.CurrentFingerprint}) no está en la lista de autorizados.";
+                result.Message = $"?? ACCESO DENEGADO: Tu clave ({result.CurrentFingerprint}) no est� en la lista de autorizados.";
                 result.AuthorizationMode = "restricted";
             }
 

@@ -208,7 +208,7 @@ namespace SW.PC.API.Backend.Models
     public class AuditLogEntry
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
         public AuditCategory Category { get; set; }
         public AuditAction Action { get; set; }
         public AuditResult Result { get; set; }
@@ -289,7 +289,7 @@ namespace SW.PC.API.Backend.Models
     /// </summary>
     public class AuditSummary
     {
-        public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
+        public DateTime GeneratedAt { get; set; } = DateTime.Now;
         public int TotalEntries { get; set; }
         public DateTime? PeriodStart { get; set; }
         public DateTime? PeriodEnd { get; set; }

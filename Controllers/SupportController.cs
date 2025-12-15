@@ -136,13 +136,13 @@ namespace SW.PC.API.Backend.Controllers
 
             // Crear sesión temporal
             var sessionId = Guid.NewGuid().ToString("N")[..16].ToUpper();
-            var expiresAt = DateTime.UtcNow.AddMinutes(config.SupportUnlockDurationMinutes);
+            var expiresAt = DateTime.Now.AddMinutes(config.SupportUnlockDurationMinutes);
 
             lock (_sessionsLock)
             {
                 // Limpiar sesiones expiradas
                 var expiredKeys = _activeSessions
-                    .Where(kvp => kvp.Value.ExpiresAt < DateTime.UtcNow)
+                    .Where(kvp => kvp.Value.ExpiresAt < DateTime.Now)
                     .Select(kvp => kvp.Key)
                     .ToList();
                 foreach (var key in expiredKeys)
@@ -154,7 +154,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     SessionId = sessionId,
                     InstallationId = config.InstallationId,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.Now,
                     ExpiresAt = expiresAt,
                     ClientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"
                 };
@@ -186,9 +186,9 @@ namespace SW.PC.API.Backend.Controllers
             {
                 if (_activeSessions.TryGetValue(sessionId, out var session))
                 {
-                    if (session.ExpiresAt > DateTime.UtcNow)
+                    if (session.ExpiresAt > DateTime.Now)
                     {
-                        var remainingMinutes = (session.ExpiresAt - DateTime.UtcNow).TotalMinutes;
+                        var remainingMinutes = (session.ExpiresAt - DateTime.Now).TotalMinutes;
                         return Ok(new
                         {
                             valid = true,
@@ -272,7 +272,7 @@ namespace SW.PC.API.Backend.Controllers
         private string GenerateChallengeCode(string installationId)
         {
             // Usar la hora actual redondeada (válido por 1 hora)
-            var hourSlot = DateTime.UtcNow.ToString("yyyyMMddHH");
+            var hourSlot = DateTime.Now.ToString("yyyyMMddHH");
             var data = $"{installationId.ToUpperInvariant()}|{hourSlot}|CHALLENGE|{AQUAFRISCH_SUPPORT_SECRET}";
             
             return ComputeHmacCode(data, 6);
@@ -283,7 +283,7 @@ namespace SW.PC.API.Backend.Controllers
         /// </summary>
         private string GenerateResponseCode(string installationId)
         {
-            var hourSlot = DateTime.UtcNow.ToString("yyyyMMddHH");
+            var hourSlot = DateTime.Now.ToString("yyyyMMddHH");
             var data = $"{installationId.ToUpperInvariant()}|{hourSlot}|RESPONSE|{AQUAFRISCH_SUPPORT_SECRET}";
             
             return ComputeHmacCode(data, 8);
@@ -298,7 +298,7 @@ namespace SW.PC.API.Backend.Controllers
             var normalizedCode = providedCode.ToUpperInvariant().Replace("-", "").Replace(" ", "");
             
             // Verificar hora actual
-            var currentSlot = DateTime.UtcNow.ToString("yyyyMMddHH");
+            var currentSlot = DateTime.Now.ToString("yyyyMMddHH");
             var expectedCode = ComputeHmacCode(
                 $"{installationId.ToUpperInvariant()}|{currentSlot}|RESPONSE|{AQUAFRISCH_SUPPORT_SECRET}", 8);
             
@@ -308,7 +308,7 @@ namespace SW.PC.API.Backend.Controllers
             }
 
             // Verificar hora anterior (por si generaron el código hace poco y cambió la hora)
-            var previousSlot = DateTime.UtcNow.AddHours(-1).ToString("yyyyMMddHH");
+            var previousSlot = DateTime.Now.AddHours(-1).ToString("yyyyMMddHH");
             var previousCode = ComputeHmacCode(
                 $"{installationId.ToUpperInvariant()}|{previousSlot}|RESPONSE|{AQUAFRISCH_SUPPORT_SECRET}", 8);
             

@@ -115,7 +115,7 @@ namespace SW.PC.API.Backend.Services
         public async Task<double> GetTaskCycleTimeAsync()
         {
             // Cache de 5 segundos - el cycle time no cambia frecuentemente
-            if ((DateTime.UtcNow - _lastTaskCycleTimeUpdate).TotalSeconds < 5 && _cachedTaskCycleTimeMs > 0)
+            if ((DateTime.Now - _lastTaskCycleTimeUpdate).TotalSeconds < 5 && _cachedTaskCycleTimeMs > 0)
             {
                 return _cachedTaskCycleTimeMs;
             }
@@ -129,7 +129,7 @@ namespace SW.PC.API.Backend.Services
             {
                 // Simulación: cycle time típico de 10ms
                 _cachedTaskCycleTimeMs = 10.0;
-                _lastTaskCycleTimeUpdate = DateTime.UtcNow;
+                _lastTaskCycleTimeUpdate = DateTime.Now;
                 return _cachedTaskCycleTimeMs;
             }
             
@@ -175,7 +175,7 @@ namespace SW.PC.API.Backend.Services
                         
                         // Convertir de 100ns a milisegundos
                         _cachedTaskCycleTimeMs = cycleTime100ns / 10000.0;
-                        _lastTaskCycleTimeUpdate = DateTime.UtcNow;
+                        _lastTaskCycleTimeUpdate = DateTime.Now;
                         
                         _logger.LogInformation("🕐 TwinCAT Task Cycle Time: {CycleTime}ms (from: {Path}, raw: {Raw} x 100ns)", 
                             _cachedTaskCycleTimeMs, path, cycleTime100ns);
@@ -201,7 +201,7 @@ namespace SW.PC.API.Backend.Services
                     if (cycleTime100ns > 0 && cycleTime100ns < 100000000) // Sanity check: < 10 segundos
                     {
                         _cachedTaskCycleTimeMs = cycleTime100ns / 10000.0;
-                        _lastTaskCycleTimeUpdate = DateTime.UtcNow;
+                        _lastTaskCycleTimeUpdate = DateTime.Now;
                         
                         _logger.LogInformation("🕐 TwinCAT Task Cycle Time: {CycleTime}ms (from ADS Index Group 0x4020)", 
                             _cachedTaskCycleTimeMs);
@@ -217,7 +217,7 @@ namespace SW.PC.API.Backend.Services
                 // Si todo falla, usar valor por defecto
                 _logger.LogWarning("⚠️ Could not read TwinCAT Task Cycle Time - using default 10ms. Add '_TaskInfo : PlcTaskSystemInfo' to your PLC project GVL.");
                 _cachedTaskCycleTimeMs = 10.0;
-                _lastTaskCycleTimeUpdate = DateTime.UtcNow;
+                _lastTaskCycleTimeUpdate = DateTime.Now;
                 
                 return _cachedTaskCycleTimeMs;
             }
@@ -386,7 +386,7 @@ namespace SW.PC.API.Backend.Services
         {
             var snapshot = new PlcDataSnapshot
             {
-                Timestamp = DateTime.UtcNow,
+                Timestamp = DateTime.Now,
                 Variables = new Dictionary<string, object>()
             };
             
@@ -419,7 +419,7 @@ namespace SW.PC.API.Backend.Services
             // 🔴 Si esta variable falló recientemente, saltar para evitar spam de errores
             if (_failedVariables.TryGetValue(variableName, out var failedAt))
             {
-                if (DateTime.UtcNow - failedAt < _failedVariableRetryInterval)
+                if (DateTime.Now - failedAt < _failedVariableRetryInterval)
                 {
                     // Devolver null silenciosamente - la variable no existe o falla
                     return null;
@@ -491,7 +491,7 @@ namespace SW.PC.API.Backend.Services
                 {
                     // Variable no existe en PLC - Código 1808 = ADS_E_SYMBOLNOTFOUND
                     // Agregar al cache de variables fallidas para no reintentar
-                    _failedVariables[variableName] = DateTime.UtcNow;
+                    _failedVariables[variableName] = DateTime.Now;
                     
                     // Log solo una vez (se silenciará por 1 minuto)
                     _logger.LogWarning("⚠️ Variable NO EXISTE en PLC: {Var} - Silenciando por 1 minuto", variableName);
@@ -500,7 +500,7 @@ namespace SW.PC.API.Backend.Services
                 catch (TwinCAT.Ads.AdsErrorException ex)
                 {
                     // Agregar al cache de variables fallidas
-                    _failedVariables[variableName] = DateTime.UtcNow;
+                    _failedVariables[variableName] = DateTime.Now;
                     
                     // Solo loguear UNA VEZ por variable diferente (para no spamear)
                     _logger.LogWarning("⚠️ ADS Error en {Var}: Code={ErrorCode} ({ErrorName}) - Silenciando por 1 minuto", 
@@ -510,7 +510,7 @@ namespace SW.PC.API.Backend.Services
                 catch (Exception ex)
                 {
                     // Agregar al cache de variables fallidas
-                    _failedVariables[variableName] = DateTime.UtcNow;
+                    _failedVariables[variableName] = DateTime.Now;
                     
                     _logger.LogError(ex, "❌ Error leyendo {Var} del PLC - Silenciando por 1 minuto", variableName);
                     return null;

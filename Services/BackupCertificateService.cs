@@ -108,7 +108,7 @@ namespace SW.PC.API.Backend.Services
                 ManifestHash = manifestHash,
                 ContentHash = contentHash,
                 Signature = signature,
-                SignedAt = DateTime.UtcNow,
+                SignedAt = DateTime.Now,
                 SignedBy = $"SW.PC.API.Backend@{Environment.MachineName}",
                 PreviousCertificateHash = previousHash,
                 SequenceNumber = sequenceNumber,
@@ -306,7 +306,7 @@ namespace SW.PC.API.Backend.Services
                     LastCertificateHash = certHash,
                     LastBackupId = certificate.BackupId,
                     SequenceNumber = certificate.SequenceNumber,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.Now
                 };
                 
                 var json = JsonSerializer.Serialize(chainInfo, new JsonSerializerOptions 

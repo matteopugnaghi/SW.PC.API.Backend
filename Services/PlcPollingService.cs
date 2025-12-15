@@ -101,12 +101,12 @@ namespace SW.PC.API.Backend.Services
                 {
                     Name = varName,
                     LastValue = null,
-                    LastUpdate = DateTime.UtcNow
+                    LastUpdate = DateTime.Now
                 };
             }
 
             _logger.LogInformation("📊 Monitoreando {Count} variables PLC desde Excel", _monitoredVariables.Count);
-            _lastExcelReload = DateTime.UtcNow;
+            _lastExcelReload = DateTime.Now;
             
             // Actualizar estado: Conectado y funcionando (indicar si es simulado)
             var simStatus = _twinCATService.IsSimulated ? " (SIMULADO)" : "";
@@ -118,13 +118,13 @@ namespace SW.PC.API.Backend.Services
                 try
                 {
                     // Verificar si es hora de recargar el Excel
-                    if ((DateTime.UtcNow - _lastExcelReload).TotalSeconds >= EXCEL_RELOAD_INTERVAL_SECONDS)
+                    if ((DateTime.Now - _lastExcelReload).TotalSeconds >= EXCEL_RELOAD_INTERVAL_SECONDS)
                     {
                         await ReloadExcelConfigurationAsync();
                     }
                     
                     // Actualizar Task Cycle Time del TwinCAT periódicamente
-                    if ((DateTime.UtcNow - _lastTaskCycleTimeUpdate).TotalSeconds >= TASK_CYCLE_TIME_UPDATE_SECONDS)
+                    if ((DateTime.Now - _lastTaskCycleTimeUpdate).TotalSeconds >= TASK_CYCLE_TIME_UPDATE_SECONDS)
                     {
                         await UpdateTwinCATTaskCycleTimeAsync();
                     }
@@ -230,8 +230,8 @@ namespace SW.PC.API.Backend.Services
             // 🔔 Detectar tipo de dato según el nombre de la variable
             Type dataType = typeof(int); // Por defecto int para estados de bombas, posiciones, etc.
             
-            // Variables de alarma son BOOL
-            if (variableName.Contains("st_alarmPc[") && 
+            // Variables de alarma son BOOL (tanto st_alarmPc como st_alarmHistPc)
+            if ((variableName.Contains("st_alarmPc[") || variableName.Contains("st_alarmHistPc[")) && 
                 (variableName.EndsWith("].Alarm") || 
                  variableName.EndsWith("].Notification") || 
                  variableName.EndsWith("].Info")))
@@ -253,22 +253,63 @@ namespace SW.PC.API.Backend.Services
             var state = _variableStates[variableName];
 
             // Comparar con valor anterior
-            bool hasChanged = state.LastValue == null || !currentValue.Equals(state.LastValue);
+            // 🔧 IMPORTANTE: Si LastValue es null, es la primera lectura - NO registrar como cambio
+            bool isFirstRead = state.LastValue == null;
+            bool hasChanged = !isFirstRead && !currentValue.Equals(state.LastValue);
 
-            if (hasChanged)
+            // Siempre actualizar el estado interno (incluso en primera lectura)
+            if (isFirstRead || hasChanged)
             {
-                _logger.LogInformation("🔄 Cambio detectado: {Variable} = {OldValue} → {NewValue}", 
-                    variableName, 
-                    state.LastValue ?? "null", 
-                    currentValue);
+                if (hasChanged)
+                {
+                    _logger.LogInformation("🔄 Cambio detectado: {Variable} = {OldValue} → {NewValue}", 
+                        variableName, 
+                        state.LastValue ?? "null", 
+                        currentValue);
+                }
 
                 // Actualizar estado interno
                 state.LastValue = currentValue;
-                state.LastUpdate = DateTime.UtcNow;
+                state.LastUpdate = DateTime.Now;
                 state.ReadErrorCount = 0; // Reset contador de errores
 
-                // Transmitir cambio via SignalR
+                // Transmitir cambio via SignalR (siempre, incluso primera lectura para sincronizar frontend)
                 await BroadcastVariableChangeAsync(variableName, currentValue, cancellationToken);
+                
+                // 📋 Si es variable de historial de alarma (st_alarmHistPc), registrar en Operation Log
+                // SOLO si es un cambio real (no primera lectura) para evitar spam de logs al iniciar
+                if (hasChanged && variableName.Contains("st_alarmHistPc["))
+                {
+                    await LogAlarmHistoryAsync(variableName, currentValue);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Registrar cambio de alarma histórica en Operation Log
+        /// </summary>
+        private async Task LogAlarmHistoryAsync(string variableName, object value)
+        {
+            try
+            {
+                // Convertir valor a bool
+                bool isActive = value switch
+                {
+                    bool b => b,
+                    int i => i != 0,
+                    _ => false
+                };
+                
+                // Obtener servicio de operaciones
+                using var scope = _serviceProvider.CreateScope();
+                var operationLogService = scope.ServiceProvider.GetRequiredService<IOperationLogService>();
+                
+                // Registrar la alarma
+                await operationLogService.LogPlcAlarmHistoryAsync(variableName, isActive);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error registrando alarma histórica: {Variable}", variableName);
             }
         }
 
@@ -282,7 +323,7 @@ namespace SW.PC.API.Backend.Services
                 {
                     variableName = variableName,
                     value = value,
-                    timestamp = DateTime.UtcNow
+                    timestamp = DateTime.Now
                 };
 
                 await _hubContext.Clients.All.SendAsync("PlcVariableUpdated", updateData, cancellationToken);
@@ -329,7 +370,7 @@ namespace SW.PC.API.Backend.Services
                             {
                                 Name = addedVar,
                                 LastValue = null,
-                                LastUpdate = DateTime.UtcNow
+                                LastUpdate = DateTime.Now
                             };
                         }
 
@@ -348,7 +389,7 @@ namespace SW.PC.API.Backend.Services
                     }
                 }
 
-                _lastExcelReload = DateTime.UtcNow;
+                _lastExcelReload = DateTime.Now;
             }
             catch (Exception ex)
             {
@@ -384,12 +425,12 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogDebug("🕐 TwinCAT Task Cycle Time actualizado: {CycleTime}ms", taskCycleTimeMs);
                 }
                 
-                _lastTaskCycleTimeUpdate = DateTime.UtcNow;
+                _lastTaskCycleTimeUpdate = DateTime.Now;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "⚠️ No se pudo actualizar Task Cycle Time del TwinCAT");
-                _lastTaskCycleTimeUpdate = DateTime.UtcNow; // Evitar reintentos constantes
+                _lastTaskCycleTimeUpdate = DateTime.Now; // Evitar reintentos constantes
             }
         }
 

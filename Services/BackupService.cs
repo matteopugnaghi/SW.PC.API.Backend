@@ -153,7 +153,7 @@ namespace SW.PC.API.Backend.Services
                 Directory.CreateDirectory(backupsDir);
                 
                 // Generar ID y nombre del backup
-                var timestamp = DateTime.UtcNow;
+                var timestamp = DateTime.Now;
                 var backupId = $"backup_{projectId}_{timestamp:yyyyMMdd_HHmmss}";
                 
                 // Nombre automático: [Proyecto] - Fecha Hora (o nombre personalizado + fecha)
@@ -886,7 +886,7 @@ namespace SW.PC.API.Backend.Services
                     var baseName = Path.GetFileNameWithoutExtension(fileName);
                     var ext = Path.GetExtension(fileName);
                     targetPath = Path.Combine(projectPaths.BackupsPath, 
-                        $"{baseName}_{DateTime.UtcNow:yyyyMMdd_HHmmss}{ext}");
+                        $"{baseName}_{DateTime.Now:yyyyMMdd_HHmmss}{ext}");
                 }
                 
                 // Copiar archivo
@@ -1009,7 +1009,7 @@ namespace SW.PC.API.Backend.Services
                     status.StatusMessages.Add("No backups available");
                 }
                 else if (status.LastBackup != null && 
-                         status.LastBackup.CreatedAt < DateTime.UtcNow.AddDays(-7))
+                         status.LastBackup.CreatedAt < DateTime.Now.AddDays(-7))
                 {
                     status.HealthStatus = "WARNING";
                     status.StatusMessages.Add("Last backup is more than 7 days old");
@@ -1056,7 +1056,7 @@ namespace SW.PC.API.Backend.Services
                 // Eliminar por antigüedad
                 if (config.RetentionDays > 0)
                 {
-                    var cutoffDate = DateTime.UtcNow.AddDays(-config.RetentionDays);
+                    var cutoffDate = DateTime.Now.AddDays(-config.RetentionDays);
                     var oldBackups = backups.Where(b => b.CreatedAt < cutoffDate);
                     
                     foreach (var backup in oldBackups)

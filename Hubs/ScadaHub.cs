@@ -45,7 +45,7 @@ namespace SW.PC.API.Backend.Hubs
             await Clients.Caller.SendAsync("PlcConnectionStatus", new 
             { 
                 isConnected = _twinCATService.IsConnected,
-                timestamp = DateTime.UtcNow
+                timestamp = DateTime.Now
             });
         }
         
@@ -109,7 +109,7 @@ namespace SW.PC.API.Backend.Hubs
                 {
                     Success = success,
                     Message = success ? "Variable written successfully" : "Failed to write variable",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.Now
                 };
             }
             catch (Exception ex)
@@ -119,7 +119,7 @@ namespace SW.PC.API.Backend.Hubs
                 {
                     Success = false,
                     Message = ex.Message,
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.Now
                 };
             }
         }
@@ -139,7 +139,7 @@ namespace SW.PC.API.Backend.Hubs
                     Success = true,
                     Message = "Variable read successfully",
                     Data = value,
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.Now
                 };
             }
             catch (Exception ex)
@@ -149,7 +149,7 @@ namespace SW.PC.API.Backend.Hubs
                 {
                     Success = false,
                     Message = ex.Message,
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.Now
                 };
             }
         }
@@ -245,7 +245,7 @@ namespace SW.PC.API.Backend.Hubs
                     await _hubContext.Clients.All.SendAsync("PlcConnectionStatus", new
                     {
                         isConnected = _twinCATService.IsConnected,
-                        timestamp = DateTime.UtcNow
+                        timestamp = DateTime.Now
                     }, stoppingToken);
                     
                     await Task.Delay(5000, stoppingToken);

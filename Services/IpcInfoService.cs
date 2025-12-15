@@ -89,7 +89,7 @@ public class IpcInfoService : IIpcInfoService
     public async Task<IpcSystemInfo> GetSystemInfoAsync()
     {
         // Check cache
-        if (_cachedInfo != null && DateTime.UtcNow - _cacheTimestamp < _cacheExpiration)
+        if (_cachedInfo != null && DateTime.Now - _cacheTimestamp < _cacheExpiration)
         {
             // Update dynamic values only
             _cachedInfo.Cpu.UsagePercent = GetCpuUsage();
@@ -98,7 +98,7 @@ public class IpcInfoService : IIpcInfoService
             _cachedInfo.OperatingSystem.UptimeFormatted = FormatUptime(_cachedInfo.OperatingSystem.Uptime);
             _cachedInfo.Runtime.ProcessUptime = DateTime.Now - _cachedInfo.Runtime.ProcessStartTime;
             _cachedInfo.Runtime.ProcessUptimeFormatted = FormatUptime(_cachedInfo.Runtime.ProcessUptime);
-            _cachedInfo.CollectedAt = DateTime.UtcNow;
+            _cachedInfo.CollectedAt = DateTime.Now;
             return _cachedInfo;
         }
 
@@ -113,11 +113,11 @@ public class IpcInfoService : IIpcInfoService
             Network = GetNetworkInfo(),
             Runtime = GetRuntimeInfo(),
             Security = await GetSecurityInfoAsync(),
-            CollectedAt = DateTime.UtcNow
+            CollectedAt = DateTime.Now
         };
 
         _cachedInfo = info;
-        _cacheTimestamp = DateTime.UtcNow;
+        _cacheTimestamp = DateTime.Now;
 
         _logger.LogInformation("💻 IPC info collected: {OS} | {CPU} | RAM {RAM}%", 
             info.OperatingSystem.Name, 
@@ -810,7 +810,7 @@ public class IpcInfoService : IIpcInfoService
 
         var info = new NetworkPortsInfo
         {
-            CollectedAt = DateTime.UtcNow
+            CollectedAt = DateTime.Now
         };
 
         try

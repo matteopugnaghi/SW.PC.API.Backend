@@ -5,7 +5,7 @@ namespace SW.PC.API.Backend.Models.TwinCAT
     /// </summary>
     public class PlcDataSnapshot
     {
-        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
         
         public string PlcId { get; set; } = string.Empty;
         
@@ -58,7 +58,7 @@ namespace SW.PC.API.Backend.Models.TwinCAT
         
         public object? Data { get; set; }
         
-        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
     }
     
     /// <summary>
@@ -108,7 +108,7 @@ namespace SW.PC.API.Backend.Models.TwinCAT
         
         public object? NewValue { get; set; }
         
-        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
         
         public uint NotificationHandle { get; set; }
     }

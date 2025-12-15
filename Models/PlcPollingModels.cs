@@ -18,7 +18,7 @@ namespace SW.PC.API.Backend.Models
     {
         public string Name { get; set; } = string.Empty;
         public object? LastValue { get; set; }
-        public DateTime LastUpdate { get; set; } = DateTime.UtcNow;
+        public DateTime LastUpdate { get; set; } = DateTime.Now;
         public int ReadErrorCount { get; set; } = 0;
     }
 }

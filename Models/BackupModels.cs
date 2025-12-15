@@ -147,7 +147,7 @@ namespace SW.PC.API.Backend.Models
         public Dictionary<string, string> Metadata { get; set; } = new();
         
         /// <summary>Timestamp de creación del manifest</summary>
-        public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
+        public DateTime GeneratedAt { get; set; } = DateTime.Now;
     }
 
     /// <summary>
@@ -320,7 +320,7 @@ namespace SW.PC.API.Backend.Models
         public List<string> Warnings { get; set; } = new();
         
         /// <summary>Timestamp de la operación</summary>
-        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
     }
 
     /// <summary>
@@ -372,7 +372,7 @@ namespace SW.PC.API.Backend.Models
         public List<VerificationDetail> Details { get; set; } = new();
         
         /// <summary>Timestamp de verificación</summary>
-        public DateTime VerifiedAt { get; set; } = DateTime.UtcNow;
+        public DateTime VerifiedAt { get; set; } = DateTime.Now;
     }
 
     /// <summary>

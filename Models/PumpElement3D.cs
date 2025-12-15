@@ -328,6 +328,6 @@ namespace SW.PC.API.Backend.Models
         public int ExcelRowIndex { get; set; }
         
         /// <summary>Fecha de carga</summary>
-        public DateTime LoadedAt { get; set; } = DateTime.UtcNow;
+        public DateTime LoadedAt { get; set; } = DateTime.Now;
     }
 }

@@ -159,7 +159,7 @@ public class User
     public DateTime? PasswordChangedAt { get; set; }
     
     /// <summary>Fecha de creación de la cuenta</summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
     
     /// <summary>Usuario que creó esta cuenta</summary>
     [MaxLength(100)]
@@ -226,7 +226,7 @@ public class UserRole
     public int RoleId { get; set; }
     
     /// <summary>Fecha de asignación del rol</summary>
-    public DateTime AssignedAt { get; set; } = DateTime.UtcNow;
+    public DateTime AssignedAt { get; set; } = DateTime.Now;
     
     /// <summary>Usuario que asignó el rol</summary>
     [MaxLength(100)]
@@ -269,13 +269,13 @@ public class UserSession
     public string? UserAgent { get; set; }
     
     /// <summary>Fecha/hora de inicio de sesión</summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
     
     /// <summary>Fecha/hora de expiración</summary>
     public DateTime ExpiresAt { get; set; }
     
     /// <summary>Fecha/hora de última actividad</summary>
-    public DateTime LastActivityAt { get; set; } = DateTime.UtcNow;
+    public DateTime LastActivityAt { get; set; } = DateTime.Now;
     
     /// <summary>Sesión revocada (logout o forzado)</summary>
     public bool IsRevoked { get; set; } = false;
@@ -329,7 +329,7 @@ public class LoginAttempt
     public string? AuthMethod { get; set; }
     
     /// <summary>Fecha/hora del intento</summary>
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTime Timestamp { get; set; } = DateTime.Now;
 }
 
 #endregion

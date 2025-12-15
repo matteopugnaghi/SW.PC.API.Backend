@@ -50,7 +50,7 @@ namespace SW.PC.API.Backend.Services
         private readonly SemaphoreSlim _writeLock = new(1, 1);
         private readonly ConcurrentQueue<AuditLogEntry> _cache = new();
         private readonly ConcurrentQueue<AuditLogEntry> _externalQueue = new();
-        private DateTime _lastFlush = DateTime.UtcNow;
+        private DateTime _lastFlush = DateTime.Now;
         private string? _lastLogHash = null;
         
         // Configuración (cargada desde Excel)
@@ -217,7 +217,7 @@ namespace SW.PC.API.Backend.Services
 
             // Flush si el cache está lleno o ha pasado el intervalo
             if (_cache.Count >= MAX_CACHE_SIZE || 
-                (DateTime.UtcNow - _lastFlush).TotalSeconds > FLUSH_INTERVAL_SECONDS)
+                (DateTime.Now - _lastFlush).TotalSeconds > FLUSH_INTERVAL_SECONDS)
             {
                 await FlushCacheAsync();
             }
@@ -323,7 +323,7 @@ namespace SW.PC.API.Backend.Services
                 var payload = new
                 {
                     source = "AquafrischSupervisor",
-                    timestamp = DateTime.UtcNow,
+                    timestamp = DateTime.Now,
                     entries = entries
                 };
 
@@ -336,7 +336,7 @@ namespace SW.PC.API.Backend.Services
                 
                 if (response.IsSuccessStatusCode)
                 {
-                    _lastExternalSendTime = DateTime.UtcNow;
+                    _lastExternalSendTime = DateTime.Now;
                     _externalSendFailures = 0;
                     _logger.LogInformation("📋 Sent {Count} audit logs to external SOC", entries.Count);
                 }
@@ -395,7 +395,7 @@ namespace SW.PC.API.Backend.Services
             var auditPath = GetAuditPath();
             if (!Directory.Exists(auditPath)) return;
 
-            var cutoffDate = DateTime.UtcNow.AddDays(-_retentionDays);
+            var cutoffDate = DateTime.Now.AddDays(-_retentionDays);
             var files = Directory.GetFiles(auditPath, "audit_*.json");
             var deletedCount = 0;
 
@@ -446,7 +446,7 @@ namespace SW.PC.API.Backend.Services
 
                 if (entries.Count == 0) return;
 
-                var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+                var today = DateTime.Now.ToString("yyyy-MM-dd");
                 var auditPath = GetAuditPath();
                 var filePath = Path.Combine(auditPath, $"audit_{today}.json");
 
@@ -475,14 +475,14 @@ namespace SW.PC.API.Backend.Services
                 // Rotar archivo si excede el límite
                 if (existingEntries.Count > _maxEntriesPerFile)
                 {
-                    var archivePath = Path.Combine(auditPath, $"audit_{today}_{DateTime.UtcNow:HHmmss}.json");
+                    var archivePath = Path.Combine(auditPath, $"audit_{today}_{DateTime.Now:HHmmss}.json");
                     await File.WriteAllTextAsync(archivePath, JsonSerializer.Serialize(existingEntries, JsonOptions));
                     existingEntries = new List<AuditLogEntry>();
                 }
 
                 await File.WriteAllTextAsync(filePath, JsonSerializer.Serialize(existingEntries, JsonOptions));
 
-                _lastFlush = DateTime.UtcNow;
+                _lastFlush = DateTime.Now;
                 _logger.LogDebug("📋 Flushed {Count} audit entries to {File}", entries.Count, filePath);
             }
             catch (Exception ex)
@@ -532,7 +532,7 @@ namespace SW.PC.API.Backend.Services
                 status.TotalEntries = allEntries.Count;
                 
                 // Calcular entradas de hoy
-                var today = DateTime.UtcNow.Date;
+                var today = DateTime.Now.Date;
                 status.TodayEntries = allEntries.Count(e => e.Timestamp.Date == today);
                 
                 if (allEntries.Any())
@@ -637,7 +637,7 @@ namespace SW.PC.API.Backend.Services
 
             var exportData = new
             {
-                ExportedAt = DateTime.UtcNow,
+                ExportedAt = DateTime.Now,
                 ExportedBy = "AquafrischSupervisor",
                 From = from,
                 To = to,
@@ -657,14 +657,14 @@ namespace SW.PC.API.Backend.Services
             await FlushCacheAsync();
             
             var allEntries = await GetAllEntriesAsync();
-            var cutoff = DateTime.UtcNow.AddDays(-days);
+            var cutoff = DateTime.Now.AddDays(-days);
             var periodEntries = allEntries.Where(e => e.Timestamp >= cutoff).ToList();
 
             return new AuditSummary
             {
                 TotalEntries = periodEntries.Count,
                 PeriodStart = cutoff,
-                PeriodEnd = DateTime.UtcNow,
+                PeriodEnd = DateTime.Now,
                 ByCategory = periodEntries
                     .GroupBy(e => e.Category.ToString())
                     .ToDictionary(g => g.Key, g => g.Count()),
@@ -717,7 +717,7 @@ namespace SW.PC.API.Backend.Services
                     {
                         _logger.LogWarning("⚠️ Audit file is not a valid JSON array, backing up and reinitializing: {File}", file);
                         // Backup del archivo corrupto
-                        var backupPath = file + ".corrupted." + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+                        var backupPath = file + ".corrupted." + DateTime.Now.ToString("yyyyMMddHHmmss");
                         File.Move(file, backupPath);
                         await File.WriteAllTextAsync(file, "[]");
                         continue;
@@ -733,7 +733,7 @@ namespace SW.PC.API.Backend.Services
                     try
                     {
                         // Backup del archivo corrupto
-                        var backupPath = file + ".corrupted." + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+                        var backupPath = file + ".corrupted." + DateTime.Now.ToString("yyyyMMddHHmmss");
                         File.Move(file, backupPath);
                         await File.WriteAllTextAsync(file, "[]");
                     }

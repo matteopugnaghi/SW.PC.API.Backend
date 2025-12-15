@@ -354,7 +354,7 @@ namespace SW.PC.API.Backend.Controllers
                 _excelConfigService.InvalidateCache();
                 return Ok(new { 
                     message = "System configuration cache invalidated. Next request will reload from Excel.",
-                    timestamp = DateTime.UtcNow 
+                    timestamp = DateTime.Now 
                 });
             }
             catch (Exception ex)

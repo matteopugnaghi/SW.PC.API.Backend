@@ -160,7 +160,7 @@ public class VulnerabilitiesController : ControllerBase
 
             var report = new
             {
-                GeneratedAt = DateTime.UtcNow,
+                GeneratedAt = DateTime.Now,
                 SystemName = "SW.PC.SUPERVISOR.System",
                 ScannerEnabled = status.IsEnabled,
                 ApiType = status.ApiType,

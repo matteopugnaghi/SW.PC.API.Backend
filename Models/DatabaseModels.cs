@@ -26,7 +26,7 @@ namespace SW.PC.API.Backend.Models.Database
         [MaxLength(200)]
         public string? Source { get; set; }  // PLC tag, sensor, etc.
         
-        public DateTime TriggeredAt { get; set; } = DateTime.UtcNow;
+        public DateTime TriggeredAt { get; set; } = DateTime.Now;
         
         public DateTime? AcknowledgedAt { get; set; }
         
@@ -80,7 +80,7 @@ namespace SW.PC.API.Backend.Models.Database
         
         public bool IsActive { get; set; } = true;
         
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
         
         public DateTime? UpdatedAt { get; set; }
         
@@ -126,7 +126,7 @@ namespace SW.PC.API.Backend.Models.Database
     {
         public int Id { get; set; }
         
-        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
         
         [Required]
         [MaxLength(100)]
@@ -161,7 +161,7 @@ namespace SW.PC.API.Backend.Models.Database
     {
         public int Id { get; set; }
         
-        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
         
         public LogLevel Level { get; set; } = LogLevel.Information;
         
@@ -218,7 +218,7 @@ namespace SW.PC.API.Backend.Models.Database
         
         public bool IsActive { get; set; } = true;
         
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
         
         public DateTime? LastLoginAt { get; set; }
         

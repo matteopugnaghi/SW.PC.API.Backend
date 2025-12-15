@@ -139,7 +139,7 @@ public class SbomService : ISbomService
                     status.SpecVersion = sbom.SpecVersion;
                     
                     // Check if SBOM is up-to-date (within last 24 hours)
-                    status.IsUpToDate = (DateTime.UtcNow - fileInfo.LastWriteTimeUtc).TotalHours < 24;
+                    status.IsUpToDate = (DateTime.Now - fileInfo.LastWriteTimeUtc).TotalHours < 24;
                     status.Status = status.IsUpToDate ? "valid" : "outdated";
                     
                     // Try to get who generated it from metadata
@@ -214,7 +214,7 @@ public class SbomService : ISbomService
             {
                 Metadata = new SbomMetadata
                 {
-                    Timestamp = DateTime.UtcNow.ToString("o"),
+                    Timestamp = DateTime.Now.ToString("o"),
                     Tools = new List<SbomTool>
                     {
                         new() 
@@ -267,12 +267,12 @@ public class SbomService : ISbomService
             // Save timestamped version for history
             var historyPath = Path.Combine(sbomOutputPath, "history");
             EnsureSbomDirectoryExists(historyPath); // Crear subdirectorio history
-            var timestampedPath = Path.Combine(historyPath, $"sbom-{DateTime.UtcNow:yyyy-MM-dd-HHmmss}.json");
+            var timestampedPath = Path.Combine(historyPath, $"sbom-{DateTime.Now:yyyy-MM-dd-HHmmss}.json");
             await File.WriteAllTextAsync(timestampedPath, sbomJson);
             
             result.Success = true;
             result.Message = $"SBOM generated successfully with {sbom.Components.Count} components";
-            result.GeneratedAt = DateTime.UtcNow;
+            result.GeneratedAt = DateTime.Now;
             result.DownloadUrl = "/sbom/sbom-combined.json";
             result.Status = await GetStatusAsync();
             

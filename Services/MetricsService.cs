@@ -91,7 +91,7 @@ namespace SW.PC.API.Backend.Services
 
         public MetricsService()
         {
-            _serverStartTime = DateTime.UtcNow;
+            _serverStartTime = DateTime.Now;
         }
 
         public void SetSoftwareIntegrityService(ISoftwareIntegrityService integrityService)
@@ -160,7 +160,7 @@ namespace SW.PC.API.Backend.Services
         {
             lock (_lock)
             {
-                var uptime = DateTime.UtcNow - _serverStartTime;
+                var uptime = DateTime.Now - _serverStartTime;
                 
                 var metrics = new SystemMetrics
                 {
@@ -175,7 +175,7 @@ namespace SW.PC.API.Backend.Services
                         ? Math.Round(_signalRBroadcastTimes.Average(), 2) 
                         : 0,
                     ExcelLastLoadTime = Math.Round(_lastExcelLoadTime, 2),
-                    LastUpdate = DateTime.UtcNow,
+                    LastUpdate = DateTime.Now,
                     ServerUptime = $"{uptime.Days:00}:{uptime.Hours:00}:{uptime.Minutes:00}:{uptime.Seconds:00}",
                     ServicesStatus = new SystemServicesStatus
                     {
@@ -214,7 +214,7 @@ namespace SW.PC.API.Backend.Services
                 _servicesStatus.PlcPollingConnected = connected;
                 _servicesStatus.PlcIsSimulated = isSimulated;
                 _servicesStatus.PlcPollingStatus = statusMessage;
-                _servicesStatus.LastStatusUpdate = DateTime.UtcNow;
+                _servicesStatus.LastStatusUpdate = DateTime.Now;
             }
         }
 
@@ -225,7 +225,7 @@ namespace SW.PC.API.Backend.Services
                 _servicesStatus.SignalREnabled = enabled;
                 _servicesStatus.SignalRConnected = connected;
                 _servicesStatus.SignalRStatus = statusMessage;
-                _servicesStatus.LastStatusUpdate = DateTime.UtcNow;
+                _servicesStatus.LastStatusUpdate = DateTime.Now;
             }
         }
 
@@ -236,7 +236,7 @@ namespace SW.PC.API.Backend.Services
                 _servicesStatus.DatabaseEnabled = enabled;
                 _servicesStatus.DatabaseConnected = connected;
                 _servicesStatus.DatabaseStatus = statusMessage;
-                _servicesStatus.LastStatusUpdate = DateTime.UtcNow;
+                _servicesStatus.LastStatusUpdate = DateTime.Now;
             }
         }
 
@@ -245,7 +245,7 @@ namespace SW.PC.API.Backend.Services
             lock (_lock)
             {
                 _servicesStatus.UseSimulatedPlc = simulated;
-                _servicesStatus.LastStatusUpdate = DateTime.UtcNow;
+                _servicesStatus.LastStatusUpdate = DateTime.Now;
             }
         }
     }

@@ -47,7 +47,7 @@ namespace SW.PC.API.Backend.Services
                     await PerformVerificationAsync();
                     
                     // Calcular próxima verificación
-                    _nextVerificationTime = DateTime.UtcNow.AddSeconds(_verificationIntervalSeconds);
+                    _nextVerificationTime = DateTime.Now.AddSeconds(_verificationIntervalSeconds);
                     
                     // Actualizar la info de próxima verificación en el servicio
                     UpdateNextVerificationInfo();

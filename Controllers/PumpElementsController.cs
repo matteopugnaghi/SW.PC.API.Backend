@@ -220,7 +220,7 @@ namespace SW.PC.API.Backend.Controllers
                     variableName,
                     state = stateInt,
                     stateDescription,
-                    timestamp = DateTime.UtcNow
+                    timestamp = DateTime.Now
                 });
             }
             catch (Exception ex)
@@ -263,7 +263,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     variableName,
                     value,
-                    timestamp = DateTime.UtcNow
+                    timestamp = DateTime.Now
                 });
             }
             catch (Exception ex)

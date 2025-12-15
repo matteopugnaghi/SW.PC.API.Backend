@@ -160,7 +160,7 @@ namespace SW.PC.API.Backend.Controllers
                 }
                 
                 _logger.LogInformation("🔔 Cache de alarmas invalidado manualmente");
-                return Ok(new { message = "Cache de alarmas invalidado correctamente", timestamp = DateTime.UtcNow });
+                return Ok(new { message = "Cache de alarmas invalidado correctamente", timestamp = DateTime.Now });
             }
             catch (Exception ex)
             {
@@ -195,7 +195,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     variableName = variableName,
                     value = request.IsActive,
-                    timestamp = DateTime.UtcNow.ToString("O"),
+                    timestamp = DateTime.Now.ToString("O"),
                     source = "simulation"
                 });
                 
@@ -206,7 +206,7 @@ namespace SW.PC.API.Backend.Controllers
                     message = "Alarma simulada correctamente",
                     variableName = variableName,
                     isActive = request.IsActive,
-                    timestamp = DateTime.UtcNow
+                    timestamp = DateTime.Now
                 });
             }
             catch (Exception ex)
@@ -243,7 +243,7 @@ namespace SW.PC.API.Backend.Controllers
                     ActiveAlarms = new List<ActiveAlarmDto>(),
                     ActiveNotifications = new List<ActiveAlarmDto>(),
                     ActiveInfos = new List<ActiveAlarmDto>(),
-                    LastUpdate = DateTime.UtcNow
+                    LastUpdate = DateTime.Now
                 };
                 
                 return Ok(response);
@@ -286,7 +286,7 @@ namespace SW.PC.API.Backend.Controllers
                             {
                                 VariableName = variable,
                                 IsActive = true,
-                                Timestamp = DateTime.UtcNow
+                                Timestamp = DateTime.Now
                             });
                         }
                     }
@@ -303,7 +303,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     ActiveStates = activeStates,
                     TotalVariables = allVariables.Count,
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.Now
                 });
             }
             catch (Exception ex)
@@ -323,7 +323,7 @@ namespace SW.PC.API.Backend.Controllers
             lock (_cacheLock)
             {
                 if (_cachedAlarmConfig != null && 
-                    DateTime.UtcNow - _cacheTimestamp < CacheExpiration)
+                    DateTime.Now - _cacheTimestamp < CacheExpiration)
                 {
                     return _cachedAlarmConfig;
                 }
@@ -336,7 +336,7 @@ namespace SW.PC.API.Backend.Controllers
             lock (_cacheLock)
             {
                 _cachedAlarmConfig = config;
-                _cacheTimestamp = DateTime.UtcNow;
+                _cacheTimestamp = DateTime.Now;
             }
             
             return config;

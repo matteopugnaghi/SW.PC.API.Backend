@@ -485,7 +485,7 @@ namespace SW.PC.API.Backend.Services
             {
                 if (_stateColorsCache.TryGetValue(cacheKey, out var cached))
                 {
-                    var cacheAge = DateTime.UtcNow - cached.Timestamp;
+                    var cacheAge = DateTime.Now - cached.Timestamp;
                     if (cacheAge < _cacheExpiration)
                     {
                         _logger.LogInformation("📦 Usando state colors desde CACHÉ para {Path} (edad: {Age:F1}s, {Count} configs)", 
@@ -514,7 +514,7 @@ namespace SW.PC.API.Backend.Services
                     // ✅ CACHEAR LISTA VACÍA TAMBIÉN
                     lock (_cacheLock)
                     {
-                        _stateColorsCache[cacheKey] = (emptyList, DateTime.UtcNow);
+                        _stateColorsCache[cacheKey] = (emptyList, DateTime.Now);
                     }
                     
                     return emptyList;
@@ -529,7 +529,7 @@ namespace SW.PC.API.Backend.Services
                     // ✅ GUARDAR EN CACHÉ POR ARCHIVO
                     lock (_cacheLock)
                     {
-                        _stateColorsCache[cacheKey] = (stateColors, DateTime.UtcNow);
+                        _stateColorsCache[cacheKey] = (stateColors, DateTime.Now);
                     }
                     _logger.LogDebug("💾 State colors guardados en caché para {Path} ({Count} configs)", Path.GetFileName(fullPath), stateColors.Count);
                     
@@ -544,7 +544,7 @@ namespace SW.PC.API.Backend.Services
                 // ✅ CACHEAR LISTA VACÍA EN ERROR
                 lock (_cacheLock)
                 {
-                    _stateColorsCache[cacheKey] = (errorList, DateTime.UtcNow);
+                    _stateColorsCache[cacheKey] = (errorList, DateTime.Now);
                 }
                 
                 return errorList;
@@ -986,12 +986,20 @@ namespace SW.PC.API.Backend.Services
                     // 3. Variables de alarmas desde la hoja "Alarms"
                     var alarmConfig = await LoadAlarmsAsync(fullPath);
                     int alarmVarsCount = 0;
+                    int histAlarmVarsCount = 0;
+                    
                     foreach (var alarm in alarmConfig.Alarms)
                     {
                         if (!string.IsNullOrWhiteSpace(alarm.PlcVariable))
                         {
+                            // Alarmas en tiempo real (st_alarmPc)
                             variableNames.Add(alarm.PlcVariable);
                             alarmVarsCount++;
+                            
+                            // 📋 También añadir variables de historial (st_alarmHistPc) para Operation Log
+                            var histVariable = alarm.PlcVariable.Replace("st_alarmPc[", "st_alarmHistPc[");
+                            variableNames.Add(histVariable);
+                            histAlarmVarsCount++;
                         }
                     }
                     foreach (var notification in alarmConfig.Notifications)
@@ -1000,6 +1008,11 @@ namespace SW.PC.API.Backend.Services
                         {
                             variableNames.Add(notification.PlcVariable);
                             alarmVarsCount++;
+                            
+                            // 📋 También añadir variables de historial
+                            var histVariable = notification.PlcVariable.Replace("st_alarmPc[", "st_alarmHistPc[");
+                            variableNames.Add(histVariable);
+                            histAlarmVarsCount++;
                         }
                     }
                     foreach (var info in alarmConfig.Infos)
@@ -1008,12 +1021,18 @@ namespace SW.PC.API.Backend.Services
                         {
                             variableNames.Add(info.PlcVariable);
                             alarmVarsCount++;
+                            
+                            // 📋 También añadir variables de historial
+                            var histVariable = info.PlcVariable.Replace("st_alarmPc[", "st_alarmHistPc[");
+                            variableNames.Add(histVariable);
+                            histAlarmVarsCount++;
                         }
                     }
                     
                     if (alarmVarsCount > 0)
                     {
-                        _logger.LogInformation("  🔔 Alarm variables found: {Count}", alarmVarsCount);
+                        _logger.LogInformation("  🔔 Alarm variables found: {Count} (real-time) + {HistCount} (history)", 
+                            alarmVarsCount, histAlarmVarsCount);
                     }
 
                     var variableList = variableNames.ToList();
@@ -1046,7 +1065,7 @@ namespace SW.PC.API.Backend.Services
             {
                 if (_systemConfigCache.TryGetValue(cacheKey, out var cached))
                 {
-                    var cacheAge = DateTime.UtcNow - cached.Timestamp;
+                    var cacheAge = DateTime.Now - cached.Timestamp;
                     if (cacheAge < _cacheExpiration)
                     {
                         _logger.LogInformation("📦 Usando configuración del sistema desde CACHÉ para {Path} (edad: {Age:F1}s)", 
@@ -1074,7 +1093,7 @@ namespace SW.PC.API.Backend.Services
                     // ✅ CACHEAR CONFIG POR DEFECTO TAMBIÉN
                     lock (_cacheLock)
                     {
-                        _systemConfigCache[cacheKey] = (defaultConfig, DateTime.UtcNow);
+                        _systemConfigCache[cacheKey] = (defaultConfig, DateTime.Now);
                     }
                     
                     return defaultConfig;
@@ -1715,7 +1734,7 @@ namespace SW.PC.API.Backend.Services
                     // ✅ GUARDAR EN CACHÉ POR ARCHIVO
                     lock (_cacheLock)
                     {
-                        _systemConfigCache[cacheKey] = (config, DateTime.UtcNow);
+                        _systemConfigCache[cacheKey] = (config, DateTime.Now);
                     }
                     _logger.LogDebug("💾 Configuración guardada en caché para {Path} (válida por {Minutes} minutos)", 
                         Path.GetFileName(fullPath), _cacheExpiration.TotalMinutes);
@@ -1733,7 +1752,7 @@ namespace SW.PC.API.Backend.Services
                 // ✅ CACHEAR CONFIG POR DEFECTO TAMBIÉN EN ERROR
                 lock (_cacheLock)
                 {
-                    _systemConfigCache[cacheKey] = (errorConfig, DateTime.UtcNow);
+                    _systemConfigCache[cacheKey] = (errorConfig, DateTime.Now);
                 }
                 
                 return errorConfig;
@@ -1814,7 +1833,7 @@ namespace SW.PC.API.Backend.Services
             var config = new AlarmConfiguration
             {
                 SourceFile = fullPath,
-                LoadedAt = DateTime.UtcNow
+                LoadedAt = DateTime.Now
             };
             
             try

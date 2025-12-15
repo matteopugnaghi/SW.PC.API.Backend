@@ -54,7 +54,7 @@ namespace SW.PC.API.Backend.Controllers
             // Verificar cache por proyecto
             if (_configCache.TryGetValue(projectId, out var cached))
             {
-                if (DateTime.UtcNow - cached.Timestamp < _cacheExpiration)
+                if (DateTime.Now - cached.Timestamp < _cacheExpiration)
                 {
                     return cached.Config;
                 }
@@ -62,7 +62,7 @@ namespace SW.PC.API.Backend.Controllers
 
             _logger.LogInformation("📁 SystemController: Cargando config desde {Path} (proyecto: {Project})", excelPath, projectId);
             var config = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
-            _configCache[projectId] = (config, DateTime.UtcNow);
+            _configCache[projectId] = (config, DateTime.Now);
             return config;
         }
 

@@ -38,7 +38,7 @@ public class SbomDocument
 public class SbomMetadata
 {
     /// <summary>ISO 8601 timestamp of SBOM generation</summary>
-    public string Timestamp { get; set; } = DateTime.UtcNow.ToString("o");
+    public string Timestamp { get; set; } = DateTime.Now.ToString("o");
     
     /// <summary>Tools used to generate this SBOM</summary>
     public List<SbomTool> Tools { get; set; } = new()
@@ -271,6 +271,6 @@ public class SbomGenerateResult
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
     public SbomStatus? Status { get; set; }
-    public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
+    public DateTime GeneratedAt { get; set; } = DateTime.Now;
     public string? DownloadUrl { get; set; }
 }

@@ -85,7 +85,7 @@ namespace SW.PC.API.Backend.Controllers
             {
                 var json = await _auditService.ExportLogsAsync(from, to);
                 
-                var fileName = $"audit_export_{DateTime.UtcNow:yyyyMMdd_HHmmss}.json";
+                var fileName = $"audit_export_{DateTime.Now:yyyyMMdd_HHmmss}.json";
                 return File(System.Text.Encoding.UTF8.GetBytes(json), "application/json", fileName);
             }
             catch (Exception ex)

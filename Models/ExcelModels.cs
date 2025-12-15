@@ -11,7 +11,7 @@ namespace SW.PC.API.Backend.Models.Excel
 
         public string Customer { get; set; } = string.Empty;
 
-        public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedDate { get; set; } = DateTime.Now;
 
         public List<HMIScreen> Screens { get; set; } = new();
 
@@ -906,7 +906,7 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>
         /// Timestamp de la última actualización de métricas
         /// </summary>
-        public DateTime LastUpdate { get; set; } = DateTime.UtcNow;
+        public DateTime LastUpdate { get; set; } = DateTime.Now;
 
         /// <summary>
         /// Uptime del servidor en formato legible
@@ -1154,7 +1154,7 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>
         /// Timestamp de la última actualización de estados
         /// </summary>
-        public DateTime LastStatusUpdate { get; set; } = DateTime.UtcNow;
+        public DateTime LastStatusUpdate { get; set; } = DateTime.Now;
     }
 
     #region Alarm System Models
@@ -1300,7 +1300,7 @@ namespace SW.PC.API.Backend.Models.Excel
         public List<string> AvailableLanguages { get; set; } = new() { "SPA", "ENG" };
         
         /// <summary>Timestamp de última carga desde Excel</summary>
-        public DateTime LoadedAt { get; set; } = DateTime.UtcNow;
+        public DateTime LoadedAt { get; set; } = DateTime.Now;
         
         /// <summary>Ruta del archivo Excel de origen</summary>
         public string SourceFile { get; set; } = string.Empty;
@@ -1341,7 +1341,7 @@ namespace SW.PC.API.Backend.Models.Excel
         public List<AlarmState> ActiveInfos { get; set; } = new();
         
         /// <summary>Timestamp de la última actualización</summary>
-        public DateTime LastUpdate { get; set; } = DateTime.UtcNow;
+        public DateTime LastUpdate { get; set; } = DateTime.Now;
     }
 
     #endregion

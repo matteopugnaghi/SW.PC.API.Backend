@@ -820,7 +820,7 @@ namespace SW.PC.API.Backend.Services
                                   _versionInfo.Frontend.Integrity == "verified";
 
                 // 🔐 Actualizar fecha de última verificación
-                _versionInfo.LastVerificationDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+                _versionInfo.LastVerificationDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                 if (string.IsNullOrEmpty(_versionInfo.VerifiedByAdmin) || _versionInfo.VerifiedByAdmin == "Never")
                 {
                     _versionInfo.VerifiedByAdmin = "System (Auto)";
@@ -840,7 +840,7 @@ namespace SW.PC.API.Backend.Services
             lock (_lock)
             {
                 _logger.LogInformation("🔐 Admin verification registered by: {Admin}", adminUser);
-                _versionInfo.LastVerificationDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+                _versionInfo.LastVerificationDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                 _versionInfo.VerifiedByAdmin = adminUser + " (Manual)";
             }
             
@@ -882,7 +882,7 @@ namespace SW.PC.API.Backend.Services
                 _versionInfo.AutoVerificationEnabled = true;
                 
                 // Calcular segundos restantes
-                var secondsUntil = (nextVerification - DateTime.UtcNow).TotalSeconds;
+                var secondsUntil = (nextVerification - DateTime.Now).TotalSeconds;
                 _versionInfo.SecondsUntilNextVerification = Math.Max(0, (int)secondsUntil);
                 
                 _logger.LogDebug("🔐 Verification schedule updated: Next at {Next}, Interval: {Interval}s", 
@@ -897,7 +897,7 @@ namespace SW.PC.API.Backend.Services
         {
             var status = new NetworkSyncStatus
             {
-                CheckedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
+                CheckedAt = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ssZ")
             };
 
             // 1. Verificar conectividad a internet
@@ -1056,7 +1056,7 @@ namespace SW.PC.API.Backend.Services
             {
                 CertificateId = Guid.NewGuid().ToString(),
                 Version = "1.0",
-                GeneratedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                GeneratedAt = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ssZ"),
                 MachineId = machineId,
                 MachineName = Environment.MachineName,
                 OperatorName = operatorName,
@@ -1093,7 +1093,7 @@ namespace SW.PC.API.Backend.Services
             // Firmar el certificado
             certificate.Signature = SignCertificate(certificate);
             certificate.SignatureAlgorithm = "HMAC-SHA256";
-            certificate.SignedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+            certificate.SignedAt = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ssZ");
 
             _logger.LogInformation("📜 Certificate generated: {Id}, Status: {Status}", 
                 certificate.CertificateId, certificate.OverallStatus);

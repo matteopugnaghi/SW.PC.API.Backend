@@ -181,10 +181,10 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             
             // Verificar si cuenta está bloqueada
             if (user.Status == UserStatus.Locked || 
-                (user.LockedUntil.HasValue && user.LockedUntil > DateTime.UtcNow))
+                (user.LockedUntil.HasValue && user.LockedUntil > DateTime.Now))
             {
                 var remainingMinutes = user.LockedUntil.HasValue 
-                    ? (int)(user.LockedUntil.Value - DateTime.UtcNow).TotalMinutes + 1 
+                    ? (int)(user.LockedUntil.Value - DateTime.Now).TotalMinutes + 1 
                     : _config.LockoutMinutes;
                 
                 await LogLoginAttemptAsync(request.Username, false, AuthEventType.LoginBlocked, 
@@ -241,7 +241,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             {
                 // Incrementar intentos fallidos
                 user.FailedLoginAttempts++;
-                user.LastFailedLoginAt = DateTime.UtcNow;
+                user.LastFailedLoginAt = DateTime.Now;
                 
                 var remainingAttempts = _config.MaxLoginAttempts - user.FailedLoginAttempts;
                 
@@ -249,7 +249,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 if (user.FailedLoginAttempts >= _config.MaxLoginAttempts)
                 {
                     user.Status = UserStatus.Locked;
-                    user.LockedUntil = DateTime.UtcNow.AddMinutes(_config.LockoutMinutes);
+                    user.LockedUntil = DateTime.Now.AddMinutes(_config.LockoutMinutes);
                     
                     await LogLoginAttemptAsync(request.Username, false, AuthEventType.AccountLocked, 
                         ipAddress, userAgent, $"Cuenta bloqueada después de {user.FailedLoginAttempts} intentos", authMethod);
@@ -288,7 +288,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             user.FailedLoginAttempts = 0;
             user.LastFailedLoginAt = null;
             user.LockedUntil = null;
-            user.LastLoginAt = DateTime.UtcNow;
+            user.LastLoginAt = DateTime.Now;
             user.LastLoginIp = ipAddress;
             
             if (user.Status == UserStatus.Locked)
@@ -309,7 +309,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                         .Include(s => s.User)
                             .ThenInclude(u => u.UserRoles)
                                 .ThenInclude(ur => ur.Role)
-                        .Where(s => !s.IsRevoked && s.ExpiresAt > DateTime.UtcNow && s.UserId != user.Id)
+                        .Where(s => !s.IsRevoked && s.ExpiresAt > DateTime.Now && s.UserId != user.Id)
                         .FirstOrDefaultAsync(s => s.User.UserRoles.Any(ur => ur.Role.Name == role));
                     
                     if (existingRoleSession != null)
@@ -318,7 +318,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                         {
                             // Expulsar sesión anterior
                             existingRoleSession.IsRevoked = true;
-                            existingRoleSession.RevokedAt = DateTime.UtcNow;
+                            existingRoleSession.RevokedAt = DateTime.Now;
                             existingRoleSession.RevokedReason = $"Expulsado por nuevo login de {request.Username} (rol {role})";
                             
                             await _auditLog.LogAsync(
@@ -351,7 +351,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             if (_config.MaxConcurrentSessions > 0)
             {
                 var activeSessions = await Context.UserSessions
-                    .Where(s => s.UserId == user.Id && !s.IsRevoked && s.ExpiresAt > DateTime.UtcNow)
+                    .Where(s => s.UserId == user.Id && !s.IsRevoked && s.ExpiresAt > DateTime.Now)
                     .OrderBy(s => s.CreatedAt)
                     .ToListAsync();
                 
@@ -362,7 +362,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                     foreach (var oldSession in sessionsToRevoke)
                     {
                         oldSession.IsRevoked = true;
-                        oldSession.RevokedAt = DateTime.UtcNow;
+                        oldSession.RevokedAt = DateTime.Now;
                         oldSession.RevokedReason = "Exceso de sesiones concurrentes";
                     }
                     
@@ -373,8 +373,8 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             
             // Generar tokens
             var tokenExpiry = request.RememberMe 
-                ? DateTime.UtcNow.AddDays(7) 
-                : DateTime.UtcNow.AddMinutes(_config.SessionTimeoutMinutes);
+                ? DateTime.Now.AddDays(7) 
+                : DateTime.Now.AddMinutes(_config.SessionTimeoutMinutes);
             
             var token = GenerateJwtToken(user, tokenExpiry);
             var refreshToken = GenerateRefreshToken();
@@ -387,9 +387,9 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 RefreshToken = refreshToken,
                 IpAddress = ipAddress,
                 UserAgent = userAgent,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 ExpiresAt = tokenExpiry,
-                LastActivityAt = DateTime.UtcNow
+                LastActivityAt = DateTime.Now
             };
             
             Context.UserSessions.Add(session);
@@ -454,7 +454,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             }
             
             session.IsRevoked = true;
-            session.RevokedAt = DateTime.UtcNow;
+            session.RevokedAt = DateTime.Now;
             session.RevokedReason = "Logout por usuario";
             
             await Context.SaveChangesAsync();
@@ -489,7 +489,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             foreach (var session in sessions)
             {
                 session.IsRevoked = true;
-                session.RevokedAt = DateTime.UtcNow;
+                session.RevokedAt = DateTime.Now;
                 session.RevokedReason = reason;
             }
             
@@ -527,7 +527,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(s => s.Token == token);
             
-            if (session == null || session.IsRevoked || session.ExpiresAt < DateTime.UtcNow)
+            if (session == null || session.IsRevoked || session.ExpiresAt < DateTime.Now)
             {
                 return (false, null);
             }
@@ -535,12 +535,12 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             // ===== VERIFICAR INACTIVIDAD (Phase 3) =====
             if (_config.InactivityTimeoutMinutes > 0)
             {
-                var inactiveMinutes = (DateTime.UtcNow - session.LastActivityAt).TotalMinutes;
+                var inactiveMinutes = (DateTime.Now - session.LastActivityAt).TotalMinutes;
                 if (inactiveMinutes > _config.InactivityTimeoutMinutes)
                 {
                     // Revocar sesión por inactividad
                     session.IsRevoked = true;
-                    session.RevokedAt = DateTime.UtcNow;
+                    session.RevokedAt = DateTime.Now;
                     session.RevokedReason = $"Sesión expirada por inactividad ({(int)inactiveMinutes} minutos)";
                     await Context.SaveChangesAsync();
                     
@@ -584,7 +584,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             // Actualizar última actividad (si está habilitado)
             if (_config.TrackLastActivity)
             {
-                session.LastActivityAt = DateTime.UtcNow;
+                session.LastActivityAt = DateTime.Now;
                 await Context.SaveChangesAsync();
             }
             
@@ -614,11 +614,11 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             
             // Revocar sesión anterior
             session.IsRevoked = true;
-            session.RevokedAt = DateTime.UtcNow;
+            session.RevokedAt = DateTime.Now;
             session.RevokedReason = "Token refrescado";
             
             // Crear nueva sesión
-            var tokenExpiry = DateTime.UtcNow.AddMinutes(_config.SessionTimeoutMinutes);
+            var tokenExpiry = DateTime.Now.AddMinutes(_config.SessionTimeoutMinutes);
             var newToken = GenerateJwtToken(session.User, tokenExpiry);
             var newRefreshToken = GenerateRefreshToken();
             
@@ -629,9 +629,9 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 RefreshToken = newRefreshToken,
                 IpAddress = ipAddress ?? session.IpAddress,
                 UserAgent = session.UserAgent,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 ExpiresAt = tokenExpiry,
-                LastActivityAt = DateTime.UtcNow
+                LastActivityAt = DateTime.Now
             };
             
             Context.UserSessions.Add(newSession);
@@ -737,9 +737,9 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             
             // Actualizar contraseña
             user.PasswordHash = HashPassword(request.NewPassword);
-            user.PasswordChangedAt = DateTime.UtcNow;
+            user.PasswordChangedAt = DateTime.Now;
             user.MustChangePassword = false;
-            user.ModifiedAt = DateTime.UtcNow;
+            user.ModifiedAt = DateTime.Now;
             
             await Context.SaveChangesAsync();
             
@@ -885,7 +885,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 ActiveDirectoryDN = request.ActiveDirectoryDN,
                 Status = UserStatus.Active,
                 MustChangePassword = _config.ForcePasswordChangeOnFirstLogin && !request.IsActiveDirectoryUser,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 CreatedBy = createdBy,
                 Notes = request.Notes
             };
@@ -903,7 +903,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                     {
                         UserId = user.Id,
                         RoleId = role.Id,
-                        AssignedAt = DateTime.UtcNow,
+                        AssignedAt = DateTime.Now,
                         AssignedBy = createdBy
                     });
                 }
@@ -954,7 +954,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             if (request.MustChangePassword.HasValue) user.MustChangePassword = request.MustChangePassword.Value;
             if (request.Notes != null) user.Notes = request.Notes;
             
-            user.ModifiedAt = DateTime.UtcNow;
+            user.ModifiedAt = DateTime.Now;
             user.ModifiedBy = modifiedBy;
             
             // Actualizar roles si se especificaron
@@ -973,7 +973,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                         {
                             UserId = user.Id,
                             RoleId = role.Id,
-                            AssignedAt = DateTime.UtcNow,
+                            AssignedAt = DateTime.Now,
                             AssignedBy = modifiedBy
                         });
                     }
@@ -1064,7 +1064,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             user.Status = UserStatus.Active;
             user.LockedUntil = null;
             user.FailedLoginAttempts = 0;
-            user.ModifiedAt = DateTime.UtcNow;
+            user.ModifiedAt = DateTime.Now;
             user.ModifiedBy = unlockedBy;
             
             await Context.SaveChangesAsync();
@@ -1116,8 +1116,8 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             
             user.PasswordHash = HashPassword(newPassword);
             user.MustChangePassword = true;
-            user.PasswordChangedAt = DateTime.UtcNow;
-            user.ModifiedAt = DateTime.UtcNow;
+            user.PasswordChangedAt = DateTime.Now;
+            user.ModifiedAt = DateTime.Now;
             user.ModifiedBy = resetBy;
             
             await Context.SaveChangesAsync();
@@ -1173,8 +1173,8 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             // Actualizar contraseña
             user.PasswordHash = HashPassword(newPassword);
             user.MustChangePassword = false; // Ya la acaba de elegir
-            user.PasswordChangedAt = DateTime.UtcNow;
-            user.ModifiedAt = DateTime.UtcNow;
+            user.PasswordChangedAt = DateTime.Now;
+            user.ModifiedAt = DateTime.Now;
             user.ModifiedBy = "RECOVERY_SYSTEM";
             user.FailedLoginAttempts = 0; // Desbloquear si estaba bloqueado
             user.LockedUntil = null;
@@ -1348,10 +1348,10 @@ public class AuthenticationService : IAuthenticationService, IDisposable
     {
         var totalUsers = await Context.Users.CountAsync();
         var activeSessions = await Context.UserSessions
-            .CountAsync(s => !s.IsRevoked && s.ExpiresAt > DateTime.UtcNow);
+            .CountAsync(s => !s.IsRevoked && s.ExpiresAt > DateTime.Now);
         var lockedAccounts = await Context.Users
             .CountAsync(u => u.Status == UserStatus.Locked || 
-                            (u.LockedUntil.HasValue && u.LockedUntil > DateTime.UtcNow));
+                            (u.LockedUntil.HasValue && u.LockedUntil > DateTime.Now));
         var lastLoginAttempt = await Context.LoginAttempts
             .OrderByDescending(l => l.Timestamp)
             .Select(l => l.Timestamp)
@@ -1478,7 +1478,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 Email = "superadmin@aquafrisch.com",
                 Status = UserStatus.Active,
                 MustChangePassword = false, // El fabricante gestiona esto internamente
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 CreatedBy = "SYSTEM",
                 Notes = "Usuario del fabricante Aquafrisch. NO compartir credenciales con el cliente."
             };
@@ -1496,7 +1496,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 {
                     UserId = superAdminUser.Id,
                     RoleId = superAdminRole.Id,
-                    AssignedAt = DateTime.UtcNow,
+                    AssignedAt = DateTime.Now,
                     AssignedBy = "SYSTEM"
                 });
                 
@@ -1537,7 +1537,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 Email = "admin@aquafrisch.local",
                 Status = UserStatus.Active,
                 MustChangePassword = true, // ✅ PRODUCCIÓN: Forzar cambio de contraseña en primer acceso
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 CreatedBy = "SYSTEM"
             };
             
@@ -1554,7 +1554,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 {
                     UserId = adminUser.Id,
                     RoleId = adminRole.Id,
-                    AssignedAt = DateTime.UtcNow,
+                    AssignedAt = DateTime.Now,
                     AssignedBy = "SYSTEM"
                 });
                 
@@ -1576,13 +1576,13 @@ public class AuthenticationService : IAuthenticationService, IDisposable
     private async Task CleanupExpiredSessionsAsync()
     {
         var expiredSessions = await Context.UserSessions
-            .Where(s => !s.IsRevoked && s.ExpiresAt < DateTime.UtcNow)
+            .Where(s => !s.IsRevoked && s.ExpiresAt < DateTime.Now)
             .ToListAsync();
         
         foreach (var session in expiredSessions)
         {
             session.IsRevoked = true;
-            session.RevokedAt = DateTime.UtcNow;
+            session.RevokedAt = DateTime.Now;
             session.RevokedReason = "Sesión expirada";
         }
         
@@ -1722,7 +1722,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             UserAgent = userAgent,
             FailureReason = failureReason,
             AuthMethod = authMethod,
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.Now
         };
         
         Context.LoginAttempts.Add(attempt);
@@ -1772,7 +1772,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             .Include(s => s.User)
                 .ThenInclude(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
-            .Where(s => s.UserId == userId && !s.IsRevoked && s.ExpiresAt > DateTime.UtcNow)
+            .Where(s => s.UserId == userId && !s.IsRevoked && s.ExpiresAt > DateTime.Now)
             .OrderByDescending(s => s.LastActivityAt)
             .ToListAsync();
         
@@ -1797,7 +1797,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             .Include(s => s.User)
                 .ThenInclude(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
-            .Where(s => !s.IsRevoked && s.ExpiresAt > DateTime.UtcNow)
+            .Where(s => !s.IsRevoked && s.ExpiresAt > DateTime.Now)
             .OrderByDescending(s => s.LastActivityAt)
             .ToListAsync();
         
@@ -1836,7 +1836,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             }
             
             session.IsRevoked = true;
-            session.RevokedAt = DateTime.UtcNow;
+            session.RevokedAt = DateTime.Now;
             session.RevokedReason = $"Cerrada por el usuario desde otra sesión";
             
             await Context.SaveChangesAsync();
@@ -1873,7 +1873,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             var targetUsername = session.User?.Username ?? "unknown";
             
             session.IsRevoked = true;
-            session.RevokedAt = DateTime.UtcNow;
+            session.RevokedAt = DateTime.Now;
             session.RevokedReason = $"Cerrada por administrador {adminUsername}";
             
             await Context.SaveChangesAsync();

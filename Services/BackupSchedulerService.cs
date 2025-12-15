@@ -101,7 +101,7 @@ namespace SW.PC.API.Backend.Services
             }
             else
             {
-                var timeSinceLastBackup = DateTime.UtcNow - status.LastBackup.CreatedAt;
+                var timeSinceLastBackup = DateTime.Now - status.LastBackup.CreatedAt;
                 var interval = TimeSpan.FromHours(config.IntervalHours);
                 
                 if (timeSinceLastBackup >= interval)
@@ -119,7 +119,7 @@ namespace SW.PC.API.Backend.Services
                 
                 var request = new CreateBackupRequest
                 {
-                    Name = $"Scheduled Backup {DateTime.UtcNow:yyyy-MM-dd HH:mm}",
+                    Name = $"Scheduled Backup {DateTime.Now:yyyy-MM-dd HH:mm}",
                     Description = "Automatic scheduled backup",
                     IncludeConfig = true,
                     IncludeModels = true,

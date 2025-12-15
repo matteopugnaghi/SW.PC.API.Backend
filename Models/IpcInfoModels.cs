@@ -26,7 +26,7 @@ public class IpcSystemInfo
     public SecurityInfo Security { get; set; } = new();
     
     // Timestamp
-    public DateTime CollectedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CollectedAt { get; set; } = DateTime.Now;
 }
 
 /// <summary>
@@ -185,7 +185,7 @@ public class AntivirusProduct
 /// </summary>
 public class NetworkPortsInfo
 {
-    public DateTime CollectedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CollectedAt { get; set; } = DateTime.Now;
     public int TotalListeningPorts { get; set; }
     public int TotalEstablishedConnections { get; set; }
     public List<OpenPort> ListeningPorts { get; set; } = new();

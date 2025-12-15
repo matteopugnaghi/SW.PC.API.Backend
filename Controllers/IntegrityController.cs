@@ -144,7 +144,7 @@ namespace SW.PC.API.Backend.Controllers
                 WriteIndented = true
             });
 
-            var fileName = $"integrity_certificate_{request.MachineId}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.json";
+            var fileName = $"integrity_certificate_{request.MachineId}_{DateTime.Now:yyyyMMdd_HHmmss}.json";
             var bytes = System.Text.Encoding.UTF8.GetBytes(json);
 
             return File(bytes, "application/json", fileName);
@@ -175,7 +175,7 @@ namespace SW.PC.API.Backend.Controllers
             {
                 certificateId = certificate.CertificateId,
                 signatureValid = isValid,
-                verifiedAt = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                verifiedAt = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ssZ"),
                 message = isValid 
                     ? "✅ Certificate signature is valid" 
                     : "❌ Certificate signature is INVALID - may have been tampered"

@@ -36,6 +36,9 @@ public class AquafrischDbContext : DbContext
     
     /// <summary>Historial de intentos de login</summary>
     public DbSet<LoginAttempt> LoginAttempts { get; set; } = null!;
+    
+    /// <summary>Registro de operaciones (historial alarmas PLC, acciones usuario, etc.)</summary>
+    public DbSet<OperationLog> OperationLogs { get; set; } = null!;
 
     #endregion
 
@@ -138,6 +141,40 @@ public class AquafrischDbContext : DbContext
             entity.Property(e => e.UserAgent).HasMaxLength(500);
             entity.Property(e => e.FailureReason).HasMaxLength(500);
             entity.Property(e => e.AuthMethod).HasMaxLength(50);
+        });
+
+        // ============================================
+        // Configuración de OperationLog
+        // ============================================
+        modelBuilder.Entity<OperationLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            
+            // Índices para consultas frecuentes
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => e.Category);
+            entity.HasIndex(e => e.Action);
+            entity.HasIndex(e => e.Severity);
+            entity.HasIndex(e => e.User);
+            entity.HasIndex(e => e.PlcVariable);
+            entity.HasIndex(e => e.AlarmIndex);
+            entity.HasIndex(e => e.IsAcknowledged);
+            
+            // Índice compuesto para filtros comunes
+            entity.HasIndex(e => new { e.Category, e.Timestamp });
+            entity.HasIndex(e => new { e.Category, e.Action, e.Timestamp });
+            
+            entity.Property(e => e.User).HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.PlcVariable).HasMaxLength(200);
+            entity.Property(e => e.AlarmCode).HasMaxLength(50);
+            entity.Property(e => e.AlarmType).HasMaxLength(20);
+            entity.Property(e => e.ActionKey).HasMaxLength(100);
+            entity.Property(e => e.OldValue).HasMaxLength(100);
+            entity.Property(e => e.NewValue).HasMaxLength(100);
+            entity.Property(e => e.IpAddress).HasMaxLength(50);
+            entity.Property(e => e.SessionId).HasMaxLength(100);
+            entity.Property(e => e.AcknowledgedBy).HasMaxLength(100);
         });
 
         // ============================================
@@ -316,5 +353,63 @@ public static class AquafrischDbContextFactory
         
         // Crear base de datos si no existe
         await context.Database.EnsureCreatedAsync();
+        
+        // Asegurar que la tabla OperationLogs existe (EnsureCreated no actualiza tablas existentes)
+        await EnsureOperationLogsTableAsync(context);
+    }
+    
+    /// <summary>
+    /// Crear tabla OperationLogs si no existe (para bases de datos existentes)
+    /// </summary>
+    private static async Task EnsureOperationLogsTableAsync(AquafrischDbContext context)
+    {
+        try
+        {
+            // Crear tabla si no existe (con nueva estructura sin MessageSPA/MessageENG, con ActionKey)
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS OperationLogs (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Timestamp TEXT NOT NULL,
+                    Category INTEGER NOT NULL,
+                    Action INTEGER NOT NULL,
+                    Severity INTEGER NOT NULL DEFAULT 0,
+                    User TEXT NOT NULL DEFAULT 'System',
+                    Description TEXT NOT NULL DEFAULT '',
+                    PlcVariable TEXT,
+                    AlarmIndex INTEGER,
+                    AlarmCode TEXT,
+                    AlarmType TEXT,
+                    ActionKey TEXT,
+                    OldValue TEXT,
+                    NewValue TEXT,
+                    IpAddress TEXT,
+                    SessionId TEXT,
+                    DetailsJson TEXT,
+                    IsAcknowledged INTEGER NOT NULL DEFAULT 0,
+                    AcknowledgedBy TEXT,
+                    AcknowledgedAt TEXT
+                )");
+            
+            // 🔧 Migración: Añadir columna ActionKey si no existe (para tablas antiguas)
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE OperationLogs ADD COLUMN ActionKey TEXT");
+            }
+            catch { /* Columna ya existe */ }
+            
+            // Crear índices
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Timestamp ON OperationLogs(Timestamp)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Category ON OperationLogs(Category)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Action ON OperationLogs(Action)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Severity ON OperationLogs(Severity)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_User ON OperationLogs(User)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_PlcVariable ON OperationLogs(PlcVariable)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_IsAcknowledged ON OperationLogs(IsAcknowledged)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Category_Timestamp ON OperationLogs(Category, Timestamp)");
+        }
+        catch (Exception)
+        {
+            // Tabla ya existe o error menor - ignorar
+        }
     }
 }
