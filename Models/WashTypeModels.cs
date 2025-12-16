@@ -380,4 +380,37 @@ namespace SW.PC.API.Backend.Models
         public List<string>? Errors { get; set; }
         public DateTime WrittenAt { get; set; }
     }
+
+    /// <summary>
+    /// DTO para guardar desde PLC
+    /// </summary>
+    public class SaveFromPlcDto
+    {
+        public int SlotNumber { get; set; }
+    }
+
+    /// <summary>
+    /// Datos de receta leídos del PLC
+    /// </summary>
+    public class PlcWashRecipeData
+    {
+        public string? RecipeName { get; set; }
+        public List<PlcParameterData> Parameters { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Datos de un parámetro leído del PLC
+    /// </summary>
+    public class PlcParameterData
+    {
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string DataType { get; set; } = "";
+        public string Value { get; set; } = "";
+        public double? MinValue { get; set; }
+        public double? MaxValue { get; set; }
+        public string? Unit { get; set; }
+        public string? PlcVariable { get; set; }
+        public int DisplayOrder { get; set; }
+    }
 }

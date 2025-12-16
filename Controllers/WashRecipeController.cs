@@ -56,6 +56,8 @@ namespace SW.PC.API.Backend.Controllers
                 var response = new WashRecipeConfigResponse
                 {
                     RecipeNameDescription = config.RecipeNameDescription,
+                    RecipeNamePlcVariable = config.RecipeNamePlcVariable,
+                    RecipeNameValue = config.RecipeNameValue,
                     LoadedAt = config.LoadedAt,
                     Stations = config.Stations.Select(s => new WashRecipeStationDto
                     {
@@ -99,79 +101,131 @@ namespace SW.PC.API.Backend.Controllers
         /// <summary>
         /// Lee todos los valores actuales del PLC para la configuración de recetas
         /// GET /api/wash-recipe/read-from-plc
+        /// OPTIMIZADO: Lecturas en paralelo para máxima velocidad
         /// </summary>
         [HttpGet("read-from-plc")]
         public async Task<ActionResult<WashRecipePlcOperationResult>> ReadFromPlc()
         {
             try
             {
-                _logger.LogInformation("🚿 Reading wash recipe values from PLC");
+                _logger.LogInformation("🚿 Reading wash recipe values from PLC (parallel mode)");
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                 
                 // Primero obtener la configuración del Excel
                 var excelPath = _excelService.GetExcelConfigPath();
                 var config = await _excelService.LoadWashRecipeConfigAsync(excelPath);
                 
-                var errors = new List<string>();
+                var errors = new System.Collections.Concurrent.ConcurrentBag<string>();
                 int processed = 0;
                 int failed = 0;
                 
-                // Leer valores de cada estación
-                foreach (var station in config.Stations)
+                // Leer nombre de la receta desde PLC (si hay variable configurada)
+                string recipeNameValue = string.Empty;
+                if (!string.IsNullOrEmpty(config.RecipeNamePlcVariable))
                 {
-                    // Leer parámetros BOOL
-                    foreach (var param in station.BoolParameters.Where(p => p.IsConfigured))
+                    try
                     {
-                        try
+                        var result = await _twinCatService.ReadVariableAsync(config.RecipeNamePlcVariable, typeof(string));
+                        if (result != null)
                         {
-                            var result = await _twinCatService.ReadVariableAsync(param.PlcVariable, typeof(bool));
-                            if (result != null)
-                            {
-                                param.Value = Convert.ToBoolean(result);
-                                processed++;
-                            }
-                            else
-                            {
-                                failed++;
-                                errors.Add($"Station {station.Index}, Bool {param.Index}: Null value");
-                            }
+                            recipeNameValue = result.ToString() ?? string.Empty;
+                            config.RecipeNameValue = recipeNameValue;
+                            Interlocked.Increment(ref processed);
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            failed++;
-                            errors.Add($"Station {station.Index}, Bool {param.Index} ({param.PlcVariable}): {ex.Message}");
+                            Interlocked.Increment(ref failed);
+                            errors.Add($"RecipeName ({config.RecipeNamePlcVariable}): Null value");
                         }
                     }
-                    
-                    // Leer parámetros INT
-                    foreach (var param in station.IntParameters.Where(p => p.IsConfigured))
+                    catch (Exception ex)
                     {
-                        try
-                        {
-                            var result = await _twinCatService.ReadVariableAsync(param.PlcVariable, typeof(int));
-                            if (result != null)
-                            {
-                                param.Value = Convert.ToInt32(result);
-                                processed++;
-                            }
-                            else
-                            {
-                                failed++;
-                                errors.Add($"Station {station.Index}, Int {param.Index}: Null value");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            failed++;
-                            errors.Add($"Station {station.Index}, Int {param.Index} ({param.PlcVariable}): {ex.Message}");
-                        }
+                        Interlocked.Increment(ref failed);
+                        errors.Add($"RecipeName: {ex.Message}");
                     }
                 }
+                
+                // Preparar todas las tareas de lectura en paralelo
+                var readTasks = new List<Task>();
+                
+                foreach (var station in config.Stations)
+                {
+                    // Tareas para parámetros BOOL
+                    foreach (var param in station.BoolParameters.Where(p => p.IsConfigured))
+                    {
+                        var localParam = param; // Captura local para closure
+                        var localStation = station;
+                        readTasks.Add(Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var result = await _twinCatService.ReadVariableAsync(localParam.PlcVariable, typeof(bool));
+                                if (result != null)
+                                {
+                                    localParam.Value = Convert.ToBoolean(result);
+                                    Interlocked.Increment(ref processed);
+                                }
+                                else
+                                {
+                                    Interlocked.Increment(ref failed);
+                                    errors.Add($"S{localStation.Index}/B{localParam.Index}: Null");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Interlocked.Increment(ref failed);
+                                errors.Add($"S{localStation.Index}/B{localParam.Index}: {ex.Message}");
+                            }
+                        }));
+                    }
+                    
+                    // Tareas para parámetros INT
+                    foreach (var param in station.IntParameters.Where(p => p.IsConfigured))
+                    {
+                        var localParam = param;
+                        var localStation = station;
+                        readTasks.Add(Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var result = await _twinCatService.ReadVariableAsync(localParam.PlcVariable, typeof(int));
+                                if (result != null)
+                                {
+                                    localParam.Value = Convert.ToInt32(result);
+                                    Interlocked.Increment(ref processed);
+                                }
+                                else
+                                {
+                                    Interlocked.Increment(ref failed);
+                                    errors.Add($"S{localStation.Index}/I{localParam.Index}: Null");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Interlocked.Increment(ref failed);
+                                errors.Add($"S{localStation.Index}/I{localParam.Index}: {ex.Message}");
+                            }
+                        }));
+                    }
+                }
+                
+                // Ejecutar todas las lecturas en paralelo
+                if (readTasks.Count > 0)
+                {
+                    await Task.WhenAll(readTasks);
+                }
+                
+                stopwatch.Stop();
+                _logger.LogInformation("🚿 Read from PLC completed in {Ms}ms: {Processed} OK, {Failed} failed", 
+                    stopwatch.ElapsedMilliseconds, processed, failed);
                 
                 // Construir respuesta con valores leídos
                 var imageBaseUrl = "/api/wash-recipe/image/";
                 var responseData = new WashRecipeConfigResponse
                 {
                     RecipeNameDescription = config.RecipeNameDescription,
+                    RecipeNamePlcVariable = config.RecipeNamePlcVariable,
+                    RecipeNameValue = config.RecipeNameValue,
                     LoadedAt = DateTime.Now,
                     Stations = config.Stations.Select(s => new WashRecipeStationDto
                     {
@@ -200,17 +254,16 @@ namespace SW.PC.API.Backend.Controllers
                     }).ToList()
                 };
                 
-                _logger.LogInformation("🚿 Read from PLC completed: {Processed} OK, {Failed} failed", processed, failed);
-                
+                var errorsList = errors.ToList();
                 return Ok(new WashRecipePlcOperationResult
                 {
                     Success = failed == 0,
                     Message = failed == 0 
-                        ? $"Leídos {processed} parámetros del PLC" 
-                        : $"Leídos {processed} parámetros, {failed} fallidos",
+                        ? $"Leídos {processed} parámetros del PLC en {stopwatch.ElapsedMilliseconds}ms" 
+                        : $"Leídos {processed} parámetros, {failed} fallidos ({stopwatch.ElapsedMilliseconds}ms)",
                     ParametersProcessed = processed,
                     ParametersFailed = failed,
-                    Errors = errors.Count > 0 ? errors : null,
+                    Errors = errorsList.Count > 0 ? errorsList : null,
                     Data = responseData
                 });
             }
@@ -240,6 +293,34 @@ namespace SW.PC.API.Backend.Controllers
                 var errors = new List<string>();
                 int processed = 0;
                 int failed = 0;
+                
+                // Escribir nombre de la receta al PLC (si hay variable configurada)
+                if (!string.IsNullOrEmpty(request.RecipeNamePlcVariable) && request.RecipeNameValue != null)
+                {
+                    try
+                    {
+                        var success = await _twinCatService.WriteVariableAsync(
+                            request.RecipeNamePlcVariable,
+                            request.RecipeNameValue,
+                            typeof(string));
+                        
+                        if (success)
+                        {
+                            processed++;
+                            _logger.LogDebug("🚿 Recipe name written to PLC: {Name}", request.RecipeNameValue);
+                        }
+                        else
+                        {
+                            failed++;
+                            errors.Add($"RecipeName ({request.RecipeNamePlcVariable}): Write failed");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        failed++;
+                        errors.Add($"RecipeName ({request.RecipeNamePlcVariable}): {ex.Message}");
+                    }
+                }
                 
                 foreach (var station in request.Stations)
                 {

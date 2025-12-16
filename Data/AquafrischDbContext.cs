@@ -511,6 +511,9 @@ public static class AquafrischDbContextFactory
         
         // Crear tabla MachineSettings para configuraciones de máquina
         await EnsureMachineSettingsTableAsync(context);
+        
+        // Crear tablas WashTypes para tipos de lavado
+        await EnsureWashTypesTablesAsync(context);
     }
     
     /// <summary>
@@ -540,6 +543,94 @@ public static class AquafrischDbContextFactory
         catch (Exception)
         {
             // Tabla ya existe o error menor - ignorar
+        }
+    }
+    
+    /// <summary>
+    /// Crear tablas WashTypes, WashTypeParameters y ActiveWashType si no existen
+    /// </summary>
+    private static async Task EnsureWashTypesTablesAsync(AquafrischDbContext context)
+    {
+        try
+        {
+            // Tabla WashTypes (Tipos de Lavado)
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS WashTypes (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Code TEXT NOT NULL UNIQUE,
+                    Name TEXT NOT NULL,
+                    Description TEXT,
+                    Icon TEXT,
+                    Color TEXT,
+                    IsActive INTEGER NOT NULL DEFAULT 1,
+                    IsDefault INTEGER NOT NULL DEFAULT 0,
+                    DisplayOrder INTEGER NOT NULL DEFAULT 0,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT,
+                    CreatedBy TEXT,
+                    UpdatedBy TEXT
+                )");
+            
+            // Índices para WashTypes
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_WashTypes_Code ON WashTypes(Code)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_WashTypes_IsActive ON WashTypes(IsActive)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_WashTypes_DisplayOrder ON WashTypes(DisplayOrder)");
+            
+            // Tabla WashTypeParameters (Parámetros de tipos de lavado)
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS WashTypeParameters (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    WashTypeId INTEGER NOT NULL,
+                    ParameterCode TEXT NOT NULL,
+                    Name TEXT NOT NULL,
+                    DataType TEXT NOT NULL,
+                    Value TEXT,
+                    MinValue REAL,
+                    MaxValue REAL,
+                    Unit TEXT,
+                    PlcVariable TEXT,
+                    DisplayOrder INTEGER NOT NULL DEFAULT 0,
+                    IsEditable INTEGER NOT NULL DEFAULT 1,
+                    FOREIGN KEY (WashTypeId) REFERENCES WashTypes(Id) ON DELETE CASCADE,
+                    UNIQUE (WashTypeId, ParameterCode)
+                )");
+            
+            // Índices para WashTypeParameters
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_WashTypeParameters_WashTypeId_ParameterCode ON WashTypeParameters(WashTypeId, ParameterCode)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_WashTypeParameters_DisplayOrder ON WashTypeParameters(DisplayOrder)");
+            
+            // Migración: añadir columna IsEditable si no existe (para bases de datos existentes)
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE WashTypeParameters ADD COLUMN IsEditable INTEGER NOT NULL DEFAULT 1");
+            }
+            catch { /* Columna ya existe */ }
+            
+            // Tabla ActiveWashType (Tipo de lavado activo)
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ActiveWashType (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    WashTypeId INTEGER NOT NULL,
+                    SelectedAt TEXT NOT NULL,
+                    SelectedBy TEXT,
+                    WrittenToPlc INTEGER NOT NULL DEFAULT 0,
+                    WrittenToPlcAt TEXT,
+                    FOREIGN KEY (WashTypeId) REFERENCES WashTypes(Id) ON DELETE RESTRICT
+                )");
+            
+            // Migración: añadir columna WrittenToPlc si no existe
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ActiveWashType ADD COLUMN WrittenToPlc INTEGER NOT NULL DEFAULT 0");
+            }
+            catch { /* Columna ya existe */ };
+            
+            // Índice para ActiveWashType
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ActiveWashType_WashTypeId ON ActiveWashType(WashTypeId)");
+        }
+        catch (Exception)
+        {
+            // Tablas ya existen o error menor - ignorar
         }
     }
 }

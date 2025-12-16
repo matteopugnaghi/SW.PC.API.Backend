@@ -416,17 +416,8 @@ namespace SW.PC.API.Backend.Services
                 throw new InvalidOperationException("Not connected to PLC");
             }
             
-            // 🔴 Si esta variable falló recientemente, saltar para evitar spam de errores
-            if (_failedVariables.TryGetValue(variableName, out var failedAt))
-            {
-                if (DateTime.Now - failedAt < _failedVariableRetryInterval)
-                {
-                    // Devolver null silenciosamente - la variable no existe o falla
-                    return null;
-                }
-                // Ya pasó el tiempo de espera, quitar del cache y reintentar
-                _failedVariables.TryRemove(variableName, out _);
-            }
+            // ⚠️ NOTA: Ya no silenciamos errores de variables fallidas
+            // Cada intento de lectura reportará el error si la variable no existe
             
             // Si está en modo REAL (no simulado), intentar leer del PLC real
             if (!_isSimulatedMode && _adsClient != null)
@@ -478,6 +469,20 @@ namespace SW.PC.API.Backend.Services
                             using var reader = new BinaryReader(stream);
                             result = reader.ReadDouble();
                         }
+                        else if (dataType == typeof(string))
+                        {
+                            // WSTRING en TwinCAT: 162 bytes por defecto (80 chars * 2 bytes + 2 bytes terminador)
+                            // WSTRING usa Unicode UTF-16 Little Endian
+                            byte[] buffer = new byte[162];
+                            _adsClient.Read(handle, buffer.AsMemory());
+                            
+                            // Decodificar UTF-16 LE y buscar terminador null (2 bytes: 0x00 0x00)
+                            string fullString = System.Text.Encoding.Unicode.GetString(buffer);
+                            int nullIndex = fullString.IndexOf('\0');
+                            result = nullIndex >= 0 ? fullString.Substring(0, nullIndex) : fullString.TrimEnd();
+                            
+                            _logger.LogDebug("📖 Read WSTRING from REAL PLC: {Var} = {Value}", variableName, result);
+                        }
                         
                         return result;
                     }
@@ -490,49 +495,28 @@ namespace SW.PC.API.Backend.Services
                 catch (TwinCAT.Ads.AdsErrorException ex) when ((int)ex.ErrorCode == 1808)
                 {
                     // Variable no existe en PLC - Código 1808 = ADS_E_SYMBOLNOTFOUND
-                    // Agregar al cache de variables fallidas para no reintentar
-                    _failedVariables[variableName] = DateTime.Now;
-                    
-                    // Log solo una vez (se silenciará por 1 minuto)
-                    _logger.LogWarning("⚠️ Variable NO EXISTE en PLC: {Var} - Silenciando por 1 minuto", variableName);
-                    return null;
+                    // ❌ PROPAGAR EL ERROR - NO silenciar
+                    _logger.LogError("❌ Variable NO EXISTE en PLC: {Var}", variableName);
+                    throw new InvalidOperationException($"Variable '{variableName}' no existe en el PLC. Verifique que el programa PLC esté cargado y la variable exista.", ex);
                 }
                 catch (TwinCAT.Ads.AdsErrorException ex)
                 {
-                    // Agregar al cache de variables fallidas
-                    _failedVariables[variableName] = DateTime.Now;
-                    
-                    // Solo loguear UNA VEZ por variable diferente (para no spamear)
-                    _logger.LogWarning("⚠️ ADS Error en {Var}: Code={ErrorCode} ({ErrorName}) - Silenciando por 1 minuto", 
+                    // ❌ PROPAGAR EL ERROR - NO silenciar
+                    _logger.LogError("❌ ADS Error en {Var}: Code={ErrorCode} ({ErrorName})", 
                         variableName, (int)ex.ErrorCode, ex.ErrorCode.ToString());
-                    return null;
+                    throw new InvalidOperationException($"Error ADS al leer '{variableName}': {ex.ErrorCode} - {ex.Message}", ex);
                 }
                 catch (Exception ex)
                 {
-                    // Agregar al cache de variables fallidas
-                    _failedVariables[variableName] = DateTime.Now;
-                    
-                    _logger.LogError(ex, "❌ Error leyendo {Var} del PLC - Silenciando por 1 minuto", variableName);
-                    return null;
+                    _logger.LogError(ex, "❌ Error leyendo {Var} del PLC", variableName);
+                    throw new InvalidOperationException($"Error al leer '{variableName}' del PLC: {ex.Message}", ex);
                 }
             }
             
-            // Modo SIMULADO (fallback)
-            if (_simulatedVariables.ContainsKey(variableName))
-            {
-                var value = _simulatedVariables[variableName];
-                // Logging reducido para performance
-                // _logger.LogDebug("📖 Read from SIMULATED PLC: {Var} = {Value}", variableName, value);
-                
-                // Retorno directo sin Task wrapper innecesario
-                return value;
-            }
-            
-            // ⭐ Auto-generar valor simulado para variables no definidas
-            var autoValue = GenerateSimulatedValue(variableName, dataType);
-            _simulatedVariables[variableName] = autoValue; // Cache para futuras lecturas
-            _logger.LogDebug("🎮 Auto-generated simulated value for {Var}: {Value}", variableName, autoValue);
-            return autoValue;
+            // ❌ NO hay modo simulado para lectura de variables críticas
+            // Si llegamos aquí, el PLC no está conectado y no hay datos reales
+            _logger.LogError("❌ No se puede leer '{Var}' - PLC no conectado y no hay modo simulado", variableName);
+            throw new InvalidOperationException($"No se puede leer '{variableName}': El PLC no está conectado. No se generan datos simulados.");
         }
         
         /// <summary>
@@ -582,6 +566,16 @@ namespace SW.PC.API.Backend.Services
             else if (dataType == typeof(float) || dataType == typeof(double))
             {
                 return (float)(_random.NextDouble() * 100);
+            }
+            else if (dataType == typeof(string))
+            {
+                // Generar nombre de receta simulado
+                if (lowerName.Contains("recipe") || lowerName.Contains("receta") || lowerName.Contains("name") || lowerName.Contains("nombre"))
+                {
+                    string[] recipeNames = { "Lavado Normal", "Lavado Intensivo", "Lavado Eco", "Lavado Rapido", "Pre-Lavado" };
+                    return recipeNames[_random.Next(recipeNames.Length)];
+                }
+                return $"SimValue_{_random.Next(1000)}";
             }
             
             // Default: entero entre 0 y 10
@@ -647,6 +641,25 @@ namespace SW.PC.API.Backend.Services
                             
                             _adsClient.Write(handle, buffer.AsMemory());
                             _logger.LogDebug("✍️ Wrote LREAL to REAL PLC: {Var} = {Value}", variableName, value);
+                        }
+                        else if (dataType == typeof(string))
+                        {
+                            // WSTRING en TwinCAT: 162 bytes por defecto (80 chars * 2 bytes + 2 bytes terminador)
+                            // WSTRING usa Unicode UTF-16 Little Endian
+                            string strValue = value?.ToString() ?? string.Empty;
+                            
+                            // Truncar a 80 caracteres máximo
+                            if (strValue.Length > 80)
+                                strValue = strValue.Substring(0, 80);
+                            
+                            // Codificar como UTF-16 LE con terminador null
+                            buffer = new byte[162];
+                            byte[] strBytes = System.Text.Encoding.Unicode.GetBytes(strValue);
+                            Array.Copy(strBytes, buffer, Math.Min(strBytes.Length, 160));
+                            // Terminador null ya está implícito (buffer inicializado en 0)
+                            
+                            _adsClient.Write(handle, buffer.AsMemory());
+                            _logger.LogDebug("✍️ Wrote WSTRING to REAL PLC: {Var} = {Value}", variableName, strValue);
                         }
                         else
                         {

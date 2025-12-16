@@ -2369,10 +2369,11 @@ namespace SW.PC.API.Backend.Services
         /// Carga la configuración del editor de recetas de lavado desde la hoja "WashRecipe" del Excel.
         /// Estructura de columnas por fila (cada fila = una estación):
         /// - A2: Descripción nombre lavado (solo fila 2, título general)
+        /// - A3: Variable PLC para nombre de receta (WSTRING)
         /// - B: Nombre de la estación
         /// - C: Imagen de la estación
         /// - D,E / F,G / ... / V,W: 10 pares de Variable PLC BOOL + Descripción
-        /// - X,Y / Z,AA / ... / AP,AQ: 10 pares de Variable PLC INT + Descripción
+        /// - X,Y,Z,AA,AB / AC,AD,AE,AF,AG / ...: 10 grupos de Variable INT + Desc + Min + Max + Unidad
         /// </summary>
         public async Task<WashRecipeEditorConfiguration> LoadWashRecipeConfigAsync(string filePath)
         {
@@ -2413,6 +2414,14 @@ namespace SW.PC.API.Backend.Services
                         _logger.LogDebug("🚿 Recipe name description from A2: {Desc}", recipeDesc);
                     }
                     
+                    // Leer variable PLC del nombre de receta desde A3
+                    var recipeNamePlcVar = sheet.Cells["A3"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(recipeNamePlcVar))
+                    {
+                        config.RecipeNamePlcVariable = recipeNamePlcVar;
+                        _logger.LogDebug("🚿 Recipe name PLC variable from A3: {Var}", recipeNamePlcVar);
+                    }
+                    
                     // Definir columnas para parámetros BOOL (10 pares: Variable, Descripción)
                     // D-E, F-G, H-I, J-K, L-M, N-O, P-Q, R-S, T-U, V-W
                     var boolColumns = new (string VarCol, string DescCol)[]
@@ -2421,12 +2430,29 @@ namespace SW.PC.API.Backend.Services
                         ("N", "O"), ("P", "Q"), ("R", "S"), ("T", "U"), ("V", "W")
                     };
                     
-                    // Definir columnas para parámetros INT (10 pares: Variable, Descripción)
-                    // X-Y, Z-AA, AB-AC, AD-AE, AF-AG, AH-AI, AJ-AK, AL-AM, AN-AO, AP-AQ
-                    var intColumns = new (string VarCol, string DescCol)[]
+                    // Definir columnas para parámetros INT (10 grupos de 5: Variable, Descripción, Min, Max, Unidad)
+                    // INT 1: X, Y, Z, AA, AB
+                    // INT 2: AC, AD, AE, AF, AG
+                    // INT 3: AH, AI, AJ, AK, AL
+                    // INT 4: AM, AN, AO, AP, AQ
+                    // INT 5: AR, AS, AT, AU, AV
+                    // INT 6: AW, AX, AY, AZ, BA
+                    // INT 7: BB, BC, BD, BE, BF
+                    // INT 8: BG, BH, BI, BJ, BK
+                    // INT 9: BL, BM, BN, BO, BP
+                    // INT 10: BQ, BR, BS, BT, BU
+                    var intColumns = new (string VarCol, string DescCol, string MinCol, string MaxCol, string UnitCol)[]
                     {
-                        ("X", "Y"), ("Z", "AA"), ("AB", "AC"), ("AD", "AE"), ("AF", "AG"),
-                        ("AH", "AI"), ("AJ", "AK"), ("AL", "AM"), ("AN", "AO"), ("AP", "AQ")
+                        ("X", "Y", "Z", "AA", "AB"),
+                        ("AC", "AD", "AE", "AF", "AG"),
+                        ("AH", "AI", "AJ", "AK", "AL"),
+                        ("AM", "AN", "AO", "AP", "AQ"),
+                        ("AR", "AS", "AT", "AU", "AV"),
+                        ("AW", "AX", "AY", "AZ", "BA"),
+                        ("BB", "BC", "BD", "BE", "BF"),
+                        ("BG", "BH", "BI", "BJ", "BK"),
+                        ("BL", "BM", "BN", "BO", "BP"),
+                        ("BQ", "BR", "BS", "BT", "BU")
                     };
                     
                     // Leer estaciones desde fila 2 en adelante
@@ -2458,7 +2484,7 @@ namespace SW.PC.API.Backend.Services
                         
                         if (!hasData)
                         {
-                            foreach (var (varCol, _) in intColumns)
+                            foreach (var (varCol, _, _, _, _) in intColumns)
                             {
                                 if (!string.IsNullOrEmpty(sheet.Cells[$"{varCol}{row}"].Text?.Trim()))
                                 {
@@ -2496,20 +2522,34 @@ namespace SW.PC.API.Backend.Services
                                 });
                             }
                             
-                            // Leer parámetros INT
+                            // Leer parámetros INT (ahora con 5 columnas: Var, Desc, Min, Max, Unit)
                             for (int i = 0; i < intColumns.Length; i++)
                             {
-                                var (varCol, descCol) = intColumns[i];
+                                var (varCol, descCol, minCol, maxCol, unitCol) = intColumns[i];
                                 var plcVar = sheet.Cells[$"{varCol}{row}"].Text?.Trim();
                                 var desc = sheet.Cells[$"{descCol}{row}"].Text?.Trim();
+                                var minText = sheet.Cells[$"{minCol}{row}"].Text?.Trim();
+                                var maxText = sheet.Cells[$"{maxCol}{row}"].Text?.Trim();
+                                var unit = sheet.Cells[$"{unitCol}{row}"].Text?.Trim();
                                 
-                                station.IntParameters.Add(new WashRecipeIntParam
+                                var intParam = new WashRecipeIntParam
                                 {
                                     Index = i,
                                     PlcVariable = plcVar ?? string.Empty,
                                     Description = desc ?? $"Int {i + 1}",
-                                    Value = 0 // Valor inicial, se leerá del PLC
-                                });
+                                    Value = 0, // Valor inicial, se leerá del PLC
+                                    Unit = string.IsNullOrEmpty(unit) ? null : unit
+                                };
+                                
+                                // Parsear Min
+                                if (int.TryParse(minText, out var minVal))
+                                    intParam.MinValue = minVal;
+                                
+                                // Parsear Max
+                                if (int.TryParse(maxText, out var maxVal))
+                                    intParam.MaxValue = maxVal;
+                                
+                                station.IntParameters.Add(intParam);
                             }
                             
                             config.Stations.Add(station);

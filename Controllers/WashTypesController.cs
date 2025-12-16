@@ -29,17 +29,20 @@ namespace SW.PC.API.Backend.Controllers
     {
         private readonly AquafrischDbContext _dbContext;
         private readonly ITwinCATService _twinCATService;
+        private readonly IExcelConfigService _excelService;
         private readonly IAuditLogService _auditLog;
         private readonly ILogger<WashTypesController> _logger;
 
         public WashTypesController(
             AquafrischDbContext dbContext,
             ITwinCATService twinCATService,
+            IExcelConfigService excelService,
             IAuditLogService auditLog,
             ILogger<WashTypesController> logger)
         {
             _dbContext = dbContext;
             _twinCATService = twinCATService;
+            _excelService = excelService;
             _auditLog = auditLog;
             _logger = logger;
         }
@@ -535,6 +538,273 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         /// <summary>
+        /// Escribir un tipo de lavado específico al PLC (DB → PLC)
+        /// </summary>
+        [HttpPost("{id:int}/write-to-plc")]
+        [ProducesResponseType(typeof(WriteToPlcResponseDto), 200)]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(404)]
+        public async Task<ActionResult<WriteToPlcResponseDto>> WriteSpecificToPlc(int id)
+        {
+            try
+            {
+                var washType = await _dbContext.WashTypes
+                    .Include(w => w.Parameters)
+                    .FirstOrDefaultAsync(w => w.Id == id);
+
+                if (washType == null)
+                {
+                    return NotFound(new { error = $"Tipo de lavado con ID {id} no encontrado" });
+                }
+
+                var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
+
+                // Crear o actualizar ActiveWashType
+                var existingActive = await _dbContext.ActiveWashTypes.ToListAsync();
+                _dbContext.ActiveWashTypes.RemoveRange(existingActive);
+
+                var active = new ActiveWashType
+                {
+                    WashTypeId = id,
+                    SelectedAt = DateTime.UtcNow,
+                    SelectedBy = username,
+                    WrittenToPlc = false
+                };
+                _dbContext.ActiveWashTypes.Add(active);
+                await _dbContext.SaveChangesAsync();
+
+                var result = await WriteWashTypeToPlcInternal(washType, active, username);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error writing specific wash type to PLC");
+                return StatusCode(500, new { error = "Error al escribir al PLC" });
+            }
+        }
+
+        /// <summary>
+        /// Guardar tipo de lavado desde PLC (PLC → DB)
+        /// Lee los valores actuales del PLC y los guarda en el slot indicado
+        /// </summary>
+        [HttpPost("save-from-plc")]
+        [ProducesResponseType(typeof(WashTypeDetailDto), 200)]
+        [ProducesResponseType(400)]
+        public async Task<ActionResult<WashTypeDetailDto>> SaveFromPlc([FromBody] SaveFromPlcDto dto)
+        {
+            try
+            {
+                if (dto.SlotNumber < 1 || dto.SlotNumber > 20)
+                {
+                    return BadRequest(new { error = "El número de slot debe estar entre 1 y 20" });
+                }
+
+                var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
+                var slotCode = $"WASH_{dto.SlotNumber:D2}";
+
+                // Leer valores del PLC usando el servicio de Excel (que define las variables)
+                var plcValues = await ReadWashRecipeFromPlcAsync();
+
+                // Buscar si ya existe el slot
+                var existingWashType = await _dbContext.WashTypes
+                    .Include(w => w.Parameters)
+                    .FirstOrDefaultAsync(w => w.Code == slotCode);
+
+                if (existingWashType != null)
+                {
+                    // Actualizar existente
+                    existingWashType.Name = plcValues.RecipeName ?? $"Receta {dto.SlotNumber}";
+                    existingWashType.UpdatedAt = DateTime.UtcNow;
+                    existingWashType.UpdatedBy = username;
+
+                    // Actualizar parámetros
+                    foreach (var param in plcValues.Parameters)
+                    {
+                        var existingParam = existingWashType.Parameters
+                            .FirstOrDefault(p => p.ParameterCode == param.Code);
+                        if (existingParam != null)
+                        {
+                            existingParam.Value = param.Value;
+                        }
+                        else
+                        {
+                            existingWashType.Parameters.Add(new WashTypeParameter
+                            {
+                                ParameterCode = param.Code,
+                                Name = param.Name,
+                                DataType = param.DataType,
+                                Value = param.Value,
+                                MinValue = param.MinValue,
+                                MaxValue = param.MaxValue,
+                                Unit = param.Unit,
+                                PlcVariable = param.PlcVariable,
+                                DisplayOrder = param.DisplayOrder
+                            });
+                        }
+                    }
+                }
+                else
+                {
+                    // Crear nuevo
+                    existingWashType = new WashType
+                    {
+                        Code = slotCode,
+                        Name = plcValues.RecipeName ?? $"Receta {dto.SlotNumber}",
+                        Description = $"Receta guardada desde PLC - Slot {dto.SlotNumber}",
+                        Icon = "🚿",
+                        Color = "#3498db",
+                        IsActive = true,
+                        IsDefault = dto.SlotNumber == 1,
+                        DisplayOrder = dto.SlotNumber,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedBy = username,
+                        Parameters = plcValues.Parameters.Select(p => new WashTypeParameter
+                        {
+                            ParameterCode = p.Code,
+                            Name = p.Name,
+                            DataType = p.DataType,
+                            Value = p.Value,
+                            MinValue = p.MinValue,
+                            MaxValue = p.MaxValue,
+                            Unit = p.Unit,
+                            PlcVariable = p.PlcVariable,
+                            DisplayOrder = p.DisplayOrder
+                        }).ToList()
+                    };
+
+                    _dbContext.WashTypes.Add(existingWashType);
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                // Audit log
+                await _auditLog.LogAsync(
+                    AuditCategory.Recipe,
+                    AuditAction.ConfigChange,
+                    AuditResult.Success,
+                    $"Guardado tipo de lavado desde PLC: Slot {dto.SlotNumber} - {existingWashType.Name}",
+                    null, username);
+
+                _logger.LogInformation("✅ Saved wash type from PLC: Slot {Slot} - {Name}", dto.SlotNumber, existingWashType.Name);
+
+                return Ok(new WashTypeDetailDto
+                {
+                    Id = existingWashType.Id,
+                    Code = existingWashType.Code,
+                    Name = existingWashType.Name,
+                    Description = existingWashType.Description,
+                    Icon = existingWashType.Icon,
+                    Color = existingWashType.Color,
+                    IsActive = existingWashType.IsActive,
+                    IsDefault = existingWashType.IsDefault,
+                    DisplayOrder = existingWashType.DisplayOrder,
+                    Parameters = existingWashType.Parameters.Select(p => new WashTypeParameterDto
+                    {
+                        Id = p.Id,
+                        ParameterCode = p.ParameterCode,
+                        Name = p.Name,
+                        DataType = p.DataType,
+                        Value = p.Value,
+                        MinValue = p.MinValue,
+                        MaxValue = p.MaxValue,
+                        Unit = p.Unit,
+                        PlcVariable = p.PlcVariable,
+                        DisplayOrder = p.DisplayOrder
+                    }).ToList()
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Error de conexión al PLC - mensaje claro para el usuario
+                _logger.LogWarning(ex, "⚠️ No hay conexión al PLC para guardar tipo de lavado");
+                return StatusCode(503, new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error saving wash type from PLC");
+                return StatusCode(500, new { error = "Error al guardar desde PLC: " + ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Leer la receta de lavado actual desde el PLC
+        /// Usa las variables definidas en el Excel (hoja WashRecipe)
+        /// Lanza excepción si no hay conexión - NO genera datos falsos
+        /// </summary>
+        private async Task<PlcWashRecipeData> ReadWashRecipeFromPlcAsync()
+        {
+            var result = new PlcWashRecipeData
+            {
+                Parameters = new List<PlcParameterData>()
+            };
+
+            // Verificar conexión al PLC primero
+            if (!_twinCATService.IsConnected)
+            {
+                throw new InvalidOperationException("No hay conexión con el PLC. No se pueden leer los valores actuales.");
+            }
+
+            // Cargar configuración desde Excel (hoja WashRecipe)
+            var excelPath = _excelService.GetExcelConfigPath();
+            var excelConfig = await _excelService.LoadWashRecipeConfigAsync(excelPath);
+
+            // Leer nombre de receta desde PLC (variable de A3 del Excel)
+            if (!string.IsNullOrEmpty(excelConfig.RecipeNamePlcVariable))
+            {
+                _logger.LogInformation("🚿 Leyendo nombre de receta desde PLC: {Var}", excelConfig.RecipeNamePlcVariable);
+                var recipeNameValue = await _twinCATService.ReadVariableAsync(excelConfig.RecipeNamePlcVariable, typeof(string));
+                result.RecipeName = recipeNameValue?.ToString() ?? "Receta PLC";
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ No hay variable PLC configurada para nombre de receta en A3 del Excel");
+                result.RecipeName = "Receta PLC";
+            }
+
+            int displayOrder = 1;
+
+            // Leer parámetros de todas las estaciones configuradas en el Excel
+            foreach (var station in excelConfig.Stations)
+            {
+                // Leer parámetros BOOL de esta estación
+                foreach (var boolParam in station.BoolParameters.Where(p => p.IsConfigured))
+                {
+                    var value = await _twinCATService.ReadVariableAsync(boolParam.PlcVariable, typeof(bool));
+                    result.Parameters.Add(new PlcParameterData
+                    {
+                        Code = $"BOOL_{station.Index}_{boolParam.Index}",
+                        Name = boolParam.Description ?? $"Bool {boolParam.Index}",
+                        DataType = "BOOL",
+                        Value = value?.ToString()?.ToLower() ?? "false",
+                        PlcVariable = boolParam.PlcVariable,
+                        DisplayOrder = displayOrder++
+                    });
+                }
+
+                // Leer parámetros INT de esta estación
+                foreach (var intParam in station.IntParameters.Where(p => p.IsConfigured))
+                {
+                    var value = await _twinCATService.ReadVariableAsync(intParam.PlcVariable, typeof(int));
+                    result.Parameters.Add(new PlcParameterData
+                    {
+                        Code = $"INT_{station.Index}_{intParam.Index}",
+                        Name = intParam.Description ?? $"Int {intParam.Index}",
+                        DataType = "INT",
+                        Value = value?.ToString() ?? "0",
+                        MinValue = intParam.MinValue,
+                        MaxValue = intParam.MaxValue,
+                        Unit = intParam.Unit,
+                        PlcVariable = intParam.PlcVariable,
+                        DisplayOrder = displayOrder++
+                    });
+                }
+            }
+
+            _logger.LogInformation("🚿 Leídos {Count} parámetros del PLC desde configuración Excel", result.Parameters.Count);
+            return result;
+        }
+
+        /// <summary>
         /// Inicializar datos de prueba (solo desarrollo)
         /// </summary>
         [HttpPost("seed")]
@@ -693,6 +963,36 @@ namespace SW.PC.API.Backend.Controllers
             var errors = new List<string>();
             int parametersWritten = 0;
 
+            // Cargar configuración del Excel para obtener variable del nombre de receta
+            var excelPath = _excelService.GetExcelConfigPath();
+            var excelConfig = await _excelService.LoadWashRecipeConfigAsync(excelPath);
+
+            // Escribir nombre de receta al PLC (variable de A3 del Excel)
+            if (!string.IsNullOrEmpty(excelConfig.RecipeNamePlcVariable))
+            {
+                try
+                {
+                    await _twinCATService.WriteVariableAsync(
+                        excelConfig.RecipeNamePlcVariable, 
+                        washType.Name, 
+                        typeof(string));
+                    parametersWritten++;
+                    _logger.LogInformation("✅ Nombre de receta escrito al PLC: {Var} = {Value}", 
+                        excelConfig.RecipeNamePlcVariable, washType.Name);
+                }
+                catch (Exception ex)
+                {
+                    var error = $"Nombre de receta: {ex.Message}";
+                    errors.Add(error);
+                    _logger.LogWarning("⚠️ Error escribiendo nombre de receta: {Error}", ex.Message);
+                }
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ No hay variable PLC configurada para nombre de receta en A3 del Excel");
+            }
+
+            // Escribir parámetros individuales
             foreach (var param in washType.Parameters.Where(p => !string.IsNullOrEmpty(p.PlcVariable)))
             {
                 try

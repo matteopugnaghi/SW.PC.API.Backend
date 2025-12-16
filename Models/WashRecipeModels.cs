@@ -19,6 +19,17 @@ namespace SW.PC.API.Backend.Models
         public string RecipeNameDescription { get; set; } = "Nombre de la Receta";
         
         /// <summary>
+        /// Variable PLC para el nombre de la receta (desde A3)
+        /// Esta variable contiene el nombre activo que se muestra en la lista
+        /// </summary>
+        public string? RecipeNamePlcVariable { get; set; }
+        
+        /// <summary>
+        /// Valor actual del nombre de receta leído del PLC
+        /// </summary>
+        public string RecipeNameValue { get; set; } = string.Empty;
+        
+        /// <summary>
         /// Lista de estaciones configuradas (una por fila del Excel)
         /// </summary>
         public List<WashRecipeStation> Stations { get; set; } = new();
@@ -156,6 +167,14 @@ namespace SW.PC.API.Backend.Models
     public class WashRecipeConfigResponse
     {
         public string RecipeNameDescription { get; set; } = string.Empty;
+        /// <summary>
+        /// Variable PLC para leer/escribir el nombre de la receta activa (desde A3)
+        /// </summary>
+        public string? RecipeNamePlcVariable { get; set; }
+        /// <summary>
+        /// Valor actual del nombre de receta leído del PLC
+        /// </summary>
+        public string RecipeNameValue { get; set; } = string.Empty;
         public List<WashRecipeStationDto> Stations { get; set; } = new();
         public DateTime LoadedAt { get; set; }
     }
@@ -206,6 +225,14 @@ namespace SW.PC.API.Backend.Models
     public class WriteWashRecipeToPlcRequest
     {
         public string? RecipeName { get; set; }
+        /// <summary>
+        /// Variable PLC para escribir el nombre de la receta
+        /// </summary>
+        public string? RecipeNamePlcVariable { get; set; }
+        /// <summary>
+        /// Nuevo valor del nombre de receta a escribir al PLC
+        /// </summary>
+        public string? RecipeNameValue { get; set; }
         public List<WashRecipeStationValuesDto> Stations { get; set; } = new();
     }
     
