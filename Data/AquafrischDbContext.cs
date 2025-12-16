@@ -7,6 +7,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using SW.PC.API.Backend.Models;
+using SW.PC.API.Backend.Models.Database;
 
 namespace SW.PC.API.Backend.Data;
 
@@ -29,7 +30,7 @@ public class AquafrischDbContext : DbContext
     public DbSet<Role> Roles { get; set; } = null!;
     
     /// <summary>Relación Usuario-Rol</summary>
-    public DbSet<UserRole> UserRoles { get; set; } = null!;
+    public DbSet<SW.PC.API.Backend.Models.UserRole> UserRoles { get; set; } = null!;
     
     /// <summary>Sesiones activas</summary>
     public DbSet<UserSession> UserSessions { get; set; } = null!;
@@ -39,6 +40,18 @@ public class AquafrischDbContext : DbContext
     
     /// <summary>Registro de operaciones (historial alarmas PLC, acciones usuario, etc.)</summary>
     public DbSet<OperationLog> OperationLogs { get; set; } = null!;
+    
+    /// <summary>Valores de configuración de máquina (memoria persistente)</summary>
+    public DbSet<MachineSettingValue> MachineSettings { get; set; } = null!;
+
+    /// <summary>Tipos de lavado (recetas de lavado)</summary>
+    public DbSet<WashType> WashTypes { get; set; } = null!;
+    
+    /// <summary>Parámetros de tipos de lavado</summary>
+    public DbSet<WashTypeParameter> WashTypeParameters { get; set; } = null!;
+    
+    /// <summary>Tipo de lavado activo (selección actual del operador)</summary>
+    public DbSet<ActiveWashType> ActiveWashTypes { get; set; } = null!;
 
     #endregion
 
@@ -84,7 +97,7 @@ public class AquafrischDbContext : DbContext
         // ============================================
         // Configuración de UserRole
         // ============================================
-        modelBuilder.Entity<UserRole>(entity =>
+        modelBuilder.Entity<SW.PC.API.Backend.Models.UserRole>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.UserId, e.RoleId }).IsUnique();
@@ -175,6 +188,90 @@ public class AquafrischDbContext : DbContext
             entity.Property(e => e.IpAddress).HasMaxLength(50);
             entity.Property(e => e.SessionId).HasMaxLength(100);
             entity.Property(e => e.AcknowledgedBy).HasMaxLength(100);
+        });
+
+        // ============================================
+        // Configuración de MachineSettingValue
+        // ============================================
+        modelBuilder.Entity<MachineSettingValue>(entity =>
+        {
+            entity.ToTable("MachineSettings"); // Nombre explícito de tabla
+            entity.HasKey(e => e.Id);
+            
+            // Índice único para ParameterId (solo un valor por parámetro)
+            entity.HasIndex(e => e.ParameterId).IsUnique();
+            entity.HasIndex(e => e.DataType);
+            entity.HasIndex(e => e.UpdatedAt);
+            
+            entity.Property(e => e.ParameterId).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.PlcVariable).HasMaxLength(500);
+            entity.Property(e => e.DataType).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.Value).IsRequired();
+            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+        });
+
+        // ============================================
+        // Configuración de WashType (Tipos de Lavado)
+        // ============================================
+        modelBuilder.Entity<WashType>(entity =>
+        {
+            entity.ToTable("WashTypes");
+            entity.HasKey(e => e.Id);
+            
+            entity.HasIndex(e => e.Code).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.DisplayOrder);
+            
+            entity.Property(e => e.Code).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.Icon).HasMaxLength(100);
+            entity.Property(e => e.Color).HasMaxLength(10);
+            entity.Property(e => e.CreatedBy).HasMaxLength(100);
+            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
+            
+            entity.HasMany(e => e.Parameters)
+                  .WithOne(p => p.WashType)
+                  .HasForeignKey(p => p.WashTypeId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ============================================
+        // Configuración de WashTypeParameter
+        // ============================================
+        modelBuilder.Entity<WashTypeParameter>(entity =>
+        {
+            entity.ToTable("WashTypeParameters");
+            entity.HasKey(e => e.Id);
+            
+            entity.HasIndex(e => new { e.WashTypeId, e.ParameterCode }).IsUnique();
+            entity.HasIndex(e => e.DisplayOrder);
+            
+            entity.Property(e => e.ParameterCode).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.DataType).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.Value).HasMaxLength(200);
+            entity.Property(e => e.Unit).HasMaxLength(20);
+            entity.Property(e => e.PlcVariable).HasMaxLength(200);
+        });
+
+        // ============================================
+        // Configuración de ActiveWashType
+        // ============================================
+        modelBuilder.Entity<ActiveWashType>(entity =>
+        {
+            entity.ToTable("ActiveWashType");
+            entity.HasKey(e => e.Id);
+            
+            entity.HasIndex(e => e.WashTypeId);
+            
+            entity.Property(e => e.SelectedBy).HasMaxLength(100);
+            
+            entity.HasOne(e => e.WashType)
+                  .WithMany()
+                  .HasForeignKey(e => e.WashTypeId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ============================================
@@ -406,6 +503,39 @@ public static class AquafrischDbContextFactory
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_PlcVariable ON OperationLogs(PlcVariable)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_IsAcknowledged ON OperationLogs(IsAcknowledged)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Category_Timestamp ON OperationLogs(Category, Timestamp)");
+        }
+        catch (Exception)
+        {
+            // Tabla ya existe o error menor - ignorar
+        }
+        
+        // Crear tabla MachineSettings para configuraciones de máquina
+        await EnsureMachineSettingsTableAsync(context);
+    }
+    
+    /// <summary>
+    /// Crear tabla MachineSettings si no existe (para bases de datos existentes)
+    /// </summary>
+    private static async Task EnsureMachineSettingsTableAsync(AquafrischDbContext context)
+    {
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS MachineSettings (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ParameterId TEXT NOT NULL UNIQUE,
+                    PlcVariable TEXT,
+                    DataType TEXT NOT NULL,
+                    Value TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL,
+                    UpdatedBy TEXT,
+                    Notes TEXT
+                )");
+            
+            // Crear índices
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_MachineSettings_ParameterId ON MachineSettings(ParameterId)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_MachineSettings_DataType ON MachineSettings(DataType)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_MachineSettings_UpdatedAt ON MachineSettings(UpdatedAt)");
         }
         catch (Exception)
         {

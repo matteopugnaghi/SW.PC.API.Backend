@@ -232,4 +232,63 @@ namespace SW.PC.API.Backend.Models.Database
         Engineer = 2,
         Administrator = 3
     }
+    
+    // ============================================================================
+    // Machine Settings - Valores de configuración almacenados en memoria (DB)
+    // ============================================================================
+    
+    /// <summary>
+    /// Valor de parámetro de configuración de máquina almacenado en base de datos.
+    /// Permite guardar/cargar configuraciones independientemente del PLC.
+    /// </summary>
+    public class MachineSettingValue
+    {
+        /// <summary>
+        /// ID auto-incremental
+        /// </summary>
+        public int Id { get; set; }
+        
+        /// <summary>
+        /// ID único del parámetro (coincide con el nombre en Excel/traducción)
+        /// </summary>
+        [Required]
+        [MaxLength(200)]
+        public string ParameterId { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Variable PLC asociada (para referencia)
+        /// </summary>
+        [MaxLength(500)]
+        public string PlcVariable { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Tipo de dato: "Bool", "Int", "LongReal"
+        /// </summary>
+        [Required]
+        [MaxLength(20)]
+        public string DataType { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Valor serializado como string (para Bool: "true"/"false", Int: "123", LongReal: "123.456")
+        /// </summary>
+        [Required]
+        public string Value { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Última actualización
+        /// </summary>
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        
+        /// <summary>
+        /// Usuario que realizó la última actualización
+        /// </summary>
+        [MaxLength(100)]
+        public string? UpdatedBy { get; set; }
+        
+        /// <summary>
+        /// Notas/comentarios opcionales
+        /// </summary>
+        [MaxLength(500)]
+        public string? Notes { get; set; }
+    }
 }

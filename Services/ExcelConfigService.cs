@@ -1,5 +1,6 @@
 using OfficeOpenXml;
 using SW.PC.API.Backend.Models.Excel;
+using SW.PC.API.Backend.Models;
 
 namespace SW.PC.API.Backend.Services
 {
@@ -15,10 +16,16 @@ namespace SW.PC.API.Backend.Services
         void InvalidateCache(string? filePath = null); // ✅ MÉTODO PARA FORZAR RECARGA (opcional: por archivo)
         Task<List<Model3DConfig>> Load3DModelsAsync(string filePath);
         
-        // � Sistema de Alarmas Multilenguaje
+        // 🔔 Sistema de Alarmas Multilenguaje
         Task<AlarmConfiguration> LoadAlarmsAsync(string filePath);
         
-        // �📁 Soporte Multi-Proyecto
+        // ⚙️ Sistema de Settings de Máquina
+        Task<SettingsPageConfiguration> LoadSettingsPageAsync(string filePath);
+        
+        // 🚿 Sistema de Recetas de Lavado
+        Task<WashRecipeEditorConfiguration> LoadWashRecipeConfigAsync(string filePath);
+        
+        // 📁 Soporte Multi-Proyecto
         void SetProjectContext(IProjectContextService projectContext);
         string GetExcelConfigPath();
     }
@@ -2096,6 +2103,237 @@ namespace SW.PC.API.Backend.Services
         
         #endregion
         
+        #region Settings Page (Machine Configuration Parameters)
+        
+        /// <summary>
+        /// Carga la configuración de parámetros de máquina desde la hoja "setting page" del Excel.
+        /// Lee parámetros Bool (B, C, D), Int (F, G, H) y LongReal (J, K, L) a partir de la fila 2.
+        /// </summary>
+        /// <param name="filePath">Ruta al archivo Excel</param>
+        /// <returns>Configuración de settings con los tres tipos de parámetros</returns>
+        public async Task<SettingsPageConfiguration> LoadSettingsPageAsync(string filePath)
+        {
+            var config = new SettingsPageConfiguration();
+            
+            try
+            {
+                var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+                
+                if (!File.Exists(fullPath))
+                {
+                    _logger.LogWarning("⚙️ Excel file not found for settings page: {Path}", fullPath);
+                    return config;
+                }
+                
+                _logger.LogInformation("⚙️ Loading machine settings from Excel: {Path}", fullPath);
+                
+                // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
+                using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var package = new ExcelPackage(stream))
+                {
+                    // Buscar hoja "setting page" (case-insensitive)
+                    var sheet = package.Workbook.Worksheets
+                        .FirstOrDefault(ws => ws.Name.Equals("setting page", StringComparison.OrdinalIgnoreCase));
+                    
+                    if (sheet == null)
+                    {
+                        _logger.LogWarning("⚙️ Sheet 'setting page' not found in Excel file");
+                        return config;
+                    }
+                    
+                    // === Leer títulos de secciones desde las celdas A2, E2, L2 ===
+                    var boolTitle = sheet.Cells["A2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(boolTitle))
+                    {
+                        config.BoolSectionTitle = boolTitle;
+                        _logger.LogDebug("⚙️ Bool section title from A2: {Title}", boolTitle);
+                    }
+                    
+                    var intTitle = sheet.Cells["E2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(intTitle))
+                    {
+                        config.IntSectionTitle = intTitle;
+                        _logger.LogDebug("⚙️ Int section title from E2: {Title}", intTitle);
+                    }
+                    
+                    var longRealTitle = sheet.Cells["L2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(longRealTitle))
+                    {
+                        config.LongRealSectionTitle = longRealTitle;
+                        _logger.LogDebug("⚙️ LongReal section title from L2: {Title}", longRealTitle);
+                    }
+                    
+                    var longReal2Title = sheet.Cells["T2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(longReal2Title))
+                    {
+                        config.LongReal2SectionTitle = longReal2Title;
+                        _logger.LogDebug("⚙️ LongReal2 section title from T2: {Title}", longReal2Title);
+                    }
+                    
+                    // Leer datos desde la fila 2 (títulos y datos en la misma fila)
+                    int row = 2;
+                    int maxEmptyRows = 5; // Permitir hasta 5 filas vacías consecutivas
+                    int consecutiveEmpty = 0;
+                    
+                    while (consecutiveEmpty < maxEmptyRows)
+                    {
+                        bool hasData = false;
+                        
+                        // === BOOL: Columnas B (Nombre), C (Imagen), D (Variable PLC) ===
+                        var boolName = sheet.Cells[$"B{row}"].Text?.Trim();
+                        var boolImage = sheet.Cells[$"C{row}"].Text?.Trim();
+                        var boolPlcVar = sheet.Cells[$"D{row}"].Text?.Trim();
+                        
+                        if (!string.IsNullOrEmpty(boolName) && !string.IsNullOrEmpty(boolPlcVar))
+                        {
+                            config.BoolSettings.Add(new ExcelBoolSetting
+                            {
+                                Name = boolName,
+                                ImagePath = string.IsNullOrEmpty(boolImage) ? null : boolImage,
+                                PlcVariable = boolPlcVar,
+                                RowIndex = row - 1 // 0-based index
+                            });
+                            hasData = true;
+                            _logger.LogDebug("⚙️ Bool setting [{Row}]: {Name} -> {PlcVar}", row, boolName, boolPlcVar);
+                        }
+                        
+                        // === INT: Columnas F (Nombre), G (Imagen), H (Variable PLC), I (Min), J (Max), K (Unidad) ===
+                        var intName = sheet.Cells[$"F{row}"].Text?.Trim();
+                        var intImage = sheet.Cells[$"G{row}"].Text?.Trim();
+                        var intPlcVar = sheet.Cells[$"H{row}"].Text?.Trim();
+                        
+                        if (!string.IsNullOrEmpty(intName) && !string.IsNullOrEmpty(intPlcVar))
+                        {
+                            var intSetting = new ExcelIntSetting
+                            {
+                                Name = intName,
+                                ImagePath = string.IsNullOrEmpty(intImage) ? null : intImage,
+                                PlcVariable = intPlcVar,
+                                RowIndex = row - 1
+                            };
+                            
+                            // Leer Min (columna I)
+                            var minVal = sheet.Cells[$"I{row}"].Text?.Trim();
+                            if (int.TryParse(minVal, out var minInt))
+                                intSetting.MinValue = minInt;
+                            
+                            // Leer Max (columna J)
+                            var maxVal = sheet.Cells[$"J{row}"].Text?.Trim();
+                            if (int.TryParse(maxVal, out var maxInt))
+                                intSetting.MaxValue = maxInt;
+                            
+                            // Leer Unidad (columna K)
+                            var unit = sheet.Cells[$"K{row}"].Text?.Trim();
+                            if (!string.IsNullOrEmpty(unit))
+                                intSetting.Unit = unit;
+                            
+                            config.IntSettings.Add(intSetting);
+                            hasData = true;
+                            _logger.LogDebug("⚙️ Int setting [{Row}]: {Name} -> {PlcVar} (Min:{Min}, Max:{Max}, Unit:{Unit})", 
+                                row, intName, intPlcVar, intSetting.MinValue, intSetting.MaxValue, intSetting.Unit);
+                        }
+                        
+                        // === LONGREAL: Columnas M (Nombre), N (Imagen), O (Variable PLC), P (Min), Q (Max), R (Decimales), S (Unidad) ===
+                        var lrealName = sheet.Cells[$"M{row}"].Text?.Trim();
+                        var lrealImage = sheet.Cells[$"N{row}"].Text?.Trim();
+                        var lrealPlcVar = sheet.Cells[$"O{row}"].Text?.Trim();
+                        
+                        if (!string.IsNullOrEmpty(lrealName) && !string.IsNullOrEmpty(lrealPlcVar))
+                        {
+                            var lrealSetting = new ExcelLongRealSetting
+                            {
+                                Name = lrealName,
+                                ImagePath = string.IsNullOrEmpty(lrealImage) ? null : lrealImage,
+                                PlcVariable = lrealPlcVar,
+                                RowIndex = row - 1
+                            };
+                            
+                            // Leer min/max/decimals/unit desde columnas P, Q, R, S
+                            var lrealMin = sheet.Cells[$"P{row}"].Text?.Trim();
+                            var lrealMax = sheet.Cells[$"Q{row}"].Text?.Trim();
+                            var lrealDecimals = sheet.Cells[$"R{row}"].Text?.Trim();
+                            var lrealUnit = sheet.Cells[$"S{row}"].Text?.Trim();
+                            
+                            if (double.TryParse(lrealMin, System.Globalization.NumberStyles.Any, 
+                                System.Globalization.CultureInfo.InvariantCulture, out var minDbl))
+                                lrealSetting.MinValue = minDbl;
+                            if (double.TryParse(lrealMax, System.Globalization.NumberStyles.Any, 
+                                System.Globalization.CultureInfo.InvariantCulture, out var maxDbl))
+                                lrealSetting.MaxValue = maxDbl;
+                            if (int.TryParse(lrealDecimals, out var dec))
+                                lrealSetting.DecimalPlaces = dec;
+                            lrealSetting.Unit = string.IsNullOrEmpty(lrealUnit) ? null : lrealUnit;
+                            
+                            config.LongRealSettings.Add(lrealSetting);
+                            hasData = true;
+                            _logger.LogDebug("⚙️ LongReal setting [{Row}]: {Name} -> {PlcVar} (Min:{Min}, Max:{Max}, Dec:{Decimals}, Unit:{Unit})", 
+                                row, lrealName, lrealPlcVar, lrealSetting.MinValue, lrealSetting.MaxValue, lrealSetting.DecimalPlaces, lrealSetting.Unit);
+                        }
+                        
+                        // === LONGREAL2: Columnas U (Nombre), V (Imagen), W (Variable PLC), X (Min), Y (Max), Z (Decimales), AA (Unidad) ===
+                        var lreal2Name = sheet.Cells[$"U{row}"].Text?.Trim();
+                        var lreal2Image = sheet.Cells[$"V{row}"].Text?.Trim();
+                        var lreal2PlcVar = sheet.Cells[$"W{row}"].Text?.Trim();
+                        
+                        if (!string.IsNullOrEmpty(lreal2Name) && !string.IsNullOrEmpty(lreal2PlcVar))
+                        {
+                            var lreal2Setting = new ExcelLongRealSetting
+                            {
+                                Name = lreal2Name,
+                                ImagePath = string.IsNullOrEmpty(lreal2Image) ? null : lreal2Image,
+                                PlcVariable = lreal2PlcVar,
+                                RowIndex = row - 1
+                            };
+                            
+                            // Leer min/max/decimals/unit desde columnas X, Y, Z, AA
+                            var lreal2Min = sheet.Cells[$"X{row}"].Text?.Trim();
+                            var lreal2Max = sheet.Cells[$"Y{row}"].Text?.Trim();
+                            var lreal2Decimals = sheet.Cells[$"Z{row}"].Text?.Trim();
+                            var lreal2Unit = sheet.Cells[$"AA{row}"].Text?.Trim();
+                            
+                            if (double.TryParse(lreal2Min, System.Globalization.NumberStyles.Any, 
+                                System.Globalization.CultureInfo.InvariantCulture, out var min2Dbl))
+                                lreal2Setting.MinValue = min2Dbl;
+                            if (double.TryParse(lreal2Max, System.Globalization.NumberStyles.Any, 
+                                System.Globalization.CultureInfo.InvariantCulture, out var max2Dbl))
+                                lreal2Setting.MaxValue = max2Dbl;
+                            if (int.TryParse(lreal2Decimals, out var dec2))
+                                lreal2Setting.DecimalPlaces = dec2;
+                            lreal2Setting.Unit = string.IsNullOrEmpty(lreal2Unit) ? null : lreal2Unit;
+                            
+                            config.LongReal2Settings.Add(lreal2Setting);
+                            hasData = true;
+                            _logger.LogDebug("⚙️ LongReal2 setting [{Row}]: {Name} -> {PlcVar} (Min:{Min}, Max:{Max}, Dec:{Decimals}, Unit:{Unit})", 
+                                row, lreal2Name, lreal2PlcVar, lreal2Setting.MinValue, lreal2Setting.MaxValue, lreal2Setting.DecimalPlaces, lreal2Setting.Unit);
+                        }
+                        
+                        // Controlar filas vacías consecutivas
+                        if (hasData)
+                        {
+                            consecutiveEmpty = 0;
+                        }
+                        else
+                        {
+                            consecutiveEmpty++;
+                        }
+                        
+                        row++;
+                    }
+                }
+                
+                _logger.LogInformation("⚙️ Settings page loaded: {BoolCount} bool, {IntCount} int, {LRealCount} longreal, {LReal2Count} longreal2 parameters",
+                    config.BoolSettings.Count, config.IntSettings.Count, config.LongRealSettings.Count, config.LongReal2Settings.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "⚙️ Error loading settings page from Excel: {Path}", filePath);
+            }
+            
+            return await Task.FromResult(config);
+        }
+        
+        #endregion
+        
         /// <summary>
         /// Invalida el caché de configuración del sistema para forzar una recarga desde Excel.
         /// Si se proporciona filePath, solo invalida el cache de ese archivo.
@@ -2124,5 +2362,185 @@ namespace SW.PC.API.Backend.Services
                 }
             }
         }
+        
+        #region Wash Recipe Configuration
+        
+        /// <summary>
+        /// Carga la configuración del editor de recetas de lavado desde la hoja "WashRecipe" del Excel.
+        /// Estructura de columnas por fila (cada fila = una estación):
+        /// - A2: Descripción nombre lavado (solo fila 2, título general)
+        /// - B: Nombre de la estación
+        /// - C: Imagen de la estación
+        /// - D,E / F,G / ... / V,W: 10 pares de Variable PLC BOOL + Descripción
+        /// - X,Y / Z,AA / ... / AP,AQ: 10 pares de Variable PLC INT + Descripción
+        /// </summary>
+        public async Task<WashRecipeEditorConfiguration> LoadWashRecipeConfigAsync(string filePath)
+        {
+            var config = new WashRecipeEditorConfiguration();
+            
+            try
+            {
+                var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+                
+                if (!File.Exists(fullPath))
+                {
+                    _logger.LogWarning("🚿 Excel file not found for wash recipe: {Path}", fullPath);
+                    return config;
+                }
+                
+                _logger.LogInformation("🚿 Loading wash recipe configuration from Excel: {Path}", fullPath);
+                
+                await Task.Run(() =>
+                {
+                    using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var package = new ExcelPackage(stream);
+                    
+                    // Buscar hoja "WashRecipe" (case-insensitive)
+                    var sheet = package.Workbook.Worksheets
+                        .FirstOrDefault(ws => ws.Name.Equals("WashRecipe", StringComparison.OrdinalIgnoreCase));
+                    
+                    if (sheet == null)
+                    {
+                        _logger.LogWarning("🚿 Sheet 'WashRecipe' not found in Excel file");
+                        return;
+                    }
+                    
+                    // Leer descripción del nombre de lavado desde A2
+                    var recipeDesc = sheet.Cells["A2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(recipeDesc))
+                    {
+                        config.RecipeNameDescription = recipeDesc;
+                        _logger.LogDebug("🚿 Recipe name description from A2: {Desc}", recipeDesc);
+                    }
+                    
+                    // Definir columnas para parámetros BOOL (10 pares: Variable, Descripción)
+                    // D-E, F-G, H-I, J-K, L-M, N-O, P-Q, R-S, T-U, V-W
+                    var boolColumns = new (string VarCol, string DescCol)[]
+                    {
+                        ("D", "E"), ("F", "G"), ("H", "I"), ("J", "K"), ("L", "M"),
+                        ("N", "O"), ("P", "Q"), ("R", "S"), ("T", "U"), ("V", "W")
+                    };
+                    
+                    // Definir columnas para parámetros INT (10 pares: Variable, Descripción)
+                    // X-Y, Z-AA, AB-AC, AD-AE, AF-AG, AH-AI, AJ-AK, AL-AM, AN-AO, AP-AQ
+                    var intColumns = new (string VarCol, string DescCol)[]
+                    {
+                        ("X", "Y"), ("Z", "AA"), ("AB", "AC"), ("AD", "AE"), ("AF", "AG"),
+                        ("AH", "AI"), ("AJ", "AK"), ("AL", "AM"), ("AN", "AO"), ("AP", "AQ")
+                    };
+                    
+                    // Leer estaciones desde fila 2 en adelante
+                    int row = 2;
+                    int maxEmptyRows = 5;
+                    int consecutiveEmpty = 0;
+                    int stationIndex = 0;
+                    
+                    while (consecutiveEmpty < maxEmptyRows && stationIndex < 50) // Máximo 50 estaciones
+                    {
+                        var stationName = sheet.Cells[$"B{row}"].Text?.Trim();
+                        var stationImage = sheet.Cells[$"C{row}"].Text?.Trim();
+                        
+                        // Verificar si hay algo en esta fila (nombre o al menos una variable)
+                        bool hasData = !string.IsNullOrEmpty(stationName);
+                        
+                        // También verificar si hay variables configuradas aunque no haya nombre
+                        if (!hasData)
+                        {
+                            foreach (var (varCol, _) in boolColumns)
+                            {
+                                if (!string.IsNullOrEmpty(sheet.Cells[$"{varCol}{row}"].Text?.Trim()))
+                                {
+                                    hasData = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (!hasData)
+                        {
+                            foreach (var (varCol, _) in intColumns)
+                            {
+                                if (!string.IsNullOrEmpty(sheet.Cells[$"{varCol}{row}"].Text?.Trim()))
+                                {
+                                    hasData = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (hasData)
+                        {
+                            consecutiveEmpty = 0;
+                            
+                            var station = new WashRecipeStation
+                            {
+                                Index = stationIndex,
+                                ExcelRow = row,
+                                Name = stationName ?? $"Estación {stationIndex + 1}",
+                                ImagePath = string.IsNullOrEmpty(stationImage) ? null : stationImage
+                            };
+                            
+                            // Leer parámetros BOOL
+                            for (int i = 0; i < boolColumns.Length; i++)
+                            {
+                                var (varCol, descCol) = boolColumns[i];
+                                var plcVar = sheet.Cells[$"{varCol}{row}"].Text?.Trim();
+                                var desc = sheet.Cells[$"{descCol}{row}"].Text?.Trim();
+                                
+                                station.BoolParameters.Add(new WashRecipeBoolParam
+                                {
+                                    Index = i,
+                                    PlcVariable = plcVar ?? string.Empty,
+                                    Description = desc ?? $"Bool {i + 1}",
+                                    Value = false // Valor inicial, se leerá del PLC
+                                });
+                            }
+                            
+                            // Leer parámetros INT
+                            for (int i = 0; i < intColumns.Length; i++)
+                            {
+                                var (varCol, descCol) = intColumns[i];
+                                var plcVar = sheet.Cells[$"{varCol}{row}"].Text?.Trim();
+                                var desc = sheet.Cells[$"{descCol}{row}"].Text?.Trim();
+                                
+                                station.IntParameters.Add(new WashRecipeIntParam
+                                {
+                                    Index = i,
+                                    PlcVariable = plcVar ?? string.Empty,
+                                    Description = desc ?? $"Int {i + 1}",
+                                    Value = 0 // Valor inicial, se leerá del PLC
+                                });
+                            }
+                            
+                            config.Stations.Add(station);
+                            _logger.LogDebug("🚿 Station [{Index}] '{Name}': {BoolCount} bool params, {IntCount} int params",
+                                stationIndex, station.Name, 
+                                station.BoolParameters.Count(p => p.IsConfigured),
+                                station.IntParameters.Count(p => p.IsConfigured));
+                            
+                            stationIndex++;
+                        }
+                        else
+                        {
+                            consecutiveEmpty++;
+                        }
+                        
+                        row++;
+                    }
+                    
+                    config.LoadedAt = DateTime.Now;
+                    _logger.LogInformation("🚿 Loaded {Count} wash recipe stations from Excel", config.Stations.Count);
+                });
+                
+                return config;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🚿 Error loading wash recipe configuration from {FilePath}", filePath);
+                return config;
+            }
+        }
+        
+        #endregion
     }
 }

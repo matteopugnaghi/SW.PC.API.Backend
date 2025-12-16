@@ -286,6 +286,21 @@ using (var scope = app.Services.CreateScope())
         await authService.InitializeAsync();
         app.Logger.LogInformation("🔐 Authentication system initialized successfully");
         
+        // Crear tabla MachineSettings si no existe
+        var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+        await dbContext.Database.ExecuteSqlRawAsync(@"
+            CREATE TABLE IF NOT EXISTS MachineSettings (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ParameterId TEXT NOT NULL UNIQUE,
+                PlcVariable TEXT,
+                DataType TEXT NOT NULL,
+                Value TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL,
+                UpdatedBy TEXT,
+                Notes TEXT
+            )");
+        app.Logger.LogInformation("⚙️ MachineSettings table ensured");
+        
         // ✅ Actualizar estado de Database a conectado
         var metricsForDb = scope.ServiceProvider.GetRequiredService<IMetricsService>();
         metricsForDb.SetDatabaseStatus(true, true, "SQLite conectado");

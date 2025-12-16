@@ -613,27 +613,47 @@ namespace SW.PC.API.Backend.Services
                             buffer = new byte[2];  // INT = 16 bits (Int16)
                             using var stream = new MemoryStream(buffer);
                             using var writer = new BinaryWriter(stream);
-                            writer.Write((short)value);  // Convertir a Int16
+                            // Convertir de forma segura a Int16
+                            short shortValue = Convert.ToInt16(value);
+                            writer.Write(shortValue);
                             
                             _adsClient.Write(handle, buffer.AsMemory());
+                            _logger.LogDebug("✍️ Wrote INT to REAL PLC: {Var} = {Value} (as Int16)", variableName, shortValue);
                         }
                         else if (dataType == typeof(bool))
                         {
                             buffer = new byte[1];
-                            buffer[0] = (bool)value ? (byte)1 : (byte)0;
+                            buffer[0] = Convert.ToBoolean(value) ? (byte)1 : (byte)0;
                             _adsClient.Write(handle, buffer.AsMemory());
+                            _logger.LogDebug("✍️ Wrote BOOL to REAL PLC: {Var} = {Value}", variableName, value);
                         }
                         else if (dataType == typeof(float))
                         {
                             buffer = new byte[4];
                             using var stream = new MemoryStream(buffer);
                             using var writer = new BinaryWriter(stream);
-                            writer.Write((float)value);
+                            writer.Write(Convert.ToSingle(value));
                             
                             _adsClient.Write(handle, buffer.AsMemory());
+                            _logger.LogDebug("✍️ Wrote REAL to REAL PLC: {Var} = {Value}", variableName, value);
+                        }
+                        else if (dataType == typeof(double))
+                        {
+                            // ✅ LREAL de TwinCAT (64 bits = 8 bytes)
+                            buffer = new byte[8];
+                            using var stream = new MemoryStream(buffer);
+                            using var writer = new BinaryWriter(stream);
+                            writer.Write(Convert.ToDouble(value));
+                            
+                            _adsClient.Write(handle, buffer.AsMemory());
+                            _logger.LogDebug("✍️ Wrote LREAL to REAL PLC: {Var} = {Value}", variableName, value);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("⚠️ Unsupported data type {Type} for variable {Var}", dataType.Name, variableName);
+                            return false;
                         }
                         
-                        _logger.LogDebug("✍️ Wrote to REAL PLC: {Var} = {Value}", variableName, value);
                         return true;
                     }
                     finally
