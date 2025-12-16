@@ -130,9 +130,17 @@ namespace SW.PC.API.Backend.Services
                     }
 
                     await PollAllVariablesAsync(stoppingToken);
+                    // Nota: UpdateTwinCATConnectionStatusAsync() se llama dentro de PollAllVariablesAsync
                     
-                    // Actualizar estado a OK después de un ciclo exitoso
-                    _metricsService.SetPlcPollingStatus(true, true, $"OK - {_monitoredVariables.Count} variables");
+                    // ✅ Solo marcar OK si el PLC está realmente conectado
+                    if (_twinCATService.IsConnected)
+                    {
+                        _metricsService.SetPlcPollingStatus(true, true, $"OK - {_monitoredVariables.Count} variables");
+                    }
+                    else
+                    {
+                        _metricsService.SetPlcPollingStatus(true, false, "PLC desconectado");
+                    }
                     
                     await Task.Delay(_config.PollingIntervalMs, stoppingToken);
                 }
@@ -215,7 +223,13 @@ namespace SW.PC.API.Backend.Services
             if (errorCount > _monitoredVariables.Count / 2)
             {
                 _metricsService.SetPlcPollingStatus(true, false, $"PLC desconectado ({errorCount} errores)");
+                
+                // 🔴 También actualizar estado en SoftwareIntegrityService para que el frontend lo vea
+                await UpdateTwinCATConnectionStatusAsync();
             }
+            
+            // ✅ Actualizar estado de conexión TwinCAT en cada ciclo (éxito o error)
+            await UpdateTwinCATConnectionStatusAsync();
             
             // Registrar tiempo del ciclo de polling
             stopwatch.Stop();
@@ -431,6 +445,33 @@ namespace SW.PC.API.Backend.Services
             {
                 _logger.LogWarning(ex, "⚠️ No se pudo actualizar Task Cycle Time del TwinCAT");
                 _lastTaskCycleTimeUpdate = DateTime.Now; // Evitar reintentos constantes
+            }
+        }
+
+        /// <summary>
+        /// Actualiza el estado de conexión de TwinCAT en SoftwareIntegrityService
+        /// Se llama en cada ciclo de polling para detectar desconexiones en tiempo real
+        /// </summary>
+        private async Task UpdateTwinCATConnectionStatusAsync()
+        {
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var integrityService = scope.ServiceProvider.GetRequiredService<ISoftwareIntegrityService>();
+                var twinCatInfo = _twinCATService.GetVersionInfo();
+                
+                // Actualizar estado real de conexión
+                integrityService.UpdateTwinCATRuntimeInfo(
+                    twinCatInfo.RuntimeVersion,
+                    twinCatInfo.AdsVersion,
+                    twinCatInfo.IsConnected,  // ✅ Esto ahora verifica _adsClient.IsConnected
+                    twinCatInfo.IsSimulated,
+                    twinCatInfo.TaskCycleTimeMs
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "⚠️ No se pudo actualizar estado de conexión TwinCAT");
             }
         }
 

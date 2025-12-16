@@ -802,7 +802,8 @@ namespace SW.PC.API.Backend.Services
                     Details = ""
                 };
 
-                _logger.LogInformation("🔧 TwinCAT Runtime info updated: {Version} ({Status}) - Cycle Time: {CycleTime}ms", 
+                // Solo log debug para evitar spam en cada ciclo de polling
+                _logger.LogDebug("🔧 TwinCAT Runtime info updated: {Version} ({Status}) - Cycle Time: {CycleTime}ms", 
                     version, _versionInfo.TwinCatRuntime.Status, taskCycleTimeMs);
             }
         }

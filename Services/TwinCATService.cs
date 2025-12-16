@@ -35,9 +35,36 @@ namespace SW.PC.API.Backend.Services
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _failedVariables = new();
         private readonly TimeSpan _failedVariableRetryInterval = TimeSpan.FromMinutes(1); // Reintentar cada minuto
         
+        // 🔴 Contador de errores de timeout consecutivos para detectar desconexión
+        private int _consecutiveTimeoutErrors = 0;
+        private const int MAX_TIMEOUT_ERRORS_BEFORE_DISCONNECT = 3; // 3 errores consecutivos = desconectado
+        
         public event EventHandler<PlcNotification>? OnVariableChanged;
         
-        public bool IsConnected => _isConnected;
+        public bool IsConnected 
+        {
+            get 
+            {
+                // En modo simulado, usar solo el flag interno
+                if (_isSimulatedMode)
+                {
+                    return _isConnected;
+                }
+                
+                // En modo REAL, verificar también el estado real del cliente ADS
+                if (_adsClient != null && !_adsClient.IsConnected)
+                {
+                    // El cliente ADS detectó una desconexión - actualizar nuestro estado
+                    if (_isConnected)
+                    {
+                        _logger.LogWarning("⚠️ PLC desconectado detectado por AdsClient.IsConnected = false");
+                        _isConnected = false;
+                    }
+                }
+                
+                return _isConnected;
+            }
+        }
         public bool IsSimulated => _isSimulatedMode;
         
         // Cache del Task Cycle Time (se actualiza periódicamente)
@@ -68,14 +95,7 @@ namespace SW.PC.API.Backend.Services
                     // Leer información del dispositivo PLC
                     var deviceInfo = _adsClient.ReadDeviceInfo();
                     
-                    // Debug: mostrar todos los campos disponibles
-                    _logger.LogInformation("🔍 DeviceInfo.Name: {Name}", deviceInfo.Name);
-                    _logger.LogInformation("🔍 DeviceInfo.Version.Version (Major): {Major}", deviceInfo.Version.Version);
-                    _logger.LogInformation("🔍 DeviceInfo.Version.Revision (Minor): {Minor}", deviceInfo.Version.Revision);
-                    _logger.LogInformation("🔍 DeviceInfo.Version.Build: {Build}", deviceInfo.Version.Build);
-                    
                     // Formato: "TwinCAT 3.1 Build 4024" o similar
-                    // Version=Major, Revision=Minor, Build=Build number
                     info.RuntimeVersion = $"TwinCAT {deviceInfo.Version.Version}.{deviceInfo.Version.Revision} Build {deviceInfo.Version.Build}";
                     info.MajorVersion = deviceInfo.Version.Version;
                     info.MinorVersion = deviceInfo.Version.Revision;
@@ -85,7 +105,8 @@ namespace SW.PC.API.Backend.Services
                     // Añadir Task Cycle Time si está disponible
                     info.TaskCycleTimeMs = _cachedTaskCycleTimeMs;
                     
-                    _logger.LogInformation("🔧 TwinCAT Runtime: {Version} ({Name})", info.RuntimeVersion, deviceInfo.Name);
+                    // Solo log de debug - no spamear en cada ciclo
+                    _logger.LogDebug("🔧 TwinCAT Runtime: {Version} ({Name})", info.RuntimeVersion, deviceInfo.Name);
                 }
                 catch (Exception ex)
                 {
@@ -93,7 +114,7 @@ namespace SW.PC.API.Backend.Services
                     info.RuntimeVersion = "TwinCAT 3.x (version unknown)";
                 }
             }
-            else
+            else if (_isSimulatedMode)
             {
                 // Modo simulado - usar versión genérica y cycle time simulado (10ms típico)
                 info.RuntimeVersion = "TwinCAT 3.1.4024 (Simulated)";
@@ -103,6 +124,18 @@ namespace SW.PC.API.Backend.Services
                 info.BuildNumber = 4024;
                 info.TaskCycleTimeMs = 10.0; // 10ms típico en simulación
                 info.TaskName = "PlcTask (Simulated)";
+            }
+            else
+            {
+                // 🔴 DESCONECTADO - No simulado, simplemente no hay conexión
+                info.RuntimeVersion = "Disconnected";
+                info.AdsVersion = typeof(AdsClient).Assembly.GetName().Version?.ToString() ?? "6.x";
+                info.MajorVersion = 0;
+                info.MinorVersion = 0;
+                info.BuildNumber = 0;
+                info.TaskCycleTimeMs = 0;
+                info.TaskName = "N/A";
+                info.DeviceState = "Disconnected";
             }
 
             return info;
@@ -334,16 +367,53 @@ namespace SW.PC.API.Backend.Services
                     // Parse AmsNetId string to AmsNetId object
                     AmsNetId targetNetId = new AmsNetId(_config.NetId);
                     
-                    // Conectar al PLC
+                    // Conectar al PLC (esto solo abre el socket, NO verifica si el PLC responde)
                     _adsClient.Connect(targetNetId, _config.Port);
                     
-                    _isConnected = true;
-                    _isSimulatedMode = false;
-                    
-                    _logger.LogInformation("✅ Successfully connected to REAL TwinCAT PLC at {NetId}:{Port}", 
-                        _config.NetId, _config.Port);
-                    
-                    return true;
+                    // 🔴 IMPORTANTE: Verificar que el PLC está en RUN y puerto 851 abierto
+                    try
+                    {
+                        // Paso 1: Verificar que TwinCAT responde
+                        var deviceInfo = _adsClient.ReadDeviceInfo();
+                        _logger.LogInformation("📡 TwinCAT responde - Device: {Name}, Version: {Version}.{Revision}.{Build}", 
+                            deviceInfo.Name, deviceInfo.Version.Version, deviceInfo.Version.Revision, deviceInfo.Version.Build);
+                        
+                        // Paso 2: Verificar estado del PLC (DEBE estar en RUN)
+                        var state = _adsClient.ReadState();
+                        _logger.LogInformation("📊 PLC State: AdsState={AdsState}, DeviceState={DeviceState}", 
+                            state.AdsState, state.DeviceState);
+                        
+                        // 🔴 SOLO conectado si está en RUN - Config/Stop/etc NO cuenta
+                        if (state.AdsState != TwinCAT.Ads.AdsState.Run)
+                        {
+                            _logger.LogWarning("🔴 PLC NO está en RUN (State={State}) - Marcando como DESCONECTADO", state.AdsState);
+                            _isConnected = false;
+                            _isSimulatedMode = false;
+                            return false;
+                        }
+                        
+                        _logger.LogInformation("✅ PLC en RUN - Conexión establecida");
+                        _isConnected = true;
+                        _isSimulatedMode = false;
+                        _consecutiveTimeoutErrors = 0;
+                        
+                        return true;
+                    }
+                    catch (TwinCAT.Ads.AdsErrorException verifyEx)
+                    {
+                        // El PLC no responde - NO está realmente conectado
+                        _logger.LogWarning("🔴 PLC NO RESPONDE - Error {Code}: {Message}", 
+                            (int)verifyEx.ErrorCode, verifyEx.Message);
+                        
+                        _isConnected = false;
+                        _isSimulatedMode = false;
+                        
+                        // Cerrar el cliente ADS que no sirve
+                        _adsClient?.Dispose();
+                        _adsClient = null;
+                        
+                        return false;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -484,6 +554,17 @@ namespace SW.PC.API.Backend.Services
                             _logger.LogDebug("📖 Read WSTRING from REAL PLC: {Var} = {Value}", variableName, result);
                         }
                         
+                        // ✅ Lectura exitosa - resetear contador de errores de timeout
+                        if (_consecutiveTimeoutErrors > 0)
+                        {
+                            _consecutiveTimeoutErrors = 0;
+                            if (!_isConnected)
+                            {
+                                _logger.LogInformation("🟢 PLC RECONECTADO - Lectura exitosa después de errores de timeout");
+                                _isConnected = true;
+                            }
+                        }
+                        
                         return result;
                     }
                     finally
@@ -498,6 +579,23 @@ namespace SW.PC.API.Backend.Services
                     // ❌ PROPAGAR EL ERROR - NO silenciar
                     _logger.LogError("❌ Variable NO EXISTE en PLC: {Var}", variableName);
                     throw new InvalidOperationException($"Variable '{variableName}' no existe en el PLC. Verifique que el programa PLC esté cargado y la variable exista.", ex);
+                }
+                catch (TwinCAT.Ads.AdsErrorException ex) when ((int)ex.ErrorCode == 6)
+                {
+                    // 🔴 ERROR 6 = Target port could not be found - El PLC/TwinCAT no está corriendo
+                    _logger.LogWarning("🔴 PLC DESCONECTADO - Target port not found (PLC apagado o TwinCAT no corriendo)");
+                    _isConnected = false;
+                    
+                    throw new InvalidOperationException($"PLC desconectado (port not found): {ex.Message}", ex);
+                }
+                catch (TwinCAT.Ads.AdsErrorException ex) when ((int)ex.ErrorCode == 1861)
+                {
+                    // 🔴 ERROR 1861 = ClientSyncTimeOut - El PLC no responde = DESCONECTADO
+                    _logger.LogWarning("🔴 PLC DESCONECTADO - Timeout al leer {Var}", variableName);
+                    _isConnected = false;
+                    _consecutiveTimeoutErrors++;
+                    
+                    throw new InvalidOperationException($"PLC desconectado (timeout): {ex.Message}", ex);
                 }
                 catch (TwinCAT.Ads.AdsErrorException ex)
                 {
