@@ -167,6 +167,7 @@ builder.Services.AddHttpClient("AuditExternal", client =>
 builder.Services.AddHostedService<PlcPollingService>(); // ✅ Nuevo servicio profesional
 builder.Services.AddHostedService<IntegrityVerificationService>(); // 🔐 Verificación periódica de integridad (cada 2 min)
 builder.Services.AddHostedService<BackupSchedulerService>(); // 💾 Backup automático programado (DATA MANAGEMENT)
+builder.Services.AddHostedService<WashRecipeAutoLoadService>(); // 🚿 Auto-carga de recetas desde PLC
 
 // Add logging
 builder.Services.AddLogging(logging =>

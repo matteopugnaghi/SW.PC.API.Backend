@@ -861,6 +861,31 @@ namespace SW.PC.API.Backend.Models.Excel
         // NOTA: SupportChallengeSecret NO se configura desde Excel
         // Está hardcodeado en SupportController.cs (igual que RecoveryCodeService)
         // Solo Aquafrisch conoce el secreto
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🚿 WASH RECIPE - Tipos de Lavado (Sistema de Recetas)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar módulo de Tipos de Lavado.
+        /// Si false, el botón desaparece del menú lateral.
+        /// </summary>
+        public bool WashRecipeEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Variable PLC para auto-carga de receta (PLC1).
+        /// Cuando TwinCAT escribe un número != 0, el backend automáticamente
+        /// carga la receta de esa línea y luego resetea la variable a 0.
+        /// Ejemplo: "GVL.nAutoLoadRecipe"
+        /// </summary>
+        public string WashRecipeAutoLoadVar { get; set; } = "";
+
+        /// <summary>
+        /// Variable PLC para auto-carga de receta (PLC2/Alternativo).
+        /// Igual que WashRecipeAutoLoadVar pero para el segundo PLC.
+        /// Ejemplo: "GVL.nAutoLoadRecipe_2"
+        /// </summary>
+        public string WashRecipeAutoLoadVar2 { get; set; } = "";
     }
 
     /// <summary>

@@ -1717,6 +1717,27 @@ namespace SW.PC.API.Backend.Services
                             // NOTA: SupportChallengeSecret NO se lee de Excel
                             // Está hardcodeado en SupportController.cs (igual que RecoveryCodeService)
 
+                            // ═══════════════════════════════════════════════════════════════
+                            // 🚿 WASH RECIPE - Tipos de Lavado
+                            // ═══════════════════════════════════════════════════════════════
+                            case "washrecipeenabled":
+                            case "wash_recipe_enabled":
+                                // Aceptar: true/false, 1/0, on/off, si/no
+                                var washValue = paramValue?.ToLower()?.Trim() ?? "";
+                                config.WashRecipeEnabled = washValue == "true" || washValue == "1" || washValue == "on" || washValue == "si" || washValue == "yes";
+                                _logger.LogDebug("🚿 WashRecipeEnabled raw value: '{RawValue}' -> {Parsed}", paramValue, config.WashRecipeEnabled);
+                                break;
+                            case "washrecipeautoloadvar":
+                            case "wash_recipe_autoload_var":
+                            case "washrecipeenabled_varautoload":
+                                config.WashRecipeAutoLoadVar = paramValue ?? "";
+                                break;
+                            case "washrecipeautoloadvar2":
+                            case "wash_recipe_autoload_var_2":
+                            case "washrecipeenabled_varautoload_2":
+                                config.WashRecipeAutoLoadVar2 = paramValue ?? "";
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
@@ -1733,6 +1754,10 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogInformation("  - 🔐 EnvironmentMode: {Mode}", config.EnvironmentMode);
                     _logger.LogInformation("  - 💻 IpcInfo: {Enabled} (Quick: {Quick}s, Full: {Full}m)", 
                         config.IpcInfoEnabled, config.IpcInfoQuickPollSeconds, config.IpcInfoFullPollMinutes);
+                    _logger.LogInformation("  - 🚿 WashRecipe: {Enabled} (AutoLoad: {Var1}, AutoLoad2: {Var2})", 
+                        config.WashRecipeEnabled, 
+                        string.IsNullOrEmpty(config.WashRecipeAutoLoadVar) ? "N/A" : config.WashRecipeAutoLoadVar,
+                        string.IsNullOrEmpty(config.WashRecipeAutoLoadVar2) ? "N/A" : config.WashRecipeAutoLoadVar2);
 
                     stopwatch.Stop();
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);
