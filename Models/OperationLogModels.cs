@@ -42,6 +42,12 @@ public enum OperationCategory
     /// <summary>Backup</summary>
     Backup = 7,
     
+    /// <summary>Configuración de máquina</summary>
+    Configuration = 8,
+    
+    /// <summary>Órdenes/comandos recibidos desde el PLC (cambio lavado automático, etc.)</summary>
+    PlcCommand = 9,
+    
     /// <summary>Historial de alarmas PLC (st_alarmHistPc)</summary>
     PlcAlarmHistory = 10,
     
@@ -66,7 +72,7 @@ public enum OperationAction
     AlarmSilence = 13,
     AlarmExport = 14,
     
-    // Recipe (20-39)
+    // Recipe / Wash Types (20-39)
     RecipeView = 20,
     RecipeCreate = 21,
     RecipeEdit = 22,
@@ -78,6 +84,12 @@ public enum OperationAction
     RecipeAbort = 28,
     RecipeExport = 29,
     RecipeImport = 30,
+    RecipeWritePlc = 31,        // Escribir receta al PLC
+    RecipeReadPlc = 32,         // Leer receta del PLC
+    WashTypeCreate = 33,        // Crear tipo de lavado
+    WashTypeEdit = 34,          // Editar tipo de lavado
+    WashTypeDelete = 35,        // Eliminar tipo de lavado
+    WashTypeWritePlc = 36,      // Escribir tipo de lavado al PLC
     
     // Process (40-49)
     ProcessStart = 40,
@@ -107,6 +119,13 @@ public enum OperationAction
     BackupRestore = 81,
     BackupDelete = 82,
     
+    // Configuration / Machine Settings (90-99)
+    ConfigView = 90,
+    ConfigChange = 91,          // Cambio de configuración de máquina
+    ConfigWritePlc = 92,        // Escribir configuración al PLC
+    ConfigReadPlc = 93,         // Leer configuración del PLC
+    ConfigReset = 94,           // Reset a valores por defecto
+    
     // PLC Alarm History (100-109)
     PlcAlarmActivated = 100,
     PlcAlarmDeactivated = 101,
@@ -115,11 +134,20 @@ public enum OperationAction
     PlcInfoActivated = 104,
     PlcInfoDeactivated = 105,
     
+    // PLC Commands - Órdenes recibidas desde el PLC (110-119)
+    PlcCommandWashChange = 110,      // Cambio de lavado desde PLC (automático)
+    PlcCommandModeChange = 111,      // Cambio de modo desde PLC
+    PlcCommandRecipeLoad = 112,      // Carga de receta ordenada por PLC
+    PlcCommandProcessStart = 113,    // Inicio de proceso ordenado por PLC
+    PlcCommandProcessStop = 114,     // Parada de proceso ordenada por PLC
+    PlcCommandGeneric = 115,         // Comando genérico del PLC
+    PlcCommandParameter = 116,       // Cambio de parámetro desde PLC
+    PlcCommandStatus = 117,          // Cambio de estado desde PLC
+    
     // System (200+)
     SystemStartup = 200,
     SystemShutdown = 201,
-    SystemError = 202,
-    ConfigChange = 203
+    SystemError = 202
 }
 
 /// <summary>

@@ -128,25 +128,16 @@ public class AuthenticationService : IAuthenticationService, IDisposable
         // Cargar configuración desde Excel
         _config = LoadConfigFromExcel(excelConfig);
         
-        // JWT Secret Key: Prioridad 1) Excel, 2) appsettings.json, 3) Generar nuevo
-        if (string.IsNullOrEmpty(_config.JwtSecretKey))
-        {
-            _config.JwtSecretKey = _configuration["Jwt:Key"] ?? string.Empty;
-        }
-        if (string.IsNullOrEmpty(_config.JwtSecretKey))
-        {
-            _config.JwtSecretKey = GenerateSecureKey(64);
-            _logger.LogWarning("JWT Secret Key generado automáticamente. Considere configurar uno fijo en producción.");
-        }
+        // JWT Secret Key: SIEMPRE usar appsettings.json para que coincida con el middleware de validación
+        // Esto evita discrepancias entre generación y validación de tokens
+        _config.JwtSecretKey = _configuration["Jwt:Key"] ?? "AquafrischSupervisorSecretKey2024!Min32Chars";
+        _config.JwtIssuer = _configuration["Jwt:Issuer"] ?? "AquafrischSupervisor";
+        _config.JwtAudience = _configuration["Jwt:Audience"] ?? "AquafrischClients";
         
-        // JWT Issuer/Audience: Prioridad 1) Excel, 2) appsettings.json
-        if (string.IsNullOrEmpty(_config.JwtIssuer))
+        if (string.IsNullOrEmpty(_config.JwtSecretKey) || _config.JwtSecretKey.Length < 32)
         {
-            _config.JwtIssuer = _configuration["Jwt:Issuer"] ?? "AquafrischSupervisor";
-        }
-        if (string.IsNullOrEmpty(_config.JwtAudience))
-        {
-            _config.JwtAudience = _configuration["Jwt:Audience"] ?? "AquafrischClients";
+            _logger.LogWarning("JWT Secret Key no configurado o muy corto. Usando valor por defecto.");
+            _config.JwtSecretKey = "AquafrischSupervisorSecretKey2024!Min32Chars";
         }
     }
     

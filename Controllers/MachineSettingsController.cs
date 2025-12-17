@@ -29,7 +29,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly ITwinCATService _twinCATService;
         private readonly AquafrischDbContext _dbContext;
         private readonly IRequestProjectContext _projectContext;
-        private readonly IAuditLogService _auditLog;
+        private readonly IOperationLogService _operationLog;
         private readonly ILogger<MachineSettingsController> _logger;
 
         public MachineSettingsController(
@@ -37,14 +37,14 @@ namespace SW.PC.API.Backend.Controllers
             ITwinCATService twinCATService,
             AquafrischDbContext dbContext,
             IRequestProjectContext projectContext,
-            IAuditLogService auditLog,
+            IOperationLogService operationLog,
             ILogger<MachineSettingsController> logger)
         {
             _excelConfigService = excelConfigService;
             _twinCATService = twinCATService;
             _dbContext = dbContext;
             _projectContext = projectContext;
-            _auditLog = auditLog;
+            _operationLog = operationLog;
             _logger = logger;
         }
 
@@ -253,6 +253,7 @@ namespace SW.PC.API.Backend.Controllers
         /// <param name="request">Valores a escribir</param>
         /// <returns>Resultado de la operación</returns>
         [HttpPost("plc")]
+        [Authorize]
         [ProducesResponseType(200)]
         [ProducesResponseType(400)]
         public async Task<ActionResult> WriteToPlc([FromBody] MachineSettingsWriteRequest request)
@@ -366,13 +367,12 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
-                // Audit log
-                await _auditLog.LogAsync(
-                    AuditCategory.Configuration,
-                    AuditAction.ConfigChange,
-                    errorCount == 0 ? AuditResult.Success : AuditResult.Warning,
+                // Operation log (L2) - Configuración
+                await _operationLog.LogAsync(
+                    OperationCategory.Configuration,
+                    errorCount == 0 ? OperationAction.ConfigWritePlc : OperationAction.ConfigChange,
                     $"Machine settings written to PLC: {successCount} success, {errorCount} errors",
-                    null, User.Identity?.Name ?? "System");
+                    User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "System");
 
                 _logger.LogInformation("⚙️ Wrote {Success} values to PLC ({Errors} errors)", successCount, errorCount);
 
@@ -473,6 +473,7 @@ namespace SW.PC.API.Backend.Controllers
         /// <param name="request">Valores a almacenar</param>
         /// <returns>Resultado de la operación</returns>
         [HttpPost("db")]
+        [Authorize]
         [ProducesResponseType(200)]
         public async Task<ActionResult> WriteToDatabase([FromBody] MachineSettingsWriteRequest request)
         {
@@ -480,7 +481,7 @@ namespace SW.PC.API.Backend.Controllers
             {
                 var excelPath = _excelConfigService.GetExcelConfigPath();
                 var excelConfig = await _excelConfigService.LoadSettingsPageAsync(excelPath);
-                var user = User.Identity?.Name ?? "System";
+                var user = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "System";
                 var now = DateTime.UtcNow;
                 int count = 0;
 
@@ -524,13 +525,12 @@ namespace SW.PC.API.Backend.Controllers
 
                 await _dbContext.SaveChangesAsync();
 
-                // Audit log
-                await _auditLog.LogAsync(
-                    AuditCategory.Configuration,
-                    AuditAction.ConfigChange,
-                    AuditResult.Success,
+                // Operation log (L2) - Configuración
+                await _operationLog.LogAsync(
+                    OperationCategory.Configuration,
+                    OperationAction.ConfigChange,
                     $"Machine settings saved to database: {count} parameters",
-                    null, user);
+                    user);
 
                 _logger.LogInformation("⚙️ Saved {Count} values to database", count);
 

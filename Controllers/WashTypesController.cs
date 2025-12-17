@@ -30,20 +30,20 @@ namespace SW.PC.API.Backend.Controllers
         private readonly AquafrischDbContext _dbContext;
         private readonly ITwinCATService _twinCATService;
         private readonly IExcelConfigService _excelService;
-        private readonly IAuditLogService _auditLog;
+        private readonly IOperationLogService _operationLog;
         private readonly ILogger<WashTypesController> _logger;
 
         public WashTypesController(
             AquafrischDbContext dbContext,
             ITwinCATService twinCATService,
             IExcelConfigService excelService,
-            IAuditLogService auditLog,
+            IOperationLogService operationLog,
             ILogger<WashTypesController> logger)
         {
             _dbContext = dbContext;
             _twinCATService = twinCATService;
             _excelService = excelService;
-            _auditLog = auditLog;
+            _operationLog = operationLog;
             _logger = logger;
         }
 
@@ -213,13 +213,12 @@ namespace SW.PC.API.Backend.Controllers
                 _dbContext.WashTypes.Add(washType);
                 await _dbContext.SaveChangesAsync();
 
-                // Audit log
-                await _auditLog.LogAsync(
-                    AuditCategory.Recipe,
-                    AuditAction.ConfigChange,
-                    AuditResult.Success,
+                // Operation log (L2) - Recetas
+                await _operationLog.LogAsync(
+                    OperationCategory.Recipe,
+                    OperationAction.WashTypeCreate,
                     $"Creado tipo de lavado: {washType.Name} ({washType.Code})",
-                    null, username);
+                    username);
 
                 _logger.LogInformation("✅ Created wash type: {Name} ({Code})", washType.Name, washType.Code);
 
@@ -310,13 +309,12 @@ namespace SW.PC.API.Backend.Controllers
 
                 await _dbContext.SaveChangesAsync();
 
-                // Audit log
-                await _auditLog.LogAsync(
-                    AuditCategory.Recipe,
-                    AuditAction.ConfigChange,
-                    AuditResult.Success,
+                // Operation log (L2) - Recetas
+                await _operationLog.LogAsync(
+                    OperationCategory.Recipe,
+                    OperationAction.WashTypeEdit,
                     $"Actualizado tipo de lavado: {washType.Name} ({washType.Code})",
-                    null, username);
+                    username);
 
                 _logger.LogInformation("✅ Updated wash type: {Name} ({Code})", washType.Name, washType.Code);
 
@@ -357,13 +355,12 @@ namespace SW.PC.API.Backend.Controllers
                 _dbContext.WashTypes.Remove(washType);
                 await _dbContext.SaveChangesAsync();
 
-                // Audit log
-                await _auditLog.LogAsync(
-                    AuditCategory.Recipe,
-                    AuditAction.ConfigChange,
-                    AuditResult.Success,
+                // Operation log (L2) - Recetas
+                await _operationLog.LogAsync(
+                    OperationCategory.Recipe,
+                    OperationAction.WashTypeDelete,
                     $"Eliminado tipo de lavado: {washType.Name} ({washType.Code})",
-                    null, username);
+                    username);
 
                 _logger.LogInformation("🗑️ Deleted wash type: {Name} ({Code})", washType.Name, washType.Code);
 
@@ -465,13 +462,12 @@ namespace SW.PC.API.Backend.Controllers
                 _dbContext.ActiveWashTypes.Add(active);
                 await _dbContext.SaveChangesAsync();
 
-                // Audit log
-                await _auditLog.LogAsync(
-                    AuditCategory.Recipe,
-                    AuditAction.ConfigChange,
-                    AuditResult.Success,
+                // Operation log (L2) - Recetas
+                await _operationLog.LogAsync(
+                    OperationCategory.Recipe,
+                    OperationAction.RecipeLoad,
                     $"Seleccionado tipo de lavado: {washType.Name} ({washType.Code})",
-                    null, username);
+                    username);
 
                 _logger.LogInformation("✅ Selected wash type: {Name} ({Code})", washType.Name, washType.Code);
 
@@ -728,13 +724,12 @@ namespace SW.PC.API.Backend.Controllers
 
                 await _dbContext.SaveChangesAsync();
 
-                // Audit log
-                await _auditLog.LogAsync(
-                    AuditCategory.Recipe,
-                    AuditAction.ConfigChange,
-                    AuditResult.Success,
+                // Operation log (L2) - Recetas
+                await _operationLog.LogAsync(
+                    OperationCategory.Recipe,
+                    OperationAction.RecipeReadPlc,
                     $"Guardado tipo de lavado desde PLC: Slot {dto.SlotNumber} - {existingWashType.Name}",
-                    null, username);
+                    username);
 
                 _logger.LogInformation("✅ Saved wash type from PLC: Slot {Slot} - {Name}", dto.SlotNumber, existingWashType.Name);
 
@@ -1111,14 +1106,13 @@ namespace SW.PC.API.Backend.Controllers
             active.WrittenToPlcAt = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
 
-            // Audit log
+            // Operation log (L2) - Recetas
             var status = errors.Count == 0 ? "exitosa" : $"parcial ({errors.Count} errores)";
-            await _auditLog.LogAsync(
-                AuditCategory.Plc,
-                AuditAction.ConfigChange,
-                errors.Count == 0 ? AuditResult.Success : AuditResult.Warning,
+            await _operationLog.LogAsync(
+                OperationCategory.Recipe,
+                OperationAction.WashTypeWritePlc,
                 $"Escritura al PLC {status}: {washType.Name} - {parametersWritten} parámetros",
-                null, username);
+                username);
 
             return new WriteToPlcResponseDto
             {
@@ -1323,18 +1317,17 @@ namespace SW.PC.API.Backend.Controllers
                 }
             }
 
-            // Audit log
+            // Operation log (L2) - Recetas
             var status = errors.Count == 0 && parametersWritten > 0 
                 ? "exitosa" 
                 : parametersWritten == 0 
                     ? "sin parámetros escritos" 
                     : $"parcial ({errors.Count} errores)";
-            await _auditLog.LogAsync(
-                AuditCategory.Plc,
-                AuditAction.ConfigChange,
-                parametersWritten > 0 && errors.Count == 0 ? AuditResult.Success : AuditResult.Warning,
+            await _operationLog.LogAsync(
+                OperationCategory.Recipe,
+                OperationAction.WashTypeWritePlc,
                 $"Escritura al PLC (alternativo [{alternatePlcPrefix}]) {status}: {washType.Name} - {parametersWritten} parámetros",
-                null, username);
+                username);
 
             return new WriteToPlcResponseDto
             {

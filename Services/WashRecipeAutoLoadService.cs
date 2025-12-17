@@ -271,6 +271,22 @@ namespace SW.PC.API.Backend.Services
                 _logger.LogInformation("✅ Auto-carga completada: {ParamsWritten} parámetros escritos al {PlcId}", 
                     parametersWritten, plcId);
 
+                // 📋 Registrar en Operation Log (PlcCommand)
+                try
+                {
+                    var operationLog = scope.ServiceProvider.GetRequiredService<IOperationLogService>();
+                    await operationLog.LogAsync(
+                        OperationCategory.PlcCommand,
+                        OperationAction.PlcCommandWashChange,
+                        $"Cambio de lavado automático desde {plcId}: Línea {lineNumber} → '{washType.Name}' ({parametersWritten} parámetros escritos)",
+                        user: "PLC"
+                    );
+                }
+                catch (Exception logEx)
+                {
+                    _logger.LogWarning(logEx, "⚠️ No se pudo registrar en Operation Log");
+                }
+
                 return true;
             }
             catch (Exception ex)
