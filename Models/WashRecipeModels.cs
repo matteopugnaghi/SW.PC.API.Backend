@@ -32,7 +32,7 @@ namespace SW.PC.API.Backend.Models
         
         /// <summary>
         /// Valor actual del nombre de receta leído del PLC
-        /// </summary>
+        /// </summary>Vale vall
         public string RecipeNameValue { get; set; } = string.Empty;
         
         /// <summary>

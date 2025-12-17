@@ -53,6 +53,15 @@ public class AquafrischDbContext : DbContext
     /// <summary>Tipo de lavado activo (selección actual del operador)</summary>
     public DbSet<ActiveWashType> ActiveWashTypes { get; set; } = null!;
 
+    /// <summary>Tipos de tren (recetas de tren)</summary>
+    public DbSet<TrainType> TrainTypes { get; set; } = null!;
+    
+    /// <summary>Parámetros de tipos de tren</summary>
+    public DbSet<TrainTypeParameter> TrainTypeParameters { get; set; } = null!;
+
+    /// <summary>Tipo de tren activo (selección actual del operador)</summary>
+    public DbSet<ActiveTrainType> ActiveTrainTypes { get; set; } = null!;
+
     #endregion
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -272,6 +281,52 @@ public class AquafrischDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.WashTypeId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ============================================
+        // Configuración de TrainType (Tipos de Tren)
+        // ============================================
+        modelBuilder.Entity<TrainType>(entity =>
+        {
+            entity.ToTable("TrainTypes");
+            entity.HasKey(e => e.Id);
+            
+            entity.HasIndex(e => e.Code).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.DisplayOrder);
+            
+            entity.Property(e => e.Code).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.Icon).HasMaxLength(100);
+            entity.Property(e => e.Color).HasMaxLength(10);
+            entity.Property(e => e.CreatedBy).HasMaxLength(100);
+            entity.Property(e => e.UpdatedBy).HasMaxLength(100);
+            
+            entity.HasMany(e => e.Parameters)
+                  .WithOne(p => p.TrainType)
+                  .HasForeignKey(p => p.TrainTypeId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ============================================
+        // Configuración de TrainTypeParameter
+        // ============================================
+        modelBuilder.Entity<TrainTypeParameter>(entity =>
+        {
+            entity.ToTable("TrainTypeParameters");
+            entity.HasKey(e => e.Id);
+            
+            entity.HasIndex(e => new { e.TrainTypeId, e.ParameterCode }).IsUnique();
+            entity.HasIndex(e => e.DisplayOrder);
+            
+            entity.Property(e => e.ParameterCode).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.DataType).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.Value).HasMaxLength(200);
+            entity.Property(e => e.Unit).HasMaxLength(20);
+            entity.Property(e => e.PlcVariable).HasMaxLength(200);
+            entity.Property(e => e.GroupName).HasMaxLength(50);
         });
 
         // ============================================
@@ -514,6 +569,9 @@ public static class AquafrischDbContextFactory
         
         // Crear tablas WashTypes para tipos de lavado
         await EnsureWashTypesTablesAsync(context);
+        
+        // Crear tablas TrainTypes para tipos de tren
+        await EnsureTrainTypesTablesAsync(context);
     }
     
     /// <summary>
@@ -627,6 +685,80 @@ public static class AquafrischDbContextFactory
             
             // Índice para ActiveWashType
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ActiveWashType_WashTypeId ON ActiveWashType(WashTypeId)");
+        }
+        catch (Exception)
+        {
+            // Tablas ya existen o error menor - ignorar
+        }
+    }
+    
+    /// <summary>
+    /// Crear tablas TrainTypes, TrainTypeParameters y ActiveTrainType si no existen
+    /// </summary>
+    private static async Task EnsureTrainTypesTablesAsync(AquafrischDbContext context)
+    {
+        try
+        {
+            // Tabla TrainTypes (Tipos de Tren)
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS TrainTypes (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Code TEXT NOT NULL UNIQUE,
+                    Name TEXT NOT NULL,
+                    Description TEXT,
+                    Icon TEXT,
+                    Color TEXT,
+                    IsActive INTEGER NOT NULL DEFAULT 1,
+                    IsDefault INTEGER NOT NULL DEFAULT 0,
+                    DisplayOrder INTEGER NOT NULL DEFAULT 0,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT,
+                    CreatedBy TEXT,
+                    UpdatedBy TEXT
+                )");
+            
+            // Índices para TrainTypes
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_TrainTypes_Code ON TrainTypes(Code)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_TrainTypes_IsActive ON TrainTypes(IsActive)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_TrainTypes_DisplayOrder ON TrainTypes(DisplayOrder)");
+            
+            // Tabla TrainTypeParameters (Parámetros de tipos de tren)
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS TrainTypeParameters (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    TrainTypeId INTEGER NOT NULL,
+                    ParameterCode TEXT NOT NULL,
+                    Name TEXT NOT NULL,
+                    DataType TEXT NOT NULL,
+                    Value TEXT,
+                    MinValue REAL,
+                    MaxValue REAL,
+                    Unit TEXT,
+                    PlcVariable TEXT,
+                    DisplayOrder INTEGER NOT NULL DEFAULT 0,
+                    GroupName TEXT,
+                    FOREIGN KEY (TrainTypeId) REFERENCES TrainTypes(Id) ON DELETE CASCADE,
+                    UNIQUE (TrainTypeId, ParameterCode)
+                )");
+            
+            // Índices para TrainTypeParameters
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_TrainTypeParameters_TrainTypeId_ParameterCode ON TrainTypeParameters(TrainTypeId, ParameterCode)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_TrainTypeParameters_DisplayOrder ON TrainTypeParameters(DisplayOrder)");
+            
+            // Tabla ActiveTrainType (Tipo de tren activo)
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ActiveTrainType (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    TrainTypeId INTEGER NOT NULL,
+                    SelectedAt TEXT NOT NULL,
+                    SelectedBy TEXT,
+                    WrittenToPlc INTEGER NOT NULL DEFAULT 0,
+                    WrittenToPlcAt TEXT,
+                    FOREIGN KEY (TrainTypeId) REFERENCES TrainTypes(Id) ON DELETE RESTRICT
+                )");
+            
+            // Índice para ActiveTrainType
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ActiveTrainType_TrainTypeId ON ActiveTrainType(TrainTypeId)");
         }
         catch (Exception)
         {

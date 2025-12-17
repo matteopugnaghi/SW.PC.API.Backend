@@ -25,7 +25,10 @@ namespace SW.PC.API.Backend.Services
         // 🚿 Sistema de Recetas de Lavado
         Task<WashRecipeEditorConfiguration> LoadWashRecipeConfigAsync(string filePath);
         
-        // 📁 Soporte Multi-Proyecto
+        // � Sistema de Tipos de Tren
+        Task<TrainRecipeConfiguration> LoadTrainRecipeConfigAsync(string filePath);
+        
+        // �📁 Soporte Multi-Proyecto
         void SetProjectContext(IProjectContextService projectContext);
         string GetExcelConfigPath();
     }
@@ -2626,6 +2629,194 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "🚿 Error loading wash recipe configuration from {FilePath}", filePath);
+                return config;
+            }
+        }
+        
+        /// <summary>
+        /// Cargar configuración de TrainRecipe desde Excel
+        /// 
+        /// Estructura de la hoja "TrainRecipe":
+        /// - A2: Título/descripción del nombre del tren
+        /// - A3: Variable PLC para nombre del tipo de tren
+        /// - A4: Número de línea
+        /// - B2-E2: Parámetros booleanos (nombre en fila 2, variable PLC en fila 3)
+        /// - F2-M2: Parámetros decimales (nombre en fila 2, variable PLC en fila 3, min/max/unidad en filas 4-6)
+        /// </summary>
+        public async Task<TrainRecipeConfiguration> LoadTrainRecipeConfigAsync(string filePath)
+        {
+            var config = new TrainRecipeConfiguration();
+            
+            try
+            {
+                var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+                
+                if (!File.Exists(fullPath))
+                {
+                    _logger.LogWarning("🚆 Excel file not found for train recipe: {Path}", fullPath);
+                    return config;
+                }
+                
+                _logger.LogInformation("🚆 Loading train recipe configuration from Excel: {Path}", fullPath);
+                
+                await Task.Run(() =>
+                {
+                    using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var package = new ExcelPackage(stream);
+                    
+                    // Buscar hoja "TrainRecipe" (case-insensitive)
+                    var sheet = package.Workbook.Worksheets
+                        .FirstOrDefault(ws => ws.Name.Equals("TrainRecipe", StringComparison.OrdinalIgnoreCase));
+                    
+                    if (sheet == null)
+                    {
+                        _logger.LogWarning("🚆 Sheet 'TrainRecipe' not found in Excel file");
+                        return;
+                    }
+                    
+                    // Leer descripción/título del nombre del tren desde A2
+                    var titleLabel = sheet.Cells["A2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(titleLabel))
+                    {
+                        config.TitleLabel = titleLabel;
+                        _logger.LogDebug("🚆 Train title label from A2: {Label}", titleLabel);
+                    }
+                    
+                    // Leer variable PLC del nombre del tren desde A3
+                    var trainNamePlcVar = sheet.Cells["A3"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(trainNamePlcVar))
+                    {
+                        config.TrainNamePlcVariable = trainNamePlcVar;
+                        _logger.LogDebug("🚆 Train name PLC variable from A3: {Var}", trainNamePlcVar);
+                    }
+                    
+                    // Leer variable PLC de la línea/número desde A4
+                    var lineNumberPlcVar = sheet.Cells["A4"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(lineNumberPlcVar))
+                    {
+                        config.LineNumberPlcVariable = lineNumberPlcVar;
+                        _logger.LogDebug("🚆 Line number PLC variable from A4: {Var}", lineNumberPlcVar);
+                    }
+                    
+                    // ============================================
+                    // ESTRUCTURA POR FILAS (cada fila = un parámetro)
+                    // ============================================
+                    // BOOL: C=Nombre, D=Imagen, E=Variable PLC
+                    // DECIMAL: G=Nombre, H=Imagen, I=Variable PLC, J=Min, K=Max, L=Decimales, M=Unidad
+                    // ============================================
+                    
+                    int row = 2;
+                    int maxEmptyRows = 5;
+                    int consecutiveEmpty = 0;
+                    
+                    while (consecutiveEmpty < maxEmptyRows && row < 100) // Máximo 100 filas
+                    {
+                        // Leer parámetro BOOL de esta fila (columnas C, D, E)
+                        var boolName = sheet.Cells[row, 3].Text?.Trim();      // C = columna 3
+                        var boolImage = sheet.Cells[row, 4].Text?.Trim();     // D = columna 4
+                        var boolPlcVar = sheet.Cells[row, 5].Text?.Trim();    // E = columna 5
+                        
+                        // Leer parámetro DECIMAL de esta fila (columnas G, H, I, J, K, L, M)
+                        var decName = sheet.Cells[row, 7].Text?.Trim();       // G = columna 7
+                        var decImage = sheet.Cells[row, 8].Text?.Trim();      // H = columna 8
+                        var decPlcVar = sheet.Cells[row, 9].Text?.Trim();     // I = columna 9
+                        var decMin = sheet.Cells[row, 10].Text?.Trim();       // J = columna 10
+                        var decMax = sheet.Cells[row, 11].Text?.Trim();       // K = columna 11
+                        var decDecimals = sheet.Cells[row, 12].Text?.Trim();  // L = columna 12
+                        var decUnit = sheet.Cells[row, 13].Text?.Trim();      // M = columna 13
+                        
+                        bool hasData = false;
+                        
+                        // Agregar parámetro BOOL si tiene datos
+                        if (!string.IsNullOrEmpty(boolName) || !string.IsNullOrEmpty(boolPlcVar))
+                        {
+                            config.BoolParameters.Add(new TrainRecipeParameter
+                            {
+                                Name = boolName ?? $"Bool_{row - 1}",
+                                Image = boolImage,
+                                PlcVariable = boolPlcVar,
+                                DataType = "BOOL",
+                                RowIndex = row
+                            });
+                            _logger.LogDebug("🚆 Bool param row {Row}: {Name} -> {Var}", row, boolName, boolPlcVar);
+                            hasData = true;
+                        }
+                        
+                        // Agregar parámetro DECIMAL si tiene datos
+                        if (!string.IsNullOrEmpty(decName) || !string.IsNullOrEmpty(decPlcVar))
+                        {
+                            var param = new TrainRecipeParameter
+                            {
+                                Name = decName ?? $"Decimal_{row - 1}",
+                                Image = decImage,
+                                PlcVariable = decPlcVar,
+                                DataType = "LREAL",
+                                RowIndex = row
+                            };
+                            
+                            // Parsear Min
+                            if (!string.IsNullOrEmpty(decMin) && double.TryParse(decMin, 
+                                System.Globalization.NumberStyles.Any, 
+                                System.Globalization.CultureInfo.InvariantCulture, out var min))
+                            {
+                                param.MinValue = min;
+                            }
+                            
+                            // Parsear Max
+                            if (!string.IsNullOrEmpty(decMax) && double.TryParse(decMax, 
+                                System.Globalization.NumberStyles.Any, 
+                                System.Globalization.CultureInfo.InvariantCulture, out var max))
+                            {
+                                param.MaxValue = max;
+                            }
+                            
+                            // Parsear Decimales (precisión)
+                            if (!string.IsNullOrEmpty(decDecimals) && int.TryParse(decDecimals, out var decimals))
+                            {
+                                param.Decimals = decimals;
+                            }
+                            
+                            // Unidad
+                            if (!string.IsNullOrEmpty(decUnit))
+                            {
+                                param.Unit = decUnit;
+                            }
+                            
+                            config.DecimalParameters.Add(param);
+                            _logger.LogDebug("🚆 Decimal param row {Row}: {Name} -> {Var} ({Min}-{Max} {Unit})", 
+                                row, decName, decPlcVar, param.MinValue, param.MaxValue, param.Unit);
+                            hasData = true;
+                        }
+                        
+                        if (hasData)
+                        {
+                            consecutiveEmpty = 0;
+                        }
+                        else
+                        {
+                            consecutiveEmpty++;
+                        }
+                        
+                        row++;
+                    }
+                    
+                    // Leer prefijo alternativo para PLC2 desde A14 (igual que WashRecipe)
+                    var alternatePlcPrefix = sheet.Cells["A14"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(alternatePlcPrefix))
+                    {
+                        config.AlternatePlcPrefix = alternatePlcPrefix;
+                        _logger.LogDebug("🚆 Alternate PLC prefix from A14: {Prefix}", alternatePlcPrefix);
+                    }
+                    
+                    _logger.LogInformation("🚆 Loaded TrainRecipe config: {BoolCount} bool params, {DecimalCount} decimal params", 
+                        config.BoolParameters.Count, config.DecimalParameters.Count);
+                });
+                
+                return config;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🚆 Error loading train recipe configuration from {FilePath}", filePath);
                 return config;
             }
         }
