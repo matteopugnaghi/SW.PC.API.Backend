@@ -2422,6 +2422,30 @@ namespace SW.PC.API.Backend.Services
                         _logger.LogDebug("🚿 Recipe name PLC variable from A3: {Var}", recipeNamePlcVar);
                     }
                     
+                    // Leer variable PLC de la línea/número de receta desde A4
+                    var recipeLinePlcVar = sheet.Cells["A4"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(recipeLinePlcVar))
+                    {
+                        config.RecipeLineNumberPlcVariable = recipeLinePlcVar;
+                        _logger.LogDebug("🚿 Recipe line number PLC variable from A4: {Var}", recipeLinePlcVar);
+                    }
+                    
+                    // Leer configuración de escritura alternativa desde A13 (ON/OFF)
+                    var alternateWriteEnabled = sheet.Cells["A13"].Text?.Trim()?.ToUpperInvariant();
+                    if (alternateWriteEnabled == "ON")
+                    {
+                        config.AlternateWriteEnabled = true;
+                        _logger.LogDebug("🚿 Alternate write enabled from A13: ON");
+                        
+                        // Leer prefijo PLC alternativo desde A14
+                        var alternatePlcPrefix = sheet.Cells["A14"].Text?.Trim();
+                        if (!string.IsNullOrEmpty(alternatePlcPrefix))
+                        {
+                            config.AlternateWritePlcPrefix = alternatePlcPrefix;
+                            _logger.LogDebug("🚿 Alternate PLC prefix from A14: {Prefix}", alternatePlcPrefix);
+                        }
+                    }
+                    
                     // Definir columnas para parámetros BOOL (10 pares: Variable, Descripción)
                     // D-E, F-G, H-I, J-K, L-M, N-O, P-Q, R-S, T-U, V-W
                     var boolColumns = new (string VarCol, string DescCol)[]

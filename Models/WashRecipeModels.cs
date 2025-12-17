@@ -25,9 +25,27 @@ namespace SW.PC.API.Backend.Models
         public string? RecipeNamePlcVariable { get; set; }
         
         /// <summary>
+        /// Variable PLC para la línea/número de receta (desde A4)
+        /// Esta variable contiene el índice de la receta seleccionada
+        /// </summary>
+        public string? RecipeLineNumberPlcVariable { get; set; }
+        
+        /// <summary>
         /// Valor actual del nombre de receta leído del PLC
         /// </summary>
         public string RecipeNameValue { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Habilitar escritura alternativa al PLC (desde A13: ON/OFF)
+        /// Si es true, se muestra un segundo botón "ESCRIBIR PLC 2"
+        /// </summary>
+        public bool AlternateWriteEnabled { get; set; } = false;
+        
+        /// <summary>
+        /// Prefijo PLC alternativo para escritura (desde A14)
+        /// Ej: "st_WashPreview" - Se sustituye "st_WashRecipe" por este valor
+        /// </summary>
+        public string? AlternateWritePlcPrefix { get; set; }
         
         /// <summary>
         /// Lista de estaciones configuradas (una por fila del Excel)
@@ -175,6 +193,22 @@ namespace SW.PC.API.Backend.Models
         /// Valor actual del nombre de receta leído del PLC
         /// </summary>
         public string RecipeNameValue { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Habilitar escritura alternativa al PLC (desde A13: ON/OFF)
+        /// </summary>
+        public bool AlternateWriteEnabled { get; set; } = false;
+        
+        /// <summary>
+        /// Prefijo PLC alternativo para escritura (desde A14)
+        /// </summary>
+        public string? AlternateWritePlcPrefix { get; set; }
+        
+        /// <summary>
+        /// Valor actual del nombre de receta alternativa leído del PLC (usando A14 prefix)
+        /// </summary>
+        public string? AlternateRecipeNameValue { get; set; }
+        
         public List<WashRecipeStationDto> Stations { get; set; } = new();
         public DateTime LoadedAt { get; set; }
     }

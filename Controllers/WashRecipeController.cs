@@ -58,6 +58,8 @@ namespace SW.PC.API.Backend.Controllers
                     RecipeNameDescription = config.RecipeNameDescription,
                     RecipeNamePlcVariable = config.RecipeNamePlcVariable,
                     RecipeNameValue = config.RecipeNameValue,
+                    AlternateWriteEnabled = config.AlternateWriteEnabled,
+                    AlternateWritePlcPrefix = config.AlternateWritePlcPrefix,
                     LoadedAt = config.LoadedAt,
                     Stations = config.Stations.Select(s => new WashRecipeStationDto
                     {
@@ -121,6 +123,8 @@ namespace SW.PC.API.Backend.Controllers
                 
                 // Leer nombre de la receta desde PLC (si hay variable configurada)
                 string recipeNameValue = string.Empty;
+                string alternateRecipeNameValue = string.Empty;
+                
                 if (!string.IsNullOrEmpty(config.RecipeNamePlcVariable))
                 {
                     try
@@ -142,6 +146,27 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         Interlocked.Increment(ref failed);
                         errors.Add($"RecipeName: {ex.Message}");
+                    }
+                }
+                
+                // Leer nombre de receta alternativa (si A13=ON y hay prefijo A14)
+                if (config.AlternateWriteEnabled && !string.IsNullOrEmpty(config.AlternateWritePlcPrefix) && !string.IsNullOrEmpty(config.RecipeNamePlcVariable))
+                {
+                    try
+                    {
+                        // Reemplazar st_WashRecipe con el prefijo alternativo
+                        var alternateVariable = config.RecipeNamePlcVariable.Replace("st_WashRecipe", config.AlternateWritePlcPrefix);
+                        var result = await _twinCatService.ReadVariableAsync(alternateVariable, typeof(string));
+                        if (result != null)
+                        {
+                            alternateRecipeNameValue = result.ToString() ?? string.Empty;
+                            Interlocked.Increment(ref processed);
+                            _logger.LogDebug("🚿 Alternate recipe name read from {Variable}: {Value}", alternateVariable, alternateRecipeNameValue);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("🚿 Could not read alternate recipe name: {Error}", ex.Message);
                     }
                 }
                 
@@ -226,6 +251,9 @@ namespace SW.PC.API.Backend.Controllers
                     RecipeNameDescription = config.RecipeNameDescription,
                     RecipeNamePlcVariable = config.RecipeNamePlcVariable,
                     RecipeNameValue = config.RecipeNameValue,
+                    AlternateWriteEnabled = config.AlternateWriteEnabled,
+                    AlternateWritePlcPrefix = config.AlternateWritePlcPrefix,
+                    AlternateRecipeNameValue = alternateRecipeNameValue,
                     LoadedAt = DateTime.Now,
                     Stations = config.Stations.Select(s => new WashRecipeStationDto
                     {
