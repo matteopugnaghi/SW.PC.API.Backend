@@ -415,13 +415,14 @@ namespace SW.PC.API.Backend.Services
                     await JsonSerializer.SerializeAsync(stream, certificate, JsonOptions);
                 }
                 
-                // Registrar en audit log
+                // Registrar en audit log (en el proyecto correcto)
                 await _auditLog.LogAsync(
                     AuditCategory.Backup,
                     AuditAction.BackupCreate,
                     AuditResult.Success,
                     $"Backup created: {backupName} (Project: {projectId}, Size: {backupInfo.SizeFormatted})",
-                    userId ?? "system");
+                    userId ?? "system",
+                    projectId: projectId);  // 📁 Guardar en audit del proyecto correcto
                 
                 // Limpiar backups antiguos
                 await CleanupOldBackupsAsync(projectId);
@@ -547,13 +548,14 @@ namespace SW.PC.API.Backend.Services
                     }
                 }
                 
-                // Registrar en audit log
+                // Registrar en audit log (en el proyecto correcto)
                 await _auditLog.LogAsync(
                     AuditCategory.Backup,
                     AuditAction.BackupRestore,
                     AuditResult.Success,
                     $"Backup restored: {backupInfo.Name} (Project: {projectId})",
-                    userId ?? "system");
+                    userId ?? "system",
+                    projectId: projectId);  // 📁 Guardar en audit del proyecto correcto
                 
                 response.Success = true;
                 response.Message = $"Backup restored successfully: {backupInfo.Name}";
@@ -676,11 +678,13 @@ namespace SW.PC.API.Backend.Services
                 
                 File.Delete(backupInfo.FilePath);
                 
+                // Registrar en audit log (en el proyecto correcto)
                 await _auditLog.LogAsync(
                     AuditCategory.Backup,
                     AuditAction.BackupDelete,
                     AuditResult.Success,
-                    $"Backup deleted: {backupInfo.Name} (Project: {projectId})");
+                    $"Backup deleted: {backupInfo.Name} (Project: {projectId})",
+                    projectId: projectId);  // 📁 Guardar en audit del proyecto correcto
                 
                 response.Success = true;
                 response.Message = $"Backup deleted: {backupInfo.Name}";
@@ -905,11 +909,13 @@ namespace SW.PC.API.Backend.Services
                     return response;
                 }
                 
+                // Registrar en audit log (en el proyecto correcto)
                 await _auditLog.LogAsync(
                     AuditCategory.Backup,
                     AuditAction.BackupCreate,
                     AuditResult.Success,
-                    $"Backup imported: {fileName} (Project: {projectId})");
+                    $"Backup imported: {fileName} (Project: {projectId})",
+                    projectId: projectId);  // 📁 Guardar en audit del proyecto correcto
                 
                 response.Success = true;
                 response.Message = $"Backup imported: {backupInfo.Name}";

@@ -23,15 +23,18 @@ public class AuthController : ControllerBase
 {
     private readonly IAuthenticationService _authService;
     private readonly IAuditLogService _auditLog;
+    private readonly IRequestProjectContext _projectContext;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         IAuthenticationService authService,
         IAuditLogService auditLog,
+        IRequestProjectContext projectContext,
         ILogger<AuthController> logger)
     {
         _authService = authService;
         _auditLog = auditLog;
+        _projectContext = projectContext;
         _logger = logger;
     }
 
@@ -51,7 +54,8 @@ public class AuthController : ControllerBase
         var ipAddress = GetClientIpAddress();
         var userAgent = Request.Headers.UserAgent.ToString();
         
-        var response = await _authService.LoginAsync(request, ipAddress, userAgent);
+        // Pasar el projectId del request context para que el log vaya al proyecto correcto
+        var response = await _authService.LoginAsync(request, ipAddress, userAgent, _projectContext.ProjectId);
         
         if (!response.Success)
         {
@@ -77,6 +81,54 @@ public class AuthController : ControllerBase
         
         var response = await _authService.LogoutAsync(token);
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Notificar logout por inactividad desde el frontend
+    /// Este endpoint se llama cuando el frontend detecta inactividad
+    /// No requiere autorización porque el token puede estar expirado
+    /// </summary>
+    [HttpPost("logout-inactivity")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(AuthOperationResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AuthOperationResponse>> LogoutByInactivity([FromBody] InactivityLogoutRequest? request)
+    {
+        var ipAddress = GetClientIpAddress();
+        var token = GetBearerToken();
+        var username = request?.Username ?? "Desconocido";
+        var inactivityMinutes = request?.InactivityMinutes ?? 0;
+        
+        // Si hay token, intentar invalidar la sesión en DB
+        if (!string.IsNullOrEmpty(token))
+        {
+            try
+            {
+                await _authService.LogoutAsync(token);
+            }
+            catch
+            {
+                // Ignorar errores - el token puede ya estar expirado
+            }
+        }
+        
+        // Registrar en audit log (en el proyecto correcto)
+        await _auditLog.LogAsync(
+            AuditCategory.Authentication,
+            AuditAction.Logout,
+            AuditResult.Success,
+            $"Sesión cerrada por inactividad del frontend ({inactivityMinutes} min sin actividad)",
+            userName: username,
+            ipAddress: ipAddress,
+            projectId: _projectContext.ProjectId);
+        
+        _logger.LogInformation("🔐 Logout por inactividad: Usuario {Username} desde {IP} ({Minutes} min sin actividad)",
+            username, ipAddress, inactivityMinutes);
+        
+        return Ok(new AuthOperationResponse 
+        { 
+            Success = true, 
+            Message = $"Sesión cerrada por inactividad ({inactivityMinutes} minutos)" 
+        });
     }
 
     /// <summary>
@@ -825,6 +877,18 @@ public class AuthController : ControllerBase
 public class RefreshTokenRequest
 {
     public string RefreshToken { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Request para logout por inactividad (desde frontend)
+/// </summary>
+public class InactivityLogoutRequest
+{
+    /// <summary>Nombre de usuario que estaba logueado</summary>
+    public string? Username { get; set; }
+    
+    /// <summary>Minutos de inactividad antes del logout</summary>
+    public int InactivityMinutes { get; set; }
 }
 
 /// <summary>

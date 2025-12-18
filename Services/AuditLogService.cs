@@ -17,15 +17,20 @@ namespace SW.PC.API.Backend.Services
     /// </summary>
     public interface IAuditLogService
     {
+        /// <summary>
+        /// Registrar evento de auditoría
+        /// </summary>
+        /// <param name="projectId">ID del proyecto donde guardar el log (null = proyecto activo)</param>
         Task LogAsync(AuditCategory category, AuditAction action, AuditResult result, 
             string? details = null, string? userId = null, string? userName = null, 
-            string? ipAddress = null, int? affectedItemCount = null, double? durationMs = null);
+            string? ipAddress = null, int? affectedItemCount = null, double? durationMs = null,
+            string? projectId = null);
         
-        Task<AuditLogStatus> GetStatusAsync();
-        Task<List<AuditLogEntry>> GetRecentLogsAsync(int count = 50);
-        Task<AuditLogResponse> GetLogsAsync(AuditLogQuery query);
-        Task<string> ExportLogsAsync(DateTime? from = null, DateTime? to = null);
-        Task<AuditSummary> GetSummaryAsync(int days = 7);
+        Task<AuditLogStatus> GetStatusAsync(string? projectId = null);
+        Task<List<AuditLogEntry>> GetRecentLogsAsync(int count = 50, string? projectId = null);
+        Task<AuditLogResponse> GetLogsAsync(AuditLogQuery query, string? projectId = null);
+        Task<string> ExportLogsAsync(DateTime? from = null, DateTime? to = null, string? projectId = null);
+        Task<AuditSummary> GetSummaryAsync(int days = 7, string? projectId = null);
         Task<bool> VerifyLogIntegrityAsync(string logId);
         Task CleanupOldLogsAsync();
         
@@ -33,6 +38,13 @@ namespace SW.PC.API.Backend.Services
         /// Forzar escritura del cache a disco (útil antes de backups)
         /// </summary>
         Task FlushAsync();
+        
+        /// <summary>
+        /// Registrar evento de auditoría en TODOS los proyectos disponibles.
+        /// Usar para eventos globales como: System Start/Stop, Git operations.
+        /// </summary>
+        Task LogToAllProjectsAsync(AuditCategory category, AuditAction action, AuditResult result, 
+            string? details = null, string? userId = null, string? userName = null);
     }
 
     /// <summary>
@@ -107,13 +119,14 @@ namespace SW.PC.API.Backend.Services
         /// Obtener la ruta de audit logs SIN crear el directorio.
         /// Usar para logging y consultas que no requieren escritura.
         /// </summary>
-        private string GetAuditPathWithoutCreate()
+        /// <param name="projectId">ID del proyecto (null = proyecto activo)</param>
+        private string GetAuditPathWithoutCreate(string? projectId = null)
         {
-            var projectId = _projectContext.ActiveProjectId;
+            var effectiveProjectId = projectId ?? _projectContext.ActiveProjectId;
             
-            if (projectId != "default")
+            if (effectiveProjectId != "default")
             {
-                return Path.Combine(_contentRoot, "Projects", projectId, "audit");
+                return Path.Combine(_contentRoot, "Projects", effectiveProjectId, "audit");
             }
             else
             {
@@ -127,9 +140,10 @@ namespace SW.PC.API.Backend.Services
         /// Multi-proyecto: Projects/{projectId}/audit/
         /// Legacy: wwwroot/audit/
         /// </summary>
-        private string GetAuditPath()
+        /// <param name="projectId">ID del proyecto (null = proyecto activo)</param>
+        private string GetAuditPath(string? projectId = null)
         {
-            var path = GetAuditPathWithoutCreate();
+            var path = GetAuditPathWithoutCreate(projectId);
             
             if (!Directory.Exists(path))
             {
@@ -180,9 +194,11 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Registrar evento de auditoría
         /// </summary>
+        /// <param name="projectId">ID del proyecto donde guardar el log (null = proyecto activo)</param>
         public async Task LogAsync(AuditCategory category, AuditAction action, AuditResult result,
             string? details = null, string? userId = null, string? userName = null,
-            string? ipAddress = null, int? affectedItemCount = null, double? durationMs = null)
+            string? ipAddress = null, int? affectedItemCount = null, double? durationMs = null,
+            string? projectId = null)
         {
             if (!_isEnabled) return;
 
@@ -196,7 +212,8 @@ namespace SW.PC.API.Backend.Services
                 UserName = userName,
                 IpAddress = ipAddress,
                 AffectedItemCount = affectedItemCount,
-                DurationMs = durationMs
+                DurationMs = durationMs,
+                TargetProjectId = projectId // null = proyecto activo (se resuelve en FlushCacheAsync)
             };
 
             // Añadir firma SHA256 si está habilitada
@@ -215,15 +232,59 @@ namespace SW.PC.API.Backend.Services
                 _externalQueue.Enqueue(entry);
             }
 
-            // Flush si el cache está lleno o ha pasado el intervalo
+            // 🔐 Eventos críticos se escriben inmediatamente (seguridad)
+            bool isCriticalEvent = category == AuditCategory.Authentication || 
+                                   category == AuditCategory.Backup;
+            
+            // Flush si el cache está lleno, ha pasado el intervalo, o es evento crítico
             if (_cache.Count >= MAX_CACHE_SIZE || 
-                (DateTime.Now - _lastFlush).TotalSeconds > FLUSH_INTERVAL_SECONDS)
+                (DateTime.Now - _lastFlush).TotalSeconds > FLUSH_INTERVAL_SECONDS ||
+                isCriticalEvent)
             {
                 await FlushCacheAsync();
             }
 
             // Log a consola
             LogToConsole(entry);
+        }
+
+        /// <summary>
+        /// 🌐 Registrar evento de auditoría en TODOS los proyectos disponibles.
+        /// Usar para eventos globales: System Start/Stop, Git Commit/Push, etc.
+        /// </summary>
+        public async Task LogToAllProjectsAsync(AuditCategory category, AuditAction action, AuditResult result, 
+            string? details = null, string? userId = null, string? userName = null)
+        {
+            if (!_isEnabled) return;
+            
+            try
+            {
+                var projects = _projectContext.GetAvailableProjects().ToList();
+                _logger.LogInformation("Logging global event to {Count} projects", projects.Count);
+                
+                foreach (var project in projects)
+                {
+                    try
+                    {
+                        await LogAsync(category, action, result, details, userId, userName, 
+                            ipAddress: null, affectedItemCount: null, durationMs: null,
+                            projectId: project.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to log to project {ProjectId}", project.Id);
+                    }
+                }
+                
+                // Forzar flush inmediato para eventos globales
+                await FlushAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to log global event to all projects");
+                // Fallback: log al proyecto activo
+                await LogAsync(category, action, result, details, userId, userName);
+            }
         }
 
         /// <summary>
@@ -446,44 +507,56 @@ namespace SW.PC.API.Backend.Services
 
                 if (entries.Count == 0) return;
 
-                var today = DateTime.Now.ToString("yyyy-MM-dd");
-                var auditPath = GetAuditPath();
-                var filePath = Path.Combine(auditPath, $"audit_{today}.json");
-
-                List<AuditLogEntry> existingEntries = new();
+                // 📁 Agrupar entradas por proyecto (null = proyecto activo)
+                var entriesByProject = entries.GroupBy(e => e.TargetProjectId ?? _projectContext.ActiveProjectId);
                 
-                if (File.Exists(filePath))
+                var today = DateTime.Now.ToString("yyyy-MM-dd");
+                
+                foreach (var projectGroup in entriesByProject)
                 {
-                    try
+                    var projectId = projectGroup.Key;
+                    var projectEntries = projectGroup.ToList();
+                    
+                    var auditPath = GetAuditPath(projectId);
+                    var filePath = Path.Combine(auditPath, $"audit_{today}.json");
+
+                    List<AuditLogEntry> existingEntries = new();
+                    
+                    if (File.Exists(filePath))
                     {
-                        var json = await File.ReadAllTextAsync(filePath);
-                        // Solo deserializar si el archivo tiene contenido válido
-                        if (!string.IsNullOrWhiteSpace(json) && json.Trim().StartsWith("["))
+                        try
                         {
-                            existingEntries = JsonSerializer.Deserialize<List<AuditLogEntry>>(json, JsonOptions) ?? new();
+                            var json = await File.ReadAllTextAsync(filePath);
+                            // Solo deserializar si el archivo tiene contenido válido
+                            if (!string.IsNullOrWhiteSpace(json) && json.Trim().StartsWith("["))
+                            {
+                                existingEntries = JsonSerializer.Deserialize<List<AuditLogEntry>>(json, JsonOptions) ?? new();
+                            }
+                        }
+                        catch (JsonException)
+                        {
+                            _logger.LogWarning("⚠️ Corrupted audit file detected during flush, will overwrite: {File}", filePath);
+                            existingEntries = new List<AuditLogEntry>();
                         }
                     }
-                    catch (JsonException)
+
+                    existingEntries.AddRange(projectEntries);
+
+                    // Rotar archivo si excede el límite
+                    if (existingEntries.Count > _maxEntriesPerFile)
                     {
-                        _logger.LogWarning("⚠️ Corrupted audit file detected during flush, will overwrite: {File}", filePath);
+                        var archivePath = Path.Combine(auditPath, $"audit_{today}_{DateTime.Now:HHmmss}.json");
+                        await File.WriteAllTextAsync(archivePath, JsonSerializer.Serialize(existingEntries, JsonOptions));
                         existingEntries = new List<AuditLogEntry>();
                     }
+
+                    await File.WriteAllTextAsync(filePath, JsonSerializer.Serialize(existingEntries, JsonOptions));
+                    
+                    _logger.LogDebug("📋 Flushed {Count} audit entries to {File} (project: {Project})", 
+                        projectEntries.Count, filePath, projectId);
                 }
-
-                existingEntries.AddRange(entries);
-
-                // Rotar archivo si excede el límite
-                if (existingEntries.Count > _maxEntriesPerFile)
-                {
-                    var archivePath = Path.Combine(auditPath, $"audit_{today}_{DateTime.Now:HHmmss}.json");
-                    await File.WriteAllTextAsync(archivePath, JsonSerializer.Serialize(existingEntries, JsonOptions));
-                    existingEntries = new List<AuditLogEntry>();
-                }
-
-                await File.WriteAllTextAsync(filePath, JsonSerializer.Serialize(existingEntries, JsonOptions));
 
                 _lastFlush = DateTime.Now;
-                _logger.LogDebug("📋 Flushed {Count} audit entries to {File}", entries.Count, filePath);
             }
             catch (Exception ex)
             {
@@ -508,11 +581,12 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Obtener estado del sistema de auditoría
         /// </summary>
-        public async Task<AuditLogStatus> GetStatusAsync()
+        /// <param name="projectId">ID del proyecto (null = proyecto activo)</param>
+        public async Task<AuditLogStatus> GetStatusAsync(string? projectId = null)
         {
             await FlushCacheAsync();
 
-            var auditPath = GetAuditPathWithoutCreate();
+            var auditPath = GetAuditPathWithoutCreate(projectId);
             var status = new AuditLogStatus
             {
                 IsEnabled = _isEnabled,
@@ -528,7 +602,7 @@ namespace SW.PC.API.Backend.Services
 
             try
             {
-                var allEntries = await GetAllEntriesAsync();
+                var allEntries = await GetAllEntriesAsync(projectId);
                 status.TotalEntries = allEntries.Count;
                 
                 // Calcular entradas de hoy
@@ -566,11 +640,12 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Obtener logs recientes
         /// </summary>
-        public async Task<List<AuditLogEntry>> GetRecentLogsAsync(int count = 50)
+        /// <param name="projectId">ID del proyecto (null = proyecto activo)</param>
+        public async Task<List<AuditLogEntry>> GetRecentLogsAsync(int count = 50, string? projectId = null)
         {
             await FlushCacheAsync();
             
-            var allEntries = await GetAllEntriesAsync();
+            var allEntries = await GetAllEntriesAsync(projectId);
             return allEntries
                 .OrderByDescending(e => e.Timestamp)
                 .Take(count)
@@ -580,11 +655,12 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Obtener logs con filtros
         /// </summary>
-        public async Task<AuditLogResponse> GetLogsAsync(AuditLogQuery query)
+        /// <param name="projectId">ID del proyecto (null = proyecto activo)</param>
+        public async Task<AuditLogResponse> GetLogsAsync(AuditLogQuery query, string? projectId = null)
         {
             await FlushCacheAsync();
             
-            var allEntries = await GetAllEntriesAsync();
+            var allEntries = await GetAllEntriesAsync(projectId);
             
             IEnumerable<AuditLogEntry> filtered = allEntries;
 
@@ -623,11 +699,12 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Exportar logs a JSON
         /// </summary>
-        public async Task<string> ExportLogsAsync(DateTime? from = null, DateTime? to = null)
+        /// <param name="projectId">ID del proyecto (null = proyecto activo)</param>
+        public async Task<string> ExportLogsAsync(DateTime? from = null, DateTime? to = null, string? projectId = null)
         {
             await FlushCacheAsync();
             
-            var allEntries = await GetAllEntriesAsync();
+            var allEntries = await GetAllEntriesAsync(projectId);
             
             if (from.HasValue)
                 allEntries = allEntries.Where(e => e.Timestamp >= from.Value).ToList();
@@ -652,11 +729,12 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Obtener resumen de auditoría
         /// </summary>
-        public async Task<AuditSummary> GetSummaryAsync(int days = 7)
+        /// <param name="projectId">ID del proyecto (null = proyecto activo)</param>
+        public async Task<AuditSummary> GetSummaryAsync(int days = 7, string? projectId = null)
         {
             await FlushCacheAsync();
             
-            var allEntries = await GetAllEntriesAsync();
+            var allEntries = await GetAllEntriesAsync(projectId);
             var cutoff = DateTime.Now.AddDays(-days);
             var periodEntries = allEntries.Where(e => e.Timestamp >= cutoff).ToList();
 
@@ -685,10 +763,11 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Leer todos los logs de archivos
         /// </summary>
-        private async Task<List<AuditLogEntry>> GetAllEntriesAsync()
+        /// <param name="projectId">ID del proyecto (null = proyecto activo)</param>
+        private async Task<List<AuditLogEntry>> GetAllEntriesAsync(string? projectId = null)
         {
             var allEntries = new List<AuditLogEntry>();
-            var auditPath = GetAuditPath();
+            var auditPath = GetAuditPath(projectId);
 
             if (!Directory.Exists(auditPath))
                 return allEntries;

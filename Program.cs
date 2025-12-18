@@ -526,33 +526,34 @@ app.MapFallbackToFile("index.html");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 📋 AUDIT LOG: System Startup & Shutdown Events (EU CRA / CADRA Compliance)
+// 🌐 Se registra en TODOS los proyectos (evento global)
 // ═══════════════════════════════════════════════════════════════════════════════
 {
     var auditLogService = app.Services.GetRequiredService<IAuditLogService>();
     
-    // 🟢 Log System Startup
-    await auditLogService.LogAsync(
+    // 🟢 Log System Startup - 🌐 A todos los proyectos
+    await auditLogService.LogToAllProjectsAsync(
         AuditCategory.System,
         AuditAction.SystemStart,
         AuditResult.Success,
         $"Sistema iniciado - Versión Backend, Environment: {app.Environment.EnvironmentName}",
         null, "System");
     
-    app.Logger.LogInformation("📋 System startup logged to audit");
+    app.Logger.LogInformation("📋 System startup logged to ALL projects");
     
-    // 🔴 Register System Shutdown Event
+    // 🔴 Register System Shutdown Event - 🌐 A todos los proyectos
     app.Lifetime.ApplicationStopping.Register(() =>
     {
         try
         {
-            auditLogService.LogAsync(
+            auditLogService.LogToAllProjectsAsync(
                 AuditCategory.System,
                 AuditAction.SystemStop,
                 AuditResult.Success,
                 "Sistema detenido normalmente",
                 null, "System").GetAwaiter().GetResult();
             
-            app.Logger.LogInformation("📋 System shutdown logged to audit");
+            app.Logger.LogInformation("📋 System shutdown logged to ALL projects");
         }
         catch (Exception ex)
         {

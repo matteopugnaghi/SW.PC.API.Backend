@@ -64,7 +64,7 @@ public class GitController : ControllerBase
     }
 
     /// <summary>
-    /// Obtener informaciÛn del entorno (production/development) y permisos de ediciÛn
+    /// Obtener informaciÔøΩn del entorno (production/development) y permisos de ediciÔøΩn
     /// </summary>
     [HttpGet("environment")]
     public ActionResult<ScadaEnvironmentInfo> GetEnvironmentInfo()
@@ -122,9 +122,9 @@ public class GitController : ControllerBase
         _logger.LogInformation("Commit request for {Repo}: {Message}", repoName, request.Message);
         var result = await _gitService.CommitAsync(repoPath, request.Message);
         
-        // ?? AUDIT LOG: Git Commit
+        // üìã AUDIT LOG: Git Commit - üåê Log a TODOS los proyectos
         var author = ExtractAuthorFromMessage(request.Message);
-        await _auditLog.LogAsync(
+        await _auditLog.LogToAllProjectsAsync(
             AuditCategory.Git,
             AuditAction.GitCommit,
             result.Success ? AuditResult.Success : AuditResult.Failure,
@@ -143,15 +143,15 @@ public class GitController : ControllerBase
         _logger.LogInformation("Push request for {Repo}", repoName);
         var result = await _gitService.PushAsync(repoPath);
         
-        // ?? AUDIT LOG: Git Push
-        await _auditLog.LogAsync(
+        // üìã AUDIT LOG: Git Push - üåê Log a TODOS los proyectos
+        await _auditLog.LogToAllProjectsAsync(
             AuditCategory.Git,
             AuditAction.GitPush,
             result.Success ? AuditResult.Success : AuditResult.Failure,
             $"Push en {repoName} al remoto",
             null, operatorName ?? "System");
         
-        // Generar certificado autom·tico despuÈs de push exitoso
+        // Generar certificado automÔøΩtico despuÔøΩs de push exitoso
         if (result.Success)
         {
             await GenerateDeploymentCertificateAsync(repoName, repoPath, operatorName ?? "System", "Push to remote");
@@ -169,15 +169,15 @@ public class GitController : ControllerBase
         _logger.LogWarning("?? FORCE PUSH request for {Repo}", repoName);
         var result = await _gitService.ForcePushAsync(repoPath);
         
-        // ?? AUDIT LOG: Force Push (Warning por ser operaciÛn peligrosa)
-        await _auditLog.LogAsync(
+        // üìã AUDIT LOG: Force Push (Warning por ser operaci√≥n peligrosa) - üåê Log a TODOS los proyectos
+        await _auditLog.LogToAllProjectsAsync(
             AuditCategory.Git,
             AuditAction.GitPush,
             result.Success ? AuditResult.Warning : AuditResult.Failure,
-            $"?? FORCE PUSH en {repoName} - OperaciÛn forzada",
+            $"‚ö†Ô∏è FORCE PUSH en {repoName} - Operaci√≥n forzada",
             null, operatorName ?? "System");
         
-        // Generar certificado autom·tico despuÈs de force push exitoso
+        // Generar certificado automÔøΩtico despuÔøΩs de force push exitoso
         if (result.Success)
         {
             await GenerateDeploymentCertificateAsync(repoName, repoPath, operatorName ?? "System", "Force Push (sync after revert)");
@@ -202,8 +202,8 @@ public class GitController : ControllerBase
         var operatorName = ExtractAuthorFromMessage(request.Message);
         await GenerateDeploymentCertificateAsync(repoName, repoPath, operatorName, $"Commit+Push: {request.Message}");
         
-        // ?? AUDIT LOG: Commit + Push
-        await _auditLog.LogAsync(
+        // üìã AUDIT LOG: Commit + Push - üåê Log a TODOS los proyectos
+        await _auditLog.LogToAllProjectsAsync(
             AuditCategory.Git,
             AuditAction.GitCommit,
             AuditResult.Success,
@@ -222,14 +222,14 @@ public class GitController : ControllerBase
         _logger.LogWarning("Discard request for {Repo}, file: {File}", repoName, request?.FilePath ?? "ALL");
         var result = await _gitService.DiscardChangesAsync(repoPath, request?.FilePath);
         
-        // ?? AUDIT LOG: Discard Changes (Warning por pÈrdida de datos)
+        // üìã AUDIT LOG: Discard Changes (Warning por p√©rdida de datos) - üåê Log a TODOS los proyectos
         if (result.Success)
         {
-            await _auditLog.LogAsync(
+            await _auditLog.LogToAllProjectsAsync(
                 AuditCategory.Git,
-                AuditAction.GitCommit, // No hay acciÛn especÌfica de discard
+                AuditAction.GitCommit, // No hay acci√≥n espec√≠fica de discard
                 AuditResult.Warning,
-                $"?? Descartados cambios en {repoName}: {request?.FilePath ?? "TODOS los archivos"}",
+                $"‚ö†Ô∏è Descartados cambios en {repoName}: {request?.FilePath ?? "TODOS los archivos"}",
                 null, "Operator");
         }
         
@@ -246,12 +246,12 @@ public class GitController : ControllerBase
         _logger.LogWarning("REVERT request for {Repo} to commit {Hash}", repoName, request.CommitHash);
         var result = await _gitService.RevertToCommitAsync(repoPath, request.CommitHash);
         
-        // ?? AUDIT LOG: Revert (Warning por ser operaciÛn crÌtica)
-        await _auditLog.LogAsync(
+        // üìã AUDIT LOG: Revert (Warning por ser operaci√≥n cr√≠tica) - üåê Log a TODOS los proyectos
+        await _auditLog.LogToAllProjectsAsync(
             AuditCategory.Git,
             AuditAction.GitCommit,
             result.Success ? AuditResult.Warning : AuditResult.Failure,
-            $"?? REVERT en {repoName} al commit {request.CommitHash}",
+            $"‚ö†Ô∏è REVERT en {repoName} al commit {request.CommitHash}",
             null, "Operator");
         
         return result.Success ? Ok(result) : BadRequest(result);
@@ -311,7 +311,7 @@ public class GitController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene informaciÛn de release: ˙ltimo tag y siguiente tag sugerido (CalVer)
+    /// Obtiene informaciÔøΩn de release: ÔøΩltimo tag y siguiente tag sugerido (CalVer)
     /// </summary>
     [HttpGet("release-info/{repoName}")]
     public async Task<ActionResult<ReleaseInfo>> GetReleaseInfo(string repoName)
@@ -397,7 +397,7 @@ public class GitController : ControllerBase
     #region SSH Signing Management
 
     /// <summary>
-    /// Obtiene el estado actual de la configuraciÛn SSH Signing
+    /// Obtiene el estado actual de la configuraciÔøΩn SSH Signing
     /// </summary>
     [HttpGet("ssh-signing/status")]
     public async Task<ActionResult<SshSigningStatus>> GetSshSigningStatus()
@@ -510,7 +510,7 @@ public class GitController : ControllerBase
     }
 
     /// <summary>
-    /// Desactiva SSH signing - quita la configuraciÛn de firma de commits/tags
+    /// Desactiva SSH signing - quita la configuraciÔøΩn de firma de commits/tags
     /// </summary>
     [HttpPost("ssh-signing/disable")]
     public async Task<ActionResult<GitOperationResult>> DisableSshSigning()
@@ -554,7 +554,7 @@ public class GitController : ControllerBase
     }
 
     /// <summary>
-    /// Importa una clave SSH (privada + p˙blica)
+    /// Importa una clave SSH (privada + pÔøΩblica)
     /// </summary>
     [HttpPost("ssh-keys/import")]
     public async Task<ActionResult<GitOperationResult>> ImportSshKey([FromBody] ImportSshKeyRequest request)
@@ -578,7 +578,7 @@ public class GitController : ControllerBase
     }
 
     /// <summary>
-    /// AÒade una clave a la lista de autorizados
+    /// AÔøΩade una clave a la lista de autorizados
     /// </summary>
     [HttpPost("authorized-keys")]
     public async Task<ActionResult<GitOperationResult>> AddAuthorizedKey([FromBody] AddAuthorizedKeyRequest request)
@@ -605,7 +605,7 @@ public class GitController : ControllerBase
     }
 
     /// <summary>
-    /// Verifica si la clave actual est· autorizada para modificar el software
+    /// Verifica si la clave actual estÔøΩ autorizada para modificar el software
     /// </summary>
     [HttpGet("check-authorization")]
     public async Task<ActionResult<KeyAuthorizationResult>> CheckKeyAuthorization()
@@ -616,7 +616,7 @@ public class GitController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene la configuraciÛn del control de acceso
+    /// Obtiene la configuraciÔøΩn del control de acceso
     /// </summary>
     [HttpGet("access-control")]
     public async Task<ActionResult<AccessControlConfig>> GetAccessControlConfig()
@@ -639,8 +639,8 @@ public class GitController : ControllerBase
     #endregion
 
     /// <summary>
-    /// Genera un ZIP con el certificado de integridad + cÛdigo fuente del repositorio seleccionado
-    /// Para backup offline cuando no hay conexiÛn a internet (EU CRA compliance)
+    /// Genera un ZIP con el certificado de integridad + cÔøΩdigo fuente del repositorio seleccionado
+    /// Para backup offline cuando no hay conexiÔøΩn a internet (EU CRA compliance)
     /// </summary>
     [HttpGet("backup/{repoName}")]
     public async Task<IActionResult> DownloadBackupWithCertificate(string repoName, [FromQuery] string machineId = "PLANTA_001", [FromQuery] string operatorName = "System")
@@ -656,7 +656,7 @@ public class GitController : ControllerBase
 
         try
         {
-            // Generar certificado especÌfico para este repo
+            // Generar certificado especÔøΩfico para este repo
             var repoStatus = await _gitService.GetRepositoryStatusAsync(repoPath);
             var certificate = GenerateRepoCertificate(repoName, repoStatus, machineId, operatorName);
 
@@ -664,7 +664,7 @@ public class GitController : ControllerBase
             using var memoryStream = new MemoryStream();
             using (var archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Create, true))
             {
-                // 1. AÒadir certificado JSON
+                // 1. AÔøΩadir certificado JSON
                 var certEntry = archive.CreateEntry($"certificate_{repoName}.json");
                 using (var certStream = certEntry.Open())
                 using (var writer = new StreamWriter(certStream))
@@ -673,7 +673,7 @@ public class GitController : ControllerBase
                     await writer.WriteAsync(certJson);
                 }
 
-                // 2. AÒadir cÛdigo fuente (excluyendo basura)
+                // 2. AÔøΩadir cÔøΩdigo fuente (excluyendo basura)
                 var excludeFolders = GetExcludeFolders(repoName);
                 var excludeExtensions = new[] { ".exe", ".dll", ".pdb", ".cache", ".log" };
                 
@@ -766,7 +766,7 @@ public class GitController : ControllerBase
             var log = await LoadBackupLogAsync();
             log.Add(entry);
             
-            // Mantener solo los ˙ltimos 100 registros
+            // Mantener solo los ÔøΩltimos 100 registros
             if (log.Count > 100) log = log.Skip(log.Count - 100).ToList();
             
             var json = JsonSerializer.Serialize(log, new JsonSerializerOptions { WriteIndented = true });
@@ -822,7 +822,7 @@ public class GitController : ControllerBase
     }
 
     /// <summary>
-    /// Genera un certificado de deployment despuÈs de cada push exitoso
+    /// Genera un certificado de deployment despuÔøΩs de cada push exitoso
     /// </summary>
     private async Task GenerateDeploymentCertificateAsync(string repoName, string repoPath, string operatorName, string description)
     {
@@ -848,7 +848,7 @@ public class GitController : ControllerBase
             var certificates = await LoadDeploymentCertificatesAsync();
             certificates.Add(certificate);
             
-            // Mantener ˙ltimos 200 certificados
+            // Mantener ÔøΩltimos 200 certificados
             if (certificates.Count > 200) certificates = certificates.Skip(certificates.Count - 200).ToList();
             
             var json = JsonSerializer.Serialize(certificates, new JsonSerializerOptions { WriteIndented = true });
@@ -892,7 +892,7 @@ public class GitController : ControllerBase
     }
 
     /// <summary>
-    /// Descarga todos los certificados de deployment como archivo JSON para auditorÌa
+    /// Descarga todos los certificados de deployment como archivo JSON para auditorÔøΩa
     /// </summary>
     [HttpGet("deployment-certificates/download")]
     public async Task<IActionResult> DownloadDeploymentCertificates([FromQuery] string? repository = null)
@@ -939,7 +939,7 @@ public class GitController : ControllerBase
             // Excluir extensiones
             if (excludeExtensions.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase))) continue;
 
-            // Limitar tamaÒo de archivo (max 5MB por archivo)
+            // Limitar tamaÔøΩo de archivo (max 5MB por archivo)
             var fileInfo = new FileInfo(file);
             if (fileInfo.Length > 5 * 1024 * 1024) continue;
 
@@ -968,7 +968,7 @@ public class ReleaseInfo
 
 public class CreateReleaseRequest 
 { 
-    public string? CustomTag { get; set; }  // Si est· vacÌo, usa el sugerido
+    public string? CustomTag { get; set; }  // Si estÔøΩ vacÔøΩo, usa el sugerido
     public string? Message { get; set; } 
     public string? OperatorName { get; set; }
 }

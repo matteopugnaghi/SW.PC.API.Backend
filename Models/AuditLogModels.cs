@@ -221,6 +221,12 @@ namespace SW.PC.API.Backend.Models
         public double? DurationMs { get; set; }
         
         /// <summary>
+        /// ID del proyecto donde se guardará este log (interno, no se serializa al JSON)
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string? TargetProjectId { get; set; }
+        
+        /// <summary>
         /// Firma SHA256 del contenido del log para garantizar integridad (CADRA/CRA)
         /// </summary>
         public string? Signature { get; set; }

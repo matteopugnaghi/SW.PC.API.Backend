@@ -26,7 +26,8 @@ namespace SW.PC.API.Backend.Services;
 public interface IAuthenticationService
 {
     /// <summary>Autenticar usuario</summary>
-    Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? userAgent);
+    /// <param name="projectId">ID del proyecto para audit log (null = proyecto activo)</param>
+    Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? userAgent, string? projectId = null);
     
     /// <summary>Cerrar sesión</summary>
     Task<AuthOperationResponse> LogoutAsync(string token);
@@ -143,7 +144,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
     
     #region Autenticación
     
-    public async Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? userAgent)
+    public async Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? userAgent, string? projectId = null)
     {
         try
         {
@@ -250,7 +251,8 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                         AuditAction.AccountLocked, 
                         AuditResult.Warning,
                         $"Cuenta {request.Username} bloqueada por {user.FailedLoginAttempts} intentos fallidos",
-                        request.Username, request.Username, ipAddress);
+                        request.Username, request.Username, ipAddress,
+                        projectId: projectId);
                     
                     await Context.SaveChangesAsync();
                     
@@ -395,7 +397,8 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 AuditAction.Login, 
                 AuditResult.Success,
                 $"Usuario {request.Username} inició sesión exitosamente desde {ipAddress}",
-                user.Id.ToString(), request.Username, ipAddress);
+                user.Id.ToString(), request.Username, ipAddress,
+                projectId: projectId);
             
             _logger.LogInformation("Login exitoso para usuario: {Username}", request.Username);
             
@@ -421,7 +424,8 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 AuditAction.LoginFailed, 
                 AuditResult.Error,
                 $"Error durante login de {request.Username}: {ex.Message}",
-                null, request.Username, ipAddress);
+                null, request.Username, ipAddress,
+                projectId: projectId);
             
             return new LoginResponse
             {

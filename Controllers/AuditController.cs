@@ -7,17 +7,23 @@ namespace SW.PC.API.Backend.Controllers
     /// <summary>
     /// 📋 EU CRA - Controlador de Audit Log
     /// Proporciona acceso a los registros de auditoría del sistema
+    /// En modo desarrollo: usa X-Project-Id header para seleccionar proyecto
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class AuditController : ControllerBase
     {
         private readonly IAuditLogService _auditService;
+        private readonly IRequestProjectContext _projectContext;
         private readonly ILogger<AuditController> _logger;
 
-        public AuditController(IAuditLogService auditService, ILogger<AuditController> logger)
+        public AuditController(
+            IAuditLogService auditService, 
+            IRequestProjectContext projectContext,
+            ILogger<AuditController> logger)
         {
             _auditService = auditService;
+            _projectContext = projectContext;
             _logger = logger;
         }
 
@@ -29,7 +35,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var status = await _auditService.GetStatusAsync();
+                var status = await _auditService.GetStatusAsync(_projectContext.ProjectId);
                 return Ok(status);
             }
             catch (Exception ex)
@@ -47,7 +53,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var logs = await _auditService.GetRecentLogsAsync(count);
+                var logs = await _auditService.GetRecentLogsAsync(count, _projectContext.ProjectId);
                 return Ok(logs);
             }
             catch (Exception ex)
@@ -65,7 +71,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var result = await _auditService.GetLogsAsync(query);
+                var result = await _auditService.GetLogsAsync(query, _projectContext.ProjectId);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -83,7 +89,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var json = await _auditService.ExportLogsAsync(from, to);
+                var json = await _auditService.ExportLogsAsync(from, to, _projectContext.ProjectId);
                 
                 var fileName = $"audit_export_{DateTime.Now:yyyyMMdd_HHmmss}.json";
                 return File(System.Text.Encoding.UTF8.GetBytes(json), "application/json", fileName);
@@ -103,7 +109,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
-                var summary = await _auditService.GetSummaryAsync(days);
+                var summary = await _auditService.GetSummaryAsync(days, _projectContext.ProjectId);
                 return Ok(summary);
             }
             catch (Exception ex)
@@ -132,7 +138,7 @@ namespace SW.PC.API.Backend.Controllers
                     Take = take
                 };
 
-                var result = await _auditService.GetLogsAsync(query);
+                var result = await _auditService.GetLogsAsync(query, _projectContext.ProjectId);
                 return Ok(result);
             }
             catch (Exception ex)

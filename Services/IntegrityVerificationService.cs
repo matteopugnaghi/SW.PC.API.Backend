@@ -80,6 +80,7 @@ namespace SW.PC.API.Backend.Services
             using var scope = _serviceProvider.CreateScope();
             var integrityService = scope.ServiceProvider.GetRequiredService<ISoftwareIntegrityService>();
             var auditLog = scope.ServiceProvider.GetRequiredService<IAuditLogService>();
+            var projectContext = scope.ServiceProvider.GetRequiredService<IProjectContextService>();
 
             if (_isFirstRun)
             {
@@ -106,15 +107,13 @@ namespace SW.PC.API.Backend.Services
                 _logger.LogInformation("✅ Integrity verification PASSED in {ElapsedMs}ms - {Details}", 
                     stopwatch.ElapsedMilliseconds, componentDetails);
                 
-                // 📝 Audit Log: Register successful auto-verification
-                await auditLog.LogAsync(
+                // 📝 Audit Log: Register successful auto-verification in ALL projects
+                await LogToAllProjectsAsync(auditLog, projectContext,
                     AuditCategory.Integrity,
                     AuditAction.IntegrityAutoVerify,
                     AuditResult.Success,
                     $"Automatic integrity verification PASSED - {componentDetails}",
-                    "System",
-                    durationMs: stopwatch.ElapsedMilliseconds
-                );
+                    stopwatch.ElapsedMilliseconds);
             }
             else
             {
@@ -124,15 +123,48 @@ namespace SW.PC.API.Backend.Services
                 _logger.LogWarning("⚠️ Integrity verification completed with WARNINGS in {ElapsedMs}ms - {Details}", 
                     stopwatch.ElapsedMilliseconds, warningDetails);
                     
-                // 📝 Audit Log: Register verification with warnings (con detalle)
-                await auditLog.LogAsync(
+                // 📝 Audit Log: Register verification with warnings in ALL projects
+                await LogToAllProjectsAsync(auditLog, projectContext,
                     AuditCategory.Integrity,
                     AuditAction.IntegrityAutoVerify,
                     AuditResult.Warning,
                     $"Automatic integrity verification with WARNINGS - {warningDetails}",
-                    "System",
-                    durationMs: stopwatch.ElapsedMilliseconds
-                );
+                    stopwatch.ElapsedMilliseconds);
+            }
+        }
+
+        /// <summary>
+        /// Escribe el log de integridad a TODOS los proyectos disponibles.
+        /// Los eventos de integridad son globales y deben verse en cada proyecto.
+        /// </summary>
+        private async Task LogToAllProjectsAsync(
+            IAuditLogService auditLog,
+            IProjectContextService projectContext,
+            AuditCategory category,
+            AuditAction action,
+            AuditResult result,
+            string details,
+            long durationMs)
+        {
+            var projects = projectContext.GetAvailableProjects().ToList();
+            
+            foreach (var project in projects)
+            {
+                try
+                {
+                    await auditLog.LogAsync(
+                        category,
+                        action,
+                        result,
+                        details,
+                        "System",
+                        durationMs: durationMs,
+                        projectId: project.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ Could not write integrity log to project {ProjectId}", project.Id);
+                }
             }
         }
 
