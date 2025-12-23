@@ -24,6 +24,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IExcelConfigService _excelConfigService;
         private readonly IWebHostEnvironment _env;
         private readonly IRequestProjectContext _projectContext;
+        private readonly PlcPollingService _plcPollingService;
 
         // Cache de configuración del sistema (por proyecto)
         private static readonly Dictionary<string, (SystemConfiguration Config, DateTime Timestamp)> _configCache = new();
@@ -34,13 +35,15 @@ namespace SW.PC.API.Backend.Controllers
             IConfiguration configuration,
             IExcelConfigService excelConfigService,
             IWebHostEnvironment env,
-            IRequestProjectContext projectContext)
+            IRequestProjectContext projectContext,
+            PlcPollingService plcPollingService)
         {
             _logger = logger;
             _configuration = configuration;
             _excelConfigService = excelConfigService;
             _env = env;
             _projectContext = projectContext;
+            _plcPollingService = plcPollingService;
         }
 
         /// <summary>
@@ -704,6 +707,41 @@ namespace SW.PC.API.Backend.Controllers
                     unlockDurationMinutes = config.SupportUnlockDurationMinutes
                 }
             });
+        }
+
+        // ========================================
+        // PLC Configuration Management
+        // ========================================
+
+        /// <summary>
+        /// Recarga la configuración de variables PLC desde el Excel.
+        /// Útil cuando se modifica el Excel sin reiniciar el backend.
+        /// NOTA: El Excel ya NO se recarga automáticamente cada X segundos.
+        /// </summary>
+        [HttpPost("reload-plc-config")]
+        public async Task<IActionResult> ReloadPlcConfiguration()
+        {
+            try
+            {
+                _logger.LogInformation("🔄 Recargando configuración PLC desde Excel (petición manual)...");
+                
+                await _plcPollingService.ReloadExcelConfigurationAsync();
+                
+                return Ok(new { 
+                    success = true, 
+                    message = "Configuración PLC recargada exitosamente desde Excel",
+                    timestamp = DateTime.Now
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error recargando configuración PLC desde Excel");
+                return StatusCode(500, new { 
+                    success = false, 
+                    message = $"Error: {ex.Message}",
+                    timestamp = DateTime.Now
+                });
+            }
         }
     }
 

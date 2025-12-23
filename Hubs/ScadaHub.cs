@@ -14,17 +14,20 @@ namespace SW.PC.API.Backend.Hubs
         private readonly ILogger<ScadaHub> _logger;
         private readonly ITwinCATService _twinCATService;
         private readonly IMetricsService _metricsService;
+        private readonly PlcPollingService _plcPollingService;
         private static int _activeConnections = 0;
         private static readonly object _lockObj = new object();
         
         public ScadaHub(
-            ILogger<ScadaHub> _logger, 
+            ILogger<ScadaHub> logger, 
             ITwinCATService twinCATService,
-            IMetricsService metricsService)
+            IMetricsService metricsService,
+            PlcPollingService plcPollingService)
         {
-            this._logger = _logger;
+            _logger = logger;
             _twinCATService = twinCATService;
             _metricsService = metricsService;
+            _plcPollingService = plcPollingService;
         }
         
         public override async Task OnConnectedAsync()
@@ -47,6 +50,18 @@ namespace SW.PC.API.Backend.Hubs
                 isConnected = _twinCATService.IsConnected,
                 timestamp = DateTime.Now
             });
+            
+            // 🔔 Enviar warnings pendientes al nuevo cliente (si hay)
+            var lastFilterResult = _plcPollingService.GetLastFilterResult();
+            if (lastFilterResult?.HasWarnings == true)
+            {
+                var warning = lastFilterResult.ToSystemWarning();
+                if (warning != null)
+                {
+                    _logger.LogInformation("🔔 Enviando SystemWarning pendiente al nuevo cliente {ConnectionId}", Context.ConnectionId);
+                    await Clients.Caller.SendAsync("SystemWarning", warning);
+                }
+            }
         }
         
         public override async Task OnDisconnectedAsync(Exception? exception)
@@ -86,6 +101,43 @@ namespace SW.PC.API.Backend.Hubs
                 Context.ConnectionId, variableName);
             
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"var_{variableName}");
+        }
+
+        /// <summary>
+        /// El cliente notifica que cambió de vista (página).
+        /// Esto optimiza qué variables se leen del PLC.
+        /// </summary>
+        /// <param name="viewName">Nombre de la vista: principal, alarmas, estadisticas, tiposTren, etc.</param>
+        public async Task SetActiveView(string viewName)
+        {
+            _logger.LogInformation("🎯 Client {ConnectionId} cambió a vista: {View}", 
+                Context.ConnectionId, viewName);
+            
+            // Notificar al PlcPollingService del cambio de vista
+            _plcPollingService.SetActiveView(viewName);
+            
+            // Confirmar al cliente
+            await Clients.Caller.SendAsync("ViewChanged", new 
+            {
+                view = viewName,
+                activeVariables = _plcPollingService.ActiveVariablesCount,
+                totalVariables = _plcPollingService.TotalVariablesCount,
+                filteringEnabled = _plcPollingService.ViewFilteringEnabled
+            });
+        }
+
+        /// <summary>
+        /// El cliente solicita información sobre el estado actual del filtrado de vistas
+        /// </summary>
+        public async Task GetViewFilteringStatus()
+        {
+            await Clients.Caller.SendAsync("ViewFilteringStatus", new 
+            {
+                currentView = _plcPollingService.CurrentView,
+                activeVariables = _plcPollingService.ActiveVariablesCount,
+                totalVariables = _plcPollingService.TotalVariablesCount,
+                filteringEnabled = _plcPollingService.ViewFilteringEnabled
+            });
         }
         
         /// <summary>

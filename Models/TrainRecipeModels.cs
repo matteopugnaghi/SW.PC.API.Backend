@@ -47,6 +47,31 @@ namespace SW.PC.API.Backend.Models
         public string? AlternatePlcPrefix { get; set; }
         
         /// <summary>
+        /// Nombre de la sección BOOL (desde celda B2 del Excel) - vacío = ocultar botón
+        /// </summary>
+        public string SectionBoolName { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Imagen de la sección BOOL (desde celda D2 del Excel)
+        /// </summary>
+        public string? SectionBoolImage { get; set; }
+        
+        /// <summary>
+        /// Nombre de la sección DECIMAL (desde celda F2 del Excel) - vacío = ocultar botón
+        /// </summary>
+        public string SectionDecimalName { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Imagen de la sección DECIMAL (desde celda H2 del Excel)
+        /// </summary>
+        public string? SectionDecimalImage { get; set; }
+        
+        /// <summary>
+        /// Nombre de la sección GANTRY (desde celda N2 del Excel) - vacío = ocultar botón
+        /// </summary>
+        public string SectionGantryName { get; set; } = string.Empty;
+        
+        /// <summary>
         /// Lista de parámetros booleanos (filas del Excel columnas C-E)
         /// </summary>
         public List<TrainRecipeParameter> BoolParameters { get; set; } = new();
@@ -154,6 +179,16 @@ namespace SW.PC.API.Backend.Models
         public string? LineNumberPlcVariable { get; set; }
         public string TrainNameValue { get; set; } = string.Empty;
         public int LineNumberValue { get; set; }
+        
+        // Nombres de secciones (desde Excel B2, F2, N2) - vacío = ocultar botón
+        public string SectionBoolName { get; set; } = string.Empty;
+        public string SectionDecimalName { get; set; } = string.Empty;
+        public string SectionGantryName { get; set; } = string.Empty;
+        
+        // URLs de imágenes de secciones (desde Excel D2, H2)
+        public string? SectionBoolImageUrl { get; set; }
+        public string? SectionDecimalImageUrl { get; set; }
+        
         public List<TrainRecipeParamDto> BoolParameters { get; set; } = new();
         public List<TrainRecipeParamDto> DecimalParameters { get; set; } = new();
         public DateTime LoadedAt { get; set; }

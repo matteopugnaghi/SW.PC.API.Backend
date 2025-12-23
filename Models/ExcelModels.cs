@@ -1370,5 +1370,96 @@ namespace SW.PC.API.Backend.Models.Excel
     }
 
     #endregion
+
+    #region Variable Views Mapping
+
+    /// <summary>
+    /// Vistas disponibles en el frontend para filtrado de variables PLC
+    /// </summary>
+    public static class PlcViewIds
+    {
+        /// <summary>Variables que siempre se leen (alarmas, estados críticos)</summary>
+        public const string GLOBAL = "GLOBAL";
+        
+        /// <summary>Vista Principal 3D (animaciones, estados visuales)</summary>
+        public const string MAIN = "MAIN";
+        
+        /// <summary>Tipos de Tren y Editor de Tren</summary>
+        public const string TRAIN = "TRAIN";
+        
+        /// <summary>Tipos de Lavado y Editor de Lavado</summary>
+        public const string WASH = "WASH";
+        
+        /// <summary>Configuración de Máquina (Settings)</summary>
+        public const string SETTINGS = "SETTINGS";
+        
+        /// <summary>Estadísticas</summary>
+        public const string STATS = "STATS";
+        
+        /// <summary>Panel de alarmas</summary>
+        public const string ALARMS = "ALARMS";
+        
+        /// <summary>Gestión de usuarios</summary>
+        public const string USERS = "USERS";
+
+        /// <summary>Todas las vistas válidas</summary>
+        public static readonly string[] AllViews = { GLOBAL, MAIN, TRAIN, WASH, SETTINGS, STATS, ALARMS, USERS };
+
+        /// <summary>
+        /// Mapeo de currentView del frontend a PlcViewId
+        /// </summary>
+        public static string FromFrontendView(string currentView) => currentView?.ToLower() switch
+        {
+            "principal" => MAIN,
+            "alarmas" => ALARMS,
+            "estadisticas" => STATS,
+            "usuarios" => USERS,
+            "configuracion" => SETTINGS,
+            "tipostren" => TRAIN,
+            "tiposlavado" => WASH,
+            _ => MAIN // Por defecto, vista principal
+        };
+    }
+
+    /// <summary>
+    /// Mapeo de patrón de variable a vistas donde debe leerse.
+    /// Cargado desde hoja "Variable_Views" del Excel.
+    /// </summary>
+    public class VariableViewMapping
+    {
+        /// <summary>
+        /// Patrón de nombre de variable. Soporta wildcards (*).
+        /// Ejemplos: "st_pump[*].*", "st_Mainform.MachineState", "position*"
+        /// </summary>
+        public string VariablePattern { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Lista de vistas donde esta variable debe leerse.
+        /// Valores: GLOBAL, MAIN, CONFIG, STATS, ALARMS, USERS
+        /// </summary>
+        public List<string> Views { get; set; } = new();
+
+        /// <summary>Descripción opcional para documentación</summary>
+        public string? Description { get; set; }
+
+        /// <summary>
+        /// Regex compilado para matching eficiente (se genera al cargar)
+        /// </summary>
+        public System.Text.RegularExpressions.Regex? CompiledPattern { get; set; }
+
+        /// <summary>
+        /// Indica si es un patrón exacto (sin wildcards) para prioridad
+        /// </summary>
+        public bool IsExactMatch => !VariablePattern.Contains('*');
+
+        /// <summary>
+        /// Número de caracteres antes del primer wildcard (para ordenar por especificidad)
+        /// </summary>
+        public int Specificity => VariablePattern.IndexOf('*') == -1 
+            ? int.MaxValue // Match exacto = máxima especificidad
+            : VariablePattern.IndexOf('*');
+    }
+
+    #endregion
 }
 

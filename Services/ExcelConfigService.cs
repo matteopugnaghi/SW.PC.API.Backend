@@ -25,12 +25,48 @@ namespace SW.PC.API.Backend.Services
         // 🚿 Sistema de Recetas de Lavado
         Task<WashRecipeEditorConfiguration> LoadWashRecipeConfigAsync(string filePath);
         
-        // � Sistema de Tipos de Tren
+        // 🚂 Sistema de Tipos de Tren
         Task<TrainRecipeConfiguration> LoadTrainRecipeConfigAsync(string filePath);
         
-        // �📁 Soporte Multi-Proyecto
+        // 📁 Soporte Multi-Proyecto
         void SetProjectContext(IProjectContextService projectContext);
         string GetExcelConfigPath();
+        
+        // 🎯 Sistema de filtrado de variables por vista
+        Task<List<VariableViewMapping>> LoadVariableViewsAsync(string filePath);
+        List<string> GetViewsForVariable(string variableName, List<VariableViewMapping> mappings);
+        List<string> FilterVariablesForView(IEnumerable<string> allVariables, string currentView, List<VariableViewMapping> mappings);
+        
+        /// <summary>
+        /// Filtra variables y devuelve advertencias de configuración para enviar al frontend
+        /// </summary>
+        ViewFilterResult FilterVariablesForViewWithWarnings(IEnumerable<string> allVariables, string currentView, List<VariableViewMapping> mappings);
+    }
+
+    /// <summary>
+    /// Resultado del filtrado de variables con advertencias para el frontend
+    /// </summary>
+    public class ViewFilterResult
+    {
+        public List<string> ActiveVariables { get; set; } = new();
+        public List<string> ExcludedVariables { get; set; } = new();
+        public List<string> UnmatchedVariables { get; set; } = new();
+        public bool HasWarnings => UnmatchedVariables.Count > 0;
+        
+        /// <summary>Genera un SystemWarning para enviar al frontend si hay problemas</summary>
+        public object? ToSystemWarning()
+        {
+            if (!HasWarnings) return null;
+            
+            return new
+            {
+                type = "warning",
+                title = "Variable_Views: Configuración incompleta",
+                message = $"{UnmatchedVariables.Count} variables no tienen patrón configurado en Excel",
+                details = UnmatchedVariables.Take(10).Select(v => $"Sin patrón: {v}").ToList(),
+                suggestion = "Revise la hoja 'Variable_Views' del Excel y agregue patrones para estas variables"
+            };
+        }
     }
     
     public class ExcelConfigService : IExcelConfigService
@@ -481,6 +517,401 @@ namespace SW.PC.API.Backend.Services
             
             return children;
         }
+
+        #region Variable Views Mapping
+
+        /// <summary>
+        /// Caché para Variable Views mappings por archivo Excel
+        /// </summary>
+        private readonly Dictionary<string, (List<VariableViewMapping> Mappings, DateTime Timestamp)> _variableViewsCache = new();
+
+        /// <summary>
+        /// Carga los mappings de Variable_Views desde la hoja del Excel.
+        /// Define qué variables se leen en cada vista del frontend.
+        /// </summary>
+        public async Task<List<VariableViewMapping>> LoadVariableViewsAsync(string filePath)
+        {
+            var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+            var cacheKey = fullPath.ToLowerInvariant();
+
+            // Verificar caché
+            lock (_cacheLock)
+            {
+                if (_variableViewsCache.TryGetValue(cacheKey, out var cached))
+                {
+                    var cacheAge = DateTime.Now - cached.Timestamp;
+                    if (cacheAge < _cacheExpiration)
+                    {
+                        _logger.LogDebug("📦 Usando Variable_Views desde CACHÉ ({Count} mappings)", cached.Mappings.Count);
+                        return cached.Mappings;
+                    }
+                }
+            }
+
+            try
+            {
+                if (!File.Exists(fullPath))
+                {
+                    _logger.LogWarning("Excel file not found: {Path}. Variable_Views no disponible.", fullPath);
+                    return new List<VariableViewMapping>();
+                }
+
+                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var package = new ExcelPackage(stream);
+                
+                var mappings = await LoadVariableViewsFromSheetAsync(package);
+
+                // Guardar en caché
+                lock (_cacheLock)
+                {
+                    _variableViewsCache[cacheKey] = (mappings, DateTime.Now);
+                }
+
+                _logger.LogInformation("✅ Cargados {Count} mappings de Variable_Views desde Excel", mappings.Count);
+                return mappings;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cargando Variable_Views: {Message}", ex.Message);
+                return new List<VariableViewMapping>();
+            }
+        }
+
+        /// <summary>
+        /// Lee la hoja Variable_Views del Excel y compila los patrones regex
+        /// </summary>
+        private async Task<List<VariableViewMapping>> LoadVariableViewsFromSheetAsync(ExcelPackage package)
+        {
+            var mappings = new List<VariableViewMapping>();
+            var sheet = package.Workbook.Worksheets["Variable_Views"];
+
+            if (sheet == null)
+            {
+                _logger.LogWarning("⚠️ Hoja 'Variable_Views' no encontrada en Excel. Todas las variables serán GLOBAL.");
+                return mappings;
+            }
+
+            // Leer desde fila 2 (fila 1 = encabezados)
+            int row = 2;
+            while (!string.IsNullOrWhiteSpace(sheet.Cells[$"A{row}"].Text))
+            {
+                var pattern = sheet.Cells[$"A{row}"].Text?.Trim();
+                var viewsText = sheet.Cells[$"B{row}"].Text?.Trim();
+                var description = sheet.Cells[$"C{row}"].Text?.Trim();
+
+                if (!string.IsNullOrEmpty(pattern) && !string.IsNullOrEmpty(viewsText))
+                {
+                    // Parsear vistas (separadas por coma)
+                    var views = viewsText.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(v => v.Trim().ToUpper())
+                        .Where(v => PlcViewIds.AllViews.Contains(v))
+                        .ToList();
+
+                    if (views.Count > 0)
+                    {
+                        var mapping = new VariableViewMapping
+                        {
+                            VariablePattern = pattern,
+                            Views = views,
+                            Description = description,
+                            CompiledPattern = CompileWildcardPattern(pattern)
+                        };
+                        mappings.Add(mapping);
+                        _logger.LogDebug("📋 Variable mapping: {Pattern} → [{Views}]", pattern, string.Join(", ", views));
+                    }
+                    else
+                    {
+                        _logger.LogWarning("⚠️ Fila {Row}: vistas inválidas '{ViewsText}'", row, viewsText);
+                    }
+                }
+                row++;
+            }
+
+            // Ordenar por especificidad (más específicos primero)
+            mappings = mappings.OrderByDescending(m => m.Specificity).ToList();
+
+            // Log detallado de los mappings cargados
+            _logger.LogInformation("════════════════════════════════════════════════════════════════════");
+            _logger.LogInformation("📊 Variable_Views: {Count} mappings cargados desde Excel", mappings.Count);
+            _logger.LogInformation("────────────────────────────────────────────────────────────────────");
+            foreach (var m in mappings)
+            {
+                var example = GetPatternMatchExample(m.VariablePattern);
+                _logger.LogInformation("   📋 '{Pattern}' → [{Views}]", m.VariablePattern, string.Join(", ", m.Views));
+                _logger.LogInformation("      Coincidiría con: {Example}", example);
+            }
+            _logger.LogInformation("════════════════════════════════════════════════════════════════════");
+            
+            return await Task.FromResult(mappings);
+        }
+
+        /// <summary>
+        /// Genera un ejemplo de qué coincidiría con un patrón dado
+        /// </summary>
+        private string GetPatternMatchExample(string pattern)
+        {
+            // Reemplazar * con ejemplos concretos para ayudar a entender
+            if (pattern.EndsWith("[*]"))
+            {
+                // st_XXX[*] → "st_XXX[1]", "st_XXX[2]", etc.
+                var baseName = pattern.Substring(0, pattern.Length - 3);
+                return $"'{baseName}[1]', '{baseName}[2]', etc.";
+            }
+            else if (pattern.EndsWith(".*"))
+            {
+                // st_XXX.* → "st_XXX.propiedad", "st_XXX.otra[1]", etc.
+                var baseName = pattern.Substring(0, pattern.Length - 2);
+                return $"'{baseName}.cualquier_propiedad', '{baseName}.i_State[1]', etc.";
+            }
+            else if (pattern.EndsWith("*"))
+            {
+                // st_XXX* → "st_XXX", "st_XXX[1]", "st_XXX.algo", etc.
+                var baseName = pattern.Substring(0, pattern.Length - 1);
+                return $"'{baseName}', '{baseName}[1]', '{baseName}.algo', etc.";
+            }
+            else if (!pattern.Contains("*"))
+            {
+                // Patrón exacto
+                return $"SOLO '{pattern}' (match exacto)";
+            }
+            else
+            {
+                return $"Variables que coincidan con el patrón";
+            }
+        }
+
+        /// <summary>
+        /// Convierte un patrón con wildcards (*) a una expresión regular
+        /// </summary>
+        private System.Text.RegularExpressions.Regex CompileWildcardPattern(string pattern)
+        {
+            // Escapar caracteres especiales de regex excepto *
+            var regexPattern = System.Text.RegularExpressions.Regex.Escape(pattern)
+                .Replace(@"\*", ".*")  // * → .*
+                .Replace(@"\?", ".");  // ? → . (opcional, si quieres soportar ?)
+
+            return new System.Text.RegularExpressions.Regex(
+                $"^{regexPattern}$",
+                System.Text.RegularExpressions.RegexOptions.Compiled | 
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            );
+        }
+
+        /// <summary>
+        /// Determina a qué vistas pertenece una variable según los mappings.
+        /// Si no hay match, devuelve GLOBAL (comportamiento seguro por defecto).
+        /// </summary>
+        public List<string> GetViewsForVariable(string variableName, List<VariableViewMapping> mappings)
+        {
+            return GetViewsForVariable(variableName, mappings, out _);
+        }
+
+        /// <summary>
+        /// Determina a qué vistas pertenece una variable según los mappings.
+        /// Si no hay match, devuelve GLOBAL (comportamiento seguro por defecto).
+        /// </summary>
+        private List<string> GetViewsForVariable(string variableName, List<VariableViewMapping> mappings, out bool hadMatch, out string matchedPattern)
+        {
+            hadMatch = false;
+            matchedPattern = string.Empty;
+            
+            // Buscar primer match (ya están ordenados por especificidad)
+            foreach (var mapping in mappings)
+            {
+                if (mapping.CompiledPattern?.IsMatch(variableName) == true)
+                {
+                    hadMatch = true;
+                    matchedPattern = mapping.VariablePattern;
+                    return mapping.Views;
+                }
+            }
+
+            // Sin match = GLOBAL (siempre se lee)
+            return new List<string> { PlcViewIds.GLOBAL };
+        }
+        
+        // Overload para mantener compatibilidad
+        private List<string> GetViewsForVariable(string variableName, List<VariableViewMapping> mappings, out bool hadMatch)
+        {
+            return GetViewsForVariable(variableName, mappings, out hadMatch, out _);
+        }
+
+        /// <summary>
+        /// Sugiere un patrón correcto para una variable que no tiene match.
+        /// Ayuda a los usuarios a corregir el Excel.
+        /// </summary>
+        private string SuggestPatternForVariable(string variableName)
+        {
+            // Extraer el prefijo de la estructura (ej: "MAIN.fbMachine.st_MainForm")
+            // y sugerir agregar ".*" o "*" al final
+            
+            // Buscar el último componente que parece ser una estructura
+            var parts = variableName.Split('.');
+            if (parts.Length < 2) return string.Empty;
+
+            // Caso: MAIN.fbMachine.st_MainForm.i_StateGantry[1]
+            // Sugerir: MAIN.fbMachine.st_MainForm.*
+            
+            // Buscar el patrón "st_" que indica estructura
+            for (int i = parts.Length - 1; i >= 0; i--)
+            {
+                if (parts[i].StartsWith("st_", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Si tiene algo después (propiedad o índice), sugerir wildcard
+                    if (i < parts.Length - 1)
+                    {
+                        var basePath = string.Join(".", parts.Take(i + 1));
+                        return $"{basePath}.*";
+                    }
+                    else if (parts[i].Contains('['))
+                    {
+                        // st_XXX[1] → st_XXX*
+                        var baseStruct = parts[i].Substring(0, parts[i].IndexOf('['));
+                        var basePath = string.Join(".", parts.Take(i)) + "." + baseStruct;
+                        return $"{basePath}*";
+                    }
+                }
+            }
+
+            // Fallback: sugerir el prefijo con wildcard
+            if (parts.Length >= 3)
+            {
+                return string.Join(".", parts.Take(3)) + "*";
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Filtra una lista de variables para obtener solo las que deben leerse en la vista actual.
+        /// Siempre incluye las variables GLOBAL.
+        /// </summary>
+        public List<string> FilterVariablesForView(
+            IEnumerable<string> allVariables, 
+            string currentView, 
+            List<VariableViewMapping> mappings)
+        {
+            var targetView = PlcViewIds.FromFrontendView(currentView);
+            var result = new List<string>();
+            var excluded = new List<string>();
+            var globalByDefault = new List<string>(); // Variables sin match (tratadas como GLOBAL)
+            var matchedByPattern = new Dictionary<string, List<string>>(); // Patrón → variables que coinciden
+
+            _logger.LogInformation("🔍 FilterVariablesForView: vista={View} → targetView={Target}, {MappingCount} mappings, {VarCount} variables",
+                currentView, targetView, mappings?.Count ?? 0, allVariables.Count());
+
+            foreach (var varName in allVariables)
+            {
+                var views = GetViewsForVariable(varName, mappings, out bool hadMatch, out string matchedPattern);
+                
+                // Registrar qué patrón coincidió
+                if (hadMatch)
+                {
+                    if (!matchedByPattern.ContainsKey(matchedPattern))
+                        matchedByPattern[matchedPattern] = new List<string>();
+                    matchedByPattern[matchedPattern].Add(varName);
+                }
+                
+                // Incluir si es GLOBAL o pertenece a la vista actual
+                if (views.Contains(PlcViewIds.GLOBAL) || views.Contains(targetView))
+                {
+                    result.Add(varName);
+                    if (!hadMatch)
+                    {
+                        globalByDefault.Add(varName);
+                    }
+                }
+                else
+                {
+                    excluded.Add(varName);
+                }
+            }
+
+            // SIEMPRE mostrar diagnóstico de patrones
+            _logger.LogInformation("════════════════════════════════════════════════════════════════════");
+            _logger.LogInformation("📊 DIAGNÓSTICO DE FILTRADO - Vista: {View}", targetView);
+            _logger.LogInformation("────────────────────────────────────────────────────────────────────");
+            if (matchedByPattern.Count > 0)
+            {
+                _logger.LogInformation("📋 Patrones que coincidieron:");
+                foreach (var kvp in matchedByPattern.OrderByDescending(x => x.Value.Count))
+                {
+                    var mapping = mappings?.FirstOrDefault(m => m.VariablePattern == kvp.Key);
+                    var viewsList = mapping != null ? string.Join(",", mapping.Views) : "?";
+                    _logger.LogInformation("   - '{Pattern}' → [{Views}] = {Count} variables", 
+                        kvp.Key, viewsList, kvp.Value.Count);
+                }
+            }
+            
+            // Log de diagnóstico DETALLADO para variables sin match
+            if (globalByDefault.Count > 0)
+            {
+                _logger.LogWarning("────────────────────────────────────────────────────────────────────");
+                _logger.LogWarning("⚠️ PROBLEMA: {Count} variables NO COINCIDEN con ningún patrón", globalByDefault.Count);
+                _logger.LogWarning("   Estas variables serán tratadas como GLOBAL (se leen en TODAS las vistas)");
+                _logger.LogWarning("❌ Variables sin match (primeras 10):");
+                foreach (var v in globalByDefault.Take(10))
+                {
+                    _logger.LogWarning("   - {Variable}", v);
+                    var suggested = SuggestPatternForVariable(v);
+                    if (!string.IsNullOrEmpty(suggested))
+                    {
+                        _logger.LogWarning("     💡 Sugerencia: usar patrón '{Suggested}'", suggested);
+                    }
+                }
+                if (globalByDefault.Count > 10)
+                {
+                    _logger.LogWarning("   ... y {More} variables más sin match", globalByDefault.Count - 10);
+                }
+            }
+            _logger.LogInformation("────────────────────────────────────────────────────────────────────");
+            _logger.LogInformation("📈 RESUMEN: {Active} incluidas, {Excluded} excluidas, {NoMatch} sin patrón",
+                result.Count, excluded.Count, globalByDefault.Count);
+            _logger.LogInformation("════════════════════════════════════════════════════════════════════");
+
+            return result;
+        }
+
+        /// <summary>
+        /// Filtra variables y devuelve advertencias para enviar al frontend vía SignalR
+        /// </summary>
+        public ViewFilterResult FilterVariablesForViewWithWarnings(
+            IEnumerable<string> allVariables, 
+            string currentView, 
+            List<VariableViewMapping> mappings)
+        {
+            var targetView = PlcViewIds.FromFrontendView(currentView);
+            var result = new ViewFilterResult();
+
+            foreach (var varName in allVariables)
+            {
+                var views = GetViewsForVariable(varName, mappings, out bool hadMatch);
+                
+                if (views.Contains(PlcViewIds.GLOBAL) || views.Contains(targetView))
+                {
+                    result.ActiveVariables.Add(varName);
+                    if (!hadMatch)
+                    {
+                        result.UnmatchedVariables.Add(varName);
+                    }
+                }
+                else
+                {
+                    result.ExcludedVariables.Add(varName);
+                }
+            }
+
+            // Logging (más compacto, el detallado ya está en FilterVariablesForView)
+            if (result.HasWarnings)
+            {
+                _logger.LogWarning("⚠️ Variable_Views: {Unmatched} variables sin patrón (de {Total} total)",
+                    result.UnmatchedVariables.Count, allVariables.Count());
+            }
+
+            return result;
+        }
+
+        #endregion
         
         /// <summary>
         /// Carga la configuración de colores por estado desde la hoja PLC_State_Colors
@@ -882,6 +1313,11 @@ namespace SW.PC.API.Backend.Services
         /// Obtiene la lista de nombres de variables PLC únicas que deben ser monitoreadas
         /// desde la configuración de StateColors en el Excel
         /// </summary>
+        /// <summary>
+        /// 🔍 ESCANEO AUTOMÁTICO: Busca TODAS las variables PLC en TODAS las hojas del Excel.
+        /// Cualquier celda que contenga "MAIN.fbMachine" se considera una variable PLC.
+        /// NO requiere código específico para nuevas hojas - es completamente automático.
+        /// </summary>
         public async Task<List<string>> GetMonitoredVariableNamesAsync(string filePath)
         {
             try
@@ -897,161 +1333,92 @@ namespace SW.PC.API.Backend.Services
                 using (var package = new ExcelPackage(new FileInfo(fullPath)))
                 {
                     var variableNames = new HashSet<string>(); // Usar HashSet para evitar duplicados
+                    var variablesBySheet = new Dictionary<string, int>(); // Para logging
                     
-                    // 1. Variables de StateColors (colores según estado PLC)
-                    var stateColors = await LoadStateColorsFromSheetAsync(package);
-                    foreach (var sc in stateColors)
-                    {
-                        if (!string.IsNullOrWhiteSpace(sc.VariablePattern))
-                        {
-                            variableNames.Add(sc.VariablePattern);
-                        }
-                    }
+                    _logger.LogInformation("════════════════════════════════════════════════════════════════════");
+                    _logger.LogInformation("🔍 ESCANEO AUTOMÁTICO DE VARIABLES PLC");
+                    _logger.LogInformation("   Buscando 'MAIN.fbMachine' en TODAS las hojas del Excel...");
+                    _logger.LogInformation("────────────────────────────────────────────────────────────────────");
 
-                    // 2. Variables de animación (padre + hijos)
-                    // Buscar en la misma hoja "3D Elements" donde están los StateColors
-                    var worksheet = package.Workbook.Worksheets["3D Elements"];
-                    
-                    if (worksheet != null)
+                    // 🔄 Escanear TODAS las hojas del Excel
+                    foreach (var worksheet in package.Workbook.Worksheets)
                     {
-                        _logger.LogInformation("  🔍 Buscando variables de animación en hoja: {SheetName}", worksheet.Name);
-                        int rowCount = worksheet.Dimension?.Rows ?? 0;
-                        _logger.LogInformation("  📊 Total de filas en hoja: {RowCount}", rowCount);
+                        if (worksheet.Dimension == null) continue;
                         
-                        int parentAnimCount = 0;
-                        int childAnimCount = 0;
-                        
-                        for (int row = 2; row <= rowCount; row++) // Empezar en fila 2 (saltar header)
+                        // ⚠️ EXCLUIR hoja Variable_Views - contiene PATRONES, no variables reales
+                        if (worksheet.Name.Equals("Variable_Views", StringComparison.OrdinalIgnoreCase))
                         {
-                            // PADRE: Columnas U (AnimationType) y AD (AnimationPlcVariable)
-                            var animationType = worksheet.Cells[$"U{row}"].Text?.Trim().ToUpper();
-                            var animationVariable = worksheet.Cells[$"AD{row}"].Text?.Trim();
-                            
-                            if (!string.IsNullOrWhiteSpace(animationType) && animationType.Contains("REF PLC") && !string.IsNullOrWhiteSpace(animationVariable))
+                            _logger.LogDebug("   ⏭️ Saltando hoja 'Variable_Views' (contiene patrones, no variables)");
+                            continue;
+                        }
+                        
+                        int sheetVarCount = 0;
+                        int rowCount = worksheet.Dimension.Rows;
+                        int colCount = worksheet.Dimension.Columns;
+                        
+                        // Escanear todas las celdas de la hoja
+                        for (int row = 1; row <= rowCount; row++)
+                        {
+                            for (int col = 1; col <= colCount; col++)
                             {
-                                variableNames.Add(animationVariable);
-                                parentAnimCount++;
-                                _logger.LogInformation("  ✅ Parent animation variable: {Variable}", animationVariable);
-                            }
-                            
-                            // CHILD 1: Columnas AL (AnimationType) y AO (PlcVariable)
-                            var child1AnimType = worksheet.Cells[$"AL{row}"].Text?.Trim().ToUpper();
-                            var child1PlcVar = worksheet.Cells[$"AO{row}"].Text?.Trim();
-                            if (!string.IsNullOrWhiteSpace(child1AnimType) && child1AnimType.Contains("REF PLC") && !string.IsNullOrWhiteSpace(child1PlcVar))
-                            {
-                                variableNames.Add(child1PlcVar);
-                                childAnimCount++;
-                                _logger.LogInformation("  ✅ Child1 animation variable: {Variable}", child1PlcVar);
-                            }
-                            
-                            // CHILD 2: Columnas BG (AnimationType) y BJ (PlcVariable)
-                            var child2AnimType = worksheet.Cells[$"BG{row}"].Text?.Trim().ToUpper();
-                            var child2PlcVar = worksheet.Cells[$"BJ{row}"].Text?.Trim();
-                            if (!string.IsNullOrWhiteSpace(child2AnimType) && child2AnimType.Contains("REF PLC") && !string.IsNullOrWhiteSpace(child2PlcVar))
-                            {
-                                variableNames.Add(child2PlcVar);
-                                childAnimCount++;
-                                _logger.LogInformation("  ✅ Child2 animation variable: {Variable}", child2PlcVar);
-                            }
-                            
-                            // CHILD 3: Columnas CB (AnimationType) y CE (PlcVariable)
-                            var child3AnimType = worksheet.Cells[$"CB{row}"].Text?.Trim().ToUpper();
-                            var child3PlcVar = worksheet.Cells[$"CE{row}"].Text?.Trim();
-                            if (!string.IsNullOrWhiteSpace(child3AnimType) && child3AnimType.Contains("REF PLC") && !string.IsNullOrWhiteSpace(child3PlcVar))
-                            {
-                                variableNames.Add(child3PlcVar);
-                                childAnimCount++;
-                                _logger.LogInformation("  ✅ Child3 animation variable: {Variable}", child3PlcVar);
-                            }
-                            
-                            // CHILD 4: Columnas CW (AnimationType) y CZ (PlcVariable)
-                            var child4AnimType = worksheet.Cells[$"CW{row}"].Text?.Trim().ToUpper();
-                            var child4PlcVar = worksheet.Cells[$"CZ{row}"].Text?.Trim();
-                            if (!string.IsNullOrWhiteSpace(child4AnimType) && child4AnimType.Contains("REF PLC") && !string.IsNullOrWhiteSpace(child4PlcVar))
-                            {
-                                variableNames.Add(child4PlcVar);
-                                childAnimCount++;
-                                _logger.LogInformation("  ✅ Child4 animation variable: {Variable}", child4PlcVar);
-                            }
-                            
-                            // CHILD 5: Columnas DR (AnimationType) y DU (PlcVariable)
-                            var child5AnimType = worksheet.Cells[$"DR{row}"].Text?.Trim().ToUpper();
-                            var child5PlcVar = worksheet.Cells[$"DU{row}"].Text?.Trim();
-                            if (!string.IsNullOrWhiteSpace(child5AnimType) && child5AnimType.Contains("REF PLC") && !string.IsNullOrWhiteSpace(child5PlcVar))
-                            {
-                                variableNames.Add(child5PlcVar);
-                                childAnimCount++;
-                                _logger.LogInformation("  ✅ Child5 animation variable: {Variable}", child5PlcVar);
+                                var cellValue = worksheet.Cells[row, col].Text?.Trim();
+                                
+                                // Si la celda contiene una variable PLC (empieza con MAIN.fbMachine)
+                                if (!string.IsNullOrWhiteSpace(cellValue) && 
+                                    cellValue.StartsWith("MAIN.fbMachine", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // Limpiar la variable (quitar espacios, comillas, etc.)
+                                    var cleanVar = cellValue.Trim().Trim('"').Trim('\'');
+                                    
+                                    // ⚠️ EXCLUIR patrones con wildcards (* o ?) - son para filtrado, no variables reales
+                                    if (cleanVar.Contains('*') || cleanVar.Contains('?'))
+                                    {
+                                        continue; // Es un patrón, no una variable
+                                    }
+                                    
+                                    // Verificar que sea una variable válida (no contiene espacios ni caracteres raros)
+                                    if (!cleanVar.Contains(' ') && !cleanVar.Contains('\n') && cleanVar.Length < 200)
+                                    {
+                                        if (variableNames.Add(cleanVar))
+                                        {
+                                            sheetVarCount++;
+                                        }
+                                    }
+                                }
                             }
                         }
                         
-                        _logger.LogInformation("  📋 Animation variables found - Parent: {ParentCount}, Children: {ChildCount}, Total: {TotalCount}", 
-                            parentAnimCount, childAnimCount, parentAnimCount + childAnimCount);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("  ⚠️ No se encontró hoja '3D Elements' para variables de animación");
-                    }
-
-                    // 3. Variables de alarmas desde la hoja "Alarms"
-                    var alarmConfig = await LoadAlarmsAsync(fullPath);
-                    int alarmVarsCount = 0;
-                    int histAlarmVarsCount = 0;
-                    
-                    foreach (var alarm in alarmConfig.Alarms)
-                    {
-                        if (!string.IsNullOrWhiteSpace(alarm.PlcVariable))
+                        if (sheetVarCount > 0)
                         {
-                            // Alarmas en tiempo real (st_alarmPc)
-                            variableNames.Add(alarm.PlcVariable);
-                            alarmVarsCount++;
-                            
-                            // 📋 También añadir variables de historial (st_alarmHistPc) para Operation Log
-                            var histVariable = alarm.PlcVariable.Replace("st_alarmPc[", "st_alarmHistPc[");
-                            variableNames.Add(histVariable);
-                            histAlarmVarsCount++;
-                        }
-                    }
-                    foreach (var notification in alarmConfig.Notifications)
-                    {
-                        if (!string.IsNullOrWhiteSpace(notification.PlcVariable))
-                        {
-                            variableNames.Add(notification.PlcVariable);
-                            alarmVarsCount++;
-                            
-                            // 📋 También añadir variables de historial
-                            var histVariable = notification.PlcVariable.Replace("st_alarmPc[", "st_alarmHistPc[");
-                            variableNames.Add(histVariable);
-                            histAlarmVarsCount++;
-                        }
-                    }
-                    foreach (var info in alarmConfig.Infos)
-                    {
-                        if (!string.IsNullOrWhiteSpace(info.PlcVariable))
-                        {
-                            variableNames.Add(info.PlcVariable);
-                            alarmVarsCount++;
-                            
-                            // 📋 También añadir variables de historial
-                            var histVariable = info.PlcVariable.Replace("st_alarmPc[", "st_alarmHistPc[");
-                            variableNames.Add(histVariable);
-                            histAlarmVarsCount++;
+                            variablesBySheet[worksheet.Name] = sheetVarCount;
+                            _logger.LogInformation("   📋 {SheetName}: {Count} variables encontradas", 
+                                worksheet.Name, sheetVarCount);
                         }
                     }
                     
-                    if (alarmVarsCount > 0)
+                    // 🔔 CASO ESPECIAL: Variables de historial de alarmas (st_alarmHistPc)
+                    // Por cada st_alarmPc[x] añadir automáticamente st_alarmHistPc[x]
+                    var alarmVars = variableNames.Where(v => v.Contains("st_alarmPc[")).ToList();
+                    int histVarsAdded = 0;
+                    foreach (var alarmVar in alarmVars)
                     {
-                        _logger.LogInformation("  🔔 Alarm variables found: {Count} (real-time) + {HistCount} (history)", 
-                            alarmVarsCount, histAlarmVarsCount);
+                        var histVar = alarmVar.Replace("st_alarmPc[", "st_alarmHistPc[");
+                        if (variableNames.Add(histVar))
+                        {
+                            histVarsAdded++;
+                        }
                     }
+                    if (histVarsAdded > 0)
+                    {
+                        _logger.LogInformation("   🔔 Alarmas historial: +{Count} variables (st_alarmHistPc)", histVarsAdded);
+                    }
+                    
+                    _logger.LogInformation("────────────────────────────────────────────────────────────────────");
+                    _logger.LogInformation("✅ TOTAL: {Count} variables PLC únicas encontradas en {SheetCount} hojas",
+                        variableNames.Count, variablesBySheet.Count);
+                    _logger.LogInformation("════════════════════════════════════════════════════════════════════");
 
                     var variableList = variableNames.ToList();
-                    _logger.LogInformation("📋 Variables a monitorear desde Excel: {Count}", variableList.Count);
-                    foreach (var varName in variableList)
-                    {
-                        _logger.LogDebug("  - {Variable}", varName);
-                    }
-
                     return variableList;
                 }
             }
@@ -2680,6 +3047,46 @@ namespace SW.PC.API.Backend.Services
                     {
                         config.TitleLabel = titleLabel;
                         _logger.LogDebug("🚆 Train title label from A2: {Label}", titleLabel);
+                    }
+                    
+                    // ============================================
+                    // Leer nombres de secciones desde B2, F2, N2
+                    // ============================================
+                    var sectionBoolName = sheet.Cells["B2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(sectionBoolName))
+                    {
+                        config.SectionBoolName = sectionBoolName;
+                        _logger.LogDebug("🚆 Section BOOL name from B2: {Name}", sectionBoolName);
+                    }
+                    
+                    // Imagen de sección BOOL desde D2
+                    var sectionBoolImage = sheet.Cells["D2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(sectionBoolImage))
+                    {
+                        config.SectionBoolImage = sectionBoolImage;
+                        _logger.LogDebug("🚆 Section BOOL image from D2: {Image}", sectionBoolImage);
+                    }
+                    
+                    var sectionDecimalName = sheet.Cells["F2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(sectionDecimalName))
+                    {
+                        config.SectionDecimalName = sectionDecimalName;
+                        _logger.LogDebug("🚆 Section DECIMAL name from F2: {Name}", sectionDecimalName);
+                    }
+                    
+                    // Imagen de sección DECIMAL desde H2
+                    var sectionDecimalImage = sheet.Cells["H2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(sectionDecimalImage))
+                    {
+                        config.SectionDecimalImage = sectionDecimalImage;
+                        _logger.LogDebug("🚆 Section DECIMAL image from H2: {Image}", sectionDecimalImage);
+                    }
+                    
+                    var sectionGantryName = sheet.Cells["N2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(sectionGantryName))
+                    {
+                        config.SectionGantryName = sectionGantryName;
+                        _logger.LogDebug("🚆 Section GANTRY name from N2: {Name}", sectionGantryName);
                     }
                     
                     // Leer variable PLC del nombre del tren desde A3

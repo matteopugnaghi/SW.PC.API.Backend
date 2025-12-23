@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using SW.PC.API.Backend.Hubs;
 using SW.PC.API.Backend.Models;
+using SW.PC.API.Backend.Models.Excel;
 
 namespace SW.PC.API.Backend.Services
 {
@@ -9,6 +10,7 @@ namespace SW.PC.API.Backend.Services
     /// Servicio de background que monitorea continuamente variables del PLC
     /// y transmite cambios via SignalR a todos los clientes conectados.
     /// Las variables se cargan automáticamente desde el Excel.
+    /// Soporta filtrado por vista activa del frontend.
     /// </summary>
     public class PlcPollingService : BackgroundService
     {
@@ -19,11 +21,53 @@ namespace SW.PC.API.Backend.Services
         private readonly ILogger<PlcPollingService> _logger;
         private readonly PlcPollingConfiguration _config;
         private readonly Dictionary<string, PlcVariableState> _variableStates;
-        private List<string> _monitoredVariables;
-        private DateTime _lastExcelReload;
+        private List<string> _monitoredVariables;       // Todas las variables del Excel
+        private List<string> _activeVariables;           // Variables filtradas por vista activa
         private DateTime _lastTaskCycleTimeUpdate;
-        private const int EXCEL_RELOAD_INTERVAL_SECONDS = 30; // Recargar Excel cada 30 segundos
-        private const int TASK_CYCLE_TIME_UPDATE_SECONDS = 10; // Actualizar Task Cycle Time cada 10 segundos
+        private bool _excelLoadedOnce = false;
+        private const int TASK_CYCLE_TIME_UPDATE_SECONDS = 10;
+        
+        // 🔒 Semáforo para limitar lecturas concurrentes al PLC y evitar saturación/timeout
+        private const int MAX_CONCURRENT_PLC_READS = 25;
+        private readonly SemaphoreSlim _plcReadSemaphore = new SemaphoreSlim(MAX_CONCURRENT_PLC_READS, MAX_CONCURRENT_PLC_READS);
+
+        // 🎯 Sistema de filtrado por vistas
+        private List<VariableViewMapping> _variableViewMappings = new();
+        private string _currentView = "principal";  // Vista activa del frontend
+        private readonly object _viewLock = new();  // Lock para cambios de vista thread-safe
+        private bool _viewFilteringEnabled = false; // Se habilita si hay hoja Variable_Views
+        
+        // 🔔 Último resultado de filtrado (para reenviar a nuevos clientes)
+        private ViewFilterResult? _lastFilterResult = null;
+
+        /// <summary>
+        /// Vista activa actual del frontend
+        /// </summary>
+        public string CurrentView
+        {
+            get { lock (_viewLock) return _currentView; }
+        }
+
+        /// <summary>
+        /// Indica si el filtrado por vistas está activo
+        /// </summary>
+        public bool ViewFilteringEnabled => _viewFilteringEnabled;
+
+        /// <summary>
+        /// Número de variables actualmente monitoreadas (filtradas por vista)
+        /// </summary>
+        public int ActiveVariablesCount => _activeVariables?.Count ?? 0;
+
+        /// <summary>
+        /// Número total de variables en el Excel
+        /// </summary>
+        public int TotalVariablesCount => _monitoredVariables?.Count ?? 0;
+        
+        /// <summary>
+        /// 🔔 Obtiene el último resultado de filtrado para enviar a nuevos clientes.
+        /// Retorna null si no hay warnings pendientes.
+        /// </summary>
+        public ViewFilterResult? GetLastFilterResult() => _lastFilterResult;
 
         public PlcPollingService(
             ITwinCATService twinCATService,
@@ -41,8 +85,46 @@ namespace SW.PC.API.Backend.Services
             _config = config.Value;
             _variableStates = new Dictionary<string, PlcVariableState>();
             _monitoredVariables = new List<string>();
-            _lastExcelReload = DateTime.MinValue;
+            _activeVariables = new List<string>();
             _lastTaskCycleTimeUpdate = DateTime.MinValue;
+        }
+
+        /// <summary>
+        /// Cambia la vista activa del frontend. Recalcula qué variables se leen.
+        /// Llamado desde ScadaHub cuando el cliente cambia de página.
+        /// </summary>
+        public void SetActiveView(string viewName)
+        {
+            lock (_viewLock)
+            {
+                if (_currentView == viewName) return;
+                
+                var oldView = _currentView;
+                _currentView = viewName ?? "principal";
+                
+                // Recalcular variables activas si el filtrado está habilitado
+                if (_viewFilteringEnabled && _monitoredVariables.Count > 0)
+                {
+                    RecalculateActiveVariables();
+                    _logger.LogInformation("🔄 Vista cambiada: {OldView} → {NewView}. Variables activas: {Active}/{Total}", 
+                        oldView, _currentView, _activeVariables.Count, _monitoredVariables.Count);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Recalcula qué variables deben leerse según la vista activa
+        /// </summary>
+        private void RecalculateActiveVariables()
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var excelConfigService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
+            
+            _activeVariables = excelConfigService.FilterVariablesForView(
+                _monitoredVariables, 
+                _currentView, 
+                _variableViewMappings
+            );
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -71,6 +153,39 @@ namespace SW.PC.API.Backend.Services
                     {
                         var excelConfigService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
                         _monitoredVariables = await excelConfigService.GetMonitoredVariableNamesAsync(_config.ExcelFileName);
+                        
+                        // 🎯 Cargar mappings de vistas (hoja Variable_Views)
+                        _variableViewMappings = await excelConfigService.LoadVariableViewsAsync(_config.ExcelFileName);
+                        
+                        if (_variableViewMappings.Count > 0)
+                        {
+                            _viewFilteringEnabled = true;
+                            _logger.LogInformation("🎯 Filtrado por vistas HABILITADO: {Count} mappings cargados", _variableViewMappings.Count);
+                            
+                            // Calcular variables activas para la vista inicial CON ADVERTENCIAS
+                            var filterResult = excelConfigService.FilterVariablesForViewWithWarnings(
+                                _monitoredVariables, _currentView, _variableViewMappings);
+                            
+                            _activeVariables = filterResult.ActiveVariables;
+                            
+                            // 🔔 Guardar resultado para nuevos clientes
+                            _lastFilterResult = filterResult.HasWarnings ? filterResult : null;
+                            
+                            _logger.LogInformation("📊 Vista inicial '{View}': {Active}/{Total} variables activas", 
+                                _currentView, _activeVariables.Count, _monitoredVariables.Count);
+                            
+                            // 🔔 Enviar advertencias al frontend vía SignalR (si hay)
+                            if (filterResult.HasWarnings)
+                            {
+                                _ = SendSystemWarningToFrontendAsync(filterResult);
+                            }
+                        }
+                        else
+                        {
+                            _viewFilteringEnabled = false;
+                            _activeVariables = _monitoredVariables.ToList();
+                            _logger.LogInformation("ℹ️ Sin hoja Variable_Views - Todas las variables son GLOBAL ({Count})", _monitoredVariables.Count);
+                        }
                     }
                     
                     if (_monitoredVariables.Count == 0)
@@ -106,22 +221,22 @@ namespace SW.PC.API.Backend.Services
             }
 
             _logger.LogInformation("📊 Monitoreando {Count} variables PLC desde Excel", _monitoredVariables.Count);
-            _lastExcelReload = DateTime.Now;
             
             // Actualizar estado: Conectado y funcionando (indicar si es simulado)
             var simStatus = _twinCATService.IsSimulated ? " (SIMULADO)" : "";
             _metricsService.SetPlcPollingStatus(true, true, $"OK - {_monitoredVariables.Count} variables{simStatus}", _twinCATService.IsSimulated);
+
+            // Marcar que Excel ya fue cargado
+            _excelLoadedOnce = true;
+            _logger.LogInformation("✅ Excel cargado UNA vez al inicio. No se recargará automáticamente.");
 
             // Loop principal de polling
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    // Verificar si es hora de recargar el Excel
-                    if ((DateTime.Now - _lastExcelReload).TotalSeconds >= EXCEL_RELOAD_INTERVAL_SECONDS)
-                    {
-                        await ReloadExcelConfigurationAsync();
-                    }
+                    // 📋 Excel solo se carga al inicio - NO se recarga periódicamente
+                    // Para recargar manualmente, usar el endpoint API /api/plc/reload-config
                     
                     // Actualizar Task Cycle Time del TwinCAT periódicamente
                     if ((DateTime.Now - _lastTaskCycleTimeUpdate).TotalSeconds >= TASK_CYCLE_TIME_UPDATE_SECONDS)
@@ -135,7 +250,8 @@ namespace SW.PC.API.Backend.Services
                     // ✅ Solo marcar OK si el PLC está realmente conectado
                     if (_twinCATService.IsConnected)
                     {
-                        _metricsService.SetPlcPollingStatus(true, true, $"OK - {_monitoredVariables.Count} variables");
+                        var viewInfo = _viewFilteringEnabled ? $" (vista: {_currentView})" : "";
+                        _metricsService.SetPlcPollingStatus(true, true, $"OK - {_activeVariables.Count}/{_monitoredVariables.Count} variables{viewInfo}");
                     }
                     else
                     {
@@ -188,39 +304,51 @@ namespace SW.PC.API.Backend.Services
                 }
             }
 
+            // 🎯 Usar variables activas (filtradas por vista) si el filtrado está habilitado
+            var variablesToPoll = _viewFilteringEnabled ? _activeVariables : _monitoredVariables;
+            
             // Registrar número de variables monitoreadas
-            _metricsService.SetPlcMonitoredVariables(_monitoredVariables.Count);
+            _metricsService.SetPlcMonitoredVariables(variablesToPoll.Count);
 
-            // ✨ LECTURA EN PARALELO - Mucho más rápido que secuencial
+            // ✨ LECTURA EN PARALELO CON LÍMITE DE CONCURRENCIA
+            // Usamos SemaphoreSlim para evitar saturar el PLC con demasiadas lecturas simultáneas
             int errorCount = 0;
-            var readTasks = _monitoredVariables.Select(varName => 
-                PollSingleVariableAsync(varName, cancellationToken)
-                    .ContinueWith(t => 
+            var readTasks = variablesToPoll.Select(async varName => 
+            {
+                // Esperar a que haya un slot disponible en el semáforo
+                await _plcReadSemaphore.WaitAsync(cancellationToken);
+                try
+                {
+                    await PollSingleVariableAsync(varName, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref errorCount);
+                    _logger.LogError(ex, "❌ Error leyendo variable {Variable}", varName);
+                    
+                    // Incrementar contador de errores
+                    if (_variableStates.TryGetValue(varName, out var state))
                     {
-                        if (t.IsFaulted)
+                        state.ReadErrorCount++;
+                        if (state.ReadErrorCount > 10)
                         {
-                            Interlocked.Increment(ref errorCount);
-                            _logger.LogError(t.Exception, "❌ Error leyendo variable {Variable}", varName);
-                            
-                            // Incrementar contador de errores
-                            if (_variableStates.TryGetValue(varName, out var state))
-                            {
-                                state.ReadErrorCount++;
-                                if (state.ReadErrorCount > 10)
-                                {
-                                    _logger.LogWarning("⚠️ Variable {Variable} tiene {Count} errores consecutivos", 
-                                        varName, state.ReadErrorCount);
-                                }
-                            }
+                            _logger.LogWarning("⚠️ Variable {Variable} tiene {Count} errores consecutivos", 
+                                varName, state.ReadErrorCount);
                         }
-                    }, cancellationToken)
-            ).ToList();
+                    }
+                }
+                finally
+                {
+                    // Liberar el slot del semáforo
+                    _plcReadSemaphore.Release();
+                }
+            }).ToList();
 
-            // Esperar a que terminen todas las lecturas en paralelo
+            // Esperar a que terminen todas las lecturas (con límite de concurrencia)
             await Task.WhenAll(readTasks);
             
             // Si hubo muchos errores, probablemente el PLC está desconectado
-            if (errorCount > _monitoredVariables.Count / 2)
+            if (errorCount > variablesToPoll.Count / 2)
             {
                 _metricsService.SetPlcPollingStatus(true, false, $"PLC desconectado ({errorCount} errores)");
                 
@@ -235,8 +363,8 @@ namespace SW.PC.API.Backend.Services
             stopwatch.Stop();
             _metricsService.RecordPlcPollingScanTime(stopwatch.Elapsed.TotalMilliseconds);
             
-            _logger.LogDebug("⏱️ Polling cycle completed in {Time}ms for {Count} variables", 
-                stopwatch.Elapsed.TotalMilliseconds, _monitoredVariables.Count);
+            _logger.LogDebug("⏱️ Polling cycle completed in {Time}ms for {Count}/{Total} variables (view: {View})", 
+                stopwatch.Elapsed.TotalMilliseconds, variablesToPoll.Count, _monitoredVariables.Count, _currentView);
         }
 
         private async Task PollSingleVariableAsync(string variableName, CancellationToken cancellationToken)
@@ -356,13 +484,15 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
-        /// Recarga la configuración de variables desde el Excel sin reiniciar el servicio
+        /// Recarga la configuración de variables desde el Excel.
+        /// NOTA: Ya NO se llama automáticamente cada X segundos.
+        /// Solo se carga al inicio del servicio o manualmente via API.
         /// </summary>
-        private async Task ReloadExcelConfigurationAsync()
+        public async Task ReloadExcelConfigurationAsync()
         {
             try
             {
-                _logger.LogDebug("🔄 Recargando configuración desde Excel...");
+                _logger.LogInformation("🔄 Recargando configuración desde Excel (llamada manual)...");
 
                 using (var scope = _serviceProvider.CreateScope())
                 {
@@ -399,11 +529,9 @@ namespace SW.PC.API.Backend.Services
                     }
                     else
                     {
-                        _logger.LogDebug("✅ Sin cambios en configuración Excel");
+                        _logger.LogInformation("✅ Sin cambios en configuración Excel");
                     }
                 }
-
-                _lastExcelReload = DateTime.Now;
             }
             catch (Exception ex)
             {
@@ -472,6 +600,32 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "⚠️ No se pudo actualizar estado de conexión TwinCAT");
+            }
+        }
+
+        /// <summary>
+        /// 🔔 Envía advertencias de configuración al frontend vía SignalR
+        /// Aparecerán en el Session Event Log
+        /// </summary>
+        private async Task SendSystemWarningToFrontendAsync(ViewFilterResult filterResult)
+        {
+            try
+            {
+                // Esperar un poco para que los clientes se conecten
+                await Task.Delay(3000);
+                
+                var warning = filterResult.ToSystemWarning();
+                if (warning != null)
+                {
+                    _logger.LogInformation("🔔 Enviando SystemWarning al frontend: {Count} variables sin patrón", 
+                        filterResult.UnmatchedVariables.Count);
+                    
+                    await _hubContext.Clients.All.SendAsync("SystemWarning", warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ No se pudo enviar SystemWarning al frontend");
             }
         }
 

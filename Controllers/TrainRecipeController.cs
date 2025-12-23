@@ -62,6 +62,13 @@ namespace SW.PC.API.Backend.Controllers
                     TrainNameValue = config.TrainNameValue,
                     LineNumberValue = config.LineNumberValue,
                     LoadedAt = config.LoadedAt,
+                    // Nombres de secciones desde Excel (B2, F2, N2)
+                    SectionBoolName = config.SectionBoolName,
+                    SectionDecimalName = config.SectionDecimalName,
+                    SectionGantryName = config.SectionGantryName,
+                    // Imágenes de secciones desde Excel (D2, H2)
+                    SectionBoolImageUrl = !string.IsNullOrEmpty(config.SectionBoolImage) ? $"{imageBaseUrl}{Path.GetFileName(config.SectionBoolImage)}" : null,
+                    SectionDecimalImageUrl = !string.IsNullOrEmpty(config.SectionDecimalImage) ? $"{imageBaseUrl}{Path.GetFileName(config.SectionDecimalImage)}" : null,
                     BoolParameters = config.BoolParameters.Select(p => new TrainRecipeParamDto
                     {
                         Index = p.Index,
@@ -251,6 +258,13 @@ namespace SW.PC.API.Backend.Controllers
                     TrainNameValue = config.TrainNameValue,
                     LineNumberValue = config.LineNumberValue,
                     LoadedAt = DateTime.Now,
+                    // Nombres de secciones desde Excel (B2, F2, N2)
+                    SectionBoolName = config.SectionBoolName,
+                    SectionDecimalName = config.SectionDecimalName,
+                    SectionGantryName = config.SectionGantryName,
+                    // Imágenes de secciones desde Excel (D2, H2)
+                    SectionBoolImageUrl = !string.IsNullOrEmpty(config.SectionBoolImage) ? $"{imageBaseUrl}{Path.GetFileName(config.SectionBoolImage)}" : null,
+                    SectionDecimalImageUrl = !string.IsNullOrEmpty(config.SectionDecimalImage) ? $"{imageBaseUrl}{Path.GetFileName(config.SectionDecimalImage)}" : null,
                     BoolParameters = config.BoolParameters.Select(p => new TrainRecipeParamDto
                     {
                         Index = p.Index,

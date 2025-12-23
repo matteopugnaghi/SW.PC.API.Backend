@@ -164,7 +164,8 @@ builder.Services.AddHttpClient("AuditExternal", client =>
 
 // Register Background Services
 // builder.Services.AddHostedService<PlcNotificationService>(); // Servicio legacy - reemplazado por PlcPollingService
-builder.Services.AddHostedService<PlcPollingService>(); // ✅ Nuevo servicio profesional
+builder.Services.AddSingleton<PlcPollingService>(); // ✅ Registrar como Singleton para poder acceder desde controllers
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PlcPollingService>()); // ✅ También como HostedService
 builder.Services.AddHostedService<IntegrityVerificationService>(); // 🔐 Verificación periódica de integridad (cada 2 min)
 builder.Services.AddHostedService<BackupSchedulerService>(); // 💾 Backup automático programado (DATA MANAGEMENT)
 builder.Services.AddHostedService<WashRecipeAutoLoadService>(); // 🚿 Auto-carga de recetas desde PLC
