@@ -136,13 +136,14 @@ public enum OperationAction
     
     // PLC Commands - Órdenes recibidas desde el PLC (110-119)
     PlcCommandWashChange = 110,      // Cambio de lavado desde PLC (automático)
-    PlcCommandModeChange = 111,      // Cambio de modo desde PLC
-    PlcCommandRecipeLoad = 112,      // Carga de receta ordenada por PLC
-    PlcCommandProcessStart = 113,    // Inicio de proceso ordenado por PLC
-    PlcCommandProcessStop = 114,     // Parada de proceso ordenada por PLC
-    PlcCommandGeneric = 115,         // Comando genérico del PLC
-    PlcCommandParameter = 116,       // Cambio de parámetro desde PLC
-    PlcCommandStatus = 117,          // Cambio de estado desde PLC
+    PlcCommandTrainChange = 111,     // Cambio de tipo de tren desde PLC (automático)
+    PlcCommandModeChange = 112,      // Cambio de modo desde PLC
+    PlcCommandRecipeLoad = 113,      // Carga de receta ordenada por PLC
+    PlcCommandProcessStart = 114,    // Inicio de proceso ordenado por PLC
+    PlcCommandProcessStop = 115,     // Parada de proceso ordenada por PLC
+    PlcCommandGeneric = 116,         // Comando genérico del PLC
+    PlcCommandParameter = 117,       // Cambio de parámetro desde PLC
+    PlcCommandStatus = 118,          // Cambio de estado desde PLC
     
     // System (200+)
     SystemStartup = 200,

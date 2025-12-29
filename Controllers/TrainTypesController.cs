@@ -780,6 +780,23 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
+                // Escribir trigger de escritura (TRUE) - el PLC lo pondrá en FALSE al recibir
+                if (!string.IsNullOrEmpty(trainConfig?.WriteTriggerPlcVariable))
+                {
+                    try
+                    {
+                        await _twinCATService.WriteVariableAsync(trainConfig.WriteTriggerPlcVariable, true, typeof(bool));
+                        _logger.LogDebug("🚆 Write trigger set to TRUE: {Var}", trainConfig.WriteTriggerPlcVariable);
+                        successCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        errorCount++;
+                        errors.Add($"WriteTrigger: {ex.Message}");
+                        _logger.LogWarning("🚆 Failed to set write trigger: {Error}", ex.Message);
+                    }
+                }
+
                 // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
@@ -939,6 +956,24 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
+                // Escribir trigger de escritura (TRUE) con prefijo alternativo - el PLC lo pondrá en FALSE al recibir
+                if (!string.IsNullOrEmpty(trainConfig?.WriteTriggerPlcVariable))
+                {
+                    try
+                    {
+                        var altTriggerVariable = ApplyAlternatePrefix(trainConfig.WriteTriggerPlcVariable);
+                        await _twinCATService.WriteVariableAsync(altTriggerVariable, true, typeof(bool));
+                        _logger.LogDebug("🚆 [ALT] Write trigger set to TRUE: {Var}", altTriggerVariable);
+                        successCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        errorCount++;
+                        errors.Add($"WriteTrigger (ALT): {ex.Message}");
+                        _logger.LogWarning("🚆 [ALT] Failed to set write trigger: {Error}", ex.Message);
+                    }
+                }
+
                 // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
@@ -996,14 +1031,15 @@ namespace SW.PC.API.Backend.Controllers
                 int errorCount = 0;
                 var errors = new List<string>();
 
-                // Escribir nombre del tren
-                if (!string.IsNullOrEmpty(trainConfig?.TrainNamePlcVariable) && !string.IsNullOrEmpty(request.Name))
+                // Escribir nombre del tren (usar EffectiveName para compatibilidad)
+                var effectiveName = request.EffectiveName;
+                if (!string.IsNullOrEmpty(trainConfig?.TrainNamePlcVariable) && !string.IsNullOrEmpty(effectiveName))
                 {
                     try
                     {
-                        await _twinCATService.WriteVariableAsync(trainConfig.TrainNamePlcVariable, request.Name, typeof(string));
+                        await _twinCATService.WriteVariableAsync(trainConfig.TrainNamePlcVariable, effectiveName, typeof(string));
                         successCount++;
-                        _logger.LogDebug("✅ Nombre de tren escrito: {Var} = {Value}", trainConfig.TrainNamePlcVariable, request.Name);
+                        _logger.LogDebug("✅ Nombre de tren escrito: {Var} = {Value}", trainConfig.TrainNamePlcVariable, effectiveName);
                     }
                     catch (Exception ex)
                     {
@@ -1012,14 +1048,15 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
-                // Escribir número de línea/slot
-                if (!string.IsNullOrEmpty(trainConfig?.LineNumberPlcVariable) && request.SlotNumber.HasValue)
+                // Escribir número de línea/slot (usar EffectiveSlotNumber para compatibilidad)
+                var effectiveSlot = request.EffectiveSlotNumber;
+                if (!string.IsNullOrEmpty(trainConfig?.LineNumberPlcVariable) && effectiveSlot.HasValue)
                 {
                     try
                     {
-                        await _twinCATService.WriteVariableAsync(trainConfig.LineNumberPlcVariable, request.SlotNumber.Value, typeof(int));
+                        await _twinCATService.WriteVariableAsync(trainConfig.LineNumberPlcVariable, effectiveSlot.Value, typeof(int));
                         successCount++;
-                        _logger.LogDebug("✅ Línea de tren escrita: {Var} = {Value}", trainConfig.LineNumberPlcVariable, request.SlotNumber.Value);
+                        _logger.LogDebug("✅ Línea de tren escrita: {Var} = {Value}", trainConfig.LineNumberPlcVariable, effectiveSlot.Value);
                     }
                     catch (Exception ex)
                     {
@@ -1066,14 +1103,32 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
+                // Escribir trigger de escritura (TRUE) - el PLC lo pondrá en FALSE al recibir
+                if (!string.IsNullOrEmpty(trainConfig?.WriteTriggerPlcVariable))
+                {
+                    try
+                    {
+                        await _twinCATService.WriteVariableAsync(trainConfig.WriteTriggerPlcVariable, true, typeof(bool));
+                        _logger.LogDebug("🚆 Write trigger set to TRUE: {Var}", trainConfig.WriteTriggerPlcVariable);
+                        successCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        errorCount++;
+                        errors.Add($"WriteTrigger: {ex.Message}");
+                        _logger.LogWarning("🚆 Failed to set write trigger: {Error}", ex.Message);
+                    }
+                }
+
                 // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
                     OperationAction.RecipeWritePlc,
-                    $"Escritura directa al PLC de receta de tren: {request.Name ?? "Sin nombre"} - {successCount} parámetros",
+                    $"Escritura directa al PLC de receta de tren: {effectiveName ?? "Sin nombre"} - {successCount} parámetros",
                     username);
 
-                _logger.LogInformation("🚆 Train recipe written to PLC: {Success} success, {Errors} errors", successCount, errorCount);
+                _logger.LogInformation("🚆 Train recipe '{Name}' written to PLC: {Success} success, {Errors} errors", 
+                    effectiveName ?? "Sin nombre", successCount, errorCount);
 
                 return Ok(new { 
                     success = errorCount == 0, 
@@ -1345,6 +1400,23 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     errorCount++;
                     errors.Add($"{param.Name}: {ex.Message}");
+                }
+            }
+
+            // Escribir trigger de escritura (TRUE) - el PLC lo pondrá en FALSE al recibir
+            if (!string.IsNullOrEmpty(trainConfig?.WriteTriggerPlcVariable))
+            {
+                try
+                {
+                    await _twinCATService.WriteVariableAsync(trainConfig.WriteTriggerPlcVariable, true, typeof(bool));
+                    _logger.LogDebug("🚆 Write trigger set to TRUE: {Var}", trainConfig.WriteTriggerPlcVariable);
+                    successCount++;
+                }
+                catch (Exception ex)
+                {
+                    errorCount++;
+                    errors.Add($"WriteTrigger: {ex.Message}");
+                    _logger.LogWarning("🚆 Failed to set write trigger: {Error}", ex.Message);
                 }
             }
 

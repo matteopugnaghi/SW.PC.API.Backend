@@ -2108,6 +2108,27 @@ namespace SW.PC.API.Backend.Services
                                 config.WashRecipeAutoLoadVar2 = paramValue ?? "";
                                 break;
 
+                            // ═══════════════════════════════════════════════════════════════
+                            // 🚆 TRAIN RECIPE - Tipos de Tren
+                            // ═══════════════════════════════════════════════════════════════
+                            case "trainrecipeenabled":
+                            case "train_recipe_enabled":
+                                // Aceptar: true/false, 1/0, on/off, si/no
+                                var trainValue = paramValue?.ToLower()?.Trim() ?? "";
+                                config.TrainRecipeEnabled = trainValue == "true" || trainValue == "1" || trainValue == "on" || trainValue == "si" || trainValue == "yes";
+                                _logger.LogDebug("🚆 TrainRecipeEnabled raw value: '{RawValue}' -> {Parsed}", paramValue, config.TrainRecipeEnabled);
+                                break;
+                            case "trainrecipeautoloadvar":
+                            case "train_recipe_autoload_var":
+                            case "trainrecipeenabled_varautoload":
+                                config.TrainRecipeAutoLoadVar = paramValue ?? "";
+                                break;
+                            case "trainrecipeautoloadvar2":
+                            case "train_recipe_autoload_var_2":
+                            case "trainrecipeenabled_varautoload_2":
+                                config.TrainRecipeAutoLoadVar2 = paramValue ?? "";
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
@@ -2128,6 +2149,10 @@ namespace SW.PC.API.Backend.Services
                         config.WashRecipeEnabled, 
                         string.IsNullOrEmpty(config.WashRecipeAutoLoadVar) ? "N/A" : config.WashRecipeAutoLoadVar,
                         string.IsNullOrEmpty(config.WashRecipeAutoLoadVar2) ? "N/A" : config.WashRecipeAutoLoadVar2);
+                    _logger.LogInformation("  - 🚆 TrainRecipe: {Enabled} (AutoLoad: {Var1}, AutoLoad2: {Var2})", 
+                        config.TrainRecipeEnabled, 
+                        string.IsNullOrEmpty(config.TrainRecipeAutoLoadVar) ? "N/A" : config.TrainRecipeAutoLoadVar,
+                        string.IsNullOrEmpty(config.TrainRecipeAutoLoadVar2) ? "N/A" : config.TrainRecipeAutoLoadVar2);
 
                     stopwatch.Stop();
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);
@@ -3103,6 +3128,15 @@ namespace SW.PC.API.Backend.Services
                     {
                         config.LineNumberPlcVariable = lineNumberPlcVar;
                         _logger.LogDebug("🚆 Line number PLC variable from A4: {Var}", lineNumberPlcVar);
+                    }
+                    
+                    // Leer variable PLC del trigger de escritura desde A5
+                    // (Se pone en TRUE cuando escribimos al PLC, el PLC la pone en FALSE al recibir)
+                    var writeTriggerPlcVar = sheet.Cells["A5"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(writeTriggerPlcVar))
+                    {
+                        config.WriteTriggerPlcVariable = writeTriggerPlcVar;
+                        _logger.LogDebug("🚆 Write trigger PLC variable from A5: {Var}", writeTriggerPlcVar);
                     }
                     
                     // ============================================

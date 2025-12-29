@@ -446,6 +446,46 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
                 
+                // ============================================================
+                // TRIGGER: Escribir TRUE a la variable de trigger (celda A5)
+                // El PLC lo pondrá en FALSE al recibir la señal
+                // ============================================================
+                var excelPath = _excelService.GetExcelConfigPath();
+                var trainConfig = await _excelService.LoadTrainRecipeConfigAsync(excelPath);
+                
+                if (!string.IsNullOrEmpty(trainConfig?.WriteTriggerPlcVariable))
+                {
+                    try
+                    {
+                        var triggerSuccess = await _twinCatService.WriteVariableAsync(
+                            trainConfig.WriteTriggerPlcVariable, 
+                            true, 
+                            typeof(bool));
+                        
+                        if (triggerSuccess)
+                        {
+                            processed++;
+                            _logger.LogInformation("🚂✅ Write TRIGGER set to TRUE: {Var}", trainConfig.WriteTriggerPlcVariable);
+                        }
+                        else
+                        {
+                            failed++;
+                            errors.Add($"WriteTrigger ({trainConfig.WriteTriggerPlcVariable}): Write failed");
+                            _logger.LogWarning("🚂⚠️ Write TRIGGER failed: {Var}", trainConfig.WriteTriggerPlcVariable);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        failed++;
+                        errors.Add($"WriteTrigger ({trainConfig.WriteTriggerPlcVariable}): {ex.Message}");
+                        _logger.LogWarning("🚂⚠️ Write TRIGGER exception: {Error}", ex.Message);
+                    }
+                }
+                else
+                {
+                    _logger.LogDebug("🚂 No WriteTriggerPlcVariable configured in Excel A5");
+                }
+                
                 _logger.LogInformation("🚂 Write to PLC completed: {Processed} OK, {Failed} failed", processed, failed);
                 
                 return Ok(new TrainRecipePlcOperationResult

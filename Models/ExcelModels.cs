@@ -886,6 +886,31 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Ejemplo: "GVL.nAutoLoadRecipe_2"
         /// </summary>
         public string WashRecipeAutoLoadVar2 { get; set; } = "";
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🚆 TRAIN RECIPE - Tipos de Tren (Sistema de Recetas de Trenes)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar módulo de Tipos de Tren.
+        /// Si false, el botón desaparece del menú lateral.
+        /// </summary>
+        public bool TrainRecipeEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Variable PLC para auto-carga de tipo de tren.
+        /// Cuando TwinCAT escribe un número != 0, el backend automáticamente
+        /// carga el tipo de tren de esa línea y luego resetea la variable a 0.
+        /// Ejemplo: "GVL.nAutoLoadTrainType"
+        /// </summary>
+        public string TrainRecipeAutoLoadVar { get; set; } = "";
+
+        /// <summary>
+        /// Variable PLC para auto-carga de tipo de tren (PLC2/Alternativo).
+        /// Igual que TrainRecipeAutoLoadVar pero para el segundo PLC.
+        /// Ejemplo: "GVL.nAutoLoadTrainType_2"
+        /// </summary>
+        public string TrainRecipeAutoLoadVar2 { get; set; } = "";
     }
 
     /// <summary>

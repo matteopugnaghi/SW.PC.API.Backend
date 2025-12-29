@@ -31,6 +31,12 @@ namespace SW.PC.API.Backend.Models
         public string? LineNumberPlcVariable { get; set; }
         
         /// <summary>
+        /// Variable PLC de trigger de escritura (desde A5)
+        /// Se pone en TRUE cuando se escribe al PLC, el PLC la pone en FALSE al recibir
+        /// </summary>
+        public string? WriteTriggerPlcVariable { get; set; }
+        
+        /// <summary>
         /// Valor actual del nombre de tren leído del PLC
         /// </summary>
         public string TrainNameValue { get; set; } = string.Empty;
@@ -293,14 +299,34 @@ namespace SW.PC.API.Backend.Models
     public class TrainRecipeWriteRequest
     {
         /// <summary>
-        /// Número de slot/línea
+        /// Número de slot/línea (formato legacy)
         /// </summary>
         public int? SlotNumber { get; set; }
+        
+        /// <summary>
+        /// Número de línea (formato nuevo desde frontend)
+        /// </summary>
+        public int? LineNumberValue { get; set; }
+        
+        /// <summary>
+        /// Obtiene el número de slot/línea efectivo
+        /// </summary>
+        public int? EffectiveSlotNumber => SlotNumber ?? LineNumberValue;
 
         /// <summary>
-        /// Nombre del tren/receta
+        /// Nombre del tren/receta (formato legacy)
         /// </summary>
         public string? Name { get; set; }
+        
+        /// <summary>
+        /// Nombre del tren (formato nuevo desde frontend)
+        /// </summary>
+        public string? TrainNameValue { get; set; }
+        
+        /// <summary>
+        /// Obtiene el nombre efectivo
+        /// </summary>
+        public string? EffectiveName => Name ?? TrainNameValue;
 
         /// <summary>
         /// Valores booleanos a escribir
