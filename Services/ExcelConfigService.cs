@@ -3114,6 +3114,80 @@ namespace SW.PC.API.Backend.Services
                         _logger.LogDebug("🚆 Section GANTRY name from N2: {Name}", sectionGantryName);
                     }
                     
+                    // Leer variable PLC para el número de tablas activas del Gantry desde W2
+                    // Valor 1 = 4 tablas (TAB1_*), Valor 2 = 8 tablas (TAB1_* + TAB2_*)
+                    var gantryTableCountPlcVar = sheet.Cells["W2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(gantryTableCountPlcVar))
+                    {
+                        config.GantryTableCountPlcVariable = gantryTableCountPlcVar;
+                        _logger.LogDebug("🚆 Gantry table count PLC variable from W2: {Var}", gantryTableCountPlcVar);
+                    }
+                    
+                    // ============================================
+                    // Leer plantillas de variables PLC para tablas de interpolación del Gantry (fila 2)
+                    // Cada tabla tiene 4 columnas: Position_X, Position_Y, Speed_Y, FunctionType
+                    // Las variables deben tener {index} como placeholder para el índice del array st_Points
+                    // Ejemplo: "MAIN.fbMachine.st_TrainRecipe[1].st_Points[{index}].Position_X"
+                    // ============================================
+                    // TAB1_FW_UP:   AC=Position_X, AD=Position_Y, AE=Speed_Y, AF=FunctionType
+                    // TAB1_FW_DOWN: AG=Position_X, AH=Position_Y, AI=Speed_Y, AJ=FunctionType
+                    // TAB1_BW_UP:   AK=Position_X, AL=Position_Y, AM=Speed_Y, AN=FunctionType
+                    // TAB1_BW_DOWN: AO=Position_X, AP=Position_Y, AQ=Speed_Y, AR=FunctionType
+                    // TAB2_FW_UP:   AS=Position_X, AT=Position_Y, AU=Speed_Y, AV=FunctionType
+                    // TAB2_FW_DOWN: AW=Position_X, AX=Position_Y, AY=Speed_Y, AZ=FunctionType
+                    // TAB2_BW_UP:   BA=Position_X, BB=Position_Y, BC=Speed_Y, BD=FunctionType
+                    // TAB2_BW_DOWN: BE=Position_X, BF=Position_Y, BG=Speed_Y, BH=FunctionType
+                    // ============================================
+                    
+                    // Definición de tablas con columnas para variables de interpolación Y número de líneas
+                    // Columnas BI-BP contienen la variable PLC con el número de líneas habilitadas por tabla
+                    var tableDefinitions = new[]
+                    {
+                        //  TableId         PosX   PosY   SpeedY FuncType LineCount
+                        ("TAB1_FW_UP",   "AC", "AD", "AE", "AF", "BI"),
+                        ("TAB1_FW_DOWN", "AG", "AH", "AI", "AJ", "BJ"),
+                        ("TAB1_BW_UP",   "AK", "AL", "AM", "AN", "BK"),
+                        ("TAB1_BW_DOWN", "AO", "AP", "AQ", "AR", "BL"),
+                        ("TAB2_FW_UP",   "AS", "AT", "AU", "AV", "BM"),
+                        ("TAB2_FW_DOWN", "AW", "AX", "AY", "AZ", "BN"),
+                        ("TAB2_BW_UP",   "BA", "BB", "BC", "BD", "BO"),
+                        ("TAB2_BW_DOWN", "BE", "BF", "BG", "BH", "BP"),
+                    };
+                    
+                    for (int i = 0; i < tableDefinitions.Length; i++)
+                    {
+                        var (tableId, colPosX, colPosY, colSpeedY, colFuncType, colLineCount) = tableDefinitions[i];
+                        
+                        var posXTemplate = sheet.Cells[$"{colPosX}2"].Text?.Trim();
+                        var posYTemplate = sheet.Cells[$"{colPosY}2"].Text?.Trim();
+                        var speedYTemplate = sheet.Cells[$"{colSpeedY}2"].Text?.Trim();
+                        var funcTypeTemplate = sheet.Cells[$"{colFuncType}2"].Text?.Trim();
+                        var lineCountPlcVar = sheet.Cells[$"{colLineCount}2"].Text?.Trim();
+                        
+                        var table = new GantryInterpolationTable
+                        {
+                            TableId = tableId,
+                            TableIndex = i,
+                            PositionXPlcTemplate = posXTemplate ?? string.Empty,
+                            PositionYPlcTemplate = posYTemplate ?? string.Empty,
+                            SpeedYPlcTemplate = speedYTemplate ?? string.Empty,
+                            FunctionTypePlcTemplate = funcTypeTemplate ?? string.Empty,
+                            LineCountPlcVariable = lineCountPlcVar ?? string.Empty,
+                        };
+                        
+                        config.GantryInterpolationTables.Add(table);
+                        
+                        if (table.IsConfigured)
+                        {
+                            _logger.LogDebug("🚆 Interpolation table {TableId}: PosX={PosX}, PosY={PosY}, Speed={Speed}, Func={Func}, LineCount={LineCount}",
+                                tableId, posXTemplate, posYTemplate, speedYTemplate, funcTypeTemplate, lineCountPlcVar);
+                        }
+                    }
+                    
+                    _logger.LogDebug("🚆 Loaded {Count} Gantry interpolation tables ({Configured} configured)",
+                        config.GantryInterpolationTables.Count, 
+                        config.GantryInterpolationTables.Count(t => t.IsConfigured));
+                    
                     // Leer variable PLC del nombre del tren desde A3
                     var trainNamePlcVar = sheet.Cells["A3"].Text?.Trim();
                     if (!string.IsNullOrEmpty(trainNamePlcVar))
@@ -3229,6 +3303,66 @@ namespace SW.PC.API.Backend.Services
                             hasData = true;
                         }
                         
+                        // ============================================
+                        // Leer parámetro GANTRY CONFIG de esta fila (columnas O, P, Q, R, S, T, U, V)
+                        // O=Nombre, P=Icono, Q=Variable PLC, R=Min, S=Max, T=Decimales, U=Unidad, V=Visibilidad
+                        // ============================================
+                        var gantryName = sheet.Cells[row, 15].Text?.Trim();      // O = columna 15
+                        var gantryImage = sheet.Cells[row, 16].Text?.Trim();     // P = columna 16
+                        var gantryPlcVar = sheet.Cells[row, 17].Text?.Trim();    // Q = columna 17
+                        var gantryMin = sheet.Cells[row, 18].Text?.Trim();       // R = columna 18
+                        var gantryMax = sheet.Cells[row, 19].Text?.Trim();       // S = columna 19
+                        var gantryDecimals = sheet.Cells[row, 20].Text?.Trim();  // T = columna 20
+                        var gantryUnit = sheet.Cells[row, 21].Text?.Trim();      // U = columna 21
+                        var gantryVisibility = sheet.Cells[row, 22].Text?.Trim(); // V = columna 22
+                        
+                        // Agregar parámetro GANTRY CONFIG si tiene nombre Y visibilidad
+                        if (!string.IsNullOrEmpty(gantryName) && !string.IsNullOrEmpty(gantryVisibility))
+                        {
+                            var gantryParam = new GantryConfigParameter
+                            {
+                                Index = config.GantryConfigParameters.Count,
+                                RowIndex = row,
+                                Name = gantryName,
+                                Image = gantryImage,
+                                PlcVariable = gantryPlcVar ?? string.Empty,
+                                Visibility = gantryVisibility
+                            };
+                            
+                            // Parsear Min
+                            if (!string.IsNullOrEmpty(gantryMin) && double.TryParse(gantryMin, 
+                                System.Globalization.NumberStyles.Any, 
+                                System.Globalization.CultureInfo.InvariantCulture, out var gMin))
+                            {
+                                gantryParam.MinValue = gMin;
+                            }
+                            
+                            // Parsear Max
+                            if (!string.IsNullOrEmpty(gantryMax) && double.TryParse(gantryMax, 
+                                System.Globalization.NumberStyles.Any, 
+                                System.Globalization.CultureInfo.InvariantCulture, out var gMax))
+                            {
+                                gantryParam.MaxValue = gMax;
+                            }
+                            
+                            // Parsear Decimales
+                            if (!string.IsNullOrEmpty(gantryDecimals) && int.TryParse(gantryDecimals, out var gDec))
+                            {
+                                gantryParam.Decimals = gDec;
+                            }
+                            
+                            // Unidad
+                            if (!string.IsNullOrEmpty(gantryUnit))
+                            {
+                                gantryParam.Unit = gantryUnit;
+                            }
+                            
+                            config.GantryConfigParameters.Add(gantryParam);
+                            _logger.LogDebug("🚆 Gantry config param row {Row}: {Name} -> {Var} (Visibility: {Vis})", 
+                                row, gantryName, gantryPlcVar, gantryVisibility);
+                            hasData = true;
+                        }
+                        
                         if (hasData)
                         {
                             consecutiveEmpty = 0;
@@ -3249,8 +3383,9 @@ namespace SW.PC.API.Backend.Services
                         _logger.LogDebug("🚆 Alternate PLC prefix from A14: {Prefix}", alternatePlcPrefix);
                     }
                     
-                    _logger.LogInformation("🚆 Loaded TrainRecipe config: {BoolCount} bool params, {DecimalCount} decimal params", 
-                        config.BoolParameters.Count, config.DecimalParameters.Count);
+                    _logger.LogInformation("🚆 Loaded TrainRecipe config: {BoolCount} bool params, {DecimalCount} decimal params, {GantryCount} gantry config params, {TableCount} interpolation tables ({TableConfigured} configured)", 
+                        config.BoolParameters.Count, config.DecimalParameters.Count, config.GantryConfigParameters.Count, 
+                        config.GantryInterpolationTables.Count, config.GantryInterpolationTables.Count(t => t.IsConfigured));
                 });
                 
                 return config;

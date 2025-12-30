@@ -39,6 +39,10 @@ namespace SW.PC.API.Backend.Services
         private int _consecutiveTimeoutErrors = 0;
         private const int MAX_TIMEOUT_ERRORS_BEFORE_DISCONNECT = 3; // 3 errores consecutivos = desconectado
         
+        // ⚡ Cache de handles ADS para evitar crear/destruir en cada operación
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, uint> _handleCache = new();
+        private readonly object _handleLock = new object();
+        
         public event EventHandler<PlcNotification>? OnVariableChanged;
         
         public bool IsConnected 
@@ -439,6 +443,9 @@ namespace SW.PC.API.Backend.Services
         
         public async Task<bool> DisconnectAsync()
         {
+            // ⚡ Limpiar cache de handles antes de desconectar
+            ClearHandleCache();
+            
             if (_adsClient != null)
             {
                 _adsClient.Dispose();
@@ -494,95 +501,96 @@ namespace SW.PC.API.Backend.Services
             {
                 try
                 {
-                    // ✅ API CORRECTO Beckhoff 6.x - Basado en Form1.cs ejemplo oficial
-                    // Paso 1: Crear handle a la variable
-                    uint handle = _adsClient.CreateVariableHandle(variableName);
+                    // ⚡ Usar handle cacheado para mejor rendimiento
+                    uint handle = GetOrCreateHandle(variableName);
                     
-                    try
+                    object? result = null;
+                    
+                    // Leer según el tipo de dato
+                    if (dataType == typeof(int))
                     {
-                        object? result = null;
+                        // ✅ Leer INT de TwinCAT (16 bits = 2 bytes, signed)
+                        byte[] buffer = new byte[2];  // INT = 16 bits (Int16)
+                        int bytesRead = _adsClient.Read(handle, buffer.AsMemory());
                         
-                        // Paso 2: Leer según el tipo de dato
-                        if (dataType == typeof(int))
-                        {
-                            // ✅ Leer INT de TwinCAT (16 bits = 2 bytes, signed)
-                            byte[] buffer = new byte[2];  // INT = 16 bits (Int16)
-                            int bytesRead = _adsClient.Read(handle, buffer.AsMemory());
-                            
-                            using var stream = new MemoryStream(buffer);
-                            using var reader = new BinaryReader(stream);
-                            result = (int)reader.ReadInt16();  // Leer como Int16 y convertir a int
-                            
-                            _logger.LogDebug("📖 Read from REAL PLC: {Var} = {Value} (INT/Int16)", variableName, result);
-                        }
-                        else if (dataType == typeof(bool))
-                        {
-                            byte[] buffer = new byte[1];
-                            _adsClient.Read(handle, buffer.AsMemory());
-                            result = buffer[0] != 0;
-                        }
-                        else if (dataType == typeof(float))
-                        {
-                            byte[] buffer = new byte[4];
-                            _adsClient.Read(handle, buffer.AsMemory());
-                            
-                            using var stream = new MemoryStream(buffer);
-                            using var reader = new BinaryReader(stream);
-                            result = reader.ReadSingle();
-                        }
-                        else if (dataType == typeof(double))
-                        {
-                            byte[] buffer = new byte[8];
-                            _adsClient.Read(handle, buffer.AsMemory());
-                            
-                            using var stream = new MemoryStream(buffer);
-                            using var reader = new BinaryReader(stream);
-                            result = reader.ReadDouble();
-                        }
-                        else if (dataType == typeof(string))
-                        {
-                            // WSTRING en TwinCAT: 162 bytes por defecto (80 chars * 2 bytes + 2 bytes terminador)
-                            // WSTRING usa Unicode UTF-16 Little Endian
-                            byte[] buffer = new byte[162];
-                            _adsClient.Read(handle, buffer.AsMemory());
-                            
-                            // Decodificar UTF-16 LE y buscar terminador null (2 bytes: 0x00 0x00)
-                            string fullString = System.Text.Encoding.Unicode.GetString(buffer);
-                            int nullIndex = fullString.IndexOf('\0');
-                            result = nullIndex >= 0 ? fullString.Substring(0, nullIndex) : fullString.TrimEnd();
-                            
-                            _logger.LogDebug("📖 Read WSTRING from REAL PLC: {Var} = {Value}", variableName, result);
-                        }
+                        using var stream = new MemoryStream(buffer);
+                        using var reader = new BinaryReader(stream);
+                        result = (int)reader.ReadInt16();  // Leer como Int16 y convertir a int
                         
-                        // ✅ Lectura exitosa - resetear contador de errores de timeout
-                        if (_consecutiveTimeoutErrors > 0)
-                        {
-                            _consecutiveTimeoutErrors = 0;
-                            if (!_isConnected)
-                            {
-                                _logger.LogInformation("🟢 PLC RECONECTADO - Lectura exitosa después de errores de timeout");
-                                _isConnected = true;
-                            }
-                        }
-                        
-                        return result;
+                        _logger.LogDebug("📖 Read from REAL PLC: {Var} = {Value} (INT/Int16)", variableName, result);
                     }
-                    finally
+                    else if (dataType == typeof(sbyte))
                     {
-                        // Paso 3: Liberar handle
-                        _adsClient.DeleteVariableHandle(handle);
+                        // ✅ Leer SINT de TwinCAT (8 bits = 1 byte, signed)
+                        byte[] buffer = new byte[1];
+                        _adsClient.Read(handle, buffer.AsMemory());
+                        result = unchecked((sbyte)buffer[0]);
+                        _logger.LogDebug("📖 Read from REAL PLC: {Var} = {Value} (SINT)", variableName, result);
                     }
+                    else if (dataType == typeof(bool))
+                    {
+                        byte[] buffer = new byte[1];
+                        _adsClient.Read(handle, buffer.AsMemory());
+                        result = buffer[0] != 0;
+                    }
+                    else if (dataType == typeof(float))
+                    {
+                        byte[] buffer = new byte[4];
+                        _adsClient.Read(handle, buffer.AsMemory());
+                        
+                        using var stream = new MemoryStream(buffer);
+                        using var reader = new BinaryReader(stream);
+                        result = reader.ReadSingle();
+                    }
+                    else if (dataType == typeof(double))
+                    {
+                        byte[] buffer = new byte[8];
+                        _adsClient.Read(handle, buffer.AsMemory());
+                        
+                        using var stream = new MemoryStream(buffer);
+                        using var reader = new BinaryReader(stream);
+                        result = reader.ReadDouble();
+                    }
+                    else if (dataType == typeof(string))
+                    {
+                        // WSTRING en TwinCAT: 162 bytes por defecto (80 chars * 2 bytes + 2 bytes terminador)
+                        // WSTRING usa Unicode UTF-16 Little Endian
+                        byte[] buffer = new byte[162];
+                        _adsClient.Read(handle, buffer.AsMemory());
+                        
+                        // Decodificar UTF-16 LE y buscar terminador null (2 bytes: 0x00 0x00)
+                        string fullString = System.Text.Encoding.Unicode.GetString(buffer);
+                        int nullIndex = fullString.IndexOf('\0');
+                        result = nullIndex >= 0 ? fullString.Substring(0, nullIndex) : fullString.TrimEnd();
+                        
+                        _logger.LogDebug("📖 Read WSTRING from REAL PLC: {Var} = {Value}", variableName, result);
+                    }
+                    
+                    // ✅ Lectura exitosa - resetear contador de errores de timeout
+                    if (_consecutiveTimeoutErrors > 0)
+                    {
+                        _consecutiveTimeoutErrors = 0;
+                        if (!_isConnected)
+                        {
+                            _logger.LogInformation("🟢 PLC RECONECTADO - Lectura exitosa después de errores de timeout");
+                            _isConnected = true;
+                        }
+                    }
+                    
+                    return result;
                 }
                 catch (TwinCAT.Ads.AdsErrorException ex) when ((int)ex.ErrorCode == 1808)
                 {
                     // Variable no existe en PLC - Código 1808 = ADS_E_SYMBOLNOTFOUND
-                    // ❌ PROPAGAR EL ERROR - NO silenciar
+                    // Quitar del cache por si acaso
+                    _handleCache.TryRemove(variableName, out _);
                     _logger.LogError("❌ Variable NO EXISTE en PLC: {Var}", variableName);
                     throw new InvalidOperationException($"Variable '{variableName}' no existe en el PLC. Verifique que el programa PLC esté cargado y la variable exista.", ex);
                 }
                 catch (TwinCAT.Ads.AdsErrorException ex) when ((int)ex.ErrorCode == 6)
                 {
                     // 🔴 ERROR 6 = Target port could not be found - El PLC/TwinCAT no está corriendo
+                    _handleCache.TryRemove(variableName, out _);
                     _logger.LogWarning("🔴 PLC DESCONECTADO - Target port not found (PLC apagado o TwinCAT no corriendo)");
                     _isConnected = false;
                     
@@ -591,6 +599,7 @@ namespace SW.PC.API.Backend.Services
                 catch (TwinCAT.Ads.AdsErrorException ex) when ((int)ex.ErrorCode == 1861)
                 {
                     // 🔴 ERROR 1861 = ClientSyncTimeOut - El PLC no responde = DESCONECTADO
+                    _handleCache.TryRemove(variableName, out _);
                     _logger.LogWarning("🔴 PLC DESCONECTADO - Timeout al leer {Var}", variableName);
                     _isConnected = false;
                     _consecutiveTimeoutErrors++;
@@ -599,13 +608,15 @@ namespace SW.PC.API.Backend.Services
                 }
                 catch (TwinCAT.Ads.AdsErrorException ex)
                 {
-                    // ❌ PROPAGAR EL ERROR - NO silenciar
+                    // Quitar del cache en caso de error
+                    _handleCache.TryRemove(variableName, out _);
                     _logger.LogError("❌ ADS Error en {Var}: Code={ErrorCode} ({ErrorName})", 
                         variableName, (int)ex.ErrorCode, ex.ErrorCode.ToString());
                     throw new InvalidOperationException($"Error ADS al leer '{variableName}': {ex.ErrorCode} - {ex.Message}", ex);
                 }
                 catch (Exception ex)
                 {
+                    _handleCache.TryRemove(variableName, out _);
                     _logger.LogError(ex, "❌ Error leyendo {Var} del PLC", variableName);
                     throw new InvalidOperationException($"Error al leer '{variableName}' del PLC: {ex.Message}", ex);
                 }
@@ -680,6 +691,39 @@ namespace SW.PC.API.Backend.Services
             return _random.Next(0, 10);
         }
         
+        /// <summary>
+        /// Obtiene o crea un handle ADS cacheado para una variable
+        /// </summary>
+        private uint GetOrCreateHandle(string variableName)
+        {
+            if (_adsClient == null)
+                throw new InvalidOperationException("ADS client not initialized");
+                
+            return _handleCache.GetOrAdd(variableName, name => 
+            {
+                var handle = _adsClient.CreateVariableHandle(name);
+                _logger.LogDebug("🔧 Created handle for {Var}: {Handle}", name, handle);
+                return handle;
+            });
+        }
+        
+        /// <summary>
+        /// Invalida el cache de handles (llamar al desconectar)
+        /// </summary>
+        private void ClearHandleCache()
+        {
+            foreach (var handle in _handleCache.Values)
+            {
+                try
+                {
+                    _adsClient?.DeleteVariableHandle(handle);
+                }
+                catch { /* Ignorar errores al limpiar */ }
+            }
+            _handleCache.Clear();
+            _logger.LogDebug("🧹 Handle cache cleared");
+        }
+        
         public async Task<bool> WriteVariableAsync(string variableName, object value, Type dataType)
         {
             if (!IsConnected)
@@ -692,89 +736,110 @@ namespace SW.PC.API.Backend.Services
             {
                 try
                 {
-                    // ✅ API CORRECTO Beckhoff 6.x
-                    uint handle = _adsClient.CreateVariableHandle(variableName);
+                    // ⚡ Usar handle cacheado para mejor rendimiento
+                    uint handle = GetOrCreateHandle(variableName);
                     
-                    try
+                    byte[] buffer;
+                    
+                    if (dataType == typeof(int))
                     {
-                        byte[] buffer;
+                        // ✅ Escribir INT de TwinCAT (16 bits = 2 bytes, signed)
+                        buffer = new byte[2];  // INT = 16 bits (Int16)
+                        using var stream = new MemoryStream(buffer);
+                        using var writer = new BinaryWriter(stream);
+                        // Convertir de forma segura a Int16
+                        short shortValue = Convert.ToInt16(value);
+                        writer.Write(shortValue);
                         
-                        if (dataType == typeof(int))
-                        {
-                            // ✅ Escribir INT de TwinCAT (16 bits = 2 bytes, signed)
-                            buffer = new byte[2];  // INT = 16 bits (Int16)
-                            using var stream = new MemoryStream(buffer);
-                            using var writer = new BinaryWriter(stream);
-                            // Convertir de forma segura a Int16
-                            short shortValue = Convert.ToInt16(value);
-                            writer.Write(shortValue);
-                            
-                            _adsClient.Write(handle, buffer.AsMemory());
-                            _logger.LogDebug("✍️ Wrote INT to REAL PLC: {Var} = {Value} (as Int16)", variableName, shortValue);
-                        }
-                        else if (dataType == typeof(bool))
-                        {
-                            buffer = new byte[1];
-                            buffer[0] = Convert.ToBoolean(value) ? (byte)1 : (byte)0;
-                            _adsClient.Write(handle, buffer.AsMemory());
-                            _logger.LogDebug("✍️ Wrote BOOL to REAL PLC: {Var} = {Value}", variableName, value);
-                        }
-                        else if (dataType == typeof(float))
-                        {
-                            buffer = new byte[4];
-                            using var stream = new MemoryStream(buffer);
-                            using var writer = new BinaryWriter(stream);
-                            writer.Write(Convert.ToSingle(value));
-                            
-                            _adsClient.Write(handle, buffer.AsMemory());
-                            _logger.LogDebug("✍️ Wrote REAL to REAL PLC: {Var} = {Value}", variableName, value);
-                        }
-                        else if (dataType == typeof(double))
-                        {
-                            // ✅ LREAL de TwinCAT (64 bits = 8 bytes)
-                            buffer = new byte[8];
-                            using var stream = new MemoryStream(buffer);
-                            using var writer = new BinaryWriter(stream);
-                            writer.Write(Convert.ToDouble(value));
-                            
-                            _adsClient.Write(handle, buffer.AsMemory());
-                            _logger.LogDebug("✍️ Wrote LREAL to REAL PLC: {Var} = {Value}", variableName, value);
-                        }
-                        else if (dataType == typeof(string))
-                        {
-                            // WSTRING en TwinCAT: 162 bytes por defecto (80 chars * 2 bytes + 2 bytes terminador)
-                            // WSTRING usa Unicode UTF-16 Little Endian
-                            string strValue = value?.ToString() ?? string.Empty;
-                            
-                            // Truncar a 80 caracteres máximo
-                            if (strValue.Length > 80)
-                                strValue = strValue.Substring(0, 80);
-                            
-                            // Codificar como UTF-16 LE con terminador null
-                            buffer = new byte[162];
-                            byte[] strBytes = System.Text.Encoding.Unicode.GetBytes(strValue);
-                            Array.Copy(strBytes, buffer, Math.Min(strBytes.Length, 160));
-                            // Terminador null ya está implícito (buffer inicializado en 0)
-                            
-                            _adsClient.Write(handle, buffer.AsMemory());
-                            _logger.LogDebug("✍️ Wrote WSTRING to REAL PLC: {Var} = {Value}", variableName, strValue);
-                        }
-                        else
-                        {
-                            _logger.LogWarning("⚠️ Unsupported data type {Type} for variable {Var}", dataType.Name, variableName);
-                            return false;
-                        }
-                        
-                        return true;
+                        _adsClient.Write(handle, buffer.AsMemory());
+                        _logger.LogDebug("✍️ Wrote INT to PLC: {Var} = {Value} (as Int16, 2 bytes)", variableName, shortValue);
                     }
-                    finally
+                    else if (dataType == typeof(short))
                     {
-                        _adsClient.DeleteVariableHandle(handle);
+                        // ✅ Escribir INT de TwinCAT (16 bits = 2 bytes, signed) - alias de int
+                        buffer = new byte[2];
+                        using var stream = new MemoryStream(buffer);
+                        using var writer = new BinaryWriter(stream);
+                        writer.Write(Convert.ToInt16(value));
+                        
+                        _adsClient.Write(handle, buffer.AsMemory());
+                        _logger.LogDebug("✍️ Wrote INT (short) to PLC: {Var} = {Value}", variableName, value);
                     }
+                    else if (dataType == typeof(sbyte))
+                    {
+                        // ✅ Escribir SINT de TwinCAT (8 bits = 1 byte, signed)
+                        buffer = new byte[1];
+                        buffer[0] = unchecked((byte)Convert.ToSByte(value));
+                        _adsClient.Write(handle, buffer.AsMemory());
+                        _logger.LogDebug("✍️ Wrote SINT to PLC: {Var} = {Value} (as SINT, 1 byte)", variableName, value);
+                    }
+                    else if (dataType == typeof(bool))
+                    {
+                        buffer = new byte[1];
+                        buffer[0] = Convert.ToBoolean(value) ? (byte)1 : (byte)0;
+                        _adsClient.Write(handle, buffer.AsMemory());
+                        _logger.LogDebug("✍️ Wrote BOOL to PLC: {Var} = {Value}", variableName, value);
+                    }
+                    else if (dataType == typeof(float))
+                    {
+                        buffer = new byte[4];
+                        using var stream = new MemoryStream(buffer);
+                        using var writer = new BinaryWriter(stream);
+                        writer.Write(Convert.ToSingle(value));
+                        
+                        _adsClient.Write(handle, buffer.AsMemory());
+                        _logger.LogDebug("✍️ Wrote REAL (float) to PLC: {Var} = {Value}", variableName, value);
+                    }
+                    else if (dataType == typeof(double))
+                    {
+                        // ✅ LREAL de TwinCAT (64 bits = 8 bytes)
+                        buffer = new byte[8];
+                        using var stream = new MemoryStream(buffer);
+                        using var writer = new BinaryWriter(stream);
+                        writer.Write(Convert.ToDouble(value));
+                        
+                        _adsClient.Write(handle, buffer.AsMemory());
+                        _logger.LogDebug("✍️ Wrote LREAL (double) to PLC: {Var} = {Value}", variableName, value);
+                    }
+                    else if (dataType == typeof(string))
+                    {
+                        // WSTRING en TwinCAT: 162 bytes por defecto (80 chars * 2 bytes + 2 bytes terminador)
+                        // WSTRING usa Unicode UTF-16 Little Endian
+                        string strValue = value?.ToString() ?? string.Empty;
+                        
+                        // Truncar a 80 caracteres máximo
+                        if (strValue.Length > 80)
+                            strValue = strValue.Substring(0, 80);
+                        
+                        // Codificar como UTF-16 LE con terminador null
+                        buffer = new byte[162];
+                        byte[] strBytes = System.Text.Encoding.Unicode.GetBytes(strValue);
+                        Array.Copy(strBytes, buffer, Math.Min(strBytes.Length, 160));
+                        // Terminador null ya está implícito (buffer inicializado en 0)
+                        
+                        _adsClient.Write(handle, buffer.AsMemory());
+                        _logger.LogDebug("✍️ Wrote WSTRING to PLC: {Var} = {Value}", variableName, strValue);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("⚠️ Unsupported data type {Type} for variable {Var}", dataType.Name, variableName);
+                        return false;
+                    }
+                    
+                    return true;
+                }
+                catch (AdsErrorException ex) when (ex.ErrorCode == AdsErrorCode.ClientSyncTimeOut)
+                {
+                    // Si hay timeout, el handle puede estar inválido - quitarlo del cache
+                    _handleCache.TryRemove(variableName, out _);
+                    _logger.LogError(ex, "❌ Timeout writing variable {Var} - handle removed from cache", variableName);
+                    return false;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "❌ Error writing variable {Var} to REAL PLC", variableName);
+                    // Si hay otro error, también quitar del cache por si el handle es inválido
+                    _handleCache.TryRemove(variableName, out _);
+                    _logger.LogError(ex, "❌ Error writing variable {Var} (type: {Type}) to PLC", variableName, dataType.Name);
                     return false;
                 }
             }
