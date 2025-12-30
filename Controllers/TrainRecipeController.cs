@@ -918,6 +918,67 @@ namespace SW.PC.API.Backend.Controllers
                 int totalPointsFailed = results.Sum(r => r.pointsFailed);
                 var errors = results.Where(r => r.error != null).Select(r => r.error!).ToList();
                 
+                // Escribir min_height y max_height si están configurados
+                _logger.LogInformation("🚂 Checking min/max height - MinHeightVar: '{MinVar}', MaxHeightVar: '{MaxVar}'", 
+                    table.MinHeightPlcVariable ?? "(null)", table.MaxHeightPlcVariable ?? "(null)");
+                
+                var enabledLines = request.Lines.Where(l => l.Enabled).OrderBy(l => l.LineNumber).ToList();
+                _logger.LogInformation("🚂 Enabled lines count: {Count}", enabledLines.Count);
+                
+                if (enabledLines.Count > 0)
+                {
+                    // min_height = Position_X del punto START de la primera línea
+                    var firstLine = enabledLines.First();
+                    var minHeight = firstLine.Start.PositionX;
+                    
+                    // max_height = Position_X del punto END de la última línea
+                    var lastLine = enabledLines.Last();
+                    var maxHeight = lastLine.End.PositionX;
+                    
+                    _logger.LogInformation("🚂 Calculated min_height={MinH} (Line {FirstLine}), max_height={MaxH} (Line {LastLine})", 
+                        minHeight, firstLine.LineNumber, maxHeight, lastLine.LineNumber);
+                    
+                    // Escribir min_height si la variable está configurada
+                    if (!string.IsNullOrEmpty(table.MinHeightPlcVariable))
+                    {
+                        try
+                        {
+                            await _twinCatService.WriteVariableAsync(table.MinHeightPlcVariable, minHeight, typeof(double));
+                            _logger.LogInformation("✅ Written min_height to {Var}: {Value}", table.MinHeightPlcVariable, minHeight);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "❌ Error writing min_height to {Var}", table.MinHeightPlcVariable);
+                            errors.Add($"Error escribiendo min_height: {ex.Message}");
+                            totalPointsFailed++;
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("⚠️ min_height variable not configured in Excel for table {TableId}", request.TableId);
+                    }
+                    
+                    // Escribir max_height si la variable está configurada
+                    if (!string.IsNullOrEmpty(table.MaxHeightPlcVariable))
+                    {
+                        try
+                        {
+                            await _twinCatService.WriteVariableAsync(table.MaxHeightPlcVariable, maxHeight, typeof(double));
+                            _logger.LogInformation("✅ Written max_height to {Var}: {Value}", table.MaxHeightPlcVariable, maxHeight);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "❌ Error writing max_height to {Var}", table.MaxHeightPlcVariable);
+                            errors.Add($"Error escribiendo max_height: {ex.Message}");
+                            totalPointsFailed++;
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("⚠️ max_height variable not configured in Excel for table {TableId}", request.TableId);
+                    }
+                }
+                
                 _logger.LogInformation("🚂 Written {PointsWritten} interpolation points to {TableId} (parallel)", totalPointsWritten, request.TableId);
                 
                 return Ok(new GantryInterpolationWriteResponse

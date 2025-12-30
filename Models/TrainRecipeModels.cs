@@ -213,6 +213,20 @@ namespace SW.PC.API.Backend.Models
         public string LineCountPlcVariable { get; set; } = string.Empty;
         
         /// <summary>
+        /// Variable PLC para min_height (Position_X del índice 1)
+        /// Columnas del Excel: BQ=TAB1_FW_UP, BR=TAB1_FW_DOWN, BS=TAB1_BW_UP, BT=TAB1_BW_DOWN,
+        ///                    BU=TAB2_FW_UP, BV=TAB2_FW_DOWN, BW=TAB2_BW_UP, BX=TAB2_BW_DOWN
+        /// </summary>
+        public string MinHeightPlcVariable { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Variable PLC para max_height (Position_X del último índice habilitado)
+        /// Columnas del Excel: BY=TAB1_FW_UP, BZ=TAB1_FW_DOWN, CA=TAB1_BW_UP, CB=TAB1_BW_DOWN,
+        ///                    CC=TAB2_FW_UP, CD=TAB2_FW_DOWN, CE=TAB2_BW_UP, CF=TAB2_BW_DOWN
+        /// </summary>
+        public string MaxHeightPlcVariable { get; set; } = string.Empty;
+        
+        /// <summary>
         /// Valor actual del número de líneas habilitadas (leído del PLC)
         /// Mínimo 1 (siempre debe haber al menos una línea)
         /// </summary>

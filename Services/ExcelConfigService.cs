@@ -3139,30 +3139,32 @@ namespace SW.PC.API.Backend.Services
                     // TAB2_BW_DOWN: BE=Position_X, BF=Position_Y, BG=Speed_Y, BH=FunctionType
                     // ============================================
                     
-                    // Definición de tablas con columnas para variables de interpolación Y número de líneas
-                    // Columnas BI-BP contienen la variable PLC con el número de líneas habilitadas por tabla
+                    // Definición de tablas con columnas para variables de interpolación, número de líneas, min_height y max_height
+                    // Columnas BI-BP: LineCount, BQ-BX: MinHeight, BY-CF: MaxHeight
                     var tableDefinitions = new[]
                     {
-                        //  TableId         PosX   PosY   SpeedY FuncType LineCount
-                        ("TAB1_FW_UP",   "AC", "AD", "AE", "AF", "BI"),
-                        ("TAB1_FW_DOWN", "AG", "AH", "AI", "AJ", "BJ"),
-                        ("TAB1_BW_UP",   "AK", "AL", "AM", "AN", "BK"),
-                        ("TAB1_BW_DOWN", "AO", "AP", "AQ", "AR", "BL"),
-                        ("TAB2_FW_UP",   "AS", "AT", "AU", "AV", "BM"),
-                        ("TAB2_FW_DOWN", "AW", "AX", "AY", "AZ", "BN"),
-                        ("TAB2_BW_UP",   "BA", "BB", "BC", "BD", "BO"),
-                        ("TAB2_BW_DOWN", "BE", "BF", "BG", "BH", "BP"),
+                        //  TableId         PosX   PosY   SpeedY FuncType LineCount MinHeight MaxHeight
+                        ("TAB1_FW_UP",   "AC", "AD", "AE", "AF", "BI", "BQ", "BY"),
+                        ("TAB1_FW_DOWN", "AG", "AH", "AI", "AJ", "BJ", "BR", "BZ"),
+                        ("TAB1_BW_UP",   "AK", "AL", "AM", "AN", "BK", "BS", "CA"),
+                        ("TAB1_BW_DOWN", "AO", "AP", "AQ", "AR", "BL", "BT", "CB"),
+                        ("TAB2_FW_UP",   "AS", "AT", "AU", "AV", "BM", "BU", "CC"),
+                        ("TAB2_FW_DOWN", "AW", "AX", "AY", "AZ", "BN", "BV", "CD"),
+                        ("TAB2_BW_UP",   "BA", "BB", "BC", "BD", "BO", "BW", "CE"),
+                        ("TAB2_BW_DOWN", "BE", "BF", "BG", "BH", "BP", "BX", "CF"),
                     };
                     
                     for (int i = 0; i < tableDefinitions.Length; i++)
                     {
-                        var (tableId, colPosX, colPosY, colSpeedY, colFuncType, colLineCount) = tableDefinitions[i];
+                        var (tableId, colPosX, colPosY, colSpeedY, colFuncType, colLineCount, colMinHeight, colMaxHeight) = tableDefinitions[i];
                         
                         var posXTemplate = sheet.Cells[$"{colPosX}2"].Text?.Trim();
                         var posYTemplate = sheet.Cells[$"{colPosY}2"].Text?.Trim();
                         var speedYTemplate = sheet.Cells[$"{colSpeedY}2"].Text?.Trim();
                         var funcTypeTemplate = sheet.Cells[$"{colFuncType}2"].Text?.Trim();
                         var lineCountPlcVar = sheet.Cells[$"{colLineCount}2"].Text?.Trim();
+                        var minHeightPlcVar = sheet.Cells[$"{colMinHeight}2"].Text?.Trim();
+                        var maxHeightPlcVar = sheet.Cells[$"{colMaxHeight}2"].Text?.Trim();
                         
                         var table = new GantryInterpolationTable
                         {
@@ -3173,14 +3175,16 @@ namespace SW.PC.API.Backend.Services
                             SpeedYPlcTemplate = speedYTemplate ?? string.Empty,
                             FunctionTypePlcTemplate = funcTypeTemplate ?? string.Empty,
                             LineCountPlcVariable = lineCountPlcVar ?? string.Empty,
+                            MinHeightPlcVariable = minHeightPlcVar ?? string.Empty,
+                            MaxHeightPlcVariable = maxHeightPlcVar ?? string.Empty,
                         };
                         
                         config.GantryInterpolationTables.Add(table);
                         
                         if (table.IsConfigured)
                         {
-                            _logger.LogDebug("🚆 Interpolation table {TableId}: PosX={PosX}, PosY={PosY}, Speed={Speed}, Func={Func}, LineCount={LineCount}",
-                                tableId, posXTemplate, posYTemplate, speedYTemplate, funcTypeTemplate, lineCountPlcVar);
+                            _logger.LogDebug("🚆 Interpolation table {TableId}: PosX={PosX}, PosY={PosY}, Speed={Speed}, Func={Func}, LineCount={LineCount}, MinH={MinH}, MaxH={MaxH}",
+                                tableId, posXTemplate, posYTemplate, speedYTemplate, funcTypeTemplate, lineCountPlcVar, minHeightPlcVar, maxHeightPlcVar);
                         }
                     }
                     
