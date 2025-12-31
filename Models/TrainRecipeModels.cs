@@ -300,15 +300,17 @@ namespace SW.PC.API.Backend.Models
         
         /// <summary>
         /// Calcula el índice del array para el punto INICIO de una línea (1-based)
-        /// Line N → índice = 2N - 1
+        /// MODELO ENCADENADO: Line N → índice = N
+        /// Así: Line1→P1, Line2→P2, Line3→P3 (comparten puntos consecutivos)
         /// </summary>
-        public static int GetStartPointIndex(int lineNumber) => (lineNumber * 2) - 1;
+        public static int GetStartPointIndex(int lineNumber) => lineNumber;
         
         /// <summary>
         /// Calcula el índice del array para el punto FIN de una línea (1-based)
-        /// Line N → índice = 2N
+        /// MODELO ENCADENADO: Line N → índice = N + 1
+        /// Así: Line1→P2, Line2→P3, Line3→P4 (el END de N es START de N+1)
         /// </summary>
-        public static int GetEndPointIndex(int lineNumber) => lineNumber * 2;
+        public static int GetEndPointIndex(int lineNumber) => lineNumber + 1;
     }
     
     /// <summary>

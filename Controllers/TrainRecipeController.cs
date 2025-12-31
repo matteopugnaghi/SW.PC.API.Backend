@@ -865,6 +865,9 @@ namespace SW.PC.API.Backend.Controllers
         /// <summary>
         /// Escribe los puntos de interpolación a una tabla específica del Gantry
         /// POST /api/train-recipe/interpolation/write
+        /// MODELO ENCADENADO: Cada línea comparte puntos con la siguiente
+        /// Line 1: índices 1,2 | Line 2: índices 2,3 | Line 3: índices 3,4
+        /// Los puntos compartidos solo se escriben UNA vez
         /// </summary>
         [HttpPost("interpolation/write")]
         [AllowAnonymous]
