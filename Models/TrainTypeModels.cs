@@ -97,6 +97,85 @@ namespace SW.PC.API.Backend.Models
         /// Parámetros de la receta de tren (valores configurables)
         /// </summary>
         public virtual ICollection<TrainTypeParameter> Parameters { get; set; } = new List<TrainTypeParameter>();
+
+        /// <summary>
+        /// Datos de interpolación del Gantry (tablas y filas)
+        /// </summary>
+        public virtual ICollection<TrainTypeGantryData> GantryData { get; set; } = new List<TrainTypeGantryData>();
+    }
+
+    /// <summary>
+    /// Datos de interpolación del Gantry para un tipo de tren
+    /// Almacena las filas de las tablas de interpolación
+    /// </summary>
+    public class TrainTypeGantryData
+    {
+        [Key]
+        public int Id { get; set; }
+
+        /// <summary>
+        /// ID del tipo de tren al que pertenece
+        /// </summary>
+        public int TrainTypeId { get; set; }
+
+        /// <summary>
+        /// Identificador de la tabla (ej: "table1", "table2", etc.)
+        /// </summary>
+        [Required]
+        [MaxLength(50)]
+        public string TableId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Número de fila dentro de la tabla (1-based)
+        /// </summary>
+        public int RowNumber { get; set; }
+
+        /// <summary>
+        /// Indica si la línea está habilitada (ACTIVA)
+        /// </summary>
+        public bool EnableLine { get; set; }
+
+        /// <summary>
+        /// Tipo de sincronización: "Syncron", "Polynom 3", "Polynom 5"
+        /// </summary>
+        [MaxLength(20)]
+        public string? Syncron { get; set; }
+
+        /// <summary>
+        /// Posición X inicial (Master)
+        /// </summary>
+        public double Master1xStart { get; set; }
+
+        /// <summary>
+        /// Posición Y inicial (Slave)
+        /// </summary>
+        public double Slave1yStart { get; set; }
+
+        /// <summary>
+        /// Velocidad Y inicial
+        /// </summary>
+        public double SpeedSlaveY1Start { get; set; }
+
+        /// <summary>
+        /// Posición X final (Master)
+        /// </summary>
+        public double Master1xEnd { get; set; }
+
+        /// <summary>
+        /// Posición Y final (Slave)
+        /// </summary>
+        public double Slave1yEnd { get; set; }
+
+        /// <summary>
+        /// Velocidad Y final
+        /// </summary>
+        public double SpeedSlaveY1End { get; set; }
+
+        /// <summary>
+        /// Navegación al tipo de tren padre
+        /// </summary>
+        [ForeignKey("TrainTypeId")]
+        public virtual TrainType? TrainType { get; set; }
     }
 
     /// <summary>
@@ -409,6 +488,33 @@ namespace SW.PC.API.Backend.Models
     {
         public string? RecipeName { get; set; }
         public List<PlcTrainParameterData> Parameters { get; set; } = new();
+        public List<PlcGantryTableData> GantryTables { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Datos de una tabla de Gantry leídos del PLC
+    /// </summary>
+    public class PlcGantryTableData
+    {
+        public int TableIndex { get; set; }
+        public string TableId { get; set; } = "";
+        public List<PlcGantryRowData> Rows { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Datos de una fila de interpolación de Gantry leída del PLC
+    /// </summary>
+    public class PlcGantryRowData
+    {
+        public int RowNumber { get; set; }
+        public bool EnableLine { get; set; }
+        public string Syncron { get; set; } = "Syncron";
+        public double Master1xStart { get; set; }
+        public double Slave1yStart { get; set; }
+        public double SpeedSlaveY1Start { get; set; }
+        public double Master1xEnd { get; set; }
+        public double Slave1yEnd { get; set; }
+        public double SpeedSlaveY1End { get; set; }
     }
 
     /// <summary>

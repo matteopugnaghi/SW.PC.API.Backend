@@ -273,10 +273,74 @@ namespace SW.PC.API.Backend.Models
         /// Genera la variable PLC real reemplazando el placeholder con el índice del punto
         /// Soporta formatos: {index}, [], [ ], {}, { }
         /// </summary>
-        public string GetFunctionTypePlcVariable(int index) => ReplaceIndexPlaceholder(FunctionTypePlcTemplate, index);
-        public string GetPositionXPlcVariable(int index) => ReplaceIndexPlaceholder(PositionXPlcTemplate, index);
-        public string GetPositionYPlcVariable(int index) => ReplaceIndexPlaceholder(PositionYPlcTemplate, index);
-        public string GetSpeedYPlcVariable(int index) => ReplaceIndexPlaceholder(SpeedYPlcTemplate, index);
+        public string GetFunctionTypePlcVariable(int index, int recipeSlot = 1) => ReplaceAllPlaceholders(FunctionTypePlcTemplate, index, recipeSlot);
+        public string GetPositionXPlcVariable(int index, int recipeSlot = 1) => ReplaceAllPlaceholders(PositionXPlcTemplate, index, recipeSlot);
+        public string GetPositionYPlcVariable(int index, int recipeSlot = 1) => ReplaceAllPlaceholders(PositionYPlcTemplate, index, recipeSlot);
+        public string GetSpeedYPlcVariable(int index, int recipeSlot = 1) => ReplaceAllPlaceholders(SpeedYPlcTemplate, index, recipeSlot);
+        
+        /// <summary>
+        /// Obtiene la variable de LineCount reemplazando el placeholder de receta
+        /// </summary>
+        public string GetLineCountPlcVariable(int recipeSlot = 1) => ReplaceRecipePlaceholder(LineCountPlcVariable, recipeSlot);
+        
+        /// <summary>
+        /// Obtiene la variable de MinHeight reemplazando el placeholder de receta
+        /// </summary>
+        public string GetMinHeightPlcVariable(int recipeSlot = 1) => ReplaceRecipePlaceholder(MinHeightPlcVariable, recipeSlot);
+        
+        /// <summary>
+        /// Obtiene la variable de MaxHeight reemplazando el placeholder de receta
+        /// </summary>
+        public string GetMaxHeightPlcVariable(int recipeSlot = 1) => ReplaceRecipePlaceholder(MaxHeightPlcVariable, recipeSlot);
+        
+        /// <summary>
+        /// Reemplaza todos los placeholders: índice de punto y número de receta
+        /// </summary>
+        private static string ReplaceAllPlaceholders(string template, int index, int recipeSlot)
+        {
+            if (string.IsNullOrEmpty(template)) return template;
+            
+            // Primero reemplazar placeholder de receta
+            var result = ReplaceRecipePlaceholder(template, recipeSlot);
+            
+            // Luego reemplazar placeholder de índice de punto
+            result = ReplaceIndexPlaceholder(result, index);
+            
+            return result;
+        }
+        
+        /// <summary>
+        /// Reemplaza el placeholder de número de receta con el slot real
+        /// Soporta: {recipe}, {RECIPE} placeholders explícitos
+        /// IMPORTANTE: Si recipeSlot = 1 (default), NO modifica la variable (usa tal cual del Excel)
+        /// Solo modifica si hay placeholder explícito {recipe}/{RECIPE} o si recipeSlot > 1
+        /// </summary>
+        private static string ReplaceRecipePlaceholder(string template, int recipeSlot)
+        {
+            if (string.IsNullOrEmpty(template)) return template;
+            
+            // Si tiene placeholders explícitos, siempre reemplazar
+            if (template.Contains("{recipe}") || template.Contains("{RECIPE}"))
+            {
+                return template
+                    .Replace("{recipe}", recipeSlot.ToString())
+                    .Replace("{RECIPE}", recipeSlot.ToString());
+            }
+            
+            // Si recipeSlot = 1 (default), usar la variable exactamente como está en el Excel
+            // Esto es para el Editor de Recetas que lee/escribe directamente sin gestionar slots
+            if (recipeSlot == 1)
+            {
+                return template;
+            }
+            
+            // Solo si recipeSlot > 1, hacer el reemplazo de st_TrainRecipe[N]
+            // Esto es para la funcionalidad de Tipos de Tren que gestiona múltiples slots
+            return System.Text.RegularExpressions.Regex.Replace(
+                template, 
+                @"st_TrainRecipe\[\d+\]", 
+                $"st_TrainRecipe[{recipeSlot}]");
+        }
         
         /// <summary>
         /// Reemplaza diferentes formatos de placeholder con el índice real
@@ -660,6 +724,11 @@ namespace SW.PC.API.Backend.Models
         /// Número de líneas a leer (por defecto 10)
         /// </summary>
         public int LineCount { get; set; } = 10;
+        
+        /// <summary>
+        /// Número de slot/receta (1-5). Si se omite, usa 1 por defecto.
+        /// </summary>
+        public int SlotNumber { get; set; } = 1;
     }
     
     /// <summary>
@@ -706,6 +775,12 @@ namespace SW.PC.API.Backend.Models
         /// ID de la tabla (ej: TAB1_FW_UP)
         /// </summary>
         public string TableId { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Número de slot/receta (1-5). Si se omite, usa 1 por defecto.
+        /// Se usa para reemplazar {recipe} en los templates de variables PLC.
+        /// </summary>
+        public int SlotNumber { get; set; } = 1;
         
         /// <summary>
         /// Líneas de interpolación a escribir

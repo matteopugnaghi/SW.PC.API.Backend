@@ -569,6 +569,7 @@ namespace SW.PC.API.Backend.Controllers
                 // Buscar si ya existe el slot
                 var existingTrainType = await _dbContext.TrainTypes
                     .Include(t => t.Parameters)
+                    .Include(t => t.GantryData)
                     .FirstOrDefaultAsync(t => t.Code == slotCode);
 
                 if (existingTrainType != null)
@@ -603,6 +604,9 @@ namespace SW.PC.API.Backend.Controllers
                             });
                         }
                     }
+
+                    // Actualizar datos de Gantry
+                    await UpdateGantryDataAsync(existingTrainType, plcValues.GantryTables);
                 }
                 else
                 {
@@ -630,7 +634,21 @@ namespace SW.PC.API.Backend.Controllers
                             Unit = p.Unit,
                             PlcVariable = p.PlcVariable,
                             DisplayOrder = p.DisplayOrder
-                        }).ToList()
+                        }).ToList(),
+                        GantryData = plcValues.GantryTables.SelectMany(table => 
+                            table.Rows.Select(row => new TrainTypeGantryData
+                            {
+                                TableId = table.TableId,
+                                RowNumber = row.RowNumber,
+                                EnableLine = row.EnableLine,
+                                Syncron = row.Syncron,
+                                Master1xStart = row.Master1xStart,
+                                Slave1yStart = row.Slave1yStart,
+                                SpeedSlaveY1Start = row.SpeedSlaveY1Start,
+                                Master1xEnd = row.Master1xEnd,
+                                Slave1yEnd = row.Slave1yEnd,
+                                SpeedSlaveY1End = row.SpeedSlaveY1End
+                            })).ToList()
                     };
 
                     _dbContext.TrainTypes.Add(existingTrainType);
@@ -778,6 +796,151 @@ namespace SW.PC.API.Backend.Controllers
                         errorCount++;
                         errors.Add($"{param.Name}: {ex.Message}");
                     }
+                }
+
+                // ========== ESCRIBIR TABLAS DE INTERPOLACIÓN GANTRY ==========
+                // Cargar GantryData de la base de datos si no está incluido
+                var gantryData = await _dbContext.TrainTypeGantryData
+                    .Where(g => g.TrainTypeId == trainType.Id)
+                    .OrderBy(g => g.TableId)
+                    .ThenBy(g => g.RowNumber)
+                    .ToListAsync();
+
+                _logger.LogInformation("🚆 [TIPOS DE TREN] ESCRIBIR PLC - GantryData cargado: {Count} filas, trainConfig.GantryTables: {ConfigCount}", 
+                    gantryData.Count, 
+                    trainConfig?.GantryInterpolationTables?.Count ?? 0);
+
+                if (gantryData.Any() && trainConfig?.GantryInterpolationTables != null)
+                {
+                    _logger.LogInformation("🚆 Escribiendo {Count} filas de GantryData al PLC", gantryData.Count);
+                    
+                    // Agrupar por tabla
+                    var tableGroups = gantryData.GroupBy(g => g.TableId);
+                    
+                    foreach (var tableGroup in tableGroups)
+                    {
+                        var tableId = tableGroup.Key;
+                        var tableConfig = trainConfig.GantryInterpolationTables
+                            .FirstOrDefault(t => t.TableId == tableId && t.IsConfigured);
+                        
+                        if (tableConfig == null)
+                        {
+                            _logger.LogWarning("⚠️ No se encontró configuración para tabla {TableId}", tableId);
+                            continue;
+                        }
+                        
+                        var rows = tableGroup.OrderBy(r => r.RowNumber).ToList();
+                        
+                        // Escribir LineCount
+                        if (!string.IsNullOrEmpty(tableConfig.LineCountPlcVariable))
+                        {
+                            try
+                            {
+                                await _twinCATService.WriteVariableAsync(
+                                    tableConfig.LineCountPlcVariable, 
+                                    rows.Count(r => r.EnableLine), 
+                                    typeof(int));
+                                successCount++;
+                                _logger.LogDebug("✅ LineCount {TableId} = {Count}", tableId, rows.Count(r => r.EnableLine));
+                            }
+                            catch (Exception ex)
+                            {
+                                errorCount++;
+                                errors.Add($"LineCount_{tableId}: {ex.Message}");
+                            }
+                        }
+                        
+                        // Escribir cada fila
+                        foreach (var row in rows.Where(r => r.EnableLine))
+                        {
+                            // Índices de puntos según modelo encadenado
+                            int startIndex = GantryInterpolationTable.GetStartPointIndex(row.RowNumber);
+                            int endIndex = GantryInterpolationTable.GetEndPointIndex(row.RowNumber);
+                            
+                            // Convertir Syncron a FunctionType numérico
+                            int functionType = row.Syncron switch
+                            {
+                                "Syncron" => 1,
+                                "Polynom 3" => 3,
+                                "Polynom 5" => 5,
+                                _ => 1
+                            };
+                            
+                            _logger.LogInformation("🔍 [ESCRITURA] {TableId} Row{Row}: Syncron='{Syncron}' → FunctionType={FuncType}", 
+                                tableId, row.RowNumber, row.Syncron, functionType);
+                            
+                            // Escribir punto de inicio
+                            try
+                            {
+                                var funcTypeVar = tableConfig.GetFunctionTypePlcVariable(startIndex);
+                                var posXVar = tableConfig.GetPositionXPlcVariable(startIndex);
+                                var posYVar = tableConfig.GetPositionYPlcVariable(startIndex);
+                                var speedYVar = tableConfig.GetSpeedYPlcVariable(startIndex);
+                                
+                                if (!string.IsNullOrEmpty(funcTypeVar))
+                                {
+                                    // FunctionType en PLC es sbyte (8 bits), no int
+                                    await _twinCATService.WriteVariableAsync(funcTypeVar, (sbyte)functionType, typeof(sbyte));
+                                    successCount++;
+                                }
+                                if (!string.IsNullOrEmpty(posXVar))
+                                {
+                                    await _twinCATService.WriteVariableAsync(posXVar, row.Master1xStart, typeof(double));
+                                    successCount++;
+                                }
+                                if (!string.IsNullOrEmpty(posYVar))
+                                {
+                                    await _twinCATService.WriteVariableAsync(posYVar, row.Slave1yStart, typeof(double));
+                                    successCount++;
+                                }
+                                if (!string.IsNullOrEmpty(speedYVar))
+                                {
+                                    await _twinCATService.WriteVariableAsync(speedYVar, row.SpeedSlaveY1Start, typeof(double));
+                                    successCount++;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                errorCount++;
+                                errors.Add($"Gantry_{tableId}_Row{row.RowNumber}_Start: {ex.Message}");
+                            }
+                            
+                            // Escribir punto de fin
+                            try
+                            {
+                                var posXVar = tableConfig.GetPositionXPlcVariable(endIndex);
+                                var posYVar = tableConfig.GetPositionYPlcVariable(endIndex);
+                                var speedYVar = tableConfig.GetSpeedYPlcVariable(endIndex);
+                                
+                                if (!string.IsNullOrEmpty(posXVar))
+                                {
+                                    await _twinCATService.WriteVariableAsync(posXVar, row.Master1xEnd, typeof(double));
+                                    successCount++;
+                                }
+                                if (!string.IsNullOrEmpty(posYVar))
+                                {
+                                    await _twinCATService.WriteVariableAsync(posYVar, row.Slave1yEnd, typeof(double));
+                                    successCount++;
+                                }
+                                if (!string.IsNullOrEmpty(speedYVar))
+                                {
+                                    await _twinCATService.WriteVariableAsync(speedYVar, row.SpeedSlaveY1End, typeof(double));
+                                    successCount++;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                errorCount++;
+                                errors.Add($"Gantry_{tableId}_Row{row.RowNumber}_End: {ex.Message}");
+                            }
+                        }
+                        
+                        _logger.LogDebug("🚆 Tabla {TableId}: {RowCount} filas escritas al PLC", tableId, rows.Count(r => r.EnableLine));
+                    }
+                }
+                else
+                {
+                    _logger.LogDebug("🚆 No hay GantryData para escribir al PLC para TrainType {Id}", trainType.Id);
                 }
 
                 // Escribir trigger de escritura (TRUE) - el PLC lo pondrá en FALSE al recibir
@@ -1453,7 +1616,14 @@ namespace SW.PC.API.Backend.Controllers
         private async Task<PlcTrainRecipeData> ReadTrainRecipeFromPlcAsync()
         {
             var excelPath = _excelService.GetExcelConfigPath();
+            _logger.LogInformation("🚆 [TIPOS DE TREN] Cargando configuración Excel desde: {Path}", excelPath);
+            
             var trainConfig = await _excelService.LoadTrainRecipeConfigAsync(excelPath);
+            
+            _logger.LogInformation("🚆 [TIPOS DE TREN] trainConfig cargado: BoolParams={Bool}, DecimalParams={Dec}, GantryTables={Gantry}", 
+                trainConfig?.BoolParameters?.Count ?? 0,
+                trainConfig?.DecimalParameters?.Count ?? 0,
+                trainConfig?.GantryInterpolationTables?.Count ?? 0);
 
             var result = new PlcTrainRecipeData
             {
@@ -1538,7 +1708,202 @@ namespace SW.PC.API.Backend.Controllers
                 order++;
             }
 
+            // Leer tablas de interpolación del Gantry
+            result.GantryTables = await ReadGantryInterpolationTablesFromPlcAsync(trainConfig);
+
             return result;
+        }
+
+        /// <summary>
+        /// Leer tablas de interpolación del Gantry desde el PLC
+        /// </summary>
+        private async Task<List<PlcGantryTableData>> ReadGantryInterpolationTablesFromPlcAsync(TrainRecipeConfiguration? trainConfig)
+        {
+            var tables = new List<PlcGantryTableData>();
+            
+            _logger.LogInformation("🚆 [TIPOS DE TREN] ReadGantryInterpolationTablesFromPlcAsync - trainConfig es null? {IsNull}, GantryTables: {Count}", 
+                trainConfig == null,
+                trainConfig?.GantryInterpolationTables?.Count ?? 0);
+            
+            if (trainConfig?.GantryInterpolationTables == null || trainConfig.GantryInterpolationTables.Count == 0)
+            {
+                _logger.LogWarning("🚆 [TIPOS DE TREN] ⚠️ No hay tablas de interpolación de Gantry configuradas en el Excel");
+                return tables;
+            }
+            
+            var configuredTables = trainConfig.GantryInterpolationTables.Where(t => t.IsConfigured).ToList();
+            _logger.LogInformation("🚆 [TIPOS DE TREN] Tablas configuradas: {Count}/{Total}", 
+                configuredTables.Count, trainConfig.GantryInterpolationTables.Count);
+
+            foreach (var tableConfig in configuredTables)
+            {
+                var tableData = new PlcGantryTableData
+                {
+                    TableIndex = tableConfig.TableIndex,
+                    TableId = tableConfig.TableId,
+                    Rows = new List<PlcGantryRowData>()
+                };
+
+                // Leer el número de líneas habilitadas
+                int lineCount = 1;
+                if (!string.IsNullOrEmpty(tableConfig.LineCountPlcVariable))
+                {
+                    try
+                    {
+                        var value = await _twinCATService.ReadVariableAsync(tableConfig.LineCountPlcVariable, typeof(int));
+                        lineCount = Math.Max(1, Convert.ToInt32(value ?? 1));
+                    }
+                    catch
+                    {
+                        _logger.LogWarning("⚠️ No se pudo leer LineCount de tabla {TableId}", tableConfig.TableId);
+                    }
+                }
+
+                // Leer las filas de interpolación (máximo 124 líneas según modelo encadenado)
+                for (int lineNum = 1; lineNum <= lineCount && lineNum <= 124; lineNum++)
+                {
+                    var row = new PlcGantryRowData
+                    {
+                        RowNumber = lineNum,
+                        EnableLine = lineNum <= lineCount
+                    };
+
+                    // Índices de puntos según modelo encadenado
+                    int startIndex = GantryInterpolationTable.GetStartPointIndex(lineNum);
+                    int endIndex = GantryInterpolationTable.GetEndPointIndex(lineNum);
+
+                    // Leer punto de inicio
+                    try
+                    {
+                        var funcTypeVar = tableConfig.GetFunctionTypePlcVariable(startIndex);
+                        var posXVar = tableConfig.GetPositionXPlcVariable(startIndex);
+                        var posYVar = tableConfig.GetPositionYPlcVariable(startIndex);
+                        var speedYVar = tableConfig.GetSpeedYPlcVariable(startIndex);
+
+                        if (!string.IsNullOrEmpty(funcTypeVar))
+                        {
+                            // FunctionType en PLC es sbyte (8 bits), no int
+                            var value = await _twinCATService.ReadVariableAsync(funcTypeVar, typeof(sbyte));
+                            var funcType = Convert.ToInt32(value ?? 1);
+                            // Convertir FunctionType numérico a nombre: 1=Syncron, 3=Polynom 3, 5=Polynom 5
+                            row.Syncron = funcType switch
+                            {
+                                1 => "Syncron",
+                                3 => "Polynom 3",
+                                5 => "Polynom 5",
+                                _ => "Syncron"
+                            };
+                            _logger.LogInformation("🔍 [LECTURA] {TableId} Line{Line}: FunctionType={FuncType} → Syncron={Syncron}", 
+                                tableConfig.TableId, lineNum, funcType, row.Syncron);
+                        }
+                        if (!string.IsNullOrEmpty(posXVar))
+                        {
+                            var value = await _twinCATService.ReadVariableAsync(posXVar, typeof(double));
+                            row.Master1xStart = Convert.ToDouble(value ?? 0);
+                        }
+                        if (!string.IsNullOrEmpty(posYVar))
+                        {
+                            var value = await _twinCATService.ReadVariableAsync(posYVar, typeof(double));
+                            row.Slave1yStart = Convert.ToDouble(value ?? 0);
+                        }
+                        if (!string.IsNullOrEmpty(speedYVar))
+                        {
+                            var value = await _twinCATService.ReadVariableAsync(speedYVar, typeof(double));
+                            row.SpeedSlaveY1Start = Convert.ToDouble(value ?? 0);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("⚠️ Error leyendo punto inicio línea {Line} tabla {Table}: {Error}", 
+                            lineNum, tableConfig.TableId, ex.Message);
+                    }
+
+                    // Leer punto de fin
+                    try
+                    {
+                        var posXVar = tableConfig.GetPositionXPlcVariable(endIndex);
+                        var posYVar = tableConfig.GetPositionYPlcVariable(endIndex);
+                        var speedYVar = tableConfig.GetSpeedYPlcVariable(endIndex);
+
+                        if (!string.IsNullOrEmpty(posXVar))
+                        {
+                            var value = await _twinCATService.ReadVariableAsync(posXVar, typeof(double));
+                            row.Master1xEnd = Convert.ToDouble(value ?? 0);
+                        }
+                        if (!string.IsNullOrEmpty(posYVar))
+                        {
+                            var value = await _twinCATService.ReadVariableAsync(posYVar, typeof(double));
+                            row.Slave1yEnd = Convert.ToDouble(value ?? 0);
+                        }
+                        if (!string.IsNullOrEmpty(speedYVar))
+                        {
+                            var value = await _twinCATService.ReadVariableAsync(speedYVar, typeof(double));
+                            row.SpeedSlaveY1End = Convert.ToDouble(value ?? 0);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("⚠️ Error leyendo punto fin línea {Line} tabla {Table}: {Error}", 
+                            lineNum, tableConfig.TableId, ex.Message);
+                    }
+
+                    tableData.Rows.Add(row);
+                }
+
+                tables.Add(tableData);
+                _logger.LogDebug("🚆 Leída tabla {TableId}: {RowCount} filas", tableConfig.TableId, tableData.Rows.Count);
+            }
+
+            return tables;
+        }
+
+        /// <summary>
+        /// Actualizar datos de Gantry de un TrainType existente
+        /// </summary>
+        private async Task UpdateGantryDataAsync(TrainType trainType, List<PlcGantryTableData> gantryTables)
+        {
+            _logger.LogInformation("🚆 [TIPOS DE TREN] UpdateGantryDataAsync - TrainType {Id}, gantryTables: {Count}", 
+                trainType.Id, gantryTables?.Count ?? 0);
+            
+            if (gantryTables == null || gantryTables.Count == 0)
+            {
+                _logger.LogWarning("🚆 [TIPOS DE TREN] ⚠️ No hay gantryTables para guardar");
+                return;
+            }
+
+            // Eliminar datos existentes
+            var existingData = await _dbContext.TrainTypeGantryData
+                .Where(g => g.TrainTypeId == trainType.Id)
+                .ToListAsync();
+            
+            _logger.LogInformation("🚆 [TIPOS DE TREN] Eliminando {Count} filas existentes de GantryData", existingData.Count);
+            _dbContext.TrainTypeGantryData.RemoveRange(existingData);
+
+            // Agregar nuevos datos
+            foreach (var table in gantryTables)
+            {
+                foreach (var row in table.Rows)
+                {
+                    trainType.GantryData.Add(new TrainTypeGantryData
+                    {
+                        TrainTypeId = trainType.Id,
+                        TableId = table.TableId,
+                        RowNumber = row.RowNumber,
+                        EnableLine = row.EnableLine,
+                        Syncron = row.Syncron,
+                        Master1xStart = row.Master1xStart,
+                        Slave1yStart = row.Slave1yStart,
+                        SpeedSlaveY1Start = row.SpeedSlaveY1Start,
+                        Master1xEnd = row.Master1xEnd,
+                        Slave1yEnd = row.Slave1yEnd,
+                        SpeedSlaveY1End = row.SpeedSlaveY1End
+                    });
+                }
+            }
+
+            var totalRows = gantryTables.Sum(t => t.Rows?.Count ?? 0);
+            _logger.LogInformation("🚆 [TIPOS DE TREN] ✅ Guardados {TotalRows} filas en {TableCount} tablas de GantryData", 
+                totalRows, gantryTables.Count);
         }
 
         #endregion

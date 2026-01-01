@@ -768,13 +768,17 @@ namespace SW.PC.API.Backend.Controllers
                 var lines = new List<GantryInterpolationLineDto>();
                 var errors = new List<string>();
                 
+                // Obtener el slot de receta (default 1 para compatibilidad)
+                int recipeSlot = request.SlotNumber > 0 ? request.SlotNumber : 1;
+                _logger.LogInformation("🚂 Using recipe slot {Slot} for interpolation read", recipeSlot);
+                
                 // Crear todas las tareas de lectura en paralelo para mayor velocidad
                 var readTasks = new List<Task<(int lineNumber, GantryInterpolationLineDto line, string? error)>>();
                 
                 for (int lineNumber = 1; lineNumber <= request.LineCount; lineNumber++)
                 {
                     int ln = lineNumber; // Capturar para el closure
-                    readTasks.Add(ReadLineFromPlcAsync(table, ln));
+                    readTasks.Add(ReadLineFromPlcAsync(table, ln, recipeSlot));
                 }
                 
                 // Ejecutar todas las lecturas en paralelo
@@ -814,7 +818,7 @@ namespace SW.PC.API.Backend.Controllers
         /// <summary>
         /// Helper: Lee una línea completa de interpolación del PLC (START + END) en paralelo
         /// </summary>
-        private async Task<(int lineNumber, GantryInterpolationLineDto line, string? error)> ReadLineFromPlcAsync(GantryInterpolationTable table, int lineNumber)
+        private async Task<(int lineNumber, GantryInterpolationLineDto line, string? error)> ReadLineFromPlcAsync(GantryInterpolationTable table, int lineNumber, int recipeSlot = 1)
         {
             int startIndex = GantryInterpolationTable.GetStartPointIndex(lineNumber);
             int endIndex = GantryInterpolationTable.GetEndPointIndex(lineNumber);
@@ -832,14 +836,15 @@ namespace SW.PC.API.Backend.Controllers
             try
             {
                 // Leer las 8 variables en paralelo (4 START + 4 END)
-                var funcTypeStartTask = _twinCatService.ReadVariableAsync(table.GetFunctionTypePlcVariable(startIndex), typeof(sbyte));
-                var posXStartTask = _twinCatService.ReadVariableAsync(table.GetPositionXPlcVariable(startIndex), typeof(double));
-                var posYStartTask = _twinCatService.ReadVariableAsync(table.GetPositionYPlcVariable(startIndex), typeof(double));
-                var speedYStartTask = _twinCatService.ReadVariableAsync(table.GetSpeedYPlcVariable(startIndex), typeof(double));
-                var funcTypeEndTask = _twinCatService.ReadVariableAsync(table.GetFunctionTypePlcVariable(endIndex), typeof(sbyte));
-                var posXEndTask = _twinCatService.ReadVariableAsync(table.GetPositionXPlcVariable(endIndex), typeof(double));
-                var posYEndTask = _twinCatService.ReadVariableAsync(table.GetPositionYPlcVariable(endIndex), typeof(double));
-                var speedYEndTask = _twinCatService.ReadVariableAsync(table.GetSpeedYPlcVariable(endIndex), typeof(double));
+                // Usar recipeSlot para direccionar a la receta correcta
+                var funcTypeStartTask = _twinCatService.ReadVariableAsync(table.GetFunctionTypePlcVariable(startIndex, recipeSlot), typeof(sbyte));
+                var posXStartTask = _twinCatService.ReadVariableAsync(table.GetPositionXPlcVariable(startIndex, recipeSlot), typeof(double));
+                var posYStartTask = _twinCatService.ReadVariableAsync(table.GetPositionYPlcVariable(startIndex, recipeSlot), typeof(double));
+                var speedYStartTask = _twinCatService.ReadVariableAsync(table.GetSpeedYPlcVariable(startIndex, recipeSlot), typeof(double));
+                var funcTypeEndTask = _twinCatService.ReadVariableAsync(table.GetFunctionTypePlcVariable(endIndex, recipeSlot), typeof(sbyte));
+                var posXEndTask = _twinCatService.ReadVariableAsync(table.GetPositionXPlcVariable(endIndex, recipeSlot), typeof(double));
+                var posYEndTask = _twinCatService.ReadVariableAsync(table.GetPositionYPlcVariable(endIndex, recipeSlot), typeof(double));
+                var speedYEndTask = _twinCatService.ReadVariableAsync(table.GetSpeedYPlcVariable(endIndex, recipeSlot), typeof(double));
                 
                 await Task.WhenAll(funcTypeStartTask, posXStartTask, posYStartTask, speedYStartTask,
                                    funcTypeEndTask, posXEndTask, posYEndTask, speedYEndTask);
@@ -903,6 +908,10 @@ namespace SW.PC.API.Backend.Controllers
                     });
                 }
                 
+                // Obtener el slot de receta (default 1 para compatibilidad)
+                int recipeSlot = request.SlotNumber > 0 ? request.SlotNumber : 1;
+                _logger.LogInformation("🚂 Using recipe slot {Slot} for interpolation write", recipeSlot);
+                
                 // Crear todas las tareas de escritura en paralelo
                 var writeTasks = new List<Task<(int lineNumber, int pointsWritten, int pointsFailed, string? error)>>();
                 
@@ -911,7 +920,7 @@ namespace SW.PC.API.Backend.Controllers
                     if (!line.Enabled)
                         continue;
                     
-                    writeTasks.Add(WriteLineToPlcAsync(table, line));
+                    writeTasks.Add(WriteLineToPlcAsync(table, line, recipeSlot));
                 }
                 
                 // Ejecutar todas las escrituras en paralelo
@@ -942,16 +951,17 @@ namespace SW.PC.API.Backend.Controllers
                         minHeight, firstLine.LineNumber, maxHeight, lastLine.LineNumber);
                     
                     // Escribir min_height si la variable está configurada
-                    if (!string.IsNullOrEmpty(table.MinHeightPlcVariable))
+                    var minHeightVar = table.GetMinHeightPlcVariable(recipeSlot);
+                    if (!string.IsNullOrEmpty(minHeightVar))
                     {
                         try
                         {
-                            await _twinCatService.WriteVariableAsync(table.MinHeightPlcVariable, minHeight, typeof(double));
-                            _logger.LogInformation("✅ Written min_height to {Var}: {Value}", table.MinHeightPlcVariable, minHeight);
+                            await _twinCatService.WriteVariableAsync(minHeightVar, minHeight, typeof(double));
+                            _logger.LogInformation("✅ Written min_height to {Var}: {Value}", minHeightVar, minHeight);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "❌ Error writing min_height to {Var}", table.MinHeightPlcVariable);
+                            _logger.LogError(ex, "❌ Error writing min_height to {Var}", minHeightVar);
                             errors.Add($"Error escribiendo min_height: {ex.Message}");
                             totalPointsFailed++;
                         }
@@ -962,16 +972,17 @@ namespace SW.PC.API.Backend.Controllers
                     }
                     
                     // Escribir max_height si la variable está configurada
-                    if (!string.IsNullOrEmpty(table.MaxHeightPlcVariable))
+                    var maxHeightVar = table.GetMaxHeightPlcVariable(recipeSlot);
+                    if (!string.IsNullOrEmpty(maxHeightVar))
                     {
                         try
                         {
-                            await _twinCatService.WriteVariableAsync(table.MaxHeightPlcVariable, maxHeight, typeof(double));
-                            _logger.LogInformation("✅ Written max_height to {Var}: {Value}", table.MaxHeightPlcVariable, maxHeight);
+                            await _twinCatService.WriteVariableAsync(maxHeightVar, maxHeight, typeof(double));
+                            _logger.LogInformation("✅ Written max_height to {Var}: {Value}", maxHeightVar, maxHeight);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "❌ Error writing max_height to {Var}", table.MaxHeightPlcVariable);
+                            _logger.LogError(ex, "❌ Error writing max_height to {Var}", maxHeightVar);
                             errors.Add($"Error escribiendo max_height: {ex.Message}");
                             totalPointsFailed++;
                         }
@@ -1011,7 +1022,7 @@ namespace SW.PC.API.Backend.Controllers
         /// <summary>
         /// Helper: Escribe una línea completa de interpolación al PLC (START + END) en paralelo
         /// </summary>
-        private async Task<(int lineNumber, int pointsWritten, int pointsFailed, string? error)> WriteLineToPlcAsync(GantryInterpolationTable table, GantryInterpolationLineDto line)
+        private async Task<(int lineNumber, int pointsWritten, int pointsFailed, string? error)> WriteLineToPlcAsync(GantryInterpolationTable table, GantryInterpolationLineDto line, int recipeSlot = 1)
         {
             int startIndex = GantryInterpolationTable.GetStartPointIndex(line.LineNumber);
             int endIndex = GantryInterpolationTable.GetEndPointIndex(line.LineNumber);
@@ -1023,20 +1034,21 @@ namespace SW.PC.API.Backend.Controllers
             try
             {
                 // Escribir las 8 variables en paralelo (4 START + 4 END)
+                // Usar recipeSlot para direccionar a la receta correcta
                 var writeStartTasks = new[]
                 {
-                    _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(startIndex), line.Start.FunctionType, typeof(sbyte)),
-                    _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(startIndex), line.Start.PositionX, typeof(double)),
-                    _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(startIndex), line.Start.PositionY, typeof(double)),
-                    _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(startIndex), line.Start.SpeedY, typeof(double))
+                    _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(startIndex, recipeSlot), line.Start.FunctionType, typeof(sbyte)),
+                    _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(startIndex, recipeSlot), line.Start.PositionX, typeof(double)),
+                    _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(startIndex, recipeSlot), line.Start.PositionY, typeof(double)),
+                    _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(startIndex, recipeSlot), line.Start.SpeedY, typeof(double))
                 };
                 
                 var writeEndTasks = new[]
                 {
-                    _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(endIndex), line.End.FunctionType, typeof(sbyte)),
-                    _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(endIndex), line.End.PositionX, typeof(double)),
-                    _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(endIndex), line.End.PositionY, typeof(double)),
-                    _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(endIndex), line.End.SpeedY, typeof(double))
+                    _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(endIndex, recipeSlot), line.End.FunctionType, typeof(sbyte)),
+                    _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(endIndex, recipeSlot), line.End.PositionX, typeof(double)),
+                    _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(endIndex, recipeSlot), line.End.PositionY, typeof(double)),
+                    _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(endIndex, recipeSlot), line.End.SpeedY, typeof(double))
                 };
                 
                 await Task.WhenAll(writeStartTasks.Concat(writeEndTasks));

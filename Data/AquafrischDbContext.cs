@@ -58,6 +58,9 @@ public class AquafrischDbContext : DbContext
     
     /// <summary>Parámetros de tipos de tren</summary>
     public DbSet<TrainTypeParameter> TrainTypeParameters { get; set; } = null!;
+    
+    /// <summary>Datos de interpolación de Gantry para tipos de tren</summary>
+    public DbSet<TrainTypeGantryData> TrainTypeGantryData { get; set; } = null!;
 
     /// <summary>Tipo de tren activo (selección actual del operador)</summary>
     public DbSet<ActiveTrainType> ActiveTrainTypes { get; set; } = null!;
@@ -327,6 +330,25 @@ public class AquafrischDbContext : DbContext
             entity.Property(e => e.Unit).HasMaxLength(20);
             entity.Property(e => e.PlcVariable).HasMaxLength(200);
             entity.Property(e => e.GroupName).HasMaxLength(50);
+        });
+
+        // ============================================
+        // Configuración de TrainTypeGantryData (Interpolación Gantry)
+        // ============================================
+        modelBuilder.Entity<TrainTypeGantryData>(entity =>
+        {
+            entity.ToTable("TrainTypeGantryData");
+            entity.HasKey(e => e.Id);
+            
+            // Índice único: TrainTypeId + TableId + RowNumber
+            entity.HasIndex(e => new { e.TrainTypeId, e.TableId, e.RowNumber }).IsUnique();
+            entity.HasIndex(e => e.TableId);
+            
+            // Relación con TrainType
+            entity.HasOne(e => e.TrainType)
+                  .WithMany(t => t.GantryData)
+                  .HasForeignKey(e => e.TrainTypeId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ============================================
@@ -759,6 +781,29 @@ public static class AquafrischDbContextFactory
             
             // Índice para ActiveTrainType
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ActiveTrainType_TrainTypeId ON ActiveTrainType(TrainTypeId)");
+            
+            // Tabla TrainTypeGantryData (Datos de interpolación de Gantry)
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS TrainTypeGantryData (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    TrainTypeId INTEGER NOT NULL,
+                    TableId TEXT NOT NULL,
+                    RowNumber INTEGER NOT NULL,
+                    EnableLine INTEGER NOT NULL DEFAULT 0,
+                    Syncron TEXT DEFAULT 'Syncron',
+                    Master1xStart REAL NOT NULL DEFAULT 0,
+                    Slave1yStart REAL NOT NULL DEFAULT 0,
+                    SpeedSlaveY1Start REAL NOT NULL DEFAULT 0,
+                    Master1xEnd REAL NOT NULL DEFAULT 0,
+                    Slave1yEnd REAL NOT NULL DEFAULT 0,
+                    SpeedSlaveY1End REAL NOT NULL DEFAULT 0,
+                    FOREIGN KEY (TrainTypeId) REFERENCES TrainTypes(Id) ON DELETE CASCADE,
+                    UNIQUE (TrainTypeId, TableId, RowNumber)
+                )");
+            
+            // Índices para TrainTypeGantryData
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_TrainTypeGantryData_TrainTypeId_TableId_RowNumber ON TrainTypeGantryData(TrainTypeId, TableId, RowNumber)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_TrainTypeGantryData_TableId ON TrainTypeGantryData(TableId)");
         }
         catch (Exception)
         {
