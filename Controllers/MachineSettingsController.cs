@@ -555,41 +555,87 @@ namespace SW.PC.API.Backend.Controllers
         [HttpGet("image")]
         [ProducesResponseType(200)]
         [ProducesResponseType(404)]
-        public IActionResult GetSettingImage([FromQuery] string imagePath)
+        public IActionResult GetSettingImage([FromQuery] string? imagePath)
         {
             try
             {
-                if (string.IsNullOrEmpty(imagePath))
+                // Validar parámetro de entrada
+                if (string.IsNullOrWhiteSpace(imagePath))
                 {
+                    _logger.LogDebug("🖼️ Image path not specified or empty");
                     return NotFound("Image path not specified");
+                }
+
+                // Validar que el contexto del proyecto esté disponible
+                var configPath = _projectContext?.ConfigPath;
+                if (string.IsNullOrWhiteSpace(configPath))
+                {
+                    _logger.LogWarning("⚠️ Project config path is null or empty");
+                    return NotFound("Project configuration not available");
+                }
+
+                // Sanitizar el path de entrada (remover caracteres peligrosos)
+                var sanitizedPath = imagePath
+                    .TrimStart('/', '\\')
+                    .Replace("..", "")  // Prevenir path traversal
+                    .Trim();
+
+                if (string.IsNullOrWhiteSpace(sanitizedPath))
+                {
+                    _logger.LogWarning("⚠️ Image path became empty after sanitization: {Original}", imagePath);
+                    return BadRequest("Invalid image path");
                 }
 
                 // Construir ruta completa relativa a la carpeta config del proyecto
                 // Las imágenes están en: Projects/{projectId}/config/Images/
-                var configPath = _projectContext.ConfigPath;
-                var fullPath = Path.Combine(configPath, imagePath.TrimStart('/'));
+                string fullPath;
+                try
+                {
+                    fullPath = Path.GetFullPath(Path.Combine(configPath, sanitizedPath));
+                }
+                catch (Exception pathEx)
+                {
+                    _logger.LogWarning(pathEx, "⚠️ Invalid path combination: config={Config}, image={Image}", configPath, sanitizedPath);
+                    return BadRequest("Invalid image path format");
+                }
 
                 _logger.LogDebug("🖼️ Looking for setting image at: {Path}", fullPath);
 
                 // Seguridad: verificar que la ruta está dentro de la carpeta del proyecto
-                if (!fullPath.StartsWith(configPath))
+                var normalizedConfigPath = Path.GetFullPath(configPath);
+                if (!fullPath.StartsWith(normalizedConfigPath, StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.LogWarning("⚠️ Invalid image path (outside config folder): {Path}", imagePath);
+                    _logger.LogWarning("⚠️ Invalid image path (outside config folder): {Path}, ConfigPath: {ConfigPath}", imagePath, normalizedConfigPath);
                     return BadRequest("Invalid image path");
                 }
 
                 if (!System.IO.File.Exists(fullPath))
                 {
-                    _logger.LogWarning("⚠️ Image not found: {Path}", fullPath);
+                    _logger.LogDebug("🖼️ Image not found: {Path}", fullPath);
                     return NotFound($"Image not found: {imagePath}");
                 }
 
-                var contentType = GetContentType(fullPath);
-                return PhysicalFile(fullPath, contentType);
+                // Intentar servir el archivo
+                try
+                {
+                    var contentType = GetContentType(fullPath);
+                    return PhysicalFile(fullPath, contentType);
+                }
+                catch (IOException ioEx)
+                {
+                    _logger.LogWarning(ioEx, "⚠️ IO error reading image file: {Path}", fullPath);
+                    return StatusCode(503, "Image temporarily unavailable");
+                }
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "⚠️ Invalid argument for image path: {Path}", imagePath);
+                return BadRequest("Invalid image path format");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving setting image: {Path}", imagePath);
+                // Capturar cualquier excepción inesperada sin crashear el backend
+                _logger.LogError(ex, "❌ Unexpected error retrieving setting image: {Path}", imagePath);
                 return StatusCode(500, "Error retrieving image");
             }
         }
