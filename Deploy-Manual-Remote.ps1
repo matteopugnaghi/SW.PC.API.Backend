@@ -380,19 +380,73 @@ if ($SkipFrontendBuild) {
     Write-Step "npm run build..."
     Push-Location $FrontendPath
     try {
-        # Usar cmd /c para evitar problemas con npm en PowerShell
-        $npmOutput = & cmd /c "npm run build" 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error2 "Error compilando frontend:"
-            Write-Host $npmOutput -ForegroundColor Red
+        # Verificar que npm está disponible
+        $npmPath = Get-Command npm -ErrorAction SilentlyContinue
+        if (-not $npmPath) {
+            Write-Error2 "npm no encontrado en PATH"
+            Write-Info "Asegúrate de que Node.js está instalado y npm está en el PATH"
             Read-Host "Presiona Enter para cerrar"
             exit 1
         }
-        Write-Success "Frontend compilado en: $FrontendPath\build"
+        Write-Info "npm encontrado: $($npmPath.Source)"
+        
+        # Temporalmente cambiar ErrorActionPreference para npm (genera muchos warnings)
+        $previousErrorAction = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        
+        # Ejecutar npm build - capturar salida sin que termine el script por warnings
+        Write-Info "Ejecutando build (esto puede tardar unos minutos)..."
+        $npmExitCode = 0
+        try {
+            # Usar Start-Process para mejor control del proceso
+            $npmProcess = Start-Process -FilePath "npm.cmd" -ArgumentList "run", "build" `
+                -WorkingDirectory $FrontendPath `
+                -NoNewWindow -Wait -PassThru `
+                -RedirectStandardOutput "$env:TEMP\npm_stdout.txt" `
+                -RedirectStandardError "$env:TEMP\npm_stderr.txt"
+            $npmExitCode = $npmProcess.ExitCode
+            
+            # Mostrar salida
+            if (Test-Path "$env:TEMP\npm_stdout.txt") {
+                $stdout = Get-Content "$env:TEMP\npm_stdout.txt" -Raw -ErrorAction SilentlyContinue
+                if ($stdout) { Write-Host $stdout -ForegroundColor Gray }
+            }
+            if (Test-Path "$env:TEMP\npm_stderr.txt") {
+                $stderr = Get-Content "$env:TEMP\npm_stderr.txt" -Raw -ErrorAction SilentlyContinue
+                if ($stderr) { 
+                    # npm genera warnings en stderr, no necesariamente son errores
+                    Write-Host $stderr -ForegroundColor DarkYellow 
+                }
+            }
+        } catch {
+            Write-Error2 "Excepcion durante npm build: $_"
+            $npmExitCode = 1
+        }
+        
+        # Restaurar ErrorActionPreference
+        $ErrorActionPreference = $previousErrorAction
+        
+        # Verificar resultado
+        if ($npmExitCode -ne 0) {
+            Write-Error2 "Error compilando frontend (exit code: $npmExitCode)"
+            Write-Info "Revisa los errores arriba"
+            Read-Host "Presiona Enter para cerrar"
+            exit 1
+        }
+        
+        # Verificar que la carpeta build existe
+        $frontendBuildPath = Join-Path $FrontendPath "build"
+        if (-not (Test-Path $frontendBuildPath)) {
+            Write-Error2 "La carpeta build no existe después del npm build"
+            Write-Info "Ruta esperada: $frontendBuildPath"
+            Read-Host "Presiona Enter para cerrar"
+            exit 1
+        }
+        
+        Write-Success "Frontend compilado en: $frontendBuildPath"
         
         # Generar deploy-version.json para Frontend (despues del build)
         Write-Step "Generando deploy-version.json para Frontend..."
-        $frontendBuildPath = Join-Path $FrontendPath "build"
         if ($global:FrontendVersionInfo) {
             $frontendVersionJson = $global:FrontendVersionInfo | ConvertTo-Json -Depth 5
             $frontendVersionPath = Join-Path $frontendBuildPath "deploy-version.json"
@@ -408,8 +462,15 @@ if ($SkipFrontendBuild) {
                 Write-Success "Frontend deploy-version.json generado"
             }
         }
+    } catch {
+        Write-Error2 "Error inesperado en PASO 3: $_"
+        Read-Host "Presiona Enter para cerrar"
+        exit 1
     } finally {
         Pop-Location
+        # Limpiar archivos temporales
+        Remove-Item "$env:TEMP\npm_stdout.txt" -ErrorAction SilentlyContinue
+        Remove-Item "$env:TEMP\npm_stderr.txt" -ErrorAction SilentlyContinue
     }
 }
 
@@ -700,6 +761,15 @@ if (-not (Test-Path $frontendBuildPath)) {
     Write-Error2 "No se encuentra el build del frontend: $frontendBuildPath"
     Read-Host "Presiona Enter para cerrar"
     exit 1
+}
+
+# 🔧 FIX: Limpiar carpeta static ANTES de copiar el frontend
+# El backend publish puede tener archivos JS/CSS viejos que no coinciden con el nuevo index.html
+Write-Step "Limpiando carpeta static existente (evitar conflicto de hashes)..."
+$staticPath = "$RemotePath\Backend\wwwroot\static"
+if (Test-Path $staticPath) {
+    Remove-Item -Path $staticPath -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Info "🧹 Carpeta static eliminada - se reemplazará con el frontend nuevo"
 }
 
 Write-Step "Copiando archivos del frontend (excluyendo innecesarios)..."
