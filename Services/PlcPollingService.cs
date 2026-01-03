@@ -92,23 +92,97 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Cambia la vista activa del frontend. Recalcula qué variables se leen.
         /// Llamado desde ScadaHub cuando el cliente cambia de página.
+        /// También notifica al PLC si CurrentScreenPlcVariable está configurado.
         /// </summary>
         public void SetActiveView(string viewName)
         {
+            string newView;
+            bool shouldNotifyPlc = false;
+            
             lock (_viewLock)
             {
-                if (_currentView == viewName) return;
+                // Permitir string vacío para indicar HMI offline
+                var normalizedView = string.IsNullOrEmpty(viewName) ? "" : viewName;
+                
+                if (_currentView == normalizedView) return;
                 
                 var oldView = _currentView;
-                _currentView = viewName ?? "principal";
+                _currentView = normalizedView;
+                newView = _currentView;
+                shouldNotifyPlc = true;
                 
-                // Recalcular variables activas si el filtrado está habilitado
-                if (_viewFilteringEnabled && _monitoredVariables.Count > 0)
+                // Recalcular variables activas si el filtrado está habilitado (solo si hay vista activa)
+                if (_viewFilteringEnabled && _monitoredVariables.Count > 0 && !string.IsNullOrEmpty(newView))
                 {
                     RecalculateActiveVariables();
                     _logger.LogInformation("🔄 Vista cambiada: {OldView} → {NewView}. Variables activas: {Active}/{Total}", 
                         oldView, _currentView, _activeVariables.Count, _monitoredVariables.Count);
                 }
+                else if (string.IsNullOrEmpty(newView))
+                {
+                    _logger.LogInformation("🔄 Vista cambiada: {OldView} → (vacío/offline)", oldView);
+                }
+            }
+            
+            // 📺 Notificar al PLC del cambio de pantalla (FUERA del lock para evitar deadlocks)
+            if (shouldNotifyPlc)
+            {
+                _ = Task.Run(async () => await NotifyPlcCurrentScreenAsync(newView));
+            }
+        }
+        
+        /// <summary>
+        /// Fuerza la notificación al PLC de la pantalla actual, sin importar si cambió o no.
+        /// Útil para shutdown del backend.
+        /// </summary>
+        public async Task ForceNotifyPlcScreenAsync(string screenName)
+        {
+            _logger.LogInformation("📺 ForceNotifyPlcScreenAsync: '{Screen}'", screenName);
+            await NotifyPlcCurrentScreenAsync(screenName);
+        }
+        
+        /// <summary>
+        /// Notifica al PLC la pantalla/vista activa actual del HMI.
+        /// Solo escribe si CurrentScreenPlcVariable está configurado en SystemConfig.
+        /// </summary>
+        private async Task NotifyPlcCurrentScreenAsync(string screenName)
+        {
+            try
+            {
+                _logger.LogInformation("📺 NotifyPlcCurrentScreenAsync llamado con screenName: '{Screen}'", screenName);;
+                
+                using var scope = _serviceProvider.CreateScope();
+                var excelConfigService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
+                
+                var excelPath = excelConfigService.GetExcelConfigPath();
+                _logger.LogDebug("📺 Cargando SystemConfig desde: {Path}", excelPath);
+                
+                var systemConfig = await excelConfigService.LoadSystemConfigurationAsync(excelPath);
+                
+                if (string.IsNullOrWhiteSpace(systemConfig?.CurrentScreenPlcVariable))
+                {
+                    _logger.LogDebug("📺 CurrentScreenPlcVariable NO está configurado en SystemConfig - saltando notificación");
+                    return;
+                }
+                
+                var plcVariable = systemConfig.CurrentScreenPlcVariable;
+                _logger.LogInformation("📺 Escribiendo al PLC: {Variable} = \"{Screen}\"", plcVariable, screenName);
+                
+                // Escribir la pantalla actual al PLC (variable STRING/WSTRING)
+                var success = await _twinCATService.WriteVariableAsync(plcVariable, screenName, typeof(string));
+                
+                if (success)
+                {
+                    _logger.LogInformation("📺 ✅ PLC notificado exitosamente: {Variable} = \"{Screen}\"", plcVariable, screenName);
+                }
+                else
+                {
+                    _logger.LogWarning("📺 ❌ No se pudo notificar al PLC la pantalla actual: {Variable}", plcVariable);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "📺 ❌ Error notificando pantalla al PLC: {Message}", ex.Message);
             }
         }
 
@@ -632,6 +706,30 @@ namespace SW.PC.API.Backend.Services
         public override async Task StopAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("🛑 Deteniendo PlcPollingService...");
+            
+            // 📺 Notificar al PLC que el HMI se está cerrando (pantalla vacía)
+            try
+            {
+                _logger.LogInformation("📺 Backend cerrándose - notificando al PLC que HMI está offline");
+                
+                // Usar timeout para asegurar que no bloqueamos el shutdown indefinidamente
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                var notifyTask = ForceNotifyPlcScreenAsync("");
+                
+                if (await Task.WhenAny(notifyTask, Task.Delay(3000, cts.Token)) == notifyTask)
+                {
+                    _logger.LogInformation("📺 ✅ PLC notificado correctamente que HMI está offline");
+                }
+                else
+                {
+                    _logger.LogWarning("📺 ⚠️ Timeout notificando al PLC - continuando con shutdown");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ No se pudo notificar al PLC que HMI está offline");
+            }
+            
             await base.StopAsync(cancellationToken);
         }
     }

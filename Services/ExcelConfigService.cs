@@ -28,7 +28,10 @@ namespace SW.PC.API.Backend.Services
         // 🚂 Sistema de Tipos de Tren
         Task<TrainRecipeConfiguration> LoadTrainRecipeConfigAsync(string filePath);
         
-        // 📁 Soporte Multi-Proyecto
+        // � Sistema de Modo Manual/Mantenimiento
+        Task<ManualPageExcelConfiguration> LoadManualPageAsync(string filePath);
+        
+        // �📁 Soporte Multi-Proyecto
         void SetProjectContext(IProjectContextService projectContext);
         string GetExcelConfigPath();
         
@@ -1553,6 +1556,13 @@ namespace SW.PC.API.Backend.Services
                             case "plcadsport":
                             case "plc_ads_port":
                                 config.PlcAdsPort = ParseInt(paramValue, 851);
+                                break;
+                            
+                            case "currentscreenplcvariable":
+                            case "current_screen_plc_variable":
+                            case "hmicurrentscreenvariable":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.CurrentScreenPlcVariable = paramValue;
                                 break;
 
                             // BASE DE DATOS SQLite
@@ -3397,6 +3407,106 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "🚆 Error loading train recipe configuration from {FilePath}", filePath);
+                return config;
+            }
+        }
+        
+        #endregion
+        
+        #region Manual Mode Page (Modo Manual/Mantenimiento)
+        
+        /// <summary>
+        /// Carga la configuración del modo manual desde la hoja "Manual" del Excel.
+        /// Estructura:
+        ///   A2: Título de la vista
+        ///   B2+: Descripción del elemento
+        ///   C2+: Imagen del elemento
+        ///   D2+: Variable PLC (BOOL)
+        /// </summary>
+        /// <param name="filePath">Ruta al archivo Excel</param>
+        /// <returns>Configuración del modo manual con elementos controlables</returns>
+        public async Task<ManualPageExcelConfiguration> LoadManualPageAsync(string filePath)
+        {
+            var config = new ManualPageExcelConfiguration();
+            
+            try
+            {
+                var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+                
+                if (!File.Exists(fullPath))
+                {
+                    _logger.LogWarning("🔧 Excel file not found for manual page: {Path}", fullPath);
+                    return config;
+                }
+                
+                _logger.LogInformation("🔧 Loading manual mode config from Excel: {Path}", fullPath);
+                
+                await Task.Run(() =>
+                {
+                    // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
+                    using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var package = new ExcelPackage(stream);
+                    
+                    // Buscar hoja "Manual" (case-insensitive)
+                    var sheet = package.Workbook.Worksheets
+                        .FirstOrDefault(ws => ws.Name.Equals("Manual", StringComparison.OrdinalIgnoreCase));
+                    
+                    if (sheet == null)
+                    {
+                        _logger.LogWarning("🔧 Sheet 'Manual' not found in Excel file");
+                        return;
+                    }
+                    
+                    // === Leer título de la vista desde A2 ===
+                    var viewTitle = sheet.Cells["A2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(viewTitle))
+                    {
+                        config.ViewTitle = viewTitle;
+                        _logger.LogDebug("🔧 Manual view title from A2: {Title}", viewTitle);
+                    }
+                    
+                    // Leer elementos desde la fila 2
+                    int row = 2;
+                    int maxEmptyRows = 5; // Permitir hasta 5 filas vacías consecutivas
+                    int consecutiveEmpty = 0;
+                    
+                    while (consecutiveEmpty < maxEmptyRows)
+                    {
+                        // === Columnas B (Descripción), C (Imagen), D (Variable PLC) ===
+                        var description = sheet.Cells[$"B{row}"].Text?.Trim();
+                        var imagePath = sheet.Cells[$"C{row}"].Text?.Trim();
+                        var plcVariable = sheet.Cells[$"D{row}"].Text?.Trim();
+                        
+                        // Solo añadir si tiene descripción Y variable PLC
+                        if (!string.IsNullOrEmpty(description) && !string.IsNullOrEmpty(plcVariable))
+                        {
+                            config.Elements.Add(new ManualElementSetting
+                            {
+                                Description = description,
+                                ImagePath = string.IsNullOrEmpty(imagePath) ? null : imagePath,
+                                PlcVariable = plcVariable,
+                                RowIndex = row
+                            });
+                            consecutiveEmpty = 0;
+                            _logger.LogDebug("🔧 Manual element [{Row}]: {Desc} -> {PlcVar}", row, description, plcVariable);
+                        }
+                        else
+                        {
+                            consecutiveEmpty++;
+                        }
+                        
+                        row++;
+                    }
+                    
+                    _logger.LogInformation("🔧 Manual mode config loaded: {Title} with {Count} elements", 
+                        config.ViewTitle, config.Elements.Count);
+                });
+                
+                return config;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🔧 Error loading manual mode configuration from {FilePath}", filePath);
                 return config;
             }
         }

@@ -803,22 +803,49 @@ namespace SW.PC.API.Backend.Services
                     }
                     else if (dataType == typeof(string))
                     {
-                        // WSTRING en TwinCAT: 162 bytes por defecto (80 chars * 2 bytes + 2 bytes terminador)
-                        // WSTRING usa Unicode UTF-16 Little Endian
                         string strValue = value?.ToString() ?? string.Empty;
                         
-                        // Truncar a 80 caracteres máximo
-                        if (strValue.Length > 80)
-                            strValue = strValue.Substring(0, 80);
+                        // Obtener información del símbolo para saber el tamaño real
+                        var symbolInfo = _adsClient.ReadSymbol(variableName);
+                        int symbolSize = symbolInfo.Size;
                         
-                        // Codificar como UTF-16 LE con terminador null
-                        buffer = new byte[162];
-                        byte[] strBytes = System.Text.Encoding.Unicode.GetBytes(strValue);
-                        Array.Copy(strBytes, buffer, Math.Min(strBytes.Length, 160));
-                        // Terminador null ya está implícito (buffer inicializado en 0)
+                        _logger.LogDebug("📏 Symbol {Var}: Size={Size}, DataType={Type}", 
+                            variableName, symbolSize, symbolInfo.TypeName);
+                        
+                        // Detectar si es STRING (ASCII) o WSTRING (Unicode) basado en el tipo
+                        bool isWString = symbolInfo.TypeName?.StartsWith("WSTRING", StringComparison.OrdinalIgnoreCase) == true;
+                        
+                        if (isWString)
+                        {
+                            // WSTRING: UTF-16 Little Endian (2 bytes por carácter + 2 bytes terminador)
+                            int maxChars = (symbolSize - 2) / 2;
+                            if (strValue.Length > maxChars)
+                                strValue = strValue.Substring(0, maxChars);
+                            
+                            buffer = new byte[symbolSize];
+                            byte[] strBytes = System.Text.Encoding.Unicode.GetBytes(strValue);
+                            Array.Copy(strBytes, buffer, Math.Min(strBytes.Length, symbolSize - 2));
+                            
+                            _logger.LogDebug("✍️ Writing WSTRING to PLC: {Var} = \"{Value}\" (size={Size})", 
+                                variableName, strValue, symbolSize);
+                        }
+                        else
+                        {
+                            // STRING: ASCII/Latin-1 (1 byte por carácter + 1 byte terminador)
+                            int maxChars = symbolSize - 1;
+                            if (strValue.Length > maxChars)
+                                strValue = strValue.Substring(0, maxChars);
+                            
+                            buffer = new byte[symbolSize];
+                            byte[] strBytes = System.Text.Encoding.Latin1.GetBytes(strValue);
+                            Array.Copy(strBytes, buffer, Math.Min(strBytes.Length, symbolSize - 1));
+                            
+                            _logger.LogDebug("✍️ Writing STRING to PLC: {Var} = \"{Value}\" (size={Size})", 
+                                variableName, strValue, symbolSize);
+                        }
                         
                         _adsClient.Write(handle, buffer.AsMemory());
-                        _logger.LogDebug("✍️ Wrote WSTRING to PLC: {Var} = {Value}", variableName, strValue);
+                        _logger.LogInformation("✍️ Wrote string to PLC: {Var} = \"{Value}\"", variableName, strValue);
                     }
                     else
                     {

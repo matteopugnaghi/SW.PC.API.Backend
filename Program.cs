@@ -56,8 +56,20 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Configure SignalR for real-time communication
-builder.Services.AddSignalR();
+// Configure SignalR for real-time communication with shorter timeouts for faster disconnect detection
+builder.Services.AddSignalR(options =>
+{
+    // Tiempo que el servidor espera un mensaje del cliente antes de considerarlo desconectado
+    // Default: 30 segundos. Reducido a 15 segundos para detección más rápida.
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(15);
+    
+    // Intervalo de ping al cliente para mantener la conexión viva
+    // Default: 15 segundos. Reducido a 5 segundos.
+    options.KeepAliveInterval = TimeSpan.FromSeconds(5);
+    
+    // Habilitar logs detallados en desarrollo
+    options.EnableDetailedErrors = true;
+});
 
 // Configure JWT Authentication
 // Los valores deben coincidir con la configuración de Excel (Auth_JwtSecretKey, Auth_JwtIssuer, Auth_JwtAudience)

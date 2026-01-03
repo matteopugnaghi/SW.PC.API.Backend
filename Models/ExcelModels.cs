@@ -333,6 +333,14 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Puerto ADS del PLC
         /// </summary>
         public int PlcAdsPort { get; set; } = 851;
+        
+        /// <summary>
+        /// Variable PLC (STRING/WSTRING) donde escribir la pantalla activa del HMI.
+        /// Si vacío, no se notifica al PLC del cambio de pantalla.
+        /// Ejemplo: "GVL.sHmiCurrentScreen" o "MAIN.fbHmi.sCurrentPage"
+        /// Valores posibles: "principal", "alarmas", "estadisticas", "manual", etc.
+        /// </summary>
+        public string CurrentScreenPlcVariable { get; set; } = "";
 
         // ===== BASE DE DATOS SQLite =====
         /// <summary>
@@ -1426,9 +1434,12 @@ namespace SW.PC.API.Backend.Models.Excel
         
         /// <summary>Gestión de usuarios</summary>
         public const string USERS = "USERS";
+        
+        /// <summary>Modo Manual / Mantenimiento (JOG)</summary>
+        public const string MANUAL = "MANUAL";
 
         /// <summary>Todas las vistas válidas</summary>
-        public static readonly string[] AllViews = { GLOBAL, MAIN, TRAIN, WASH, SETTINGS, STATS, ALARMS, USERS };
+        public static readonly string[] AllViews = { GLOBAL, MAIN, TRAIN, WASH, SETTINGS, STATS, ALARMS, USERS, MANUAL };
 
         /// <summary>
         /// Mapeo de currentView del frontend a PlcViewId
@@ -1442,6 +1453,7 @@ namespace SW.PC.API.Backend.Models.Excel
             "configuracion" => SETTINGS,
             "tipostren" => TRAIN,
             "tiposlavado" => WASH,
+            "manual" => MANUAL,
             _ => MAIN // Por defecto, vista principal
         };
     }

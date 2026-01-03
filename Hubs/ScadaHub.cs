@@ -66,6 +66,8 @@ namespace SW.PC.API.Backend.Hubs
         
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
+            bool wasLastClient = false;
+            
             lock (_lockObj)
             {
                 _activeConnections--;
@@ -73,10 +75,19 @@ namespace SW.PC.API.Backend.Hubs
                 _metricsService.SetSignalRActiveConnections(_activeConnections);
                 _metricsService.SetSignalRStatus(true, _activeConnections > 0, 
                     _activeConnections > 0 ? $"OK - {_activeConnections} conexiones" : "Esperando conexiones...");
+                
+                wasLastClient = _activeConnections == 0;
             }
             
             _logger.LogInformation("Client disconnected: {ConnectionId} (Total: {Count})", 
                 Context.ConnectionId, _activeConnections);
+            
+            // 📺 Si era el último cliente, notificar al PLC que no hay pantalla activa
+            if (wasLastClient)
+            {
+                _logger.LogInformation("📺 Último cliente desconectado - notificando al PLC que HMI está offline");
+                _plcPollingService.SetActiveView("");  // Vista vacía = HMI offline
+            }
             
             await base.OnDisconnectedAsync(exception);
         }

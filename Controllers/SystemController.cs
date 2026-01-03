@@ -743,6 +743,82 @@ namespace SW.PC.API.Backend.Controllers
                 });
             }
         }
+
+        // ========================================
+        // POST: api/system/notify-screen
+        // ========================================
+        /// <summary>
+        /// Notifica al PLC la pantalla/vista actual del HMI.
+        /// Útil para notificar "login" antes de que SignalR esté conectado.
+        /// No requiere autenticación para permitir notificar desde la pantalla de login.
+        /// Acepta string vacío para indicar HMI offline.
+        /// </summary>
+        [HttpPost("notify-screen")]
+        [AllowAnonymous]
+        [Consumes("application/json", "text/plain", "application/x-www-form-urlencoded")]
+        public async Task<IActionResult> NotifyScreen()
+        {
+            try
+            {
+                // Leer el body raw para soportar sendBeacon y fetch
+                string screenName = "";
+                
+                using (var reader = new StreamReader(Request.Body))
+                {
+                    var body = await reader.ReadToEndAsync();
+                    _logger.LogDebug("📺 NotifyScreen raw body: '{Body}'", body);
+                    
+                    if (!string.IsNullOrEmpty(body))
+                    {
+                        // Intentar parsear como JSON
+                        if (body.TrimStart().StartsWith("{"))
+                        {
+                            try
+                            {
+                                var json = System.Text.Json.JsonDocument.Parse(body);
+                                if (json.RootElement.TryGetProperty("screenName", out var prop))
+                                {
+                                    screenName = prop.GetString() ?? "";
+                                }
+                            }
+                            catch
+                            {
+                                // Si falla el JSON, usar el body directamente
+                                screenName = body.Trim();
+                            }
+                        }
+                        else
+                        {
+                            // No es JSON, usar como texto plano
+                            screenName = body.Trim();
+                        }
+                    }
+                }
+
+                _logger.LogInformation("📺 API NotifyScreen: '{Screen}' (vacío = offline)", screenName);
+                
+                // Usar SetActiveView que internamente llama a NotifyPlcCurrentScreenAsync
+                // String vacío es válido y significa HMI offline
+                _plcPollingService.SetActiveView(screenName);
+                
+                return Ok(new { 
+                    success = true, 
+                    message = string.IsNullOrEmpty(screenName) 
+                        ? "HMI offline notificado al PLC" 
+                        : $"Pantalla '{screenName}' notificada al PLC",
+                    timestamp = DateTime.Now
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error notificando pantalla al PLC");
+                return StatusCode(500, new { 
+                    success = false, 
+                    message = $"Error: {ex.Message}",
+                    timestamp = DateTime.Now
+                });
+            }
+        }
     }
 
     // ========================================
@@ -753,6 +829,11 @@ namespace SW.PC.API.Backend.Controllers
     {
         public string Username { get; set; } = "";
         public string Role { get; set; } = "";
+    }
+
+    public class NotifyScreenRequest
+    {
+        public string ScreenName { get; set; } = "";
     }
 
     public class CustomToolRequest
