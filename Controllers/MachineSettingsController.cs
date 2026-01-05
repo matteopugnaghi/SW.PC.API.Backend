@@ -10,6 +10,7 @@
 // ============================================================================
 
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SW.PC.API.Backend.Data;
@@ -544,6 +545,22 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         /// <summary>
+        /// Maneja preflight CORS para el endpoint de imágenes
+        /// </summary>
+        [HttpOptions("image")]
+        [AllowAnonymous]
+        [DisableCors]  // ⭐ Deshabilitar política global, usar headers manuales
+        public IActionResult GetSettingImagePreflight()
+        {
+            // Headers CORS explícitos para preflight
+            Response.Headers.Append("Access-Control-Allow-Origin", "*");
+            Response.Headers.Append("Access-Control-Allow-Methods", "GET, OPTIONS");
+            Response.Headers.Append("Access-Control-Allow-Headers", "*");
+            Response.Headers.Append("Access-Control-Max-Age", "86400"); // Cache preflight 24h
+            return Ok();
+        }
+
+        /// <summary>
         /// Obtener la imagen de ayuda de un parámetro
         /// </summary>
         /// <param name="imagePath">Ruta de la imagen (ej: "Images/pump.png")</param>
@@ -551,8 +568,11 @@ namespace SW.PC.API.Backend.Controllers
         /// <remarks>
         /// Las imágenes se buscan en: Projects/{projectId}/config/Images/
         /// El path en Excel debe ser relativo: "Images/nombre.png"
+        /// CORS: Headers manuales para permitir carga desde cualquier origen (Babylon.js canvas)
         /// </remarks>
         [HttpGet("image")]
+        [AllowAnonymous]
+        [DisableCors]  // ⭐ Deshabilitar política global, usar headers manuales '*'
         [ProducesResponseType(200)]
         [ProducesResponseType(404)]
         public IActionResult GetSettingImage([FromQuery] string? imagePath)
@@ -615,11 +635,22 @@ namespace SW.PC.API.Backend.Controllers
                     return NotFound($"Image not found: {imagePath}");
                 }
 
-                // Intentar servir el archivo
+                // Leer archivo y devolverlo con headers CORS explícitos
                 try
                 {
                     var contentType = GetContentType(fullPath);
-                    return PhysicalFile(fullPath, contentType);
+                    var fileBytes = System.IO.File.ReadAllBytes(fullPath);
+                    
+                    // ⭐ CORS: Headers explícitos para permitir carga desde Babylon.js (canvas WebGL)
+                    Response.Headers.Append("Access-Control-Allow-Origin", "*");
+                    Response.Headers.Append("Access-Control-Allow-Methods", "GET, OPTIONS");
+                    
+                    // Cache para mejorar rendimiento
+                    Response.Headers.Append("Cache-Control", "public, max-age=3600"); // Cache 1 hora
+                    
+                    _logger.LogDebug("🖼️ Serving image with CORS: {Path} ({Size} bytes, {ContentType})", fullPath, fileBytes.Length, contentType);
+                    
+                    return File(fileBytes, contentType);
                 }
                 catch (IOException ioEx)
                 {

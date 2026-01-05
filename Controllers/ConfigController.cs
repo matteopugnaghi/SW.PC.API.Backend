@@ -296,6 +296,86 @@ namespace SW.PC.API.Backend.Controllers
                 });
             }
         }
+
+        /// <summary>
+        /// Get 3D elements info display settings from Excel (hoja "3D_Elements_Info_Setting")
+        /// Configura qué información mostrar en los elementos 3D, con qué tipo de visualización,
+        /// botones de escritura al PLC, y slots de lectura (gauges, sparklines, progress, etc.)
+        /// </summary>
+        /// <param name="fileName">Excel file name or full path (default: project's ProjectConfig.xlsm)</param>
+        /// <param name="forceReload">Si es true, invalida la caché y recarga desde Excel</param>
+        /// <returns>List of element info settings with buttons and slots configuration</returns>
+        [HttpGet("3d-elements-info-setting")]
+        [ProducesResponseType(typeof(List<Models.Excel.ElementInfoSettingConfig>), 200)]
+        public async Task<ActionResult<List<Models.Excel.ElementInfoSettingConfig>>> Get3DElementsInfoSetting(
+            [FromQuery] string? fileName = null,
+            [FromQuery] bool forceReload = false)
+        {
+            try
+            {
+                // Usar ruta del proyecto si no se especifica fileName
+                var excelPath = fileName ?? _projectContext.ExcelConfigPath;
+                
+                // Si forceReload, invalidar caché primero
+                if (forceReload)
+                {
+                    _excelConfigService.InvalidateCache(excelPath);
+                    _logger.LogInformation("🔄 Caché invalidada para 3D elements info settings (forceReload=true)");
+                }
+                
+                _logger.LogInformation("🎛️ Loading 3D elements info settings from Excel: {ExcelPath} (proyecto: {Project})", excelPath, _projectContext.ProjectId);
+                
+                var settings = await _excelConfigService.Load3DElementsInfoSettingAsync(excelPath);
+                
+                if (settings == null || settings.Count == 0)
+                {
+                    _logger.LogWarning("⚠️ No 3D elements info settings found in Excel");
+                    return Ok(new List<Models.Excel.ElementInfoSettingConfig>()); // Return empty list instead of 404
+                }
+                
+                // ⭐ Convertir imágenes a base64 para evitar problemas de CORS
+                var configPath = _projectContext.ConfigPath;
+                foreach (var setting in settings)
+                {
+                    // ModelIcon
+                    if (!string.IsNullOrWhiteSpace(setting.ModelIcon) && IsImagePath(setting.ModelIcon))
+                    {
+                        setting.ModelIconBase64 = await LoadImageAsBase64(configPath, setting.ModelIcon);
+                    }
+                    
+                    // Slot Icons
+                    foreach (var slot in setting.Slots)
+                    {
+                        if (!string.IsNullOrWhiteSpace(slot.Icon) && IsImagePath(slot.Icon))
+                        {
+                            slot.IconBase64 = await LoadImageAsBase64(configPath, slot.Icon);
+                        }
+                    }
+                }
+                
+                // Log de variables PLC para diagnóstico
+                var allPlcVars = settings.SelectMany(s => s.GetAllPlcVariables()).Distinct().ToList();
+                _logger.LogInformation("✅ Returning {Count} elements info settings with {VarCount} unique PLC variables", settings.Count, allPlcVars.Count);
+                
+                return Ok(settings);
+            }
+            catch (FileNotFoundException ex)
+            {
+                _logger.LogWarning(ex, "Excel file not found: {FileName}", fileName);
+                return NotFound(new { 
+                    message = $"Excel file not found: {fileName}",
+                    fileName = fileName 
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading 3D elements info settings from Excel");
+                return StatusCode(500, new { 
+                    message = "Internal server error while loading 3D elements info settings",
+                    error = ex.Message 
+                });
+            }
+        }
         
         /// <summary>
         /// Get system configuration from Excel (hoja "System Config")
@@ -393,6 +473,98 @@ namespace SW.PC.API.Backend.Controllers
                 });
             }
         }
+
+        #region Helper Methods para carga de imágenes
+
+        /// <summary>
+        /// Verifica si el string es una ruta de imagen (no emoji)
+        /// </summary>
+        private static bool IsImagePath(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            
+            // Si contiene / o \ es una ruta
+            if (value.Contains('/') || value.Contains('\\')) return true;
+            
+            // Si termina en extensión de imagen
+            var lowerValue = value.ToLowerInvariant();
+            return lowerValue.EndsWith(".png") || 
+                   lowerValue.EndsWith(".jpg") || 
+                   lowerValue.EndsWith(".jpeg") ||
+                   lowerValue.EndsWith(".gif") ||
+                   lowerValue.EndsWith(".webp") ||
+                   lowerValue.EndsWith(".svg");
+        }
+
+        /// <summary>
+        /// Carga una imagen y la convierte a data URL base64
+        /// </summary>
+        private async Task<string?> LoadImageAsBase64(string? configPath, string imagePath)
+        {
+            if (string.IsNullOrWhiteSpace(configPath) || string.IsNullOrWhiteSpace(imagePath))
+                return null;
+
+            try
+            {
+                // Sanitizar path
+                var sanitizedPath = imagePath
+                    .TrimStart('/', '\\')
+                    .Replace("..", "")
+                    .Trim();
+
+                if (string.IsNullOrWhiteSpace(sanitizedPath))
+                    return null;
+
+                // Construir ruta completa
+                var fullPath = Path.GetFullPath(Path.Combine(configPath, sanitizedPath));
+                
+                // Verificar que está dentro del config path
+                if (!fullPath.StartsWith(Path.GetFullPath(configPath), StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("⚠️ Image path outside config folder: {Path}", imagePath);
+                    return null;
+                }
+
+                if (!System.IO.File.Exists(fullPath))
+                {
+                    _logger.LogDebug("🖼️ Image not found for base64: {Path}", fullPath);
+                    return null;
+                }
+
+                // Leer y convertir a base64
+                var bytes = await System.IO.File.ReadAllBytesAsync(fullPath);
+                var contentType = GetImageContentType(fullPath);
+                var base64 = Convert.ToBase64String(bytes);
+                
+                _logger.LogDebug("🖼️ Image converted to base64: {Path} ({Size} bytes)", imagePath, bytes.Length);
+                
+                return $"data:{contentType};base64,{base64}";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Error loading image as base64: {Path}", imagePath);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Obtiene el content type de una imagen según su extensión
+        /// </summary>
+        private static string GetImageContentType(string path)
+        {
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            return ext switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".gif" => "image/gif",
+                ".webp" => "image/webp",
+                ".svg" => "image/svg+xml",
+                _ => "application/octet-stream"
+            };
+        }
+
+        #endregion
     }
 }
 

@@ -44,6 +44,9 @@ namespace SW.PC.API.Backend.Services
         /// Filtra variables y devuelve advertencias de configuración para enviar al frontend
         /// </summary>
         ViewFilterResult FilterVariablesForViewWithWarnings(IEnumerable<string> allVariables, string currentView, List<VariableViewMapping> mappings);
+        
+        // 🎛️ Configuración de visualización de info en elementos 3D
+        Task<List<ElementInfoSettingConfig>> Load3DElementsInfoSettingAsync(string filePath);
     }
 
     /// <summary>
@@ -915,6 +918,321 @@ namespace SW.PC.API.Backend.Services
         }
 
         #endregion
+
+        #region 3D Elements Info Setting
+
+        /// <summary>
+        /// Caché para configuración de visualización de elementos 3D
+        /// </summary>
+        private readonly Dictionary<string, (List<ElementInfoSettingConfig> Configs, DateTime Timestamp)> _elementsInfoSettingCache = new();
+
+        /// <summary>
+        /// Carga la configuración de visualización de información en elementos 3D.
+        /// Hoja: "3D_Elements_Info_Setting"
+        /// Estructura: ModelName, DisplayType, ScreenPosition, ModelPosition, OffsetX, OffsetY, ModelIcon
+        ///             + 5 botones (PlcVar, Desc, Icon) 
+        ///             + 10 slots (Type, PlcVar, Desc, Unit, Format, Min, Max, Warning, Critical, History, TextOn, TextOff, Icon)
+        /// </summary>
+        public async Task<List<ElementInfoSettingConfig>> Load3DElementsInfoSettingAsync(string filePath)
+        {
+            var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+            var cacheKey = fullPath.ToLowerInvariant();
+
+            // Verificar caché
+            lock (_cacheLock)
+            {
+                if (_elementsInfoSettingCache.TryGetValue(cacheKey, out var cached))
+                {
+                    var cacheAge = DateTime.Now - cached.Timestamp;
+                    if (cacheAge < _cacheExpiration)
+                    {
+                        _logger.LogDebug("📦 Usando 3D_Elements_Info_Setting desde CACHÉ ({Count} configuraciones)", cached.Configs.Count);
+                        return cached.Configs;
+                    }
+                }
+            }
+
+            try
+            {
+                if (!File.Exists(fullPath))
+                {
+                    _logger.LogWarning("Excel file not found: {Path}. 3D_Elements_Info_Setting no disponible.", fullPath);
+                    return new List<ElementInfoSettingConfig>();
+                }
+
+                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var package = new ExcelPackage(stream);
+                
+                var configs = await LoadElementsInfoSettingFromSheetAsync(package);
+
+                // Guardar en caché
+                lock (_cacheLock)
+                {
+                    _elementsInfoSettingCache[cacheKey] = (configs, DateTime.Now);
+                }
+
+                _logger.LogInformation("✅ Cargadas {Count} configuraciones de 3D_Elements_Info_Setting desde Excel", configs.Count);
+                return configs;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cargando 3D_Elements_Info_Setting: {Message}", ex.Message);
+                return new List<ElementInfoSettingConfig>();
+            }
+        }
+
+        /// <summary>
+        /// Lee la hoja 3D_Elements_Info_Setting del Excel
+        /// </summary>
+        private async Task<List<ElementInfoSettingConfig>> LoadElementsInfoSettingFromSheetAsync(ExcelPackage package)
+        {
+            var configs = new List<ElementInfoSettingConfig>();
+            var sheet = package.Workbook.Worksheets["3D_Elements_Info_Setting"];
+
+            if (sheet == null)
+            {
+                _logger.LogWarning("⚠️ Hoja '3D_Elements_Info_Setting' no encontrada en Excel. Sin configuración de info para elementos 3D.");
+                return configs;
+            }
+
+            _logger.LogInformation("🎛️ Cargando configuración de info para elementos 3D...");
+
+            // Columnas base: A-L (12 columnas)
+            // Botones: M en adelante (5 botones × 3 columnas = 15 columnas)
+            // Slots: AB en adelante (10 slots × 13 columnas = 130 columnas)
+            
+            // 🔍 DEBUG: Mostrar dimensiones reales de la hoja
+            _logger.LogInformation("📐 Dimensiones de hoja '3D_Elements_Info_Setting': Rows={Rows}, Cols={Cols}",
+                sheet.Dimension?.Rows ?? 0, sheet.Dimension?.Columns ?? 0);
+            
+            // 🔍 DEBUG: Leer directamente la celda AC2 para verificar
+            var directAC2 = sheet.Cells["AC2"].Text;
+            var directAC3 = sheet.Cells["AC3"].Text;
+            _logger.LogInformation("📌 LECTURA DIRECTA - AC2='{AC2}', AC3='{AC3}'", directAC2, directAC3);
+            
+            // Leer desde fila 2 (fila 1 = encabezados)
+            // ⚠️ NO usar while con columna A vacía - puede haber filas con datos en otras columnas
+            int row = 2;
+            int emptyRowCount = 0;
+            int maxRows = sheet.Dimension?.Rows ?? 100;
+            
+            while (row <= maxRows && emptyRowCount < 5)
+            {
+                try
+                {
+                    // Leer nombre del modelo desde columna A
+                    var modelName = sheet.Cells[$"A{row}"].Text?.Trim() ?? string.Empty;
+                    
+                    // Si la fila no tiene nombre de modelo, saltar pero continuar buscando
+                    if (string.IsNullOrWhiteSpace(modelName))
+                    {
+                        emptyRowCount++;
+                        row++;
+                        continue;
+                    }
+                    
+                    // Reset contador de filas vacías al encontrar una con datos
+                    emptyRowCount = 0;
+                    
+                    var config = new ElementInfoSettingConfig
+                    {
+                        ExcelRowIndex = row,
+                        
+                        // Columnas base (A-L)
+                        ModelName = modelName,  // Ya lo leímos arriba
+                        DisplayType = ElementDisplayTypeParser.Parse(sheet.Cells[$"B{row}"].Text),
+                        ScreenPosition = GetCellText(sheet, $"C{row}"),
+                        ModelPosition = GetCellText(sheet, $"D{row}") ?? "top",
+                        OffsetX = GetCellDouble(sheet, $"E{row}"),
+                        OffsetY = GetCellDouble(sheet, $"F{row}"),
+                        OffsetZ = GetCellDouble(sheet, $"G{row}"),
+                        ModelIcon = GetCellText(sheet, $"H{row}"),
+                        LabelWidth = GetCellDoubleWithDefault(sheet, $"I{row}", 0.6),
+                        LabelHeight = GetCellDoubleWithDefault(sheet, $"J{row}", 0.2),
+                        LabelScale = GetCellDoubleWithDefault(sheet, $"K{row}", 1.0),
+                        ShortName = GetCellText(sheet, $"L{row}")
+                    };
+
+                    // Cargar 5 botones (columnas M en adelante, 3 columnas por botón)
+                    // M=13, N=14, O=15 → Botón 1
+                    // P=16, Q=17, R=18 → Botón 2
+                    // etc.
+                    int buttonCol = 13; // Columna M
+                    for (int btn = 1; btn <= 5; btn++)
+                    {
+                        var button = new InfoSettingButton
+                        {
+                            Index = btn,
+                            PlcVariable = GetCellText(sheet, row, buttonCol),
+                            Description = GetCellText(sheet, row, buttonCol + 1),
+                            Icon = GetCellText(sheet, row, buttonCol + 2)
+                        };
+                        
+                        if (button.IsConfigured)
+                        {
+                            config.Buttons.Add(button);
+                        }
+                        
+                        buttonCol += 3;
+                    }
+
+                    // Cargar 10 slots (columnas AB en adelante, 13 columnas por slot)
+                    // AB=28, AC=29... hasta columna 40 → Slot 1
+                    // etc.
+                    int slotCol = 28; // Columna AB
+                    for (int slot = 1; slot <= 10; slot++)
+                    {
+                        var plcVar = GetCellText(sheet, row, slotCol + 1);
+                        
+                        // 🔍 DEBUG: Mostrar qué hay en la columna de PlcVariable
+                        if (!string.IsNullOrWhiteSpace(plcVar))
+                        {
+                            _logger.LogInformation("   🔍 Row {Row}, Slot {Slot}, Col {Col} (PlcVar): '{PlcVar}'", 
+                                row, slot, slotCol + 1, plcVar);
+                        }
+                        
+                        var slotConfig = new InfoSettingSlot
+                        {
+                            Index = slot,
+                            Type = SlotDisplayTypeParser.Parse(GetCellText(sheet, row, slotCol)),
+                            PlcVariable = plcVar,
+                            Description = GetCellText(sheet, row, slotCol + 2),
+                            Unit = GetCellText(sheet, row, slotCol + 3),
+                            Format = GetCellText(sheet, row, slotCol + 4),
+                            Min = GetCellNullableDouble(sheet, row, slotCol + 5),
+                            Max = GetCellNullableDouble(sheet, row, slotCol + 6),
+                            WarningThreshold = GetCellNullableDouble(sheet, row, slotCol + 7),
+                            CriticalThreshold = GetCellNullableDouble(sheet, row, slotCol + 8),
+                            HistorySize = GetCellNullableInt(sheet, row, slotCol + 9),
+                            TextOn = GetCellText(sheet, row, slotCol + 10),
+                            TextOff = GetCellText(sheet, row, slotCol + 11),
+                            Icon = GetCellText(sheet, row, slotCol + 12)
+                        };
+                        
+                        if (slotConfig.IsConfigured)
+                        {
+                            config.Slots.Add(slotConfig);
+                        }
+                        
+                        slotCol += 13;
+                    }
+
+                    // Solo añadir si tiene nombre de modelo válido (ya validado arriba)
+                    configs.Add(config);
+                    
+                    // Log detallado
+                    _logger.LogDebug("   📋 {Model}: {DisplayType}, {ButtonCount} botones, {SlotCount} slots",
+                        config.ModelName, config.DisplayType, config.Buttons.Count, config.Slots.Count);
+                    
+                    // Listar variables PLC para integración con Variable_Views
+                    var plcVars = config.GetAllPlcVariables();
+                    if (plcVars.Count > 0)
+                    {
+                        _logger.LogDebug("      Variables PLC: [{Variables}]", string.Join(", ", plcVars));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("⚠️ Error parseando fila {Row} de 3D_Elements_Info_Setting: {Error}", row, ex.Message);
+                }
+                
+                row++;
+            }
+
+            // Resumen
+            _logger.LogInformation("════════════════════════════════════════════════════════════════════");
+            _logger.LogInformation("📊 3D_Elements_Info_Setting: {Count} elementos configurados", configs.Count);
+            _logger.LogInformation("────────────────────────────────────────────────────────────────────");
+            
+            var byDisplayType = configs.GroupBy(c => c.DisplayType);
+            foreach (var group in byDisplayType)
+            {
+                _logger.LogInformation("   {DisplayType}: {Count} elementos", group.Key, group.Count());
+            }
+            
+            var totalButtons = configs.Sum(c => c.Buttons.Count);
+            var totalSlots = configs.Sum(c => c.Slots.Count);
+            var totalVars = configs.SelectMany(c => c.GetAllPlcVariables()).Distinct().Count();
+            
+            _logger.LogInformation("────────────────────────────────────────────────────────────────────");
+            _logger.LogInformation("   Total botones: {Buttons}, Total slots: {Slots}, Variables únicas: {Vars}", 
+                totalButtons, totalSlots, totalVars);
+            _logger.LogInformation("════════════════════════════════════════════════════════════════════");
+            
+            return await Task.FromResult(configs);
+        }
+
+        // Helpers para lectura de celdas por índice de columna
+        private string? GetCellText(ExcelWorksheet sheet, int row, int col)
+        {
+            var text = sheet.Cells[row, col].Text?.Trim();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+
+        private string? GetCellText(ExcelWorksheet sheet, string address)
+        {
+            var text = sheet.Cells[address].Text?.Trim();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+
+        private double GetCellDouble(ExcelWorksheet sheet, string address)
+        {
+            var cell = sheet.Cells[address];
+            if (cell.Value is double d) return d;
+            if (cell.Value is int i) return i;
+            if (double.TryParse(cell.Text?.Replace(",", "."), 
+                System.Globalization.NumberStyles.Any, 
+                System.Globalization.CultureInfo.InvariantCulture, out var result))
+            {
+                return result;
+            }
+            return 0;
+        }
+
+        private double GetCellDoubleWithDefault(ExcelWorksheet sheet, string address, double defaultValue)
+        {
+            var cell = sheet.Cells[address];
+            if (cell.Value == null || string.IsNullOrWhiteSpace(cell.Text)) return defaultValue;
+            if (cell.Value is double d) return d;
+            if (cell.Value is int i) return i;
+            if (double.TryParse(cell.Text?.Replace(",", "."), 
+                System.Globalization.NumberStyles.Any, 
+                System.Globalization.CultureInfo.InvariantCulture, out var result))
+            {
+                return result;
+            }
+            return defaultValue;
+        }
+
+        private double? GetCellNullableDouble(ExcelWorksheet sheet, int row, int col)
+        {
+            var cell = sheet.Cells[row, col];
+            if (cell.Value == null || string.IsNullOrWhiteSpace(cell.Text)) return null;
+            if (cell.Value is double d) return d;
+            if (cell.Value is int i) return i;
+            if (double.TryParse(cell.Text?.Replace(",", "."), 
+                System.Globalization.NumberStyles.Any, 
+                System.Globalization.CultureInfo.InvariantCulture, out var result))
+            {
+                return result;
+            }
+            return null;
+        }
+
+        private int? GetCellNullableInt(ExcelWorksheet sheet, int row, int col)
+        {
+            var cell = sheet.Cells[row, col];
+            if (cell.Value == null || string.IsNullOrWhiteSpace(cell.Text)) return null;
+            if (cell.Value is int i) return i;
+            if (cell.Value is double d) return (int)d;
+            if (int.TryParse(cell.Text, out var result))
+            {
+                return result;
+            }
+            return null;
+        }
+
+        #endregion
         
         /// <summary>
         /// Carga la configuración de colores por estado desde la hoja PLC_State_Colors
@@ -1357,7 +1675,12 @@ namespace SW.PC.API.Backend.Services
                         
                         int sheetVarCount = 0;
                         int rowCount = worksheet.Dimension.Rows;
-                        int colCount = worksheet.Dimension.Columns;
+                        // ⚠️ worksheet.Dimension.Columns puede no incluir columnas lejanas si hay vacías intermedias
+                        // Usar un rango fijo amplio para asegurar que llegamos hasta AC (col 29) y más allá
+                        int colCount = Math.Max(worksheet.Dimension.Columns, 200); // Al menos 200 columnas (hasta columna GR)
+                        
+                        _logger.LogDebug("   🔍 Escaneando hoja '{SheetName}': {Rows} filas x {Cols} columnas", 
+                            worksheet.Name, rowCount, colCount);
                         
                         // Escanear todas las celdas de la hoja
                         for (int row = 1; row <= rowCount; row++)
@@ -1414,6 +1737,55 @@ namespace SW.PC.API.Backend.Services
                     if (histVarsAdded > 0)
                     {
                         _logger.LogInformation("   🔔 Alarmas historial: +{Count} variables (st_alarmHistPc)", histVarsAdded);
+                    }
+                    
+                    // 🎯 CASO ESPECIAL: Variables de 3D_Elements_Info_Setting (paneles de información 3D)
+                    // Estas variables están en columnas específicas de slots y pueden no detectarse con el escaneo general
+                    try
+                    {
+                        var infoSettingConfigs = await LoadElementsInfoSettingFromSheetAsync(package);
+                        int infoVarsAdded = 0;
+                        foreach (var config in infoSettingConfigs)
+                        {
+                            // Variables de slots
+                            if (config.Slots != null)
+                            {
+                                foreach (var slot in config.Slots)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(slot.PlcVariable) && 
+                                        slot.PlcVariable.StartsWith("MAIN.fbMachine", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        if (variableNames.Add(slot.PlcVariable))
+                                        {
+                                            infoVarsAdded++;
+                                        }
+                                    }
+                                }
+                            }
+                            // Variables de botones (si existen)
+                            if (config.Buttons != null)
+                            {
+                                foreach (var btn in config.Buttons)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(btn.PlcVariable) && 
+                                        btn.PlcVariable.StartsWith("MAIN.fbMachine", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        if (variableNames.Add(btn.PlcVariable))
+                                        {
+                                            infoVarsAdded++;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (infoVarsAdded > 0)
+                        {
+                            _logger.LogInformation("   🎯 3D_Elements_Info_Setting: +{Count} variables (slots/buttons)", infoVarsAdded);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("⚠️ Error extrayendo variables de 3D_Elements_Info_Setting: {Message}", ex.Message);
                     }
                     
                     _logger.LogInformation("────────────────────────────────────────────────────────────────────");
@@ -2778,6 +3150,8 @@ namespace SW.PC.API.Backend.Services
                     // Invalidar todo el cache
                     _systemConfigCache.Clear();
                     _stateColorsCache.Clear();
+                    _variableViewsCache.Clear();
+                    _elementsInfoSettingCache.Clear();
                     _logger.LogInformation("🔄 Todo el caché invalidado - se recargará en la próxima petición");
                 }
                 else
@@ -2788,6 +3162,8 @@ namespace SW.PC.API.Backend.Services
                     
                     _systemConfigCache.Remove(cacheKey);
                     _stateColorsCache.Remove(cacheKey);
+                    _variableViewsCache.Remove(cacheKey);
+                    _elementsInfoSettingCache.Remove(cacheKey);
                     _logger.LogInformation("🔄 Caché invalidado para {Path} - se recargará en la próxima petición", Path.GetFileName(fullPath));
                 }
             }

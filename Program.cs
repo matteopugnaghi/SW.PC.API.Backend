@@ -54,6 +54,14 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowCredentials();  // Necesario para SignalR
     });
+    
+    // Política permisiva para recursos estáticos (imágenes, etc.) - sin credenciales
+    options.AddPolicy("StaticResources", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
 });
 
 // Configure SignalR for real-time communication with shorter timeouts for faster disconnect detection
@@ -431,7 +439,36 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Enable CORS FIRST (debe ir al principio)
+// ⭐ CORS MIDDLEWARE PARA IMÁGENES - ANTES de cualquier otro middleware
+// Maneja CORS manualmente para /api/machine-settings/image (necesario para canvas/WebGL)
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/machine-settings/image"))
+    {
+        var logger = context.RequestServices.GetService<ILogger<Program>>();
+        logger?.LogInformation("🖼️ CORS Middleware: Procesando {Method} {Path} desde Origin: {Origin}", 
+            context.Request.Method, 
+            context.Request.Path,
+            context.Request.Headers.Origin.FirstOrDefault() ?? "sin-origin");
+        
+        // Agregar headers CORS para TODAS las respuestas de este endpoint
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, OPTIONS");
+        context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
+        
+        // Si es preflight OPTIONS, responder inmediatamente
+        if (context.Request.Method == "OPTIONS")
+        {
+            logger?.LogInformation("🖼️ CORS Middleware: Respondiendo a preflight OPTIONS");
+            context.Response.Headers.Append("Access-Control-Max-Age", "86400");
+            context.Response.StatusCode = 204; // No Content
+            return;
+        }
+    }
+    await next();
+});
+
+// Enable CORS FIRST - ANTES de cualquier otro middleware
 app.UseCors("ReactFrontend");
 
 // 📁 MULTI-TENANT: Project Context Middleware (solo activo en Development)

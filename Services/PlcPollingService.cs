@@ -69,6 +69,19 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         public ViewFilterResult? GetLastFilterResult() => _lastFilterResult;
 
+        /// <summary>
+        /// 📤 Obtiene el valor actual de una variable PLC.
+        /// Usado por SignalR para enviar valor inicial al suscribirse.
+        /// </summary>
+        public object? GetVariableCurrentValue(string variableName)
+        {
+            if (_variableStates.TryGetValue(variableName, out var state))
+            {
+                return state.LastValue;
+            }
+            return null;
+        }
+
         public PlcPollingService(
             ITwinCATService twinCATService,
             IHubContext<ScadaHub> hubContext,
@@ -453,6 +466,26 @@ namespace SW.PC.API.Backend.Services
                  variableName.EndsWith("].Info")))
             {
                 dataType = typeof(bool);
+            }
+            // Variables LREAL (prefijo lr_) son double
+            else if (variableName.Contains(".lr_") || variableName.Contains("[").Equals(false) && variableName.EndsWith("lr_"))
+            {
+                dataType = typeof(double);
+            }
+            // Variables REAL (prefijo r_) son float
+            else if (variableName.Contains(".r_") || variableName.Contains("[").Equals(false) && variableName.EndsWith("r_"))
+            {
+                dataType = typeof(float);
+            }
+            // Variables booleanas (prefijo b_, bo_, x_)
+            else if (variableName.Contains(".b_") || variableName.Contains(".bo_") || variableName.Contains(".x_"))
+            {
+                dataType = typeof(bool);
+            }
+            // Variables string (prefijo s_, str_)
+            else if (variableName.Contains(".s_") || variableName.Contains(".str_"))
+            {
+                dataType = typeof(string);
             }
             
             // Leer valor actual del PLC con el tipo correcto

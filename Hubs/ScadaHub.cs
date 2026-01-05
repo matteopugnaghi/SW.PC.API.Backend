@@ -97,10 +97,32 @@ namespace SW.PC.API.Backend.Hubs
         /// </summary>
         public async Task SubscribeToVariable(string variableName)
         {
-            _logger.LogInformation("Client {ConnectionId} subscribed to variable {VariableName}", 
+            _logger.LogInformation("📥 Client {ConnectionId} subscribed to variable {VariableName}", 
                 Context.ConnectionId, variableName);
             
             await Groups.AddToGroupAsync(Context.ConnectionId, $"var_{variableName}");
+            
+            // 🔔 Enviar valor actual inmediatamente al cliente que se suscribe
+            // para que no tenga que esperar al siguiente cambio
+            var currentValue = _plcPollingService.GetVariableCurrentValue(variableName);
+            if (currentValue != null)
+            {
+                _logger.LogInformation("📤 Enviando valor actual de {VariableName} = {Value} al cliente", 
+                    variableName, currentValue);
+                    
+                await Clients.Caller.SendAsync("PlcVariableUpdated", new 
+                {
+                    variableName = variableName,
+                    value = currentValue,
+                    timestamp = DateTime.Now,
+                    isInitialValue = true
+                });
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ Variable {VariableName} no tiene valor actual (no monitoreada o primera lectura pendiente)", 
+                    variableName);
+            }
         }
         
         /// <summary>
