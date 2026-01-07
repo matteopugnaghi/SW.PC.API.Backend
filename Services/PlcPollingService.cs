@@ -82,6 +82,55 @@ namespace SW.PC.API.Backend.Services
             return null;
         }
 
+        /// <summary>
+        /// 🔧 Fuerza una lectura inmediata de una variable del PLC.
+        /// Útil cuando se suscribe a una variable que aún no tiene valor.
+        /// Retorna el valor leído o null si hay error.
+        /// </summary>
+        public async Task<object?> ForceReadVariableAsync(string variableName)
+        {
+            try
+            {
+                _logger.LogInformation("🔧 Forzando lectura de {VariableName}", variableName);
+                
+                // Usar tipo genérico double ya que la mayoría de las variables son numéricas
+                // El TwinCATService convierte automáticamente al tipo correcto
+                var result = await _twinCATService.ReadVariableAsync(variableName, typeof(double));
+                
+                if (result != null)
+                {
+                    // Actualizar estado interno
+                    if (!_variableStates.ContainsKey(variableName))
+                    {
+                        _variableStates[variableName] = new PlcVariableState
+                        {
+                            Name = variableName,
+                            LastValue = null,
+                            LastUpdate = DateTime.MinValue
+                        };
+                    }
+                    
+                    var state = _variableStates[variableName];
+                    state.LastValue = result;
+                    state.LastUpdate = DateTime.Now;
+                    state.ReadErrorCount = 0;
+                    
+                    _logger.LogInformation("📤 Variable {VariableName} forzada = {Value}", 
+                        variableName, result);
+                    
+                    return result;
+                }
+                
+                _logger.LogWarning("⚠️ ForceRead de {VariableName} retornó null", variableName);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error en ForceRead de {VariableName}", variableName);
+                return null;
+            }
+        }
+
         public PlcPollingService(
             ITwinCATService twinCATService,
             IHubContext<ScadaHub> hubContext,

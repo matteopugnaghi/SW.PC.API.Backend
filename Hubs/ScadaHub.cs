@@ -103,7 +103,6 @@ namespace SW.PC.API.Backend.Hubs
             await Groups.AddToGroupAsync(Context.ConnectionId, $"var_{variableName}");
             
             // 🔔 Enviar valor actual inmediatamente al cliente que se suscribe
-            // para que no tenga que esperar al siguiente cambio
             var currentValue = _plcPollingService.GetVariableCurrentValue(variableName);
             if (currentValue != null)
             {
@@ -120,8 +119,77 @@ namespace SW.PC.API.Backend.Hubs
             }
             else
             {
-                _logger.LogWarning("⚠️ Variable {VariableName} no tiene valor actual (no monitoreada o primera lectura pendiente)", 
+                _logger.LogWarning("⚠️ Variable {VariableName} no tiene valor actual, iniciando reintentos...", 
                     variableName);
+                
+                // 🔧 ROBUSTO: Múltiples reintentos con backoff exponencial + ForceRead
+                var connectionId = Context.ConnectionId;
+                var pollingService = _plcPollingService;
+                var clients = Clients;
+                var logger = _logger;
+                
+                _ = Task.Run(async () =>
+                {
+                    int[] delaysMs = { 200, 500, 1000, 2000 }; // 4 reintentos: 200ms, 500ms, 1s, 2s
+                    
+                    for (int attempt = 0; attempt < delaysMs.Length; attempt++)
+                    {
+                        try
+                        {
+                            await Task.Delay(delaysMs[attempt]);
+                            
+                            // Primero intentar obtener del cache
+                            var value = pollingService.GetVariableCurrentValue(variableName);
+                            
+                            // Si es el último intento y aún no hay valor, forzar lectura directa
+                            if (value == null && attempt == delaysMs.Length - 1)
+                            {
+                                logger.LogInformation("🔧 Forzando lectura directa de {VariableName} en último intento", 
+                                    variableName);
+                                value = await pollingService.ForceReadVariableAsync(variableName);
+                            }
+                            
+                            if (value != null)
+                            {
+                                await clients.Client(connectionId).SendAsync("PlcVariableUpdated", new 
+                                {
+                                    variableName = variableName,
+                                    value = value,
+                                    timestamp = DateTime.Now,
+                                    isInitialValue = true,
+                                    retryAttempt = attempt + 1
+                                });
+                                logger.LogInformation("📤 Valor enviado en intento {Attempt}: {VariableName} = {Value}", 
+                                    attempt + 1, variableName, value);
+                                return; // Éxito, salir del loop
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning(ex, "Error en reintento {Attempt} para {VariableName}", 
+                                attempt + 1, variableName);
+                        }
+                    }
+                    
+                    // Después de todos los reintentos (incluyendo ForceRead), enviar fallback
+                    try
+                    {
+                        await clients.Client(connectionId).SendAsync("PlcVariableUpdated", new 
+                        {
+                            variableName = variableName,
+                            value = 0,
+                            timestamp = DateTime.Now,
+                            isInitialValue = true,
+                            isFallback = true
+                        });
+                        logger.LogWarning("⚠️ Variable {VariableName} sin valor después de {Count} reintentos + ForceRead, enviando fallback 0", 
+                            variableName, delaysMs.Length);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Error enviando fallback para {VariableName}", variableName);
+                    }
+                });
             }
         }
         
