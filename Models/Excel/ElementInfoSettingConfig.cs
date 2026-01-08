@@ -81,13 +81,15 @@ namespace SW.PC.API.Backend.Models.Excel
                                       DisplayType == ElementDisplayType.AttachedLabel ||
                                       DisplayType == ElementDisplayType.Linked ||
                                       DisplayType == ElementDisplayType.ScreenAlways ||
-                                      DisplayType == ElementDisplayType.AlwaysLinked;
+                                      DisplayType == ElementDisplayType.AlwaysLinked ||
+                                      DisplayType == ElementDisplayType.DualToggle;
 
         /// <summary>Indica si tiene panel en pantalla</summary>
         [JsonIgnore]
         public bool HasScreenPanel => DisplayType == ElementDisplayType.ScreenFixed ||
                                        DisplayType == ElementDisplayType.Linked ||
-                                       DisplayType == ElementDisplayType.ScreenAlways;
+                                       DisplayType == ElementDisplayType.ScreenAlways ||
+                                       DisplayType == ElementDisplayType.DualToggle;
 
         /// <summary>Obtiene todas las variables PLC usadas (para registro en Variable_Views)</summary>
         public List<string> GetAllPlcVariables()
@@ -135,7 +137,10 @@ namespace SW.PC.API.Backend.Models.Excel
         ScreenAlways,
         
         /// <summary>Info pegada siempre visible + checkbox para resaltar/localizar modelo</summary>
-        AlwaysLinked
+        AlwaysLinked,
+        
+        /// <summary>Dos checkboxes: uno para modelLabel (3D) y otro para screenPanel (UI)</summary>
+        DualToggle
     }
 
     /// <summary>
@@ -313,6 +318,7 @@ namespace SW.PC.API.Backend.Models.Excel
                 "linked" => ElementDisplayType.Linked,
                 "screenalways" => ElementDisplayType.ScreenAlways,
                 "alwayslinked" => ElementDisplayType.AlwaysLinked,
+                "dualtoggle" or "dual" or "both" => ElementDisplayType.DualToggle,
                 _ => ElementDisplayType.AttachedLabel
             };
         }
