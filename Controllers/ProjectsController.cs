@@ -16,18 +16,18 @@ namespace SW.PC.API.Backend.Controllers
     {
         private readonly IProjectContextService _globalContext;
         private readonly IRequestProjectContext _requestContext;
-        private readonly IWebHostEnvironment _environment;
+        private readonly IExcelConfigService _excelConfigService;
         private readonly ILogger<ProjectsController> _logger;
         
         public ProjectsController(
             IProjectContextService globalContext,
             IRequestProjectContext requestContext,
-            IWebHostEnvironment environment,
+            IExcelConfigService excelConfigService,
             ILogger<ProjectsController> logger)
         {
             _globalContext = globalContext;
             _requestContext = requestContext;
-            _environment = environment;
+            _excelConfigService = excelConfigService;
             _logger = logger;
         }
         
@@ -58,19 +58,24 @@ namespace SW.PC.API.Backend.Controllers
         
         /// <summary>
         /// Obtiene información del proyecto activo para este request
-        /// En Development: Puede ser diferente al global si se usa header X-Project-Id
-        /// En Production: Siempre igual al proyecto de active-project.json
+        /// isDevelopmentMode viene del Excel (System Config → EnvironmentMode)
         /// </summary>
         [HttpGet("active")]
         public ActionResult<object> GetActiveProject()
         {
             try
             {
+                // Leer EnvironmentMode del Excel (System Config)
+                var systemConfig = _excelConfigService.LoadSystemConfigurationAsync("ProjectConfig.xlsm").GetAwaiter().GetResult();
+                var environmentMode = systemConfig?.EnvironmentMode?.ToLower() ?? "development";
+                var isDevelopment = environmentMode == "development";
+                
                 return Ok(new
                 {
                     projectId = _requestContext.ProjectId,
                     isMultiProjectMode = _requestContext.IsMultiProjectMode,
-                    isDevelopmentMode = _environment.IsDevelopment(),
+                    isDevelopmentMode = isDevelopment, // Ahora viene del Excel!
+                    environmentMode = environmentMode, // También exponer el valor raw
                     globalProjectId = _globalContext.ActiveProjectId, // El configurado en active-project.json
                     paths = new
                     {

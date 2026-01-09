@@ -494,23 +494,8 @@ provider.Mappings[".obj"] = "application/object";
 provider.Mappings[".mtl"] = "text/plain";
 provider.Mappings[".stl"] = "application/sla";
 
-// Enable static files BEFORE routing - this is critical!
-app.UseStaticFiles(new StaticFileOptions
-{
-    ContentTypeProvider = provider,
-    ServeUnknownFileTypes = false,
-    HttpsCompression = Microsoft.AspNetCore.Http.Features.HttpsCompressionMode.Compress,
-    OnPrepareResponse = ctx =>
-    {
-        app.Logger.LogInformation("✅ Serving static file: {Path}", ctx.File.PhysicalPath);
-        // Add CORS headers to static files
-        ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
-        ctx.Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS";
-        ctx.Context.Response.Headers["Access-Control-Allow-Headers"] = "*";
-    }
-});
-
-// 📁 MULTI-PROJECT: Serve /models from project folder or legacy wwwroot/models
+// 📁 MULTI-PROJECT: Serve /models from project folder FIRST (before general wwwroot)
+// This MUST come before the general UseStaticFiles() to take precedence
 {
     var projectContextForModels = app.Services.GetRequiredService<IProjectContextService>();
     var modelsPhysicalPath = projectContextForModels.ModelsPath;
@@ -555,6 +540,27 @@ app.UseStaticFiles(new StaticFileOptions
         }
     });
 }
+
+// Enable static files for wwwroot (frontend, etc.) AFTER /models
+// This serves everything else from wwwroot, but /models requests are already handled above
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = provider,
+    ServeUnknownFileTypes = false,
+    HttpsCompression = Microsoft.AspNetCore.Http.Features.HttpsCompressionMode.Compress,
+    OnPrepareResponse = ctx =>
+    {
+        // Don't log model files here - they should be handled by the project-specific middleware above
+        if (!ctx.File.PhysicalPath.Contains("\\models\\") && !ctx.File.PhysicalPath.Contains("/models/"))
+        {
+            app.Logger.LogDebug("📄 Serving static file from wwwroot: {Path}", ctx.File.PhysicalPath);
+        }
+        // Add CORS headers to static files
+        ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+        ctx.Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS";
+        ctx.Context.Response.Headers["Access-Control-Allow-Headers"] = "*";
+    }
+});
 
 // Enable routing AFTER static files
 app.UseRouting();
