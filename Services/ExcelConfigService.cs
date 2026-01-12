@@ -1057,19 +1057,32 @@ namespace SW.PC.API.Backend.Services
                         ShortName = GetCellText(sheet, $"L{row}")
                     };
 
-                    // Cargar 5 botones (columnas M en adelante, 3 columnas por botón)
-                    // M=13, N=14, O=15 → Botón 1
-                    // P=16, Q=17, R=18 → Botón 2
-                    // etc.
+                    // Cargar 5 controles (columnas M en adelante, 3 columnas por control)
+                    // FORMATO NUEVO (3 columnas por control):
+                    //   M=13: Ctrl_1_Var (Variable PLC)
+                    //   N=14: Ctrl_1_Config (formato: icon|behaviorType|dataType|enableVar o solo icon.png)
+                    //   O=15: Ctrl_1_Text (Descripción)
+                    // COMPATIBILIDAD: Si Config contiene solo nombre de archivo (sin |), se trata como icono simple
                     int buttonCol = 13; // Columna M
                     for (int btn = 1; btn <= 5; btn++)
                     {
+                        var plcVariable = GetCellText(sheet, row, buttonCol);
+                        var configString = GetCellText(sheet, row, buttonCol + 1);
+                        var description = GetCellText(sheet, row, buttonCol + 2);
+                        
+                        // Parsear formato compuesto: icon|behaviorType|dataType|enableVar
+                        // Si no contiene |, se trata como icono simple (formato antiguo compatible)
+                        var (icon, buttonType, dataType, enableVar) = ControlConfigParser.Parse(configString);
+                        
                         var button = new InfoSettingButton
                         {
                             Index = btn,
-                            PlcVariable = GetCellText(sheet, row, buttonCol),
-                            Description = GetCellText(sheet, row, buttonCol + 1),
-                            Icon = GetCellText(sheet, row, buttonCol + 2)
+                            PlcVariable = plcVariable,
+                            Description = description,
+                            Icon = icon,
+                            ButtonType = buttonType,
+                            DataType = dataType,
+                            EnableVariable = enableVar
                         };
                         
                         if (button.IsConfigured)
@@ -1077,28 +1090,29 @@ namespace SW.PC.API.Backend.Services
                             config.Buttons.Add(button);
                         }
                         
-                        buttonCol += 3;
+                        buttonCol += 3; // 3 columnas por control (mantiene compatibilidad M-AA)
                     }
 
                     // Cargar 10 slots (columnas AB en adelante, 13 columnas por slot)
-                    // AB=28, AC=29... hasta columna 40 → Slot 1
-                    // etc.
+                    // AB=28: Slot_1_Type, AC=29: Slot_1_PlcVar, etc.
                     int slotCol = 28; // Columna AB
+                    
                     for (int slot = 1; slot <= 10; slot++)
                     {
+                        var slotTypeText = GetCellText(sheet, row, slotCol);
                         var plcVar = GetCellText(sheet, row, slotCol + 1);
                         
-                        // 🔍 DEBUG: Mostrar qué hay en la columna de PlcVariable
-                        if (!string.IsNullOrWhiteSpace(plcVar))
+                        // 🔍 DEBUG: Mostrar qué hay en las columnas del slot
+                        if (!string.IsNullOrWhiteSpace(plcVar) || !string.IsNullOrWhiteSpace(slotTypeText))
                         {
-                            _logger.LogInformation("   🔍 Row {Row}, Slot {Slot}, Col {Col} (PlcVar): '{PlcVar}'", 
-                                row, slot, slotCol + 1, plcVar);
+                            _logger.LogInformation("   🔍 Row {Row}, Slot {Slot}: Type='{Type}' (col {TypeCol}), PlcVar='{PlcVar}' (col {VarCol})", 
+                                row, slot, slotTypeText, slotCol, plcVar, slotCol + 1);
                         }
                         
                         var slotConfig = new InfoSettingSlot
                         {
                             Index = slot,
-                            Type = SlotDisplayTypeParser.Parse(GetCellText(sheet, row, slotCol)),
+                            Type = SlotDisplayTypeParser.Parse(slotTypeText),
                             PlcVariable = plcVar,
                             Description = GetCellText(sheet, row, slotCol + 2),
                             Unit = GetCellText(sheet, row, slotCol + 3),
@@ -1124,9 +1138,15 @@ namespace SW.PC.API.Backend.Services
                     // Solo añadir si tiene nombre de modelo válido (ya validado arriba)
                     configs.Add(config);
                     
-                    // Log detallado
-                    _logger.LogDebug("   📋 {Model}: {DisplayType}, {ButtonCount} botones, {SlotCount} slots",
+                    // Log detallado (usando Information para debug)
+                    _logger.LogInformation("   📋 {Model}: {DisplayType}, {ButtonCount} botones, {SlotCount} slots",
                         config.ModelName, config.DisplayType, config.Buttons.Count, config.Slots.Count);
+                    
+                    // Si no hay slots, mostrar warning
+                    if (config.Slots.Count == 0 && config.Buttons.Count == 0)
+                    {
+                        _logger.LogWarning("   ⚠️ {Model}: Sin botones ni slots configurados", config.ModelName);
+                    }
                     
                     // Listar variables PLC para integración con Variable_Views
                     var plcVars = config.GetAllPlcVariables();

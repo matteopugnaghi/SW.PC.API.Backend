@@ -726,8 +726,12 @@ namespace SW.PC.API.Backend.Services
         
         public async Task<bool> WriteVariableAsync(string variableName, object value, Type dataType)
         {
+            _logger.LogInformation("🔘 WriteVariableAsync: Variable={Var}, Value={Value}, DataType={Type}, IsSimulated={Sim}, IsConnected={Conn}", 
+                variableName, value, dataType.Name, _isSimulatedMode, IsConnected);
+            
             if (!IsConnected)
             {
+                _logger.LogError("❌ WriteVariableAsync: Not connected to PLC");
                 throw new InvalidOperationException("Not connected to PLC");
             }
             
@@ -738,6 +742,7 @@ namespace SW.PC.API.Backend.Services
                 {
                     // ⚡ Usar handle cacheado para mejor rendimiento
                     uint handle = GetOrCreateHandle(variableName);
+                    _logger.LogInformation("🔘 WriteVariableAsync: Got handle={Handle} for {Var}", handle, variableName);
                     
                     byte[] buffer;
                     

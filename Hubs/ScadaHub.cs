@@ -248,15 +248,36 @@ namespace SW.PC.API.Backend.Hubs
         {
             try
             {
-                _logger.LogInformation("Write request for variable {VariableName} with value {Value}", 
-                    request.VariableName, request.Value);
+                _logger.LogInformation("🔘 Write request: Variable={VariableName}, Value={Value} (Type: {ValueType}), DataType={DataType}", 
+                    request.VariableName, request.Value, request.Value?.GetType()?.Name ?? "null", request.DataType);
                 
-                var dataType = GetTypeFromString(request.DataType ?? "object");
+                var dataType = GetTypeFromString(request.DataType ?? "bool");
+                _logger.LogInformation("🔘 Resolved DataType: {DataType}", dataType.Name);
+                
+                // Convertir el valor al tipo correcto si es necesario
+                object convertedValue = request.Value;
+                if (dataType == typeof(bool) && request.Value is not bool)
+                {
+                    // Convertir string/JsonElement a bool
+                    if (request.Value is System.Text.Json.JsonElement jsonElement)
+                    {
+                        convertedValue = jsonElement.GetBoolean();
+                    }
+                    else
+                    {
+                        convertedValue = Convert.ToBoolean(request.Value);
+                    }
+                    _logger.LogInformation("🔘 Converted value from {OriginalType} to bool: {ConvertedValue}", 
+                        request.Value?.GetType()?.Name, convertedValue);
+                }
+                
                 var success = await _twinCATService.WriteVariableAsync(
                     request.VariableName, 
-                    request.Value, 
+                    convertedValue, 
                     dataType
                 );
+                
+                _logger.LogInformation("🔘 Write result: {Success}", success);
                 
                 return new PlcOperationResponse
                 {
@@ -267,7 +288,7 @@ namespace SW.PC.API.Backend.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error writing variable {VariableName}", request.VariableName);
+                _logger.LogError(ex, "❌ Error writing variable {VariableName}: {Message}", request.VariableName, ex.Message);
                 return new PlcOperationResponse
                 {
                     Success = false,

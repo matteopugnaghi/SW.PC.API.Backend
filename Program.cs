@@ -77,6 +77,11 @@ builder.Services.AddSignalR(options =>
     
     // Habilitar logs detallados en desarrollo
     options.EnableDetailedErrors = true;
+}).AddJsonProtocol(options =>
+{
+    // 🔧 Configurar SignalR para usar camelCase (igual que el resto de la API)
+    options.PayloadSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    options.PayloadSerializerOptions.PropertyNameCaseInsensitive = true;
 });
 
 // Configure JWT Authentication

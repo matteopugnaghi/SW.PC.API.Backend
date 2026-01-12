@@ -147,6 +147,36 @@ namespace SW.PC.API.Backend.Models.Excel
     }
 
     /// <summary>
+    /// Tipo de comportamiento del botón de escritura al PLC
+    /// </summary>
+    public enum ButtonBehaviorType
+    {
+        /// <summary>Pulso: escribe ON, espera, escribe OFF (default)</summary>
+        Pulse = 0,
+        /// <summary>Mantener: escribe ON y mantiene el estado</summary>
+        Set = 1,
+        /// <summary>Toggle: alterna entre ON y OFF</summary>
+        Toggle = 2,
+        /// <summary>Entrada: permite ingresar un valor personalizado</summary>
+        Input = 3
+    }
+
+    /// <summary>
+    /// Tipo de dato para escritura al PLC
+    /// </summary>
+    public enum ButtonDataType
+    {
+        /// <summary>Booleano (BOOL)</summary>
+        Bool = 0,
+        /// <summary>Cadena de texto (STRING)</summary>
+        String = 1,
+        /// <summary>Número real de doble precisión (LREAL)</summary>
+        LReal = 2,
+        /// <summary>Número entero (INT/DINT)</summary>
+        Int = 3
+    }
+
+    /// <summary>
     /// Botón de acción para escritura al PLC
     /// </summary>
     public class InfoSettingButton
@@ -154,7 +184,7 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Índice del botón (1-5)</summary>
         public int Index { get; set; }
 
-        /// <summary>Variable PLC a escribir (BOOL)</summary>
+        /// <summary>Variable PLC a escribir</summary>
         public string? PlcVariable { get; set; }
 
         /// <summary>Texto/descripción del botón</summary>
@@ -163,9 +193,83 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Icono (emoji o nombre de archivo)</summary>
         public string? Icon { get; set; }
 
+        /// <summary>Tipo de comportamiento del botón (pulse, set, toggle, input)</summary>
+        public ButtonBehaviorType ButtonType { get; set; } = ButtonBehaviorType.Pulse;
+
+        /// <summary>Tipo de dato a escribir (bool, string, lreal, int)</summary>
+        public ButtonDataType DataType { get; set; } = ButtonDataType.Bool;
+
+        /// <summary>Valor predeterminado para tipo Input (opcional)</summary>
+        public string? DefaultValue { get; set; }
+
+        /// <summary>Variable PLC para control de habilitación (0=oculto, 1=habilitado, 2=deshabilitado)</summary>
+        public string? EnableVariable { get; set; }
+
         /// <summary>Indica si el botón está configurado (tiene variable PLC)</summary>
         [JsonIgnore]
         public bool IsConfigured => !string.IsNullOrWhiteSpace(PlcVariable);
+
+        /// <summary>Indica si tiene control de habilitación desde PLC</summary>
+        [JsonIgnore]
+        public bool HasEnableControl => !string.IsNullOrWhiteSpace(EnableVariable);
+    }
+
+    /// <summary>
+    /// Parser para el formato compuesto de configuración de controles.
+    /// Formato: icon|behaviorType|dataType|enableVar
+    /// Ejemplos:
+    ///   "lamp.png" → icon=lamp.png, type=pulse, dataType=bool, enableVar=null
+    ///   "lamp.png|set" → icon=lamp.png, type=set, dataType=bool, enableVar=null
+    ///   "lamp.png|set|bool|GVL.Enable" → todo especificado
+    ///   "|input|lreal" → sin icono, input para número decimal
+    ///   "|||GVL.Enable" → solo enableVar, resto defaults
+    /// </summary>
+    public static class ControlConfigParser
+    {
+        /// <summary>
+        /// Parsea la cadena de configuración compuesta
+        /// </summary>
+        /// <param name="configString">Configuración en formato icon|behaviorType|dataType|enableVar</param>
+        /// <returns>Tupla con (Icon, ButtonType, DataType, EnableVariable)</returns>
+        public static (string? Icon, ButtonBehaviorType ButtonType, ButtonDataType DataType, string? EnableVariable) Parse(string? configString)
+        {
+            // Defaults
+            string? icon = null;
+            var buttonType = ButtonBehaviorType.Pulse;
+            var dataType = ButtonDataType.Bool;
+            string? enableVar = null;
+
+            if (string.IsNullOrWhiteSpace(configString))
+                return (icon, buttonType, dataType, enableVar);
+
+            var parts = configString.Split('|');
+
+            // Parte 0: Icon (puede estar vacío)
+            if (parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]))
+            {
+                icon = parts[0].Trim();
+            }
+
+            // Parte 1: ButtonType (pulse por defecto)
+            if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]))
+            {
+                buttonType = ButtonBehaviorTypeParser.Parse(parts[1].Trim());
+            }
+
+            // Parte 2: DataType (bool por defecto)
+            if (parts.Length > 2 && !string.IsNullOrWhiteSpace(parts[2]))
+            {
+                dataType = ButtonDataTypeParser.Parse(parts[2].Trim());
+            }
+
+            // Parte 3: EnableVariable (null por defecto = siempre visible)
+            if (parts.Length > 3 && !string.IsNullOrWhiteSpace(parts[3]))
+            {
+                enableVar = parts[3].Trim();
+            }
+
+            return (icon, buttonType, dataType, enableVar);
+        }
     }
 
     /// <summary>
@@ -364,6 +468,48 @@ namespace SW.PC.API.Backend.Models.Excel
                 "alwayslinked" => ElementDisplayType.AlwaysLinked,
                 "dualtoggle" or "dual" or "both" => ElementDisplayType.DualToggle,
                 _ => ElementDisplayType.AttachedLabel
+            };
+        }
+    }
+
+    /// <summary>
+    /// Helper para parsear ButtonBehaviorType desde strings del Excel
+    /// </summary>
+    public static class ButtonBehaviorTypeParser
+    {
+        public static ButtonBehaviorType Parse(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return ButtonBehaviorType.Pulse; // Default: pulse
+
+            return value.ToLowerInvariant().Replace(" ", "").Replace("_", "").Replace("-", "") switch
+            {
+                "pulse" or "pulso" or "momentary" => ButtonBehaviorType.Pulse,
+                "set" or "mantener" or "hold" or "latch" => ButtonBehaviorType.Set,
+                "toggle" or "alternar" or "switch" => ButtonBehaviorType.Toggle,
+                "input" or "entrada" or "value" or "write" => ButtonBehaviorType.Input,
+                _ => ButtonBehaviorType.Pulse
+            };
+        }
+    }
+
+    /// <summary>
+    /// Helper para parsear ButtonDataType desde strings del Excel
+    /// </summary>
+    public static class ButtonDataTypeParser
+    {
+        public static ButtonDataType Parse(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return ButtonDataType.Bool; // Default: bool
+
+            return value.ToLowerInvariant().Replace(" ", "").Replace("_", "").Replace("-", "") switch
+            {
+                "bool" or "boolean" or "bit" => ButtonDataType.Bool,
+                "string" or "str" or "text" or "cadena" => ButtonDataType.String,
+                "lreal" or "real" or "double" or "float" => ButtonDataType.LReal,
+                "int" or "integer" or "dint" or "entero" => ButtonDataType.Int,
+                _ => ButtonDataType.Bool
             };
         }
     }
