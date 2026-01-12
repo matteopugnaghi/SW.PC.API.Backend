@@ -1034,13 +1034,17 @@ namespace SW.PC.API.Backend.Services
                     // Reset contador de filas vacías al encontrar una con datos
                     emptyRowCount = 0;
                     
+                    // Parsear DisplayType con posible sufijo :N para CompactSlots
+                    var (displayType, compactSlots) = ElementDisplayTypeParser.ParseWithCompact(sheet.Cells[$"B{row}"].Text);
+                    
                     var config = new ElementInfoSettingConfig
                     {
                         ExcelRowIndex = row,
                         
                         // Columnas base (A-L)
                         ModelName = modelName,  // Ya lo leímos arriba
-                        DisplayType = ElementDisplayTypeParser.Parse(sheet.Cells[$"B{row}"].Text),
+                        DisplayType = displayType,
+                        CompactSlots = compactSlots,
                         ScreenPosition = GetCellText(sheet, $"C{row}"),
                         ModelPosition = GetCellText(sheet, $"D{row}") ?? "top",
                         OffsetX = GetCellDouble(sheet, $"E{row}"),

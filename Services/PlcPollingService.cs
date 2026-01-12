@@ -516,13 +516,13 @@ namespace SW.PC.API.Backend.Services
             {
                 dataType = typeof(bool);
             }
-            // Variables LREAL (prefijo lr_) son double
-            else if (variableName.Contains(".lr_") || variableName.Contains("[").Equals(false) && variableName.EndsWith("lr_"))
+            // Variables LREAL (prefijo lr_) son double - buscar .lr_ en cualquier parte antes del índice
+            else if (variableName.Contains(".lr_"))
             {
                 dataType = typeof(double);
             }
             // Variables REAL (prefijo r_) son float
-            else if (variableName.Contains(".r_") || variableName.Contains("[").Equals(false) && variableName.EndsWith("r_"))
+            else if (variableName.Contains(".r_") && !variableName.Contains(".lr_"))
             {
                 dataType = typeof(float);
             }

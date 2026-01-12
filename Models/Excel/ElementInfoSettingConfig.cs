@@ -49,6 +49,9 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>L: Nombre corto para mostrar (ej: T1, T2). Si vacío, no se muestra</summary>
         public string? ShortName { get; set; }
 
+        /// <summary>Número de slots a mostrar en modo compacto (extraído del sufijo :N del DisplayType). null = mostrar todos</summary>
+        public int? CompactSlots { get; set; }
+
         #endregion
 
         #region Botones de Escritura PLC (Columnas L-Z)
@@ -231,6 +234,11 @@ namespace SW.PC.API.Backend.Models.Excel
         public bool HasGauge => Type == SlotDisplayType.Gauge ||
                                  Type == SlotDisplayType.NumericGauge ||
                                  Type == SlotDisplayType.GaugeSparkline;
+
+        /// <summary>Indica si el tipo incluye indicador de nivel de tanque</summary>
+        [JsonIgnore]
+        public bool HasTankLevel => Type == SlotDisplayType.TankLevel ||
+                                     Type == SlotDisplayType.TankLevelNumeric;
     }
 
     /// <summary>
@@ -270,7 +278,13 @@ namespace SW.PC.API.Backend.Models.Excel
         ProgressNumeric,
         
         /// <summary>Gauge + gráfico de tendencia</summary>
-        GaugeSparkline
+        GaugeSparkline,
+        
+        /// <summary>Indicador de nivel de tanque vertical</summary>
+        TankLevel,
+        
+        /// <summary>Indicador de nivel de tanque + valor numérico</summary>
+        TankLevelNumeric
     }
 
     /// <summary>
@@ -292,9 +306,11 @@ namespace SW.PC.API.Backend.Models.Excel
                 "gauge" => SlotDisplayType.Gauge,
                 "sparkline" => SlotDisplayType.Sparkline,
                 "numeric+sparkline" or "numericsparkline" => SlotDisplayType.NumericSparkline,
-                "numeric+gauge" or "numericgauge" => SlotDisplayType.NumericGauge,
+                "numeric+gauge" or "numericgauge" or "gaugenumeric" or "gauge+numeric" => SlotDisplayType.NumericGauge,
                 "progress+numeric" or "progressnumeric" => SlotDisplayType.ProgressNumeric,
                 "gauge+sparkline" or "gaugesparkline" => SlotDisplayType.GaugeSparkline,
+                "tanklevel" or "tank" or "level" or "verticalprogress" or "progressvertical" => SlotDisplayType.TankLevel,
+                "tanklevel+numeric" or "tanklevelnumeric" or "numerictanklevel" or "tank+numeric" => SlotDisplayType.TankLevelNumeric,
                 _ => SlotDisplayType.None
             };
         }
@@ -302,9 +318,37 @@ namespace SW.PC.API.Backend.Models.Excel
 
     /// <summary>
     /// Helper para parsear DisplayType desde strings del Excel
+    /// Soporta sufijo :N para modo compacto (ej: "always-visible:2" → 2 slots visibles)
     /// </summary>
     public static class ElementDisplayTypeParser
     {
+        /// <summary>
+        /// Parsea el DisplayType y extrae CompactSlots si hay sufijo :N
+        /// </summary>
+        public static (ElementDisplayType Type, int? CompactSlots) ParseWithCompact(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return (ElementDisplayType.AttachedLabel, null);
+
+            int? compactSlots = null;
+            var input = value.Trim();
+
+            // Extraer sufijo :N si existe (ej: "always-visible:2")
+            var colonIndex = input.LastIndexOf(':');
+            if (colonIndex > 0 && colonIndex < input.Length - 1)
+            {
+                var suffix = input.Substring(colonIndex + 1);
+                if (int.TryParse(suffix, out var slots) && slots >= 0 && slots <= 10)
+                {
+                    compactSlots = slots;
+                    input = input.Substring(0, colonIndex);
+                }
+            }
+
+            var displayType = Parse(input);
+            return (displayType, compactSlots);
+        }
+
         public static ElementDisplayType Parse(string? value)
         {
             if (string.IsNullOrWhiteSpace(value))

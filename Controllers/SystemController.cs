@@ -25,6 +25,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IWebHostEnvironment _env;
         private readonly IRequestProjectContext _projectContext;
         private readonly PlcPollingService _plcPollingService;
+        private readonly ITwinCATService _twinCATService;
 
         // Cache de configuración del sistema (por proyecto)
         private static readonly Dictionary<string, (SystemConfiguration Config, DateTime Timestamp)> _configCache = new();
@@ -36,7 +37,8 @@ namespace SW.PC.API.Backend.Controllers
             IExcelConfigService excelConfigService,
             IWebHostEnvironment env,
             IRequestProjectContext projectContext,
-            PlcPollingService plcPollingService)
+            PlcPollingService plcPollingService,
+            ITwinCATService twinCATService)
         {
             _logger = logger;
             _configuration = configuration;
@@ -44,6 +46,7 @@ namespace SW.PC.API.Backend.Controllers
             _env = env;
             _projectContext = projectContext;
             _plcPollingService = plcPollingService;
+            _twinCATService = twinCATService;
         }
 
         /// <summary>
@@ -818,6 +821,180 @@ namespace SW.PC.API.Backend.Controllers
                     timestamp = DateTime.Now
                 });
             }
+        }
+
+        // ========================================
+        // PLC Diagnostic Endpoint
+        // ========================================
+
+        /// <summary>
+        /// Diagnóstico directo de lectura PLC - Lee una variable específica con tipo explícito
+        /// </summary>
+        [HttpGet("plc-debug/read")]
+        public async Task<IActionResult> ReadPlcVariableDirect(
+            [FromQuery] string variableName,
+            [FromQuery] string? dataType = null)
+        {
+            try
+            {
+                _logger.LogInformation("🔍 PLC Debug: Leyendo variable '{Variable}' tipo={Type}", 
+                    variableName, dataType ?? "auto");
+
+                var isConnected = _twinCATService.IsConnected;
+                var isSimulated = _twinCATService.IsSimulated;
+
+                // Determinar tipo de dato (default: double para lr_, object si no se puede detectar)
+                Type resolvedType = dataType?.ToLower() switch
+                {
+                    "double" or "lreal" => typeof(double),
+                    "float" or "real" => typeof(float),
+                    "int" or "dint" => typeof(int),
+                    "short" or "int16" => typeof(short),
+                    "bool" => typeof(bool),
+                    "string" => typeof(string),
+                    "byte" => typeof(byte),
+                    "uint" => typeof(uint),
+                    "ushort" or "uint16" => typeof(ushort),
+                    _ => DetectTypeFromVariableName(variableName)
+                };
+
+                // Intentar lectura
+                object? value = null;
+                string? error = null;
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+                try
+                {
+                    value = await _twinCATService.ReadVariableAsync(variableName, resolvedType);
+                }
+                catch (Exception readEx)
+                {
+                    error = readEx.Message;
+                    _logger.LogError(readEx, "❌ Error leyendo variable '{Variable}'", variableName);
+                }
+
+                stopwatch.Stop();
+
+                // Auto-detect type from variable name for comparison
+                string autoDetectedType = "unknown";
+                if (variableName.Contains(".lr_")) autoDetectedType = "double (LREAL)";
+                else if (variableName.Contains(".r_")) autoDetectedType = "float (REAL)";
+                else if (variableName.Contains(".b_") || variableName.Contains(".btn_")) autoDetectedType = "bool";
+                else if (variableName.Contains(".n_") || variableName.Contains(".i_")) autoDetectedType = "int";
+                else if (variableName.Contains(".s_") || variableName.Contains(".str_")) autoDetectedType = "string";
+
+                return Ok(new
+                {
+                    success = error == null,
+                    variableName,
+                    value,
+                    valueType = value?.GetType().Name ?? "null",
+                    requestedType = dataType ?? "auto",
+                    autoDetectedType,
+                    plcStatus = new
+                    {
+                        isConnected,
+                        isSimulated,
+                        amsNetId = _configuration["TwinCAT:AmsNetId"],
+                        port = _configuration["TwinCAT:Port"]
+                    },
+                    readTimeMs = stopwatch.ElapsedMilliseconds,
+                    error,
+                    timestamp = DateTime.Now
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ PLC Debug: Error general");
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = ex.Message,
+                    innerError = ex.InnerException?.Message,
+                    timestamp = DateTime.Now
+                });
+            }
+        }
+
+        /// <summary>
+        /// Diagnóstico: Lee múltiples índices de un array PLC
+        /// </summary>
+        [HttpGet("plc-debug/read-array")]
+        public async Task<IActionResult> ReadPlcArrayDirect(
+            [FromQuery] string baseVariableName,
+            [FromQuery] int startIndex = 0,
+            [FromQuery] int endIndex = 10,
+            [FromQuery] string? dataType = null)
+        {
+            try
+            {
+                _logger.LogInformation("🔍 PLC Debug Array: Leyendo '{Base}[{Start}..{End}]'", 
+                    baseVariableName, startIndex, endIndex);
+
+                Type resolvedType = dataType?.ToLower() switch
+                {
+                    "double" or "lreal" => typeof(double),
+                    "float" or "real" => typeof(float),
+                    "int" or "dint" => typeof(int),
+                    "bool" => typeof(bool),
+                    _ => DetectTypeFromVariableName(baseVariableName)
+                };
+
+                var results = new List<object>();
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+                for (int i = startIndex; i <= endIndex; i++)
+                {
+                    var varName = $"{baseVariableName}[{i}]";
+                    try
+                    {
+                        var value = await _twinCATService.ReadVariableAsync(varName, resolvedType);
+                        results.Add(new { index = i, value, error = (string?)null });
+                    }
+                    catch (Exception ex)
+                    {
+                        results.Add(new { index = i, value = (object?)null, error = ex.Message });
+                    }
+                }
+
+                stopwatch.Stop();
+
+                return Ok(new
+                {
+                    success = true,
+                    baseVariableName,
+                    range = $"[{startIndex}..{endIndex}]",
+                    dataType = dataType ?? "auto",
+                    results,
+                    totalReadTimeMs = stopwatch.ElapsedMilliseconds,
+                    plcStatus = new
+                    {
+                        isConnected = _twinCATService.IsConnected,
+                        isSimulated = _twinCATService.IsSimulated
+                    },
+                    timestamp = DateTime.Now
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ PLC Debug Array: Error general");
+                return StatusCode(500, new { success = false, error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Auto-detecta el tipo de dato basándose en la convención de nombres TwinCAT
+        /// </summary>
+        private static Type DetectTypeFromVariableName(string variableName)
+        {
+            if (variableName.Contains(".lr_")) return typeof(double);  // LREAL
+            if (variableName.Contains(".r_")) return typeof(float);    // REAL
+            if (variableName.Contains(".b_") || variableName.Contains(".btn_")) return typeof(bool);
+            if (variableName.Contains(".n_") || variableName.Contains(".i_")) return typeof(int);
+            if (variableName.Contains(".s_") || variableName.Contains(".str_")) return typeof(string);
+            if (variableName.Contains(".w_")) return typeof(ushort);   // WORD
+            if (variableName.Contains(".dw_")) return typeof(uint);    // DWORD
+            return typeof(double); // Default: LREAL para valores numéricos
         }
     }
 
