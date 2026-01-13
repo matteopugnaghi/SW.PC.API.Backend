@@ -149,6 +149,7 @@ namespace SW.PC.API.Backend.Models.Excel
     /// <summary>
     /// Tipo de comportamiento del botón de escritura al PLC
     /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum ButtonBehaviorType
     {
         /// <summary>Pulso: escribe ON, espera, escribe OFF (default)</summary>
@@ -164,6 +165,7 @@ namespace SW.PC.API.Backend.Models.Excel
     /// <summary>
     /// Tipo de dato para escritura al PLC
     /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum ButtonDataType
     {
         /// <summary>Booleano (BOOL)</summary>

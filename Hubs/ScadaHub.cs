@@ -300,19 +300,47 @@ namespace SW.PC.API.Backend.Hubs
                 
                 // Convertir el valor al tipo correcto si es necesario
                 object convertedValue = request.Value;
-                if (dataType == typeof(bool) && request.Value is not bool)
+                
+                // 🔄 Si el valor viene como JsonElement (desde SignalR), extraer el valor nativo
+                if (request.Value is System.Text.Json.JsonElement jsonElement)
                 {
-                    // Convertir string/JsonElement a bool
-                    if (request.Value is System.Text.Json.JsonElement jsonElement)
+                    convertedValue = dataType switch
                     {
-                        convertedValue = jsonElement.GetBoolean();
-                    }
-                    else
-                    {
-                        convertedValue = Convert.ToBoolean(request.Value);
-                    }
+                        Type t when t == typeof(bool) => jsonElement.GetBoolean(),
+                        Type t when t == typeof(short) => jsonElement.GetInt16(),
+                        Type t when t == typeof(int) => jsonElement.GetInt32(),
+                        Type t when t == typeof(sbyte) => jsonElement.GetSByte(),
+                        Type t when t == typeof(float) => jsonElement.GetSingle(),
+                        Type t when t == typeof(double) => jsonElement.GetDouble(),
+                        Type t when t == typeof(string) => jsonElement.GetString() ?? "",
+                        _ => jsonElement.ValueKind == System.Text.Json.JsonValueKind.Number 
+                            ? jsonElement.GetDouble() 
+                            : jsonElement.GetRawText()
+                    };
+                    _logger.LogInformation("🔄 Converted JsonElement to {DataType}: {ConvertedValue}", 
+                        dataType.Name, convertedValue);
+                }
+                else if (dataType == typeof(bool) && request.Value is not bool)
+                {
+                    convertedValue = Convert.ToBoolean(request.Value);
                     _logger.LogInformation("🔘 Converted value from {OriginalType} to bool: {ConvertedValue}", 
                         request.Value?.GetType()?.Name, convertedValue);
+                }
+                else if (dataType == typeof(short) && request.Value is not short)
+                {
+                    convertedValue = Convert.ToInt16(request.Value);
+                }
+                else if (dataType == typeof(int) && request.Value is not int)
+                {
+                    convertedValue = Convert.ToInt32(request.Value);
+                }
+                else if (dataType == typeof(float) && request.Value is not float)
+                {
+                    convertedValue = Convert.ToSingle(request.Value);
+                }
+                else if (dataType == typeof(double) && request.Value is not double)
+                {
+                    convertedValue = Convert.ToDouble(request.Value);
                 }
                 
                 var success = await _twinCATService.WriteVariableAsync(
@@ -419,8 +447,9 @@ namespace SW.PC.API.Backend.Hubs
             return typeName.ToUpper() switch
             {
                 "BOOL" or "BOOLEAN" => typeof(bool),
-                "INT" or "INT16" or "SHORT" => typeof(short),
-                "DINT" or "INT32" or "INT" => typeof(int),
+                "SINT" or "INT8" or "SBYTE" => typeof(sbyte),
+                "INT" or "INT16" or "SHORT" => typeof(short),  // TwinCAT INT = 16 bits
+                "DINT" or "INT32" => typeof(int),               // TwinCAT DINT = 32 bits
                 "REAL" or "FLOAT" or "SINGLE" => typeof(float),
                 "LREAL" or "DOUBLE" => typeof(double),
                 "STRING" => typeof(string),

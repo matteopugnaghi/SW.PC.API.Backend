@@ -1136,6 +1136,9 @@ namespace SW.PC.API.Backend.Services
                         if (button.IsConfigured)
                         {
                             config.Buttons.Add(button);
+                            // 🔍 DEBUG: Log del botón parseado
+                            _logger.LogInformation("   🔘 Botón {Btn} parseado: PlcVar={PlcVar}, Type={Type}, DataType={DataType}, Config='{Config}'",
+                                btn, plcVariable, buttonType, dataType, configString);
                         }
                         
                         buttonCol += 3; // 3 columnas por control (mantiene compatibilidad M-AA)
