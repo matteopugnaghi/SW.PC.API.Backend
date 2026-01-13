@@ -39,6 +39,10 @@ namespace SW.PC.API.Backend.Services
         
         // 🔔 Último resultado de filtrado (para reenviar a nuevos clientes)
         private ViewFilterResult? _lastFilterResult = null;
+        
+        // 🎯 Sistema de vistas adicionales (MODEL_DETAIL, SCREEN_PANEL, etc.)
+        // Estas vistas se activan/desactivan dinámicamente cuando se abren/cierran paneles
+        private HashSet<string> _additionalViews = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Vista activa actual del frontend
@@ -46,6 +50,14 @@ namespace SW.PC.API.Backend.Services
         public string CurrentView
         {
             get { lock (_viewLock) return _currentView; }
+        }
+
+        /// <summary>
+        /// 🎯 Vistas adicionales activas (MODEL_DETAIL, SCREEN_PANEL, etc.)
+        /// </summary>
+        public IReadOnlyCollection<string> AdditionalViews
+        {
+            get { lock (_viewLock) return _additionalViews.ToList(); }
         }
 
         /// <summary>
@@ -194,6 +206,73 @@ namespace SW.PC.API.Backend.Services
         }
         
         /// <summary>
+        /// 🎯 Activa una vista adicional (MODEL_DETAIL, SCREEN_PANEL, etc.)
+        /// Cuando se activa, las variables asignadas a esa vista se incluyen en el polling.
+        /// </summary>
+        /// <param name="viewName">Nombre de la vista a activar (ej: MODEL_DETAIL)</param>
+        /// <returns>True si la vista fue añadida, False si ya estaba activa</returns>
+        public bool ActivateAdditionalView(string viewName)
+        {
+            if (string.IsNullOrWhiteSpace(viewName)) return false;
+            
+            lock (_viewLock)
+            {
+                if (_additionalViews.Add(viewName))
+                {
+                    _logger.LogInformation("🎯 Vista adicional ACTIVADA: {View}. Vistas activas: [{Views}]", 
+                        viewName, string.Join(", ", _additionalViews));
+                    
+                    // Recalcular variables activas
+                    if (_viewFilteringEnabled && _monitoredVariables.Count > 0)
+                    {
+                        RecalculateActiveVariables();
+                        _logger.LogInformation("📊 Variables actualizadas: {Active}/{Total} (vista principal: {Main}, adicionales: [{Additional}])", 
+                            _activeVariables.Count, _monitoredVariables.Count, _currentView, string.Join(", ", _additionalViews));
+                    }
+                    
+                    return true;
+                }
+                
+                _logger.LogDebug("🎯 Vista adicional {View} ya estaba activa", viewName);
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// 🎯 Desactiva una vista adicional (MODEL_DETAIL, SCREEN_PANEL, etc.)
+        /// Cuando se desactiva, las variables exclusivas de esa vista dejan de pollearse.
+        /// </summary>
+        /// <param name="viewName">Nombre de la vista a desactivar</param>
+        /// <returns>True si la vista fue removida, False si no estaba activa</returns>
+        public bool DeactivateAdditionalView(string viewName)
+        {
+            if (string.IsNullOrWhiteSpace(viewName)) return false;
+            
+            lock (_viewLock)
+            {
+                if (_additionalViews.Remove(viewName))
+                {
+                    _logger.LogInformation("🎯 Vista adicional DESACTIVADA: {View}. Vistas activas: [{Views}]", 
+                        viewName, _additionalViews.Count > 0 ? string.Join(", ", _additionalViews) : "(ninguna)");
+                    
+                    // Recalcular variables activas
+                    if (_viewFilteringEnabled && _monitoredVariables.Count > 0)
+                    {
+                        RecalculateActiveVariables();
+                        _logger.LogInformation("📊 Variables actualizadas: {Active}/{Total} (vista principal: {Main}, adicionales: [{Additional}])", 
+                            _activeVariables.Count, _monitoredVariables.Count, _currentView, 
+                            _additionalViews.Count > 0 ? string.Join(", ", _additionalViews) : "(ninguna)");
+                    }
+                    
+                    return true;
+                }
+                
+                _logger.LogDebug("🎯 Vista adicional {View} no estaba activa", viewName);
+                return false;
+            }
+        }
+        
+        /// <summary>
         /// Fuerza la notificación al PLC de la pantalla actual, sin importar si cambió o no.
         /// Útil para shutdown del backend.
         /// </summary>
@@ -249,16 +328,29 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
-        /// Recalcula qué variables deben leerse según la vista activa
+        /// Recalcula qué variables deben leerse según la vista activa y vistas adicionales
         /// </summary>
         private void RecalculateActiveVariables()
         {
             using var scope = _serviceProvider.CreateScope();
             var excelConfigService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
             
-            _activeVariables = excelConfigService.FilterVariablesForView(
+            // 🎯 Combinar vista principal + vistas adicionales
+            var allActiveViews = new List<string>();
+            
+            // Vista principal
+            if (!string.IsNullOrEmpty(_currentView))
+            {
+                allActiveViews.Add(_currentView);
+            }
+            
+            // Vistas adicionales (MODEL_DETAIL, SCREEN_PANEL, etc.)
+            allActiveViews.AddRange(_additionalViews);
+            
+            // Filtrar variables que pertenezcan a CUALQUIERA de las vistas activas
+            _activeVariables = excelConfigService.FilterVariablesForMultipleViews(
                 _monitoredVariables, 
-                _currentView, 
+                allActiveViews, 
                 _variableViewMappings
             );
         }

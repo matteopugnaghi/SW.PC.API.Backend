@@ -228,6 +228,50 @@ namespace SW.PC.API.Backend.Hubs
         }
 
         /// <summary>
+        /// 🎯 El cliente activa una vista adicional (MODEL_DETAIL, SCREEN_PANEL, etc.)
+        /// Usado cuando se abre un panel que necesita variables específicas.
+        /// </summary>
+        /// <param name="viewName">Nombre de la vista adicional a activar</param>
+        public async Task ActivateAdditionalView(string viewName)
+        {
+            _logger.LogInformation("🎯 Client {ConnectionId} activó vista adicional: {View}", 
+                Context.ConnectionId, viewName);
+            
+            var wasAdded = _plcPollingService.ActivateAdditionalView(viewName);
+            
+            await Clients.Caller.SendAsync("AdditionalViewActivated", new 
+            {
+                view = viewName,
+                wasAdded = wasAdded,
+                activeVariables = _plcPollingService.ActiveVariablesCount,
+                totalVariables = _plcPollingService.TotalVariablesCount,
+                additionalViews = _plcPollingService.AdditionalViews
+            });
+        }
+
+        /// <summary>
+        /// 🎯 El cliente desactiva una vista adicional (MODEL_DETAIL, SCREEN_PANEL, etc.)
+        /// Usado cuando se cierra un panel.
+        /// </summary>
+        /// <param name="viewName">Nombre de la vista adicional a desactivar</param>
+        public async Task DeactivateAdditionalView(string viewName)
+        {
+            _logger.LogInformation("🎯 Client {ConnectionId} desactivó vista adicional: {View}", 
+                Context.ConnectionId, viewName);
+            
+            var wasRemoved = _plcPollingService.DeactivateAdditionalView(viewName);
+            
+            await Clients.Caller.SendAsync("AdditionalViewDeactivated", new 
+            {
+                view = viewName,
+                wasRemoved = wasRemoved,
+                activeVariables = _plcPollingService.ActiveVariablesCount,
+                totalVariables = _plcPollingService.TotalVariablesCount,
+                additionalViews = _plcPollingService.AdditionalViews
+            });
+        }
+
+        /// <summary>
         /// El cliente solicita información sobre el estado actual del filtrado de vistas
         /// </summary>
         public async Task GetViewFilteringStatus()

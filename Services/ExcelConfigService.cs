@@ -41,6 +41,11 @@ namespace SW.PC.API.Backend.Services
         List<string> FilterVariablesForView(IEnumerable<string> allVariables, string currentView, List<VariableViewMapping> mappings);
         
         /// <summary>
+        /// Filtra variables para múltiples vistas activas (vista principal + vistas adicionales)
+        /// </summary>
+        List<string> FilterVariablesForMultipleViews(IEnumerable<string> allVariables, IEnumerable<string> activeViews, List<VariableViewMapping> mappings);
+        
+        /// <summary>
         /// Filtra variables y devuelve advertencias de configuración para enviar al frontend
         /// </summary>
         ViewFilterResult FilterVariablesForViewWithWarnings(IEnumerable<string> allVariables, string currentView, List<VariableViewMapping> mappings);
@@ -874,6 +879,49 @@ namespace SW.PC.API.Backend.Services
             _logger.LogInformation("📈 RESUMEN: {Active} incluidas, {Excluded} excluidas, {NoMatch} sin patrón",
                 result.Count, excluded.Count, globalByDefault.Count);
             _logger.LogInformation("════════════════════════════════════════════════════════════════════");
+
+            return result;
+        }
+
+        /// <summary>
+        /// 🎯 Filtra variables para múltiples vistas activas simultáneas.
+        /// Usado cuando hay vistas adicionales activas (MODEL_DETAIL, SCREEN_PANEL, etc.)
+        /// junto con la vista principal.
+        /// </summary>
+        public List<string> FilterVariablesForMultipleViews(
+            IEnumerable<string> allVariables, 
+            IEnumerable<string> activeViews, 
+            List<VariableViewMapping> mappings)
+        {
+            // Convertir nombres de vistas frontend a IDs internos
+            var targetViews = activeViews
+                .Where(v => !string.IsNullOrEmpty(v))
+                .Select(v => PlcViewIds.FromFrontendView(v))
+                .Distinct()
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            
+            // Siempre incluir GLOBAL
+            targetViews.Add(PlcViewIds.GLOBAL);
+            
+            var result = new List<string>();
+            
+            _logger.LogInformation("🎯 FilterVariablesForMultipleViews: vistas activas=[{Views}], {VarCount} variables totales",
+                string.Join(", ", targetViews), allVariables.Count());
+
+            foreach (var varName in allVariables)
+            {
+                var variableViews = GetViewsForVariable(varName, mappings, out bool hadMatch, out _);
+                
+                // Incluir si la variable pertenece a CUALQUIERA de las vistas activas
+                // O si no tuvo match (se trata como GLOBAL)
+                if (!hadMatch || variableViews.Any(v => targetViews.Contains(v)))
+                {
+                    result.Add(varName);
+                }
+            }
+            
+            _logger.LogInformation("📊 Filtrado múltiple: {Active}/{Total} variables activas para vistas [{Views}]",
+                result.Count, allVariables.Count(), string.Join(", ", targetViews.Where(v => v != PlcViewIds.GLOBAL)));
 
             return result;
         }
@@ -1791,12 +1839,23 @@ namespace SW.PC.API.Backend.Services
                             {
                                 foreach (var btn in config.Buttons)
                                 {
+                                    // Variable principal del botón
                                     if (!string.IsNullOrWhiteSpace(btn.PlcVariable) && 
                                         btn.PlcVariable.StartsWith("MAIN.fbMachine", StringComparison.OrdinalIgnoreCase))
                                     {
                                         if (variableNames.Add(btn.PlcVariable))
                                         {
                                             infoVarsAdded++;
+                                        }
+                                    }
+                                    // 🔑 TAMBIÉN añadir EnableVariable para monitoreo (habilita/deshabilita botón)
+                                    if (!string.IsNullOrWhiteSpace(btn.EnableVariable) && 
+                                        btn.EnableVariable.StartsWith("MAIN.fbMachine", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        if (variableNames.Add(btn.EnableVariable))
+                                        {
+                                            infoVarsAdded++;
+                                            _logger.LogDebug("   🔑 EnableVariable añadida: {Var}", btn.EnableVariable);
                                         }
                                     }
                                 }
