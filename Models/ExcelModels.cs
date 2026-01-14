@@ -1688,5 +1688,52 @@ namespace SW.PC.API.Backend.Models.Excel
     }
 
     #endregion
+
+    #region PLC InfoPanel Configuration
+
+    /// <summary>
+    /// Configuración completa de la card PLC InfoPanel.
+    /// Cargada desde la hoja "Plc_InfoPanel" del Excel.
+    /// </summary>
+    public class PlcInfoPanelConfig
+    {
+        /// <summary>Título de la card (celda A2)</summary>
+        public string Title { get; set; } = "PLC INFO";
+
+        /// <summary>Icono del título (celda B2, opcional)</summary>
+        public string? TitleIcon { get; set; }
+
+        /// <summary>Contenido del botón de ayuda "i" (celda C2)</summary>
+        public string HelpContent { get; set; } = string.Empty;
+
+        /// <summary>Lista de líneas de datos</summary>
+        public List<PlcInfoPanelLine> Lines { get; set; } = new();
+
+        /// <summary>Lista de todas las variables PLC usadas (para Variable_Views)</summary>
+        public List<string> AllVariables => Lines.Select(l => l.PlcVariable).ToList();
+
+        /// <summary>Indica si la configuración está habilitada (hoja existe y tiene datos)</summary>
+        public bool IsEnabled { get; set; } = false;
+    }
+
+    /// <summary>
+    /// Una línea de datos en la card PLC InfoPanel.
+    /// </summary>
+    public class PlcInfoPanelLine
+    {
+        /// <summary>Nombre/descripción de la línea (columna D)</summary>
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>Icono de la línea (columna E, opcional)</summary>
+        public string? Icon { get; set; }
+
+        /// <summary>Nombre de la variable PLC (columna F) - WSTRING solo lectura</summary>
+        public string PlcVariable { get; set; } = string.Empty;
+
+        /// <summary>Valor actual de la variable (se actualiza en runtime)</summary>
+        public string? CurrentValue { get; set; }
+    }
+
+    #endregion
 }
 

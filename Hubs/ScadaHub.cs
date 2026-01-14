@@ -429,6 +429,58 @@ namespace SW.PC.API.Backend.Hubs
         {
             _logger.LogInformation("🔔 Client {ConnectionId} subscribed to alarms", Context.ConnectionId);
             await Groups.AddToGroupAsync(Context.ConnectionId, "alarms");
+            
+            // 🔔 Enviar estados actuales de alarmas activas al cliente que se suscribe
+            try
+            {
+                var activeAlarms = new List<object>();
+                
+                foreach (var state in _plcPollingService.GetAllVariableStates())
+                {
+                    // Solo variables de alarma que están activas (valor = true)
+                    if (state.Key.Contains("st_alarmPc[") && 
+                        (state.Key.EndsWith("].Alarm") || state.Key.EndsWith("].Notification") || state.Key.EndsWith("].Info")))
+                    {
+                        var value = state.Value;
+                        if (value != null && value is bool boolValue && boolValue)
+                        {
+                            string alarmType = "unknown";
+                            if (state.Key.EndsWith("].Alarm")) alarmType = "alarm";
+                            else if (state.Key.EndsWith("].Notification")) alarmType = "notification";
+                            else if (state.Key.EndsWith("].Info")) alarmType = "info";
+                            
+                            activeAlarms.Add(new
+                            {
+                                variableName = state.Key,
+                                alarmType = alarmType,
+                                isActive = true,
+                                timestamp = DateTime.Now,
+                                isInitialValue = true
+                            });
+                        }
+                    }
+                }
+                
+                if (activeAlarms.Count > 0)
+                {
+                    _logger.LogInformation("🔔 Enviando {Count} alarmas activas iniciales al cliente {ConnectionId}", 
+                        activeAlarms.Count, Context.ConnectionId);
+                    
+                    foreach (var alarm in activeAlarms)
+                    {
+                        await Clients.Caller.SendAsync("AlarmStateChanged", alarm);
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation("🔔 No hay alarmas activas para enviar al cliente {ConnectionId}", 
+                        Context.ConnectionId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "🔔 Error enviando estados iniciales de alarmas");
+            }
         }
         
         /// <summary>

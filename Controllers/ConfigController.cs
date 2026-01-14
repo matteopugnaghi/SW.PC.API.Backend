@@ -593,6 +593,35 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         #endregion
+        
+        #region 📟 PLC Info Panel
+
+        /// <summary>
+        /// Get PLC Info Panel configuration from Excel sheet "Plc_InfoPanel".
+        /// Returns card configuration with lines that display WSTRING variables from PLC.
+        /// </summary>
+        /// <returns>PLC Info Panel configuration</returns>
+        [HttpGet("plc-info-panel")]
+        [ProducesResponseType(typeof(PlcInfoPanelConfig), 200)]
+        public async Task<ActionResult<PlcInfoPanelConfig>> GetPlcInfoPanelConfig()
+        {
+            try
+            {
+                var excelPath = _projectContext.ExcelConfigPath;
+                _logger.LogInformation("📟 Loading Plc_InfoPanel config from: {Path}", excelPath);
+                
+                var config = await _excelConfigService.LoadPlcInfoPanelAsync(excelPath);
+                
+                return Ok(config);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "📟 Error loading PLC Info Panel configuration: {Message}", ex.Message);
+                return StatusCode(500, new { error = "Error loading PLC Info Panel configuration", detail = ex.Message });
+            }
+        }
+
+        #endregion
     }
 }
 

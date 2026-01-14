@@ -95,6 +95,20 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
+        /// 🔔 Obtiene todos los estados de variables con sus valores actuales.
+        /// Usado para enviar estados iniciales de alarmas cuando un cliente se suscribe.
+        /// </summary>
+        public Dictionary<string, object?> GetAllVariableStates()
+        {
+            var states = new Dictionary<string, object?>();
+            foreach (var kvp in _variableStates)
+            {
+                states[kvp.Key] = kvp.Value.LastValue;
+            }
+            return states;
+        }
+
+        /// <summary>
         /// ⚡ Obtiene los valores actuales de todas las variables de una vista específica.
         /// Usado para enviar valores iniciales cuando se activa una vista adicional.
         /// </summary>
@@ -445,7 +459,24 @@ namespace SW.PC.API.Backend.Services
                             _logger.LogInformation("📊 Vista inicial '{View}': {Active}/{Total} variables activas", 
                                 _currentView, _activeVariables.Count, _monitoredVariables.Count);
                             
-                            // 🔔 Enviar advertencias al frontend vía SignalR (si hay)
+                            // � DEBUG: Verificar variables del InfoPanel
+                            var infoPanelVars = new[] {
+                                "MAIN.fbMachine.st_MainForm_FastExchange.ws_plantState",
+                                "MAIN.fbMachine.st_MainForm_FastExchange.ws_controlRoomState",
+                                "MAIN.fbMachine.st_MainForm.s_NameWashRecipe",
+                                "MAIN.fbMachine.st_MainForm.s_NameTrainRecipe",
+                                "MAIN.fbMachine.st_MainForm_FastExchange.ws_plcSequence",
+                                "MAIN.fbMachine.st_MainForm_FastExchange.ws_washSequence"
+                            };
+                            foreach (var v in infoPanelVars)
+                            {
+                                var inMonitored = _monitoredVariables.Contains(v);
+                                var inActive = _activeVariables.Contains(v);
+                                _logger.LogInformation("📟 InfoPanel var '{Var}': monitored={Monitored}, active={Active}", 
+                                    v.Split('.').Last(), inMonitored, inActive);
+                            }
+                            
+                            // �🔔 Enviar advertencias al frontend vía SignalR (si hay)
                             if (filterResult.HasWarnings)
                             {
                                 _ = SendSystemWarningToFrontendAsync(filterResult);
@@ -666,10 +697,11 @@ namespace SW.PC.API.Backend.Services
             {
                 dataType = typeof(bool);
             }
-            // Variables string (prefijo s_, str_)
-            else if (variableName.Contains(".s_") || variableName.Contains(".str_"))
+            // Variables string (prefijo s_, str_) y WSTRING (prefijo ws_)
+            else if (variableName.Contains(".s_") || variableName.Contains(".str_") || variableName.Contains(".ws_"))
             {
                 dataType = typeof(string);
+                _logger.LogDebug("🔤 Variable WSTRING/STRING detectada: {Var}", variableName);
             }
             
             // Leer valor actual del PLC con el tipo correcto

@@ -58,6 +58,9 @@ namespace SW.PC.API.Backend.Services
         
         // ⚡ Sistema de Configuración Rápida (Fast Configuration)
         Task<FastConfigurationPageConfiguration> LoadFastConfigurationAsync(string filePath);
+        
+        // 📟 Sistema de PLC Info Panel (Variables WSTRING desde PLC)
+        Task<PlcInfoPanelConfig> LoadPlcInfoPanelAsync(string filePath);
     }
 
     /// <summary>
@@ -2012,6 +2015,105 @@ namespace SW.PC.API.Backend.Services
                     catch (Exception ex)
                     {
                         _logger.LogWarning("⚠️ Error extrayendo variables de 3D_Elements_Info_Setting: {Message}", ex.Message);
+                    }
+                    
+                    // 📟 CASO ESPECIAL: Variables del PLC Info Panel (WSTRING)
+                    // Estas variables se leen desde la hoja Plc_InfoPanel y deben monitorearse
+                    try
+                    {
+                        var plcInfoPanelConfig = await LoadPlcInfoPanelAsync(filePath);
+                        int infoPanelVarsAdded = 0;
+                        foreach (var plcVar in plcInfoPanelConfig.AllVariables)
+                        {
+                            if (!string.IsNullOrWhiteSpace(plcVar) && 
+                                plcVar.StartsWith("MAIN.fbMachine", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (variableNames.Add(plcVar))
+                                {
+                                    infoPanelVarsAdded++;
+                                }
+                            }
+                        }
+                        if (infoPanelVarsAdded > 0)
+                        {
+                            _logger.LogInformation("   📟 Plc_InfoPanel: +{Count} variables añadidas explícitamente", infoPanelVarsAdded);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("⚠️ Error extrayendo variables de Plc_InfoPanel: {Message}", ex.Message);
+                    }
+                    
+                    // 🔔 CASO ESPECIAL: Variables de ALARMAS desde hoja "Alarms"
+                    // Estas variables NO se detectan automáticamente porque la hoja tiene formato especial
+                    // Necesitamos agregarlas explícitamente para que el polling las monitoree
+                    try
+                    {
+                        var alarmConfig = await LoadAlarmsAsync(filePath);
+                        int alarmVarsAdded = 0;
+                        
+                        // Agregar variables de Alarm
+                        foreach (var alarm in alarmConfig.Alarms)
+                        {
+                            if (!string.IsNullOrWhiteSpace(alarm.PlcVariable))
+                            {
+                                if (variableNames.Add(alarm.PlcVariable))
+                                {
+                                    alarmVarsAdded++;
+                                }
+                            }
+                        }
+                        
+                        // Agregar variables de Notification
+                        foreach (var notification in alarmConfig.Notifications)
+                        {
+                            if (!string.IsNullOrWhiteSpace(notification.PlcVariable))
+                            {
+                                if (variableNames.Add(notification.PlcVariable))
+                                {
+                                    alarmVarsAdded++;
+                                }
+                            }
+                        }
+                        
+                        // Agregar variables de Info
+                        foreach (var info in alarmConfig.Infos)
+                        {
+                            if (!string.IsNullOrWhiteSpace(info.PlcVariable))
+                            {
+                                if (variableNames.Add(info.PlcVariable))
+                                {
+                                    alarmVarsAdded++;
+                                }
+                            }
+                        }
+                        
+                        if (alarmVarsAdded > 0)
+                        {
+                            _logger.LogInformation("   🔔 Alarms: +{Count} variables de alarma añadidas (st_alarmPc[x].Alarm/Notification/Info)", alarmVarsAdded);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("⚠️ Error extrayendo variables de Alarms: {Message}", ex.Message);
+                    }
+                    
+                    // 🔔 REGENERAR variables de historial de alarmas (st_alarmHistPc)
+                    // Ahora que tenemos TODAS las variables st_alarmPc (incluyendo las de hoja Alarms),
+                    // generamos las correspondientes st_alarmHistPc
+                    var allAlarmVars = variableNames.Where(v => v.Contains("st_alarmPc[")).ToList();
+                    int histVarsAddedFinal = 0;
+                    foreach (var alarmVar in allAlarmVars)
+                    {
+                        var histVar = alarmVar.Replace("st_alarmPc[", "st_alarmHistPc[");
+                        if (variableNames.Add(histVar))
+                        {
+                            histVarsAddedFinal++;
+                        }
+                    }
+                    if (histVarsAddedFinal > 0)
+                    {
+                        _logger.LogInformation("   🔔 Alarmas historial: +{Count} variables (st_alarmHistPc) generadas desde st_alarmPc", histVarsAddedFinal);
                     }
                     
                     _logger.LogInformation("────────────────────────────────────────────────────────────────────");
@@ -4337,6 +4439,142 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "⚡ Error loading fast configuration from Excel: {Path}", filePath);
+            }
+            
+            return await Task.FromResult(config);
+        }
+        
+        #endregion
+        
+        #region PLC Info Panel Configuration
+
+        /// <summary>
+        /// Carga la configuración de la card PLC Info Panel desde la hoja "Plc_InfoPanel".
+        /// Las variables PLC son WSTRING de solo lectura.
+        /// 
+        /// Estructura de la hoja:
+        /// - A2: Título de la card (solo 1 celda)
+        /// - B2: Icono del título (solo 1 celda, opcional)
+        /// - C2: Contenido del botón de ayuda (solo 1 celda)
+        /// - D2...Dn: Nombre/descripción de cada línea
+        /// - E2...En: Icono de cada línea (opcional)
+        /// - F2...Fn: Variable PLC (WSTRING, requerida)
+        /// </summary>
+        public async Task<PlcInfoPanelConfig> LoadPlcInfoPanelAsync(string filePath)
+        {
+            var config = new PlcInfoPanelConfig();
+            
+            try
+            {
+                var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+                
+                if (!File.Exists(fullPath))
+                {
+                    _logger.LogWarning("📟 Excel file not found for PLC Info Panel: {Path}", fullPath);
+                    return config;
+                }
+                
+                _logger.LogInformation("📟 Loading PLC Info Panel configuration from Excel: {Path}", fullPath);
+                
+                // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
+                using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var package = new ExcelPackage(stream))
+                {
+                    // Buscar hoja "Plc_InfoPanel" (case-insensitive)
+                    var sheet = package.Workbook.Worksheets
+                        .FirstOrDefault(ws => ws.Name.Equals("Plc_InfoPanel", StringComparison.OrdinalIgnoreCase));
+                    
+                    if (sheet == null)
+                    {
+                        _logger.LogInformation("📟 Sheet 'Plc_InfoPanel' not found in Excel - PLC Info Panel disabled");
+                        return config;
+                    }
+                    
+                    // === Leer configuración de la card (solo de fila 2) ===
+                    var title = sheet.Cells["A2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(title))
+                    {
+                        config.Title = title;
+                        _logger.LogDebug("📟 Card title from A2: {Title}", title);
+                    }
+                    
+                    var titleIcon = sheet.Cells["B2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(titleIcon))
+                    {
+                        config.TitleIcon = titleIcon;
+                        _logger.LogDebug("📟 Card icon from B2: {Icon}", titleIcon);
+                    }
+                    
+                    var helpContent = sheet.Cells["C2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(helpContent))
+                    {
+                        config.HelpContent = helpContent;
+                        _logger.LogDebug("📟 Help content from C2: {Length} chars", helpContent.Length);
+                    }
+                    
+                    // === Leer líneas de datos desde fila 2 ===
+                    int row = 2;
+                    int maxEmptyRows = 3; // Permitir hasta 3 filas vacías consecutivas
+                    int consecutiveEmpty = 0;
+                    
+                    _logger.LogInformation("📟 Scanning Plc_InfoPanel sheet starting from row 2...");
+                    
+                    while (consecutiveEmpty < maxEmptyRows)
+                    {
+                        // Columna F (Variable PLC) es requerida
+                        var plcVariable = sheet.Cells[$"F{row}"].Text?.Trim();
+                        
+                        // DEBUG: Log every row we check
+                        _logger.LogDebug("📟 Row {Row}: F={PlcVar}, D={LineName}", 
+                            row, plcVariable ?? "(empty)", sheet.Cells[$"D{row}"].Text?.Trim() ?? "(empty)");
+                        
+                        if (!string.IsNullOrEmpty(plcVariable))
+                        {
+                            var lineName = sheet.Cells[$"D{row}"].Text?.Trim();
+                            var lineIcon = sheet.Cells[$"E{row}"].Text?.Trim();
+                            
+                            // Solo agregar si tiene nombre y variable PLC
+                            if (!string.IsNullOrEmpty(lineName))
+                            {
+                                var line = new PlcInfoPanelLine
+                                {
+                                    Name = lineName,
+                                    Icon = string.IsNullOrEmpty(lineIcon) ? null : lineIcon,
+                                    PlcVariable = plcVariable
+                                };
+                                
+                                config.Lines.Add(line);
+                                _logger.LogDebug("📟 Line [{Row}]: {Name} ({Icon}) -> {PlcVar}", 
+                                    row, lineName, lineIcon ?? "no icon", plcVariable);
+                            }
+                            
+                            consecutiveEmpty = 0;
+                        }
+                        else
+                        {
+                            consecutiveEmpty++;
+                        }
+                        
+                        row++;
+                    }
+                    
+                    // Marcar como habilitado si hay líneas configuradas
+                    config.IsEnabled = config.Lines.Count > 0;
+                }
+                
+                if (config.IsEnabled)
+                {
+                    _logger.LogInformation("📟 PLC Info Panel loaded: '{Title}' with {LineCount} lines. Variables: [{Variables}]",
+                        config.Title, config.Lines.Count, string.Join(", ", config.AllVariables));
+                }
+                else
+                {
+                    _logger.LogInformation("📟 PLC Info Panel disabled (no lines configured)");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "📟 Error loading PLC Info Panel configuration from Excel: {Path}", filePath);
             }
             
             return await Task.FromResult(config);
