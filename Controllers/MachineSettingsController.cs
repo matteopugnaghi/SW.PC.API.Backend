@@ -64,6 +64,9 @@ namespace SW.PC.API.Backend.Controllers
 
                 var excelConfig = await _excelConfigService.LoadSettingsPageAsync(excelPath);
 
+                // URL base para las imágenes (usando route parameter en lugar de query string)
+                var imageBaseUrl = "/api/machine-settings/image/";
+
                 // Convertir configuración de Excel a modelo de respuesta
                 var config = new MachineSettingsConfiguration
                 {
@@ -78,6 +81,9 @@ namespace SW.PC.API.Backend.Controllers
                         Id = $"bool_{SanitizeId(s.Name)}_{i}",
                         Name = s.Name,
                         ImagePath = s.ImagePath,
+                        ImageUrl = !string.IsNullOrEmpty(s.ImagePath) 
+                            ? $"{imageBaseUrl}{Path.GetFileName(s.ImagePath)}" 
+                            : null,
                         PlcVariable = s.PlcVariable,
                         DisplayOrder = s.RowIndex,
                         Value = false // Valor por defecto, se leerá después
@@ -88,6 +94,9 @@ namespace SW.PC.API.Backend.Controllers
                         Id = $"int_{SanitizeId(s.Name)}_{i}",
                         Name = s.Name,
                         ImagePath = s.ImagePath,
+                        ImageUrl = !string.IsNullOrEmpty(s.ImagePath) 
+                            ? $"{imageBaseUrl}{Path.GetFileName(s.ImagePath)}" 
+                            : null,
                         PlcVariable = s.PlcVariable,
                         DisplayOrder = s.RowIndex,
                         MinValue = s.MinValue,
@@ -101,6 +110,9 @@ namespace SW.PC.API.Backend.Controllers
                         Id = $"lreal_{SanitizeId(s.Name)}_{i}",
                         Name = s.Name,
                         ImagePath = s.ImagePath,
+                        ImageUrl = !string.IsNullOrEmpty(s.ImagePath) 
+                            ? $"{imageBaseUrl}{Path.GetFileName(s.ImagePath)}" 
+                            : null,
                         PlcVariable = s.PlcVariable,
                         DisplayOrder = s.RowIndex,
                         MinValue = s.MinValue,
@@ -115,6 +127,9 @@ namespace SW.PC.API.Backend.Controllers
                         Id = $"lreal2_{SanitizeId(s.Name)}_{i}",
                         Name = s.Name,
                         ImagePath = s.ImagePath,
+                        ImageUrl = !string.IsNullOrEmpty(s.ImagePath) 
+                            ? $"{imageBaseUrl}{Path.GetFileName(s.ImagePath)}" 
+                            : null,
                         PlcVariable = s.PlcVariable,
                         DisplayOrder = s.RowIndex,
                         MinValue = s.MinValue,
@@ -668,6 +683,68 @@ namespace SW.PC.API.Backend.Controllers
                 // Capturar cualquier excepción inesperada sin crashear el backend
                 _logger.LogError(ex, "❌ Unexpected error retrieving setting image: {Path}", imagePath);
                 return StatusCode(500, "Error retrieving image");
+            }
+        }
+
+        /// <summary>
+        /// Obtener una imagen de parámetro usando route parameter (método preferido)
+        /// GET /api/machine-settings/image/{imageName}
+        /// </summary>
+        /// <param name="imageName">Nombre del archivo de imagen (ej: "pump.png")</param>
+        /// <returns>Archivo de imagen</returns>
+        /// <remarks>
+        /// Este endpoint usa route parameter en lugar de query string para mayor compatibilidad.
+        /// Las imágenes se buscan en: Projects/{projectId}/config/Images/
+        /// </remarks>
+        [HttpGet("image/{imageName}")]
+        [AllowAnonymous]
+        public IActionResult GetSettingImageByName(string imageName)
+        {
+            try
+            {
+                _logger.LogDebug("🖼️ Machine settings image request (route param): '{ImageName}'", imageName);
+
+                if (string.IsNullOrEmpty(imageName))
+                {
+                    return BadRequest("Image name is required");
+                }
+
+                // Sanitizar el nombre de la imagen (solo el nombre del archivo)
+                imageName = Path.GetFileName(imageName);
+
+                // Validar que el contexto del proyecto esté disponible
+                var configPath = _projectContext?.ConfigPath;
+                if (string.IsNullOrWhiteSpace(configPath))
+                {
+                    _logger.LogWarning("⚠️ Project config path is null or empty");
+                    return NotFound("Project configuration not available");
+                }
+
+                // Obtener la ruta de imágenes del proyecto activo
+                var imagesPath = Path.Combine(configPath, "Images", imageName);
+
+                if (!System.IO.File.Exists(imagesPath))
+                {
+                    _logger.LogWarning("🖼️ Machine settings image not found: {ImagePath}", imagesPath);
+                    return NotFound($"Image not found: {imageName}");
+                }
+
+                // Determinar el content type según la extensión
+                var contentType = GetContentType(imagesPath);
+
+                var fileBytes = System.IO.File.ReadAllBytes(imagesPath);
+                
+                // Cache para mejorar rendimiento
+                Response.Headers.Append("Cache-Control", "public, max-age=3600"); // Cache 1 hora
+                
+                _logger.LogDebug("🖼️ Serving machine settings image: {Path} ({Size} bytes)", imagesPath, fileBytes.Length);
+                
+                return File(fileBytes, contentType);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🖼️ Error loading machine settings image: {ImageName}", imageName);
+                return StatusCode(500, new { error = ex.Message });
             }
         }
 

@@ -45,6 +45,12 @@ namespace SW.PC.API.Backend.Models
         public string? ImagePath { get; set; }
 
         /// <summary>
+        /// URL de la imagen de ayuda para el frontend (route parameter style)
+        /// Ejemplo: /api/machine-settings/image/pump.png
+        /// </summary>
+        public string? ImageUrl { get; set; }
+
+        /// <summary>
         /// Variable PLC asociada (ej: MAIN.fbMachine.st_GenericConfiguration.b_param[1])
         /// </summary>
         public string PlcVariable { get; set; } = string.Empty;
