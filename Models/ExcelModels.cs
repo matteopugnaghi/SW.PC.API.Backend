@@ -919,6 +919,57 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Ejemplo: "GVL.nAutoLoadTrainType_2"
         /// </summary>
         public string TrainRecipeAutoLoadVar2 { get; set; } = "";
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ⚡ SEMIAUTOMATIC MODE - Modo Semiautomático
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar módulo de Modo Semiautomático.
+        /// Si false, el botón desaparece de la TopBar.
+        /// </summary>
+        public bool SemiautomaticEnabled { get; set; } = false;
+    }
+
+    /// <summary>
+    /// Configuración del modo semiautomático desde Excel (hoja "Semiautomatic_Mode")
+    /// </summary>
+    public class SemiautomaticConfiguration
+    {
+        /// <summary>
+        /// Variable PLC principal para activar/desactivar el modo semiautomático
+        /// (Celda A2 del Excel)
+        /// </summary>
+        public string MainPlcVariable { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Lista de elementos bool toggle del modo semiautomático
+        /// </summary>
+        public List<SemiautomaticElement> Elements { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Elemento individual del modo semiautomático
+    /// </summary>
+    public class SemiautomaticElement
+    {
+        /// <summary>
+        /// Descripción del elemento (Columna B)
+        /// </summary>
+        public string Description { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Variable PLC bool toggle para este elemento (Columna C)
+        /// </summary>
+        public string PlcVariable { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Modo de visibilidad del elemento (Columna D):
+        /// 0 = Invisible siempre
+        /// 1 = Visible siempre
+        /// 2 = Visible solo cuando el modo semiautomático está activo
+        /// </summary>
+        public int VisibilityMode { get; set; } = 1;
     }
 
     /// <summary>
@@ -1438,8 +1489,11 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Modo Manual / Mantenimiento (JOG)</summary>
         public const string MANUAL = "MANUAL";
 
+        /// <summary>Modo Semiautomático</summary>
+        public const string SEMIAUTOMATIC = "SEMIAUTOMATIC";
+
         /// <summary>Todas las vistas válidas</summary>
-        public static readonly string[] AllViews = { GLOBAL, MAIN, TRAIN, WASH, SETTINGS, STATS, ALARMS, USERS, MANUAL };
+        public static readonly string[] AllViews = { GLOBAL, MAIN, TRAIN, WASH, SETTINGS, STATS, ALARMS, USERS, MANUAL, SEMIAUTOMATIC };
 
         /// <summary>
         /// Mapeo de currentView del frontend a PlcViewId
@@ -1454,6 +1508,7 @@ namespace SW.PC.API.Backend.Models.Excel
             "tipostren" => TRAIN,
             "tiposlavado" => WASH,
             "manual" => MANUAL,
+            "semiautomatic" => SEMIAUTOMATIC,
             _ => MAIN // Por defecto, vista principal
         };
     }

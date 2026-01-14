@@ -345,6 +345,14 @@ namespace SW.PC.API.Backend.Services
             _simulatedVariables["MAIN.bStart"] = false;
             _simulatedVariables["MAIN.nCounter"] = 0;
             _simulatedVariables["MAIN.fTemperature"] = 25.5f;
+            
+            // ⚡ Variables del modo semiautomático (para desarrollo)
+            _simulatedVariables["MAIN.fbMachine.st_SemiAutomatic.b_WpInSemiAutomatic"] = false;
+            _simulatedVariables["MAIN.fbMachine.st_SemiAutomatic.b_StartSemiAutomatic_1"] = false;
+            _simulatedVariables["MAIN.fbMachine.st_SemiAutomatic.b_StartSemiAutomatic_2"] = false;
+            _simulatedVariables["GVL.bPump1"] = false;
+            _simulatedVariables["GVL.bPump2"] = false;
+            _simulatedVariables["GVL.bMotor1"] = false;
         }
         
         public async Task<bool> ConnectAsync()

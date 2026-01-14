@@ -95,6 +95,49 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
+        /// ⚡ Obtiene los valores actuales de todas las variables de una vista específica.
+        /// Usado para enviar valores iniciales cuando se activa una vista adicional.
+        /// </summary>
+        public Dictionary<string, object?> GetCurrentValuesForView(string viewName)
+        {
+            var values = new Dictionary<string, object?>();
+            
+            if (!_viewFilteringEnabled || _variableViewMappings.Count == 0)
+            {
+                _logger.LogDebug("⚡ GetCurrentValuesForView({View}): filtrado no habilitado", viewName);
+                return values;
+            }
+            
+            using var scope = _serviceProvider.CreateScope();
+            var excelConfigService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
+            
+            // Obtener variables que pertenecen a esta vista
+            var viewVariables = excelConfigService.FilterVariablesForView(
+                _monitoredVariables, 
+                viewName, 
+                _variableViewMappings
+            );
+            
+            _logger.LogInformation("⚡ GetCurrentValuesForView({View}): {Count} variables encontradas", 
+                viewName, viewVariables.Count);
+            
+            // Obtener valores actuales de cada variable
+            foreach (var varName in viewVariables)
+            {
+                if (_variableStates.TryGetValue(varName, out var state) && state.LastValue != null)
+                {
+                    values[varName] = state.LastValue;
+                    _logger.LogDebug("   ⚡ {Var} = {Value}", varName, state.LastValue);
+                }
+            }
+            
+            _logger.LogInformation("⚡ GetCurrentValuesForView({View}): {Count} valores con datos", 
+                viewName, values.Count);
+            
+            return values;
+        }
+
+        /// <summary>
         /// 🔧 Fuerza una lectura inmediata de una variable del PLC.
         /// Útil cuando se suscribe a una variable que aún no tiene valor.
         /// Retorna el valor leído o null si hay error.

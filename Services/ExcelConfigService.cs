@@ -52,6 +52,9 @@ namespace SW.PC.API.Backend.Services
         
         // 🎛️ Configuración de visualización de info en elementos 3D
         Task<List<ElementInfoSettingConfig>> Load3DElementsInfoSettingAsync(string filePath);
+        
+        // ⚡ Sistema de Modo Semiautomático
+        Task<SemiautomaticConfiguration> LoadSemiautomaticConfigAsync(string filePath);
     }
 
     /// <summary>
@@ -1309,6 +1312,140 @@ namespace SW.PC.API.Backend.Services
 
         #endregion
         
+        #region ⚡ Semiautomatic Mode
+        
+        /// <summary>
+        /// Carga la configuración del modo semiautomático desde la hoja "Semiautomatic_Mode"
+        /// Columnas: A=MainVar(solo A2), B=Descripción, C=Variable PLC, D=Modo Visibilidad (0/1/2)
+        /// </summary>
+        public async Task<SemiautomaticConfiguration> LoadSemiautomaticConfigAsync(string filePath)
+        {
+            var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+            
+            try
+            {
+                if (!File.Exists(fullPath))
+                {
+                    _logger.LogWarning("Excel file not found: {Path}. Semiautomatic_Mode no disponible.", fullPath);
+                    return new SemiautomaticConfiguration();
+                }
+
+                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var package = new ExcelPackage(stream);
+                
+                var sheet = package.Workbook.Worksheets["Semiautomatic_Mode"];
+                
+                if (sheet == null)
+                {
+                    _logger.LogWarning("⚠️ Hoja 'Semiautomatic_Mode' no encontrada en Excel.");
+                    
+                    // En desarrollo, devolver datos de prueba
+                    if (_environment.IsDevelopment())
+                    {
+                        _logger.LogInformation("🔧 [DEV] Usando datos de prueba para Semiautomatic_Mode");
+                        return new SemiautomaticConfiguration
+                        {
+                            MainPlcVariable = "GVL.bSemiMode",
+                            Elements = new List<SemiautomaticElement>
+                            {
+                                new SemiautomaticElement { Description = "Bomba Test 1", PlcVariable = "GVL.bPump1", VisibilityMode = 1 },
+                                new SemiautomaticElement { Description = "Bomba Test 2", PlcVariable = "GVL.bPump2", VisibilityMode = 1 },
+                                new SemiautomaticElement { Description = "Motor Solo Semi", PlcVariable = "GVL.bMotor1", VisibilityMode = 2 }
+                            }
+                        };
+                    }
+                    
+                    return new SemiautomaticConfiguration();
+                }
+
+                _logger.LogInformation("⚡ Cargando configuración de Modo Semiautomático...");
+
+                var config = new SemiautomaticConfiguration();
+                
+                // A2 = Variable PLC principal para activar modo semiautomático
+                config.MainPlcVariable = sheet.Cells["A2"].Text?.Trim() ?? string.Empty;
+                
+                if (string.IsNullOrWhiteSpace(config.MainPlcVariable))
+                {
+                    _logger.LogWarning("⚠️ Semiautomatic_Mode: No se encontró variable principal en A2");
+                }
+                else
+                {
+                    _logger.LogInformation("⚡ Variable principal semiautomático: {Var}", config.MainPlcVariable);
+                }
+
+                // Leer elementos desde fila 2 (fila 1 = encabezados)
+                int row = 2;
+                int emptyRowCount = 0;
+                int maxRows = sheet.Dimension?.Rows ?? 100;
+                
+                while (row <= maxRows && emptyRowCount < 5)
+                {
+                    try
+                    {
+                        var description = sheet.Cells[$"B{row}"].Text?.Trim() ?? string.Empty;
+                        var plcVariable = sheet.Cells[$"C{row}"].Text?.Trim() ?? string.Empty;
+                        var visibilityText = sheet.Cells[$"D{row}"].Text?.Trim() ?? "1";
+                        
+                        // Si no hay descripción y variable PLC, saltar
+                        if (string.IsNullOrWhiteSpace(description) && string.IsNullOrWhiteSpace(plcVariable))
+                        {
+                            emptyRowCount++;
+                            row++;
+                            continue;
+                        }
+                        
+                        // Reset contador de filas vacías
+                        emptyRowCount = 0;
+                        
+                        // Parsear modo de visibilidad
+                        int visibilityMode = 1; // Default: siempre visible
+                        if (int.TryParse(visibilityText, out var parsedVis))
+                        {
+                            visibilityMode = Math.Max(0, Math.Min(parsedVis, 2)); // Clamp 0-2
+                        }
+                        
+                        // Solo añadir si tiene variable PLC
+                        if (!string.IsNullOrWhiteSpace(plcVariable))
+                        {
+                            config.Elements.Add(new SemiautomaticElement
+                            {
+                                Description = description,
+                                PlcVariable = plcVariable,
+                                VisibilityMode = visibilityMode
+                            });
+                            
+                            _logger.LogDebug("   ⚡ Fila {Row}: '{Desc}' -> {Var} (vis:{Vis})", 
+                                row, description, plcVariable, visibilityMode);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("⚠️ Error parseando fila {Row} de Semiautomatic_Mode: {Error}", row, ex.Message);
+                    }
+                    
+                    row++;
+                }
+
+                _logger.LogInformation("✅ Semiautomatic_Mode: {Count} elementos cargados", config.Elements.Count);
+                
+                // Resumen por tipo de visibilidad
+                var vis0 = config.Elements.Count(e => e.VisibilityMode == 0);
+                var vis1 = config.Elements.Count(e => e.VisibilityMode == 1);
+                var vis2 = config.Elements.Count(e => e.VisibilityMode == 2);
+                _logger.LogInformation("   Visibilidad: 0(oculto)={V0}, 1(siempre)={V1}, 2(solo semi)={V2}", vis0, vis1, vis2);
+                
+                return await Task.FromResult(config);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cargando Semiautomatic_Mode: {Message}", ex.Message);
+                return new SemiautomaticConfiguration();
+            }
+        }
+        
+        #endregion
+        
         /// <summary>
         /// Carga la configuración de colores por estado desde la hoja PLC_State_Colors
         /// </summary>
@@ -1949,6 +2086,14 @@ namespace SW.PC.API.Backend.Services
                     if (sheet == null)
                     {
                         _logger.LogWarning("⚠️ No se encontró hoja 'System Config' en Excel. Usando configuración por defecto.");
+                        
+                        // En desarrollo, activar funcionalidades para testing
+                        if (_environment.IsDevelopment())
+                        {
+                            _logger.LogInformation("🔧 [DEV] Activando SemiautomaticEnabled para testing");
+                            return new SystemConfiguration { SemiautomaticEnabled = true };
+                        }
+                        
                         return new SystemConfiguration();
                     }
 
@@ -2597,6 +2742,16 @@ namespace SW.PC.API.Backend.Services
                                 config.TrainRecipeAutoLoadVar2 = paramValue ?? "";
                                 break;
 
+                            // ═══════════════════════════════════════════════════════════════
+                            // ⚡ SEMIAUTOMATIC MODE - Modo Semiautomático
+                            // ═══════════════════════════════════════════════════════════════
+                            case "semiautomaticenabled":
+                            case "semiautomatic_enabled":
+                                var semiValue = paramValue?.ToLower()?.Trim() ?? "";
+                                config.SemiautomaticEnabled = semiValue == "true" || semiValue == "1" || semiValue == "on" || semiValue == "si" || semiValue == "yes";
+                                _logger.LogDebug("⚡ SemiautomaticEnabled raw value: '{RawValue}' -> {Parsed}", paramValue, config.SemiautomaticEnabled);
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
@@ -2621,6 +2776,7 @@ namespace SW.PC.API.Backend.Services
                         config.TrainRecipeEnabled, 
                         string.IsNullOrEmpty(config.TrainRecipeAutoLoadVar) ? "N/A" : config.TrainRecipeAutoLoadVar,
                         string.IsNullOrEmpty(config.TrainRecipeAutoLoadVar2) ? "N/A" : config.TrainRecipeAutoLoadVar2);
+                    _logger.LogInformation("  - ⚡ Semiautomatic: {Enabled}", config.SemiautomaticEnabled);
 
                     stopwatch.Stop();
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);

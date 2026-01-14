@@ -239,6 +239,9 @@ namespace SW.PC.API.Backend.Hubs
             
             var wasAdded = _plcPollingService.ActivateAdditionalView(viewName);
             
+            // ⚡ Obtener valores actuales de las variables de esta vista
+            var currentValues = _plcPollingService.GetCurrentValuesForView(viewName);
+            
             await Clients.Caller.SendAsync("AdditionalViewActivated", new 
             {
                 view = viewName,
@@ -247,6 +250,23 @@ namespace SW.PC.API.Backend.Hubs
                 totalVariables = _plcPollingService.TotalVariablesCount,
                 additionalViews = _plcPollingService.AdditionalViews
             });
+            
+            // ⚡ Enviar valores iniciales de las variables de esta vista
+            if (currentValues.Count > 0)
+            {
+                _logger.LogInformation("⚡ Enviando {Count} valores iniciales para vista {View}", 
+                    currentValues.Count, viewName);
+                
+                foreach (var kvp in currentValues)
+                {
+                    await Clients.Caller.SendAsync("PlcVariableUpdated", new 
+                    {
+                        name = kvp.Key,
+                        value = kvp.Value,
+                        timestamp = DateTime.Now
+                    });
+                }
+            }
         }
 
         /// <summary>

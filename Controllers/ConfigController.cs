@@ -565,6 +565,34 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         #endregion
+        
+        #region ⚡ Semiautomatic Mode
+
+        /// <summary>
+        /// Get semiautomatic mode configuration from Excel
+        /// </summary>
+        /// <returns>Semiautomatic mode configuration with elements and visibility settings</returns>
+        [HttpGet("semiautomatic")]
+        [ProducesResponseType(typeof(SemiautomaticConfiguration), 200)]
+        public async Task<ActionResult<SemiautomaticConfiguration>> GetSemiautomaticConfig()
+        {
+            try
+            {
+                var excelPath = _projectContext.ExcelConfigPath;
+                _logger.LogInformation("⚡ Loading Semiautomatic_Mode config from: {Path}", excelPath);
+                
+                var config = await _excelConfigService.LoadSemiautomaticConfigAsync(excelPath);
+                
+                return Ok(config);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading Semiautomatic_Mode configuration: {Message}", ex.Message);
+                return StatusCode(500, new { error = "Error loading semiautomatic configuration", detail = ex.Message });
+            }
+        }
+
+        #endregion
     }
 }
 
