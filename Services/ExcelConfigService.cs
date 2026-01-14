@@ -55,6 +55,9 @@ namespace SW.PC.API.Backend.Services
         
         // ⚡ Sistema de Modo Semiautomático
         Task<SemiautomaticConfiguration> LoadSemiautomaticConfigAsync(string filePath);
+        
+        // ⚡ Sistema de Configuración Rápida (Fast Configuration)
+        Task<FastConfigurationPageConfiguration> LoadFastConfigurationAsync(string filePath);
     }
 
     /// <summary>
@@ -2752,6 +2755,17 @@ namespace SW.PC.API.Backend.Services
                                 _logger.LogDebug("⚡ SemiautomaticEnabled raw value: '{RawValue}' -> {Parsed}", paramValue, config.SemiautomaticEnabled);
                                 break;
 
+                            // ═══════════════════════════════════════════════════════════════
+                            // ⚡ FAST CONFIGURATION - Configuración Rápida
+                            // ═══════════════════════════════════════════════════════════════
+                            case "fastconfigurationenabled":
+                            case "fastconfiguration_enabled":
+                            case "fast_configuration_enabled":
+                                var fastConfigValue = paramValue?.ToLower()?.Trim() ?? "";
+                                config.FastConfigurationEnabled = fastConfigValue == "true" || fastConfigValue == "1" || fastConfigValue == "on" || fastConfigValue == "si" || fastConfigValue == "yes";
+                                _logger.LogDebug("⚡ FastConfigurationEnabled raw value: '{RawValue}' -> {Parsed}", paramValue, config.FastConfigurationEnabled);
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
@@ -2777,6 +2791,7 @@ namespace SW.PC.API.Backend.Services
                         string.IsNullOrEmpty(config.TrainRecipeAutoLoadVar) ? "N/A" : config.TrainRecipeAutoLoadVar,
                         string.IsNullOrEmpty(config.TrainRecipeAutoLoadVar2) ? "N/A" : config.TrainRecipeAutoLoadVar2);
                     _logger.LogInformation("  - ⚡ Semiautomatic: {Enabled}", config.SemiautomaticEnabled);
+                    _logger.LogInformation("  - ⚡ FastConfiguration: {Enabled}", config.FastConfigurationEnabled);
 
                     stopwatch.Stop();
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);
@@ -4127,6 +4142,204 @@ namespace SW.PC.API.Backend.Services
                 _logger.LogError(ex, "🔧 Error loading manual mode configuration from {FilePath}", filePath);
                 return config;
             }
+        }
+        
+        #endregion
+        
+        #region ⚡ FAST CONFIGURATION - Panel de Configuración Rápida
+        
+        /// <summary>
+        /// Carga la configuración del panel de configuración rápida desde la hoja "Fast_Configuration"
+        /// </summary>
+        /// <param name="filePath">Ruta al archivo Excel</param>
+        /// <returns>Configuración con parámetros BOOL, INT y LREAL</returns>
+        public async Task<FastConfigurationPageConfiguration> LoadFastConfigurationAsync(string filePath)
+        {
+            var config = new FastConfigurationPageConfiguration();
+            
+            try
+            {
+                var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+                
+                if (!File.Exists(fullPath))
+                {
+                    _logger.LogWarning("⚡ Excel file not found for fast configuration: {Path}", fullPath);
+                    return config;
+                }
+                
+                _logger.LogInformation("⚡ Loading fast configuration from Excel: {Path}", fullPath);
+                
+                // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
+                using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var package = new ExcelPackage(stream))
+                {
+                    // Buscar hoja "Fast_Configuration" (case-insensitive)
+                    var sheet = package.Workbook.Worksheets
+                        .FirstOrDefault(ws => ws.Name.Equals("Fast_Configuration", StringComparison.OrdinalIgnoreCase));
+                    
+                    if (sheet == null)
+                    {
+                        _logger.LogWarning("⚡ Sheet 'Fast_Configuration' not found in Excel file");
+                        return config;
+                    }
+                    
+                    // === Leer títulos desde las celdas A2, B2, F2, M2 ===
+                    var pageTitle = sheet.Cells["A2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(pageTitle))
+                    {
+                        config.PageTitle = pageTitle;
+                        _logger.LogDebug("⚡ Page title from A2: {Title}", pageTitle);
+                    }
+                    
+                    var boolTitle = sheet.Cells["B2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(boolTitle))
+                    {
+                        config.BoolSectionTitle = boolTitle;
+                        _logger.LogDebug("⚡ Bool section title from B2: {Title}", boolTitle);
+                    }
+                    
+                    var intTitle = sheet.Cells["F2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(intTitle))
+                    {
+                        config.IntSectionTitle = intTitle;
+                        _logger.LogDebug("⚡ Int section title from F2: {Title}", intTitle);
+                    }
+                    
+                    var lrealTitle = sheet.Cells["M2"].Text?.Trim();
+                    if (!string.IsNullOrEmpty(lrealTitle))
+                    {
+                        config.LRealSectionTitle = lrealTitle;
+                        _logger.LogDebug("⚡ LReal section title from M2: {Title}", lrealTitle);
+                    }
+                    
+                    // Leer datos desde la fila 2 (títulos y datos en la misma fila)
+                    int row = 2;
+                    int maxEmptyRows = 5; // Permitir hasta 5 filas vacías consecutivas
+                    int consecutiveEmpty = 0;
+                    
+                    while (consecutiveEmpty < maxEmptyRows)
+                    {
+                        bool hasData = false;
+                        
+                        // === BOOL: Columnas C (Descripción), D (Imagen), E (Variable PLC) ===
+                        var boolDesc = sheet.Cells[$"C{row}"].Text?.Trim();
+                        var boolImage = sheet.Cells[$"D{row}"].Text?.Trim();
+                        var boolPlcVar = sheet.Cells[$"E{row}"].Text?.Trim();
+                        
+                        if (!string.IsNullOrEmpty(boolDesc) && !string.IsNullOrEmpty(boolPlcVar))
+                        {
+                            config.BoolSettings.Add(new FastConfigBoolSetting
+                            {
+                                Description = boolDesc,
+                                ImagePath = string.IsNullOrEmpty(boolImage) ? null : boolImage,
+                                PlcVariable = boolPlcVar,
+                                RowIndex = row - 1 // 0-based index
+                            });
+                            hasData = true;
+                            _logger.LogDebug("⚡ Fast Bool setting [{Row}]: {Desc} -> {PlcVar}", row, boolDesc, boolPlcVar);
+                        }
+                        
+                        // === INT: Columnas G (Descripción), H (Imagen), I (Variable PLC), J (Min), K (Max), L (Unidad) ===
+                        var intDesc = sheet.Cells[$"G{row}"].Text?.Trim();
+                        var intImage = sheet.Cells[$"H{row}"].Text?.Trim();
+                        var intPlcVar = sheet.Cells[$"I{row}"].Text?.Trim();
+                        
+                        if (!string.IsNullOrEmpty(intDesc) && !string.IsNullOrEmpty(intPlcVar))
+                        {
+                            var intSetting = new FastConfigIntSetting
+                            {
+                                Description = intDesc,
+                                ImagePath = string.IsNullOrEmpty(intImage) ? null : intImage,
+                                PlcVariable = intPlcVar,
+                                RowIndex = row - 1
+                            };
+                            
+                            // Leer Min (columna J)
+                            var minVal = sheet.Cells[$"J{row}"].Text?.Trim();
+                            if (int.TryParse(minVal, out var minInt))
+                                intSetting.MinValue = minInt;
+                            
+                            // Leer Max (columna K)
+                            var maxVal = sheet.Cells[$"K{row}"].Text?.Trim();
+                            if (int.TryParse(maxVal, out var maxInt))
+                                intSetting.MaxValue = maxInt;
+                            
+                            // Leer Unidad (columna L)
+                            var unit = sheet.Cells[$"L{row}"].Text?.Trim();
+                            if (!string.IsNullOrEmpty(unit))
+                                intSetting.Unit = unit;
+                            
+                            config.IntSettings.Add(intSetting);
+                            hasData = true;
+                            _logger.LogDebug("⚡ Fast Int setting [{Row}]: {Desc} -> {PlcVar} (Min:{Min}, Max:{Max}, Unit:{Unit})", 
+                                row, intDesc, intPlcVar, intSetting.MinValue, intSetting.MaxValue, intSetting.Unit);
+                        }
+                        
+                        // === LREAL: Columnas N (Descripción), O (Imagen), P (Variable PLC), Q (Min), R (Max), S (Decimales), T (Unidad) ===
+                        var lrealDesc = sheet.Cells[$"N{row}"].Text?.Trim();
+                        var lrealImage = sheet.Cells[$"O{row}"].Text?.Trim();
+                        var lrealPlcVar = sheet.Cells[$"P{row}"].Text?.Trim();
+                        
+                        if (!string.IsNullOrEmpty(lrealDesc) && !string.IsNullOrEmpty(lrealPlcVar))
+                        {
+                            var lrealSetting = new FastConfigLRealSetting
+                            {
+                                Description = lrealDesc,
+                                ImagePath = string.IsNullOrEmpty(lrealImage) ? null : lrealImage,
+                                PlcVariable = lrealPlcVar,
+                                RowIndex = row - 1
+                            };
+                            
+                            // Leer Min (columna Q)
+                            var lrealMin = sheet.Cells[$"Q{row}"].Text?.Trim();
+                            if (double.TryParse(lrealMin, System.Globalization.NumberStyles.Any, 
+                                System.Globalization.CultureInfo.InvariantCulture, out var minDbl))
+                                lrealSetting.MinValue = minDbl;
+                            
+                            // Leer Max (columna R)
+                            var lrealMax = sheet.Cells[$"R{row}"].Text?.Trim();
+                            if (double.TryParse(lrealMax, System.Globalization.NumberStyles.Any, 
+                                System.Globalization.CultureInfo.InvariantCulture, out var maxDbl))
+                                lrealSetting.MaxValue = maxDbl;
+                            
+                            // Leer Decimales (columna S)
+                            var lrealDecimals = sheet.Cells[$"S{row}"].Text?.Trim();
+                            if (int.TryParse(lrealDecimals, out var dec))
+                                lrealSetting.DecimalPlaces = dec;
+                            
+                            // Leer Unidad (columna T)
+                            var lrealUnit = sheet.Cells[$"T{row}"].Text?.Trim();
+                            lrealSetting.Unit = string.IsNullOrEmpty(lrealUnit) ? null : lrealUnit;
+                            
+                            config.LRealSettings.Add(lrealSetting);
+                            hasData = true;
+                            _logger.LogDebug("⚡ Fast LReal setting [{Row}]: {Desc} -> {PlcVar} (Min:{Min}, Max:{Max}, Dec:{Dec}, Unit:{Unit})", 
+                                row, lrealDesc, lrealPlcVar, lrealSetting.MinValue, lrealSetting.MaxValue, lrealSetting.DecimalPlaces, lrealSetting.Unit);
+                        }
+                        
+                        // Controlar filas vacías consecutivas
+                        if (hasData)
+                        {
+                            consecutiveEmpty = 0;
+                        }
+                        else
+                        {
+                            consecutiveEmpty++;
+                        }
+                        
+                        row++;
+                    }
+                }
+                
+                _logger.LogInformation("⚡ Fast Configuration loaded: {PageTitle} with {BoolCount} bool, {IntCount} int, {LRealCount} lreal parameters",
+                    config.PageTitle, config.BoolSettings.Count, config.IntSettings.Count, config.LRealSettings.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "⚡ Error loading fast configuration from Excel: {Path}", filePath);
+            }
+            
+            return await Task.FromResult(config);
         }
         
         #endregion

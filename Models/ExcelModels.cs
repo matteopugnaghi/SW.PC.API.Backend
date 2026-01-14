@@ -929,6 +929,16 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Si false, el botón desaparece de la TopBar.
         /// </summary>
         public bool SemiautomaticEnabled { get; set; } = false;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ⚡ FAST CONFIGURATION - Panel de Configuración Rápida
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar módulo de Configuración Rápida (Fast Configuration).
+        /// Si false, el botón desaparece de la TopBar.
+        /// </summary>
+        public bool FastConfigurationEnabled { get; set; } = false;
     }
 
     /// <summary>
@@ -970,6 +980,131 @@ namespace SW.PC.API.Backend.Models.Excel
         /// 2 = Visible solo cuando el modo semiautomático está activo
         /// </summary>
         public int VisibilityMode { get; set; } = 1;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ⚡ FAST CONFIGURATION - Panel de Configuración Rápida (hoja "Fast_Configuration")
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Configuración del panel de configuración rápida desde Excel (hoja "Fast_Configuration")
+    /// Similar a SettingsPage pero con estructura específica:
+    /// - Columna A: Título página (solo A2)
+    /// - Columnas B-E: Parámetros BOOL
+    /// - Columnas F-L: Parámetros INT
+    /// - Columnas M-T: Parámetros LREAL
+    /// </summary>
+    public class FastConfigurationPageConfiguration
+    {
+        /// <summary>
+        /// Título de la página completa (celda A2)
+        /// </summary>
+        public string PageTitle { get; set; } = "Configuración Rápida";
+
+        /// <summary>
+        /// Título de la sección de booleanos (celda B2)
+        /// </summary>
+        public string BoolSectionTitle { get; set; } = "Booleanos";
+
+        /// <summary>
+        /// Título de la sección de enteros (celda F2)
+        /// </summary>
+        public string IntSectionTitle { get; set; } = "Enteros";
+
+        /// <summary>
+        /// Título de la sección de decimales (celda M2)
+        /// </summary>
+        public string LRealSectionTitle { get; set; } = "Decimales";
+
+        /// <summary>
+        /// Parámetros booleanos desde Excel (Columnas C, D, E)
+        /// </summary>
+        public List<FastConfigBoolSetting> BoolSettings { get; set; } = new();
+
+        /// <summary>
+        /// Parámetros enteros desde Excel (Columnas G-L)
+        /// </summary>
+        public List<FastConfigIntSetting> IntSettings { get; set; } = new();
+
+        /// <summary>
+        /// Parámetros LReal desde Excel (Columnas N-T)
+        /// </summary>
+        public List<FastConfigLRealSetting> LRealSettings { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Parámetro bool desde hoja Fast_Configuration (columnas C, D, E)
+    /// </summary>
+    public class FastConfigBoolSetting
+    {
+        /// <summary>Descripción del parámetro (columna C)</summary>
+        public string Description { get; set; } = string.Empty;
+
+        /// <summary>Ruta imagen de ayuda (columna D)</summary>
+        public string? ImagePath { get; set; }
+
+        /// <summary>Variable PLC (columna E)</summary>
+        public string PlcVariable { get; set; } = string.Empty;
+
+        /// <summary>Orden de fila en Excel (para DisplayOrder)</summary>
+        public int RowIndex { get; set; }
+    }
+
+    /// <summary>
+    /// Parámetro int desde hoja Fast_Configuration (columnas G-L)
+    /// </summary>
+    public class FastConfigIntSetting
+    {
+        /// <summary>Descripción del parámetro (columna G)</summary>
+        public string Description { get; set; } = string.Empty;
+
+        /// <summary>Ruta imagen de ayuda (columna H)</summary>
+        public string? ImagePath { get; set; }
+
+        /// <summary>Variable PLC (columna I)</summary>
+        public string PlcVariable { get; set; } = string.Empty;
+
+        /// <summary>Valor mínimo (columna J, opcional)</summary>
+        public int? MinValue { get; set; }
+
+        /// <summary>Valor máximo (columna K, opcional)</summary>
+        public int? MaxValue { get; set; }
+
+        /// <summary>Unidad de medida (columna L, opcional)</summary>
+        public string? Unit { get; set; }
+
+        /// <summary>Orden de fila en Excel (para DisplayOrder)</summary>
+        public int RowIndex { get; set; }
+    }
+
+    /// <summary>
+    /// Parámetro LReal desde hoja Fast_Configuration (columnas N-T)
+    /// </summary>
+    public class FastConfigLRealSetting
+    {
+        /// <summary>Descripción del parámetro (columna N)</summary>
+        public string Description { get; set; } = string.Empty;
+
+        /// <summary>Ruta imagen de ayuda (columna O)</summary>
+        public string? ImagePath { get; set; }
+
+        /// <summary>Variable PLC (columna P)</summary>
+        public string PlcVariable { get; set; } = string.Empty;
+
+        /// <summary>Valor mínimo (columna Q, opcional)</summary>
+        public double? MinValue { get; set; }
+
+        /// <summary>Valor máximo (columna R, opcional)</summary>
+        public double? MaxValue { get; set; }
+
+        /// <summary>Decimales a mostrar (columna S, opcional)</summary>
+        public int DecimalPlaces { get; set; } = 2;
+
+        /// <summary>Unidad de medida (columna T, opcional)</summary>
+        public string? Unit { get; set; }
+
+        /// <summary>Orden de fila en Excel (para DisplayOrder)</summary>
+        public int RowIndex { get; set; }
     }
 
     /// <summary>
