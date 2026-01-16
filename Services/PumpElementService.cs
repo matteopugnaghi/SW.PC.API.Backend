@@ -111,11 +111,10 @@ namespace SW.PC.API.Backend.Services
                             ScaleY = ParseDouble(sheet.Cells[$"Q{row}"].Text, 1.0),
                             ScaleZ = ParseDouble(sheet.Cells[$"R{row}"].Text, 1.0),
                             
-                            // S: Is Clickable
-                            IsClickable = ParseBool(sheet.Cells[$"S{row}"].Text, true),
+                            // S: Pivot Offset para rotaciones (formato: "X,Y,Z")
+                            PivotOffset = ParseString(sheet.Cells[$"S{row}"].Text, string.Empty),
                             
-                            // T: Show Tooltip
-                            ShowTooltip = ParseBool(sheet.Cells[$"T{row}"].Text, true),
+                            // T: (Reservado - sin uso actual)
                             
                             // U: Animation Type
                             AnimationType = ParseString(sheet.Cells[$"U{row}"].Text, "none"),
@@ -348,8 +347,8 @@ namespace SW.PC.API.Backend.Services
                     sheet.Cells["P1"].Value = "Scale X";
                     sheet.Cells["Q1"].Value = "Scale Y";
                     sheet.Cells["R1"].Value = "Scale Z";
-                    sheet.Cells["S1"].Value = "Is Clickable";
-                    sheet.Cells["T1"].Value = "Show Tooltip";
+                    sheet.Cells["S1"].Value = "Pivot Offset (X,Y,Z)";
+                    sheet.Cells["T1"].Value = "(Reserved)";
                     sheet.Cells["U1"].Value = "Animation Type (none/REF PLC)";
                     sheet.Cells["V1"].Value = "Animation Speed";
                     sheet.Cells["W1"].Value = "Animate Only When On";
@@ -517,8 +516,8 @@ namespace SW.PC.API.Backend.Services
                         sheet.Cells[$"Q{row}"].Value = element.ScaleY;
                         sheet.Cells[$"R{row}"].Value = element.ScaleZ;
 
-                        sheet.Cells[$"S{row}"].Value = element.IsClickable;
-                        sheet.Cells[$"T{row}"].Value = element.ShowTooltip;
+                        sheet.Cells[$"S{row}"].Value = element.PivotOffset;
+                        // T: Reservado
                         sheet.Cells[$"U{row}"].Value = element.AnimationType;
                         sheet.Cells[$"V{row}"].Value = element.AnimationSpeed;
                         sheet.Cells[$"W{row}"].Value = element.AnimateOnlyWhenOn;

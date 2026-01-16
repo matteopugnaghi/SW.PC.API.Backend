@@ -140,12 +140,12 @@ namespace SW.PC.API.Backend.Models
         /// <summary>Escala Z (1.0 = normal)</summary>
         public double ScaleZ { get; set; } = 1.0;
 
-        // Interacción web
-        /// <summary>¿El modelo es clickeable en el 3D?</summary>
-        public bool IsClickable { get; set; } = true;
-        
-        /// <summary>¿Mostrar tooltip al hacer hover?</summary>
-        public bool ShowTooltip { get; set; } = true;
+        // Pivot para rotaciones
+        /// <summary>
+        /// Offset del punto de pivot para rotaciones REF PLC ROTATION.
+        /// Formato: "X,Y,Z" (ej: "10,5,0"). Si vacío, usa el centro geométrico.
+        /// </summary>
+        public string PivotOffset { get; set; } = string.Empty;
         
         /// <summary>Pantalla a la que navegar al hacer click (manual/config/null)</summary>
         public string? NavigateToScreen { get; set; }

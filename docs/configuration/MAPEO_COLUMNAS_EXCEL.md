@@ -142,10 +142,10 @@ ScaleY = 1.0
 ScaleZ = 1.0
 ```
 
-### Interacción Web
+### Pivot para Rotaciones (REF PLC ROTATION)
 ```
-IsClickable = true          // ¿Se puede hacer click?
-ShowTooltip = true          // ¿Mostrar tooltip al hover?
+PivotOffset = "X,Y,Z"      // Offset del pivot para rotación (ej: "10,5,0")
+                            // Si vacío, usa centro geométrico automático
 NavigateToScreen = null     // Pantalla destino al click
 ```
 
