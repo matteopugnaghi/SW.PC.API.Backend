@@ -2868,6 +2868,22 @@ namespace SW.PC.API.Backend.Services
                                 _logger.LogDebug("⚡ FastConfigurationEnabled raw value: '{RawValue}' -> {Parsed}", paramValue, config.FastConfigurationEnabled);
                                 break;
 
+                            // ═══════════════════════════════════════════════════════════════
+                            // 📷 3D SCENE / CAMERA - Configuración de escena 3D
+                            // ═══════════════════════════════════════════════════════════════
+                            case "camerazoomfactor":
+                            case "camera_zoom_factor":
+                            case "camera_zoomfactor":
+                                if (double.TryParse(paramValue?.Trim()?.Replace(",", "."), 
+                                    System.Globalization.NumberStyles.Float, 
+                                    System.Globalization.CultureInfo.InvariantCulture, 
+                                    out double zoomFactor))
+                                {
+                                    config.CameraZoomFactor = zoomFactor;
+                                }
+                                _logger.LogDebug("📷 CameraZoomFactor raw value: '{RawValue}' -> {Parsed}", paramValue, config.CameraZoomFactor);
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
@@ -2894,6 +2910,7 @@ namespace SW.PC.API.Backend.Services
                         string.IsNullOrEmpty(config.TrainRecipeAutoLoadVar2) ? "N/A" : config.TrainRecipeAutoLoadVar2);
                     _logger.LogInformation("  - ⚡ Semiautomatic: {Enabled}", config.SemiautomaticEnabled);
                     _logger.LogInformation("  - ⚡ FastConfiguration: {Enabled}", config.FastConfigurationEnabled);
+                    _logger.LogInformation("  - 📷 CameraZoomFactor: {Factor}", config.CameraZoomFactor);
 
                     stopwatch.Stop();
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);

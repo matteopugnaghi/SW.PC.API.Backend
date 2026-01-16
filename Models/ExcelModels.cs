@@ -939,6 +939,21 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Si false, el botón desaparece de la TopBar.
         /// </summary>
         public bool FastConfigurationEnabled { get; set; } = false;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 📷 3D SCENE / CAMERA - Configuración de escena 3D Babylon.js
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Factor de zoom de la cámara para la vista estándar/inicial.
+        /// Controla la distancia de la cámara al modelo en la vista por defecto.
+        /// - 1.0 = distancia normal (100%)
+        /// - 0.5 = más cerca (50% de la distancia normal)
+        /// - 0.8 = un poco más cerca (80%)
+        /// - 1.2 = un poco más lejos (120%)
+        /// - 2.0 = muy lejos (200%)
+        /// </summary>
+        public double CameraZoomFactor { get; set; } = 1.0;
     }
 
     /// <summary>
