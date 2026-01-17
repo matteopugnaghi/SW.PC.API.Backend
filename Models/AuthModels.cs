@@ -577,7 +577,6 @@ public class AuthConfiguration
     
     // Banner de login
     public bool ShowLoginBanner { get; set; } = true;
-    public string LoginBannerText { get; set; } = "ACCESO RESTRINGIDO - Solo personal autorizado. Todas las actividades son monitoreadas y registradas.";
     
     // JWT
     public string JwtSecretKey { get; set; } = string.Empty; // Se genera si está vacío

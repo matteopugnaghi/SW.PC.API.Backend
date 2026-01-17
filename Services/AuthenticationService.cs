@@ -1949,7 +1949,6 @@ public class AuthenticationService : IAuthenticationService, IDisposable
 
                 // Banner de login
                 config.ShowLoginBanner = systemConfig.AuthShowLoginBanner;
-                config.LoginBannerText = systemConfig.AuthLoginBannerText;
                 
                 // JWT
                 config.JwtSecretKey = systemConfig.AuthJwtSecretKey;

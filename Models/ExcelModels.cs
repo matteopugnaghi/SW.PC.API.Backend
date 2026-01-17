@@ -638,11 +638,6 @@ namespace SW.PC.API.Backend.Models.Excel
         public bool AuthShowLoginBanner { get; set; } = true;
 
         /// <summary>
-        /// Texto del banner de login
-        /// </summary>
-        public string AuthLoginBannerText { get; set; } = "ACCESO RESTRINGIDO - Solo personal autorizado. Todas las actividades son monitoreadas y registradas.";
-
-        /// <summary>
         /// Clave secreta JWT (se genera automáticamente si está vacío)
         /// </summary>
         public string AuthJwtSecretKey { get; set; } = "";
@@ -954,6 +949,24 @@ namespace SW.PC.API.Backend.Models.Excel
         /// - 2.0 = muy lejos (200%)
         /// </summary>
         public double CameraZoomFactor { get; set; } = 1.0;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🌐 INTERNATIONALIZATION (i18n) - Sistema de traducciones
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Idioma por defecto del sistema (ISO 639-2: SPA, ENG, FRA, ITA, DEU, etc.)
+        /// Se usa como fallback cuando no existe traducción en el idioma seleccionado.
+        /// </summary>
+        public string DefaultLanguage { get; set; } = "SPA";
+
+        /// <summary>
+        /// Modo DEBUG: Mostrar IDs de labels en la interfaz.
+        /// Cuando está activado, junto a cada texto traducible se muestra su ID.
+        /// Útil para técnicos durante el proceso de traducción.
+        /// En producción debe estar en false.
+        /// </summary>
+        public bool ExposeLabelIds { get; set; } = false;
     }
 
     /// <summary>

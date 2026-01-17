@@ -272,8 +272,7 @@ public class AuthController : ControllerBase
         var config = _authService.GetConfiguration();
         return Ok(new LoginBannerResponse
         {
-            ShowBanner = config.ShowLoginBanner,
-            BannerText = config.LoginBannerText
+            ShowBanner = config.ShowLoginBanner
         });
     }
 
@@ -905,7 +904,6 @@ public class ResetPasswordRequest
 public class LoginBannerResponse
 {
     public bool ShowBanner { get; set; }
-    public string BannerText { get; set; } = string.Empty;
 }
 
 /// <summary>

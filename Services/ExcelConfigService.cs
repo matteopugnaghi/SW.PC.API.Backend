@@ -2560,11 +2560,6 @@ namespace SW.PC.API.Backend.Services
                             case "auth_show_login_banner":
                                 config.AuthShowLoginBanner = paramValue?.ToLower() == "true" || paramValue == "1";
                                 break;
-                            case "authloginbannertext":
-                            case "auth_loginbannertext":
-                            case "auth_login_banner_text":
-                                config.AuthLoginBannerText = paramValue ?? "";
-                                break;
                             case "authjwtsecretkey":
                             case "auth_jwtsecretkey":
                             case "auth_jwt_secret_key":
@@ -2884,6 +2879,26 @@ namespace SW.PC.API.Backend.Services
                                 _logger.LogDebug("📷 CameraZoomFactor raw value: '{RawValue}' -> {Parsed}", paramValue, config.CameraZoomFactor);
                                 break;
 
+                            // ═══════════════════════════════════════════════════════════════
+                            // 🌐 INTERNATIONALIZATION (i18n) - Sistema de traducciones
+                            // ═══════════════════════════════════════════════════════════════
+                            case "defaultlanguage":
+                            case "default_language":
+                            case "idioma":
+                            case "language":
+                                config.DefaultLanguage = paramValue?.Trim()?.ToUpperInvariant() ?? "SPA";
+                                _logger.LogDebug("🌐 DefaultLanguage raw value: '{RawValue}' -> {Parsed}", paramValue, config.DefaultLanguage);
+                                break;
+
+                            case "exposelabelids":
+                            case "expose_label_ids":
+                            case "debug_labels":
+                            case "show_label_ids":
+                                var exposeLabelValue = paramValue?.Trim()?.ToLowerInvariant() ?? "false";
+                                config.ExposeLabelIds = exposeLabelValue == "true" || exposeLabelValue == "1" || exposeLabelValue == "on" || exposeLabelValue == "si" || exposeLabelValue == "yes";
+                                _logger.LogDebug("🌐 ExposeLabelIds raw value: '{RawValue}' -> {Parsed}", paramValue, config.ExposeLabelIds);
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
@@ -2911,6 +2926,8 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogInformation("  - ⚡ Semiautomatic: {Enabled}", config.SemiautomaticEnabled);
                     _logger.LogInformation("  - ⚡ FastConfiguration: {Enabled}", config.FastConfigurationEnabled);
                     _logger.LogInformation("  - 📷 CameraZoomFactor: {Factor}", config.CameraZoomFactor);
+                    _logger.LogInformation("  - 🌐 i18n: DefaultLanguage={Lang}, ExposeLabelIds={Expose}", 
+                        config.DefaultLanguage, config.ExposeLabelIds);
 
                     stopwatch.Stop();
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);
