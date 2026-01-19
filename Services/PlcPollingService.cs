@@ -459,24 +459,7 @@ namespace SW.PC.API.Backend.Services
                             _logger.LogInformation("📊 Vista inicial '{View}': {Active}/{Total} variables activas", 
                                 _currentView, _activeVariables.Count, _monitoredVariables.Count);
                             
-                            // � DEBUG: Verificar variables del InfoPanel
-                            var infoPanelVars = new[] {
-                                "MAIN.fbMachine.st_MainForm_FastExchange.ws_plantState",
-                                "MAIN.fbMachine.st_MainForm_FastExchange.ws_controlRoomState",
-                                "MAIN.fbMachine.st_MainForm.s_NameWashRecipe",
-                                "MAIN.fbMachine.st_MainForm.s_NameTrainRecipe",
-                                "MAIN.fbMachine.st_MainForm_FastExchange.ws_plcSequence",
-                                "MAIN.fbMachine.st_MainForm_FastExchange.ws_washSequence"
-                            };
-                            foreach (var v in infoPanelVars)
-                            {
-                                var inMonitored = _monitoredVariables.Contains(v);
-                                var inActive = _activeVariables.Contains(v);
-                                _logger.LogInformation("📟 InfoPanel var '{Var}': monitored={Monitored}, active={Active}", 
-                                    v.Split('.').Last(), inMonitored, inActive);
-                            }
-                            
-                            // �🔔 Enviar advertencias al frontend vía SignalR (si hay)
+                            //  Enviar advertencias al frontend vía SignalR (si hay)
                             if (filterResult.HasWarnings)
                             {
                                 _ = SendSystemWarningToFrontendAsync(filterResult);
