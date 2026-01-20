@@ -167,6 +167,8 @@ builder.Services.AddScoped<IVulnerabilityService, VulnerabilityService>(); // �
 builder.Services.AddSingleton<IIpcInfoService, IpcInfoService>(); // 💻 IPC System Info
 builder.Services.AddSingleton<IAuditLogService, AuditLogService>(); // 📋 Audit Log (Nivel 1) - EU CRA Compliance
 builder.Services.AddSingleton<IOperationLogService, OperationLogService>(); // 📋 Operation Log (Nivel 2) - Acciones de operador
+builder.Services.AddSingleton<IESIParserService, ESIParserService>(); // 🌐 ESI Parser - EtherCAT Slave Info files
+builder.Services.AddSingleton<IEtherCATDiagnosticsService, EtherCATDiagnosticsService>(); // 🌐 EtherCAT Topology Diagnostics
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 💾 DATA MANAGEMENT: Sistema de Backup/Restore (EU CRA Anexo I, Parte I, 2f)

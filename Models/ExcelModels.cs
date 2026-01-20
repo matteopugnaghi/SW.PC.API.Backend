@@ -951,6 +951,51 @@ namespace SW.PC.API.Backend.Models.Excel
         public double CameraZoomFactor { get; set; } = 1.0;
 
         // ═══════════════════════════════════════════════════════════════════════════
+        // 🌐 ETHERCAT TOPOLOGY - Diagnóstico de Red Industrial
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar diagnóstico de topología EtherCAT.
+        /// Permite visualizar el estado de la red industrial en el InfoPanel.
+        /// </summary>
+        public bool EnableEtherCATTopology { get; set; } = false;
+
+        /// <summary>
+        /// AMS Net ID del Master EtherCAT.
+        /// Puede ser el mismo que PlcAmsNetId si el Master está en el mismo runtime,
+        /// o diferente si es un Master dedicado.
+        /// Ejemplo: "192.168.1.151.3.1" o "5.89.194.238.3.1"
+        /// </summary>
+        public string EtherCATMasterNetId { get; set; } = "";
+
+        /// <summary>
+        /// Device ID del Master EtherCAT (típicamente 1).
+        /// Identificador del dispositivo EtherCAT dentro del runtime TwinCAT.
+        /// </summary>
+        public int EtherCATMasterDeviceId { get; set; } = 1;
+
+        /// <summary>
+        /// Ruta a los archivos ESI (EtherCAT Slave Information).
+        /// Si está vacío, usa la ruta estándar de TwinCAT: C:\TwinCAT\3.1\Config\Io\EtherCAT
+        /// Los ESI files contienen nombres y descripciones de dispositivos EtherCAT.
+        /// </summary>
+        public string ESIFilesPath { get; set; } = "";
+
+        /// <summary>
+        /// Usar archivos ESI para obtener nombres de dispositivos.
+        /// Si true, el servicio intentará leer los ESI files para mostrar
+        /// nombres comerciales de los dispositivos (ej: "EL1008" en lugar de VendorId/ProductCode).
+        /// </summary>
+        public bool UseEtherCATESIFiles { get; set; } = false;
+
+        /// <summary>
+        /// Intervalo mínimo entre lecturas completas de topología (ms).
+        /// Evita sobrecargar el Master EtherCAT con lecturas frecuentes.
+        /// Recomendado: 2000ms (2 segundos).
+        /// </summary>
+        public int EtherCATTopologyReadIntervalMs { get; set; } = 2000;
+
+        // ═══════════════════════════════════════════════════════════════════════════
         // 🌐 INTERNATIONALIZATION (i18n) - Sistema de traducciones
         // ═══════════════════════════════════════════════════════════════════════════
 

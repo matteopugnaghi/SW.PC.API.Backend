@@ -1,0 +1,470 @@
+using System.Xml.Linq;
+using SW.PC.API.Backend.Models.EtherCAT;
+
+namespace SW.PC.API.Backend.Services;
+
+/// <summary>
+/// Servicio para parsear archivos ESI (EtherCAT Slave Information) de TwinCAT.
+/// Los ESI files contienen información detallada de los dispositivos EtherCAT:
+/// - Nombre del producto
+/// - Descripción
+/// - Vendor ID → Nombre del fabricante
+/// - Capabilities
+/// 
+/// Ruta típica TwinCAT 3: C:\TwinCAT\3.1\Config\Io\EtherCAT\
+/// </summary>
+public interface IESIParserService
+{
+    /// <summary>
+    /// Obtiene información de un dispositivo por Vendor ID y Product Code
+    /// </summary>
+    ESIDeviceInfo? GetDeviceInfo(uint vendorId, uint productCode);
+    
+    /// <summary>
+    /// Obtiene el nombre del vendor por su ID
+    /// </summary>
+    string GetVendorName(uint vendorId);
+    
+    /// <summary>
+    /// Recarga el cache de ESI files
+    /// </summary>
+    Task RefreshCacheAsync();
+    
+    /// <summary>
+    /// Obtiene estadísticas del cache
+    /// </summary>
+    ESICacheStats GetCacheStats();
+}
+
+/// <summary>
+/// Información de un dispositivo extraída de ESI files
+/// </summary>
+public class ESIDeviceInfo
+{
+    public uint VendorId { get; set; }
+    public string VendorName { get; set; } = "";
+    public uint ProductCode { get; set; }
+    public string ProductName { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Type { get; set; } = "";  // Ej: "EL2008"
+    public string GroupType { get; set; } = "";  // Ej: "DigOut"
+    public string ImageFile { get; set; } = "";  // Ruta a imagen si existe
+    public List<string> Capabilities { get; set; } = new();
+}
+
+/// <summary>
+/// Estadísticas del cache de ESI
+/// </summary>
+public class ESICacheStats
+{
+    public int TotalFiles { get; set; }
+    public int TotalDevices { get; set; }
+    public int TotalVendors { get; set; }
+    public DateTime LastRefresh { get; set; }
+    public string ESIPath { get; set; } = "";
+    public bool IsEnabled { get; set; }
+    public List<string> LoadedFiles { get; set; } = new();
+    public List<string> Errors { get; set; } = new();
+}
+
+public class ESIParserService : IESIParserService
+{
+    private readonly ILogger<ESIParserService> _logger;
+    private readonly IServiceProvider _serviceProvider;
+    
+    // Cache de dispositivos: Key = "VendorId_ProductCode"
+    private readonly Dictionary<string, ESIDeviceInfo> _deviceCache = new();
+    
+    // Cache de vendors: Key = VendorId
+    private readonly Dictionary<uint, string> _vendorCache = new();
+    
+    // Estadísticas
+    private ESICacheStats _stats = new();
+    private readonly SemaphoreSlim _cacheLock = new(1, 1);
+    private bool _cacheLoaded = false;
+    
+    // Vendors conocidos (fallback si no hay ESI)
+    private static readonly Dictionary<uint, string> KnownVendors = new()
+    {
+        { 0x00000002, "Beckhoff Automation GmbH" },
+        { 0x00000001, "EtherCAT Technology Group" },
+        { 0x00000022, "Hilscher GmbH" },
+        { 0x000000E8, "Omron Corporation" },
+        { 0x00000156, "Kollmorgen" },
+        { 0x000001DD, "Delta Electronics" },
+        { 0x00000539, "Yaskawa" },
+        { 0x000005A3, "Mitsubishi Electric" },
+        { 0x00000732, "Festo SE & Co. KG" },
+        { 0x00000B95, "SMC Corporation" },
+        { 0x00001000, "Siemens AG" },
+        { 0x00001A05, "Lenze SE" }
+    };
+
+    public ESIParserService(
+        ILogger<ESIParserService> logger,
+        IServiceProvider serviceProvider)
+    {
+        _logger = logger;
+        _serviceProvider = serviceProvider;
+        
+        // Iniciar carga de ESI en background (no bloqueante)
+        Task.Run(async () => 
+        {
+            try
+            {
+                await Task.Delay(2000); // Esperar a que el sistema arranque
+                await RefreshCacheAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Error en carga inicial de ESI files (continuando sin ESI)");
+            }
+        });
+    }
+
+    public ESIDeviceInfo? GetDeviceInfo(uint vendorId, uint productCode)
+    {
+        // NO bloquear - usar lo que haya en cache o devolver básico
+        var key = $"{vendorId}_{productCode}";
+        if (_deviceCache.TryGetValue(key, out var info))
+        {
+            return info;
+        }
+        
+        // Si no está en cache, devolver info básica con vendor conocido
+        return new ESIDeviceInfo
+        {
+            VendorId = vendorId,
+            VendorName = GetVendorName(vendorId),
+            ProductCode = productCode,
+            ProductName = $"Product 0x{productCode:X8}",
+            Type = $"0x{productCode:X8}"
+        };
+    }
+
+    public string GetVendorName(uint vendorId)
+    {
+        // NO bloquear - usar lo que haya en cache
+        if (_vendorCache.TryGetValue(vendorId, out var name))
+        {
+            return name;
+        }
+        
+        if (KnownVendors.TryGetValue(vendorId, out var knownName))
+        {
+            return knownName;
+        }
+        
+        return $"Vendor 0x{vendorId:X4}";
+    }
+
+    public ESICacheStats GetCacheStats()
+    {
+        return _stats;
+    }
+
+    public async Task RefreshCacheAsync()
+    {
+        await _cacheLock.WaitAsync();
+        try
+        {
+            await LoadESIFilesAsync();
+        }
+        finally
+        {
+            _cacheLock.Release();
+        }
+    }
+
+    private async Task LoadESIFilesAsync()
+    {
+        _deviceCache.Clear();
+        _vendorCache.Clear();
+        _stats = new ESICacheStats { LastRefresh = DateTime.UtcNow };
+        
+        // Obtener configuración
+        string esiPath = "";
+        bool useEsi = false;
+        
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var excelService = scope.ServiceProvider.GetService<IExcelConfigService>();
+            var projectContext = scope.ServiceProvider.GetService<IProjectContextService>();
+            
+            if (excelService != null && projectContext != null)
+            {
+                var excelPath = projectContext.ExcelConfigPath;
+                if (!string.IsNullOrEmpty(excelPath) && File.Exists(excelPath))
+                {
+                    var systemConfig = await excelService.LoadSystemConfigurationAsync(excelPath);
+                    if (systemConfig != null)
+                    {
+                        esiPath = systemConfig.ESIFilesPath;
+                        useEsi = systemConfig.UseEtherCATESIFiles;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ No se pudo obtener configuración ESI del Excel");
+        }
+        
+        _stats.ESIPath = esiPath;
+        _stats.IsEnabled = useEsi;
+        
+        // Agregar vendors conocidos al cache
+        foreach (var kv in KnownVendors)
+        {
+            _vendorCache[kv.Key] = kv.Value;
+        }
+        _stats.TotalVendors = _vendorCache.Count;
+        
+        if (!useEsi)
+        {
+            _logger.LogInformation("🌐 ESI Parser: Deshabilitado por configuración");
+            _cacheLoaded = true;
+            return;
+        }
+        
+        // Determinar ruta ESI
+        if (string.IsNullOrWhiteSpace(esiPath))
+        {
+            // Buscar rutas comunes de TwinCAT
+            var commonPaths = new[]
+            {
+                @"C:\TwinCAT\3.1\Config\Io\EtherCAT",
+                @"C:\TwinCAT\3.0\Config\Io\EtherCAT",
+                @"D:\TwinCAT\3.1\Config\Io\EtherCAT",
+                @"C:\Program Files\TwinCAT\3.1\Config\Io\EtherCAT"
+            };
+            
+            foreach (var path in commonPaths)
+            {
+                if (Directory.Exists(path))
+                {
+                    esiPath = path;
+                    _logger.LogInformation("🌐 ESI Parser: Ruta auto-detectada: {Path}", path);
+                    break;
+                }
+            }
+        }
+        
+        if (string.IsNullOrWhiteSpace(esiPath) || !Directory.Exists(esiPath))
+        {
+            _logger.LogWarning("⚠️ ESI Parser: Ruta no encontrada: {Path}", esiPath);
+            _stats.Errors.Add($"Ruta ESI no encontrada: {esiPath}");
+            _cacheLoaded = true;
+            return;
+        }
+        
+        _stats.ESIPath = esiPath;
+        _logger.LogInformation("🌐 ESI Parser: Cargando archivos de {Path}", esiPath);
+        
+        // Cargar todos los archivos XML
+        var xmlFiles = Directory.GetFiles(esiPath, "*.xml", SearchOption.AllDirectories);
+        _stats.TotalFiles = xmlFiles.Length;
+        
+        foreach (var file in xmlFiles)
+        {
+            try
+            {
+                await ParseESIFileAsync(file);
+                _stats.LoadedFiles.Add(Path.GetFileName(file));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("⚠️ Error parseando ESI file {File}: {Error}", 
+                    Path.GetFileName(file), ex.Message);
+                _stats.Errors.Add($"{Path.GetFileName(file)}: {ex.Message}");
+            }
+        }
+        
+        _stats.TotalDevices = _deviceCache.Count;
+        _stats.TotalVendors = _vendorCache.Count;
+        
+        _logger.LogInformation("🌐 ESI Parser: Cargados {Devices} dispositivos de {Files} archivos, {Vendors} vendors",
+            _stats.TotalDevices, _stats.LoadedFiles.Count, _stats.TotalVendors);
+        
+        _cacheLoaded = true;
+    }
+
+    private async Task ParseESIFileAsync(string filePath)
+    {
+        var content = await File.ReadAllTextAsync(filePath);
+        var doc = XDocument.Parse(content);
+        
+        // Namespace típico de ESI
+        XNamespace ns = doc.Root?.GetDefaultNamespace() ?? "";
+        
+        // Obtener información del Vendor
+        var vendorElement = doc.Descendants(ns + "Vendor").FirstOrDefault() 
+                          ?? doc.Descendants("Vendor").FirstOrDefault();
+        
+        uint vendorId = 0;
+        string vendorName = "";
+        
+        if (vendorElement != null)
+        {
+            var idElement = vendorElement.Element(ns + "Id") ?? vendorElement.Element("Id");
+            var nameElement = vendorElement.Element(ns + "Name") ?? vendorElement.Element("Name");
+            
+            if (idElement != null)
+            {
+                var idText = idElement.Value.Trim();
+                vendorId = ParseHexOrDecimal(idText);
+            }
+            
+            if (nameElement != null)
+            {
+                vendorName = nameElement.Value.Trim();
+                if (vendorId > 0 && !string.IsNullOrEmpty(vendorName))
+                {
+                    _vendorCache[vendorId] = vendorName;
+                }
+            }
+        }
+        
+        // Buscar dispositivos
+        var devices = doc.Descendants(ns + "Device").Concat(doc.Descendants("Device"));
+        
+        foreach (var device in devices)
+        {
+            try
+            {
+                ParseDevice(device, ns, vendorId, vendorName, filePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogTrace("Error parseando dispositivo en {File}: {Error}", 
+                    Path.GetFileName(filePath), ex.Message);
+            }
+        }
+    }
+
+    private void ParseDevice(XElement device, XNamespace ns, uint defaultVendorId, string defaultVendorName, string filePath)
+    {
+        // Tipo (ej: EL2008)
+        var typeElement = device.Element(ns + "Type") ?? device.Element("Type");
+        if (typeElement == null) return;
+        
+        var type = typeElement.Value.Trim();
+        
+        // Product Code del atributo
+        var productCodeAttr = typeElement.Attribute("ProductCode");
+        if (productCodeAttr == null) return;
+        
+        var productCode = ParseHexOrDecimal(productCodeAttr.Value);
+        if (productCode == 0) return;
+        
+        // Nombre
+        var nameElement = device.Element(ns + "Name") ?? device.Element("Name");
+        var productName = nameElement?.Value.Trim() ?? type;
+        
+        // También puede estar en Name con atributo LcId
+        if (nameElement == null)
+        {
+            var names = device.Elements(ns + "Name").Concat(device.Elements("Name"));
+            nameElement = names.FirstOrDefault(n => n.Attribute("LcId")?.Value == "1033") // Inglés
+                       ?? names.FirstOrDefault();
+            if (nameElement != null)
+            {
+                productName = nameElement.Value.Trim();
+            }
+        }
+        
+        // Group Type (Digital I/O, Drives, etc.)
+        var groupType = "";
+        var groupElement = device.Element(ns + "GroupType") ?? device.Element("GroupType");
+        if (groupElement != null)
+        {
+            groupType = groupElement.Value.Trim();
+        }
+        
+        // Imagen
+        var imageFile = "";
+        var imageElement = device.Element(ns + "ImageFile16x14") ?? device.Element("ImageFile16x14")
+                        ?? device.Element(ns + "Image") ?? device.Element("Image");
+        if (imageElement != null)
+        {
+            imageFile = imageElement.Value.Trim();
+        }
+        
+        // Capabilities (CoE, FoE, etc.)
+        var capabilities = new List<string>();
+        var mailbox = device.Element(ns + "Mailbox") ?? device.Element("Mailbox");
+        if (mailbox != null)
+        {
+            if (mailbox.Element(ns + "CoE") != null || mailbox.Element("CoE") != null)
+                capabilities.Add("CoE");
+            if (mailbox.Element(ns + "FoE") != null || mailbox.Element("FoE") != null)
+                capabilities.Add("FoE");
+            if (mailbox.Element(ns + "EoE") != null || mailbox.Element("EoE") != null)
+                capabilities.Add("EoE");
+            if (mailbox.Element(ns + "SoE") != null || mailbox.Element("SoE") != null)
+                capabilities.Add("SoE");
+            if (mailbox.Element(ns + "VoE") != null || mailbox.Element("VoE") != null)
+                capabilities.Add("VoE");
+        }
+        
+        // DC Support
+        var dc = device.Element(ns + "Dc") ?? device.Element("Dc");
+        if (dc != null)
+        {
+            capabilities.Add("DC");
+        }
+        
+        var info = new ESIDeviceInfo
+        {
+            VendorId = defaultVendorId,
+            VendorName = defaultVendorName,
+            ProductCode = productCode,
+            ProductName = productName,
+            Description = productName,
+            Type = type,
+            GroupType = groupType,
+            ImageFile = imageFile,
+            Capabilities = capabilities
+        };
+        
+        var key = $"{defaultVendorId}_{productCode}";
+        _deviceCache[key] = info;
+        
+        _logger.LogTrace("📦 ESI: {Type} ({ProductName}) - VendorId: 0x{VendorId:X4}, ProductCode: 0x{ProductCode:X8}",
+            type, productName, defaultVendorId, productCode);
+    }
+
+    private static uint ParseHexOrDecimal(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return 0;
+        
+        value = value.Trim();
+        
+        try
+        {
+            if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith("#x", StringComparison.OrdinalIgnoreCase))
+            {
+                return Convert.ToUInt32(value.Substring(2), 16);
+            }
+            else if (value.StartsWith("#"))
+            {
+                return Convert.ToUInt32(value.Substring(1), 16);
+            }
+            else if (value.All(c => char.IsDigit(c)))
+            {
+                return Convert.ToUInt32(value, 10);
+            }
+            else
+            {
+                // Intentar como hex sin prefijo
+                return Convert.ToUInt32(value, 16);
+            }
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+}

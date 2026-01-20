@@ -2864,6 +2864,61 @@ namespace SW.PC.API.Backend.Services
                                 break;
 
                             // ═══════════════════════════════════════════════════════════════
+                            // 🌐 ETHERCAT TOPOLOGY - Diagnóstico de Red Industrial
+                            // ═══════════════════════════════════════════════════════════════
+                            case "enableethercattopology":
+                            case "enable_ethercat_topology":
+                            case "ethercattopologyenabled":
+                            case "ethercat_topology_enabled":
+                                var ecatValue = paramValue?.ToLower()?.Trim() ?? "";
+                                config.EnableEtherCATTopology = ecatValue == "true" || ecatValue == "1" || ecatValue == "on" || ecatValue == "si" || ecatValue == "yes";
+                                _logger.LogDebug("🌐 EnableEtherCATTopology raw value: '{RawValue}' -> {Parsed}", paramValue, config.EnableEtherCATTopology);
+                                break;
+                            
+                            case "ethercatmasternetid":
+                            case "ethercat_master_netid":
+                            case "ethercat_master_net_id":
+                            case "ecatmasternetid":
+                                config.EtherCATMasterNetId = paramValue?.Trim() ?? "";
+                                _logger.LogDebug("🌐 EtherCATMasterNetId raw value: '{RawValue}'", paramValue);
+                                break;
+                            
+                            case "ethercatmasterdeviceid":
+                            case "ethercat_master_deviceid":
+                            case "ethercat_master_device_id":
+                            case "ecatmasterdeviceid":
+                                if (int.TryParse(paramValue?.Trim(), out int ecatDeviceId))
+                                    config.EtherCATMasterDeviceId = ecatDeviceId;
+                                _logger.LogDebug("🌐 EtherCATMasterDeviceId raw value: '{RawValue}' -> {Parsed}", paramValue, config.EtherCATMasterDeviceId);
+                                break;
+                            
+                            case "esifilespath":
+                            case "esi_files_path":
+                            case "ethercatesipath":
+                            case "ethercat_esi_path":
+                                config.ESIFilesPath = paramValue?.Trim() ?? "";
+                                _logger.LogDebug("🌐 ESIFilesPath raw value: '{RawValue}'", paramValue);
+                                break;
+                            
+                            case "useethercatesifiles":
+                            case "use_ethercat_esi_files":
+                            case "useethercat_esifiles":
+                            case "use_esi_files":
+                                var esiValue = paramValue?.ToLower()?.Trim() ?? "";
+                                config.UseEtherCATESIFiles = esiValue == "true" || esiValue == "1" || esiValue == "on" || esiValue == "si" || esiValue == "yes";
+                                _logger.LogDebug("🌐 UseEtherCATESIFiles raw value: '{RawValue}' -> {Parsed}", paramValue, config.UseEtherCATESIFiles);
+                                break;
+                            
+                            case "ethercattopologyreadintervalms":
+                            case "ethercat_topology_read_interval_ms":
+                            case "ecattopologyinterval":
+                            case "ethercat_read_interval":
+                                if (int.TryParse(paramValue?.Trim(), out int ecatInterval))
+                                    config.EtherCATTopologyReadIntervalMs = Math.Max(500, ecatInterval); // Mínimo 500ms
+                                _logger.LogDebug("🌐 EtherCATTopologyReadIntervalMs raw value: '{RawValue}' -> {Parsed}", paramValue, config.EtherCATTopologyReadIntervalMs);
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
                             // 📷 3D SCENE / CAMERA - Configuración de escena 3D
                             // ═══════════════════════════════════════════════════════════════
                             case "camerazoomfactor":
