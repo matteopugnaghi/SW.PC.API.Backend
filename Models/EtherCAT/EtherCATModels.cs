@@ -1,5 +1,378 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Runtime.InteropServices;
+
 namespace SW.PC.API.Backend.Models.EtherCAT
 {
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 📦 ESTRUCTURAS TWINCAT EXACTAS (basadas en XML exportado del PLC)
+    // Usadas para parsear datos binarios de FB_EtherCATDiag
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// E_EcCommState - Estados de comunicación EtherCAT
+    /// </summary>
+    public enum E_EcCommState : ushort
+    {
+        UNDEFINED = 0,
+        INIT = 1,
+        PREOP = 2,
+        BOOT = 3,
+        SAFEOP = 4,
+        OP = 8
+    }
+
+    /// <summary>
+    /// ST_PortAddr - Direcciones de los 4 puertos de un esclavo EtherCAT
+    /// Tamaño: 8 bytes
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct ST_PortAddr
+    {
+        public ushort portA;  // 2 bytes - Puerto A (upstream/entrada)
+        public ushort portB;  // 2 bytes - Puerto B (downstream/siguiente)
+        public ushort portC;  // 2 bytes - Puerto C (ramificación)
+        public ushort portD;  // 2 bytes - Puerto D (ramificación)
+        
+        public const int Size = 8;
+    }
+
+    /// <summary>
+    /// ST_TopologyData - Datos de topología de un esclavo
+    /// Tamaño: 64 bytes
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct ST_TopologyData
+    {
+        public ushort iOwnPhysicalAddr;   // 2 bytes - Dirección física propia
+        public ushort iOwnAutoIncAddr;    // 2 bytes - Dirección auto-incremento
+        public ST_PortAddr stPhysicalAddr; // 8 bytes - Direcciones físicas de puertos conectados
+        public ST_PortAddr stAutoIncAddr;  // 8 bytes - Direcciones auto-inc de puertos conectados
+        
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
+        public uint[] iPortDelay;         // 12 bytes - Delays: EC_AD, EC_DB, EC_BC
+        
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
+        public uint[] iReserved;          // 32 bytes - Reservado
+        
+        public const int Size = 64;
+    }
+
+    /// <summary>
+    /// ST_SlaveState - Estado de un esclavo EtherCAT
+    /// Tamaño: 16 bytes
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct ST_SlaveState
+    {
+        public E_EcCommState eEcState;    // 2 bytes - Estado EtherCAT (INIT, PREOP, SAFEOP, OP)
+        public ushort nReserved;          // 2 bytes
+        public byte bError;               // 1 byte (BOOL)
+        public byte bInvalidVPRS;         // 1 byte (BOOL)
+        public ushort nReserved2;         // 2 bytes
+        
+        // Link state flags
+        public byte bNoCommToSlave;       // 1 byte
+        public byte bLinkError;           // 1 byte
+        public byte bMissingLink;         // 1 byte
+        public byte bUnexpectedLink;      // 1 byte
+        public byte bPortA;               // 1 byte - Link activo en Puerto A
+        public byte bPortB;               // 1 byte - Link activo en Puerto B
+        public byte bPortC;               // 1 byte - Link activo en Puerto C
+        public byte bPortD;               // 1 byte - Link activo en Puerto D
+        
+        public const int Size = 16;
+    }
+
+    /// <summary>
+    /// ST_EcMasterDevState - Estado del dispositivo Master EtherCAT
+    /// Tamaño: 16 bytes
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct ST_EcMasterDevState
+    {
+        public E_EcCommState eEcState;    // 2 bytes
+        
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
+        public ushort[] nReserved;        // 6 bytes
+        
+        public byte bLinkError;           // 1 byte
+        public byte bResetRequired;       // 1 byte
+        public byte bMissFrmRedMode;      // 1 byte
+        public byte bWatchdogTriggerd;    // 1 byte
+        public byte bDriverNotFound;      // 1 byte
+        public byte bResetActive;         // 1 byte
+        public byte bAtLeastOneNotInOp;   // 1 byte
+        public byte bDcNotInSync;         // 1 byte
+        
+        public const int Size = 16;
+    }
+
+    /// <summary>
+    /// ST_EcCrcErrorEx - Errores CRC por puerto (de Tc2_EtherCAT library)
+    /// Tamaño: 16 bytes
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct ST_EcCrcErrorEx
+    {
+        public uint portA;    // 4 bytes - Errores CRC en Puerto A
+        public uint portB;    // 4 bytes - Errores CRC en Puerto B
+        public uint portC;    // 4 bytes - Errores CRC en Puerto C
+        public uint portD;    // 4 bytes - Errores CRC en Puerto D
+        
+        public const int Size = 16;
+    }
+
+    /// <summary>
+    /// ST_SlaveStateInfo - Información completa de un esclavo configurado
+    /// Tamaño: 208 bytes exactos
+    /// </summary>
+    public class ST_SlaveStateInfo_Parsed
+    {
+        public int nIndex;                    // DINT (4 bytes)
+        public string sName = "";             // STRING(80) + 1 = 81 bytes
+        public string sType = "";             // STRING(80) + 1 = 81 bytes
+        public ushort nECAddr;                // UINT (2 bytes)
+        public bool bDiagData;                // BOOL (1 byte + 1 padding)
+        public ST_EcCrcErrorEx stPortCRCErrors; // 16 bytes
+        public uint nSumCRCErrors;            // UDINT (4 bytes)
+        public ST_SlaveState stState;         // 16 bytes
+        
+        // Offsets exactos para parsing manual
+        public const int Offset_nIndex = 0;           // 0
+        public const int Offset_sName = 4;            // 4
+        public const int Offset_sType = 85;           // 4 + 81 = 85
+        public const int Offset_nECAddr = 166;        // 85 + 81 = 166
+        public const int Offset_bDiagData = 168;      // 166 + 2 = 168
+        public const int Offset_stPortCRCErrors = 170; // 168 + 2 (con padding)
+        public const int Offset_nSumCRCErrors = 186;  // 170 + 16 = 186
+        public const int Offset_stState = 190;        // 186 + 4 = 190
+        
+        public const int Size = 208;                  // 190 + 16 + padding = ~208
+    }
+
+    /// <summary>
+    /// ST_SlaveStateInfoScanned - Información de esclavo escaneado vs configurado
+    /// Tamaño: ~172 bytes
+    /// </summary>
+    public class ST_SlaveStateInfoScanned_Parsed
+    {
+        public int nIndex;                    // DINT (4 bytes)
+        public string sName = "";             // STRING(80) + 1 = 81 bytes
+        public string sType = "";             // STRING(80) + 1 = 81 bytes
+        public ushort nECAddr;                // UINT (2 bytes)
+        public bool bDifferentName;           // BOOL (1 byte)
+        public bool bDifferentType;           // BOOL (1 byte)
+        public bool bDifferentAddr;           // BOOL (1 byte)
+        
+        public const int Offset_nIndex = 0;
+        public const int Offset_sName = 4;
+        public const int Offset_sType = 85;
+        public const int Offset_nECAddr = 166;
+        public const int Offset_bDifferentName = 168;
+        public const int Offset_bDifferentType = 169;
+        public const int Offset_bDifferentAddr = 170;
+        
+        public const int EstimatedSize = 172;
+    }
+
+    /// <summary>
+    /// ST_EcSlaveState - Estado crudo de esclavo (de FB_EcGetAllSlaveStates)
+    /// Tamaño: 4 bytes
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct ST_EcSlaveState
+    {
+        public ushort deviceState;  // 2 bytes - bits: [3:0]=EcState, [4]=Error, [5]=InvalidVPRS
+        public ushort linkState;    // 2 bytes - bits: [0]=NoComm, [1]=LinkErr, [2]=Missing, [3]=Unexpected, [4-7]=PortA-D
+        
+        public const int Size = 4;
+        
+        // Helpers para extraer información
+        public E_EcCommState EcState => (E_EcCommState)(deviceState & 0x0F);
+        public bool HasError => (deviceState & 0x10) != 0;
+        public bool InvalidVPRS => (deviceState & 0x20) != 0;
+        public bool NoCommToSlave => (linkState & 0x01) != 0;
+        public bool LinkError => (linkState & 0x02) != 0;
+        public bool MissingLink => (linkState & 0x04) != 0;
+        public bool UnexpectedLink => (linkState & 0x08) != 0;
+        public bool PortALinked => (linkState & 0x10) != 0;
+        public bool PortBLinked => (linkState & 0x20) != 0;
+        public bool PortCLinked => (linkState & 0x40) != 0;
+        public bool PortDLinked => (linkState & 0x80) != 0;
+    }
+
+    /// <summary>
+    /// Constantes para tamaños de arrays en FB_EtherCATDiag
+    /// </summary>
+    public static class EtherCATConstants
+    {
+        /// <summary>iSLAVEADDR_ARR_SIZE - Tamaño máximo de arrays de esclavos</summary>
+        public const int SLAVEADDR_ARR_SIZE = 256;
+        
+        /// <summary>Puerto ADS del PLC Runtime</summary>
+        public const int ADS_PORT_PLC = 851;
+        
+        /// <summary>Puerto ADS del EtherCAT Master (IO)</summary>
+        public const int ADS_PORT_ECAT_MASTER = 0xFFFF; // 65535
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 💾 MODELO DE BASE DE DATOS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 💾 Configuración de topología EtherCAT guardada en DB
+    /// Permite comparar configuración esperada vs estado actual del sistema
+    /// </summary>
+    [Table("EtherCATSavedConfigurations")]
+    public class EtherCATSavedConfiguration
+    {
+        [Key]
+        public int Id { get; set; }
+
+        /// <summary>ID del proyecto (para multi-proyecto)</summary>
+        [Required]
+        [MaxLength(100)]
+        public string ProjectId { get; set; } = "";
+
+        /// <summary>Fecha/hora cuando se guardó la configuración</summary>
+        public DateTime SavedAt { get; set; } = DateTime.Now;
+
+        /// <summary>Topología completa serializada como JSON</summary>
+        [Required]
+        public string TopologyJson { get; set; } = "";
+
+        /// <summary>Número total de esclavos en la configuración</summary>
+        public int TotalSlaves { get; set; }
+
+        /// <summary>Notas opcionales del operador</summary>
+        [MaxLength(500)]
+        public string? Notes { get; set; }
+
+        /// <summary>Hash de la configuración para detectar cambios rápidamente</summary>
+        [MaxLength(64)]
+        public string? ConfigurationHash { get; set; }
+    }
+
+    /// <summary>
+    /// Resultado de comparación entre configuración guardada y estado actual
+    /// </summary>
+    public class EtherCATConfigurationComparison
+    {
+        /// <summary>¿Existe configuración guardada?</summary>
+        public bool HasSavedConfiguration { get; set; }
+
+        /// <summary>Fecha de la configuración guardada</summary>
+        public DateTime? SavedAt { get; set; }
+
+        /// <summary>Notas de la configuración guardada</summary>
+        public string? SavedNotes { get; set; }
+
+        /// <summary>Total de esclavos en config guardada</summary>
+        public int SavedSlaveCount { get; set; }
+
+        /// <summary>Total de esclavos en sistema actual</summary>
+        public int CurrentSlaveCount { get; set; }
+
+        /// <summary>¿Coincide la configuración?</summary>
+        public bool ConfigurationMatches { get; set; }
+
+        /// <summary>Esclavos que faltan (estaban en config guardada pero no están ahora)</summary>
+        public List<MissingSlaveInfo> MissingSlaves { get; set; } = new();
+
+        /// <summary>Esclavos nuevos (no estaban en config guardada)</summary>
+        public List<NewSlaveInfo> NewSlaves { get; set; } = new();
+
+        /// <summary>Esclavos con diferencias (posición, estado, etc.)</summary>
+        public List<SlaveConfigDifference> Differences { get; set; } = new();
+    }
+
+    public class MissingSlaveInfo
+    {
+        public ushort Position { get; set; }
+        public ushort ConfiguredAddress { get; set; }
+        public string Name { get; set; } = "";
+        public uint VendorId { get; set; }
+        public uint ProductCode { get; set; }
+    }
+
+    public class NewSlaveInfo
+    {
+        public ushort Position { get; set; }
+        public ushort ConfiguredAddress { get; set; }
+        public string Name { get; set; } = "";
+        public uint VendorId { get; set; }
+        public uint ProductCode { get; set; }
+    }
+
+    public class SlaveConfigDifference
+    {
+        public ushort Position { get; set; }
+        public string SlaveName { get; set; } = "";
+        public string Field { get; set; } = "";
+        public string SavedValue { get; set; } = "";
+        public string CurrentValue { get; set; } = "";
+    }
+
+    /// <summary>
+    /// 🔍 Diagnóstico detallado de conexión al Master EtherCAT
+    /// </summary>
+    public class EtherCATConnectionDiagnostics
+    {
+        /// <summary>Timestamp del diagnóstico</summary>
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+
+        /// <summary>¿Está habilitado el diagnóstico EtherCAT en Excel?</summary>
+        public bool IsEnabled { get; set; }
+
+        /// <summary>¿Está en modo simulado?</summary>
+        public bool IsSimulatedMode { get; set; }
+
+        /// <summary>NetId configurado en Excel</summary>
+        public string ConfiguredNetId { get; set; } = "";
+
+        /// <summary>DeviceId configurado en Excel</summary>
+        public int ConfiguredDeviceId { get; set; }
+
+        // --- Pasos de diagnóstico ---
+
+        /// <summary>¿TwinCAT ADS está instalado?</summary>
+        public bool TwinCATAdsInstalled { get; set; }
+
+        /// <summary>¿Se pudo crear el cliente ADS?</summary>
+        public bool AdsClientCreated { get; set; }
+
+        /// <summary>¿Se pudo parsear el NetId?</summary>
+        public bool NetIdValid { get; set; }
+        public string? NetIdParseError { get; set; }
+
+        /// <summary>¿Se pudo conectar al target?</summary>
+        public bool ConnectionSuccessful { get; set; }
+        public string? ConnectionError { get; set; }
+
+        /// <summary>¿Se pudo leer el estado?</summary>
+        public bool StateReadSuccessful { get; set; }
+        public string? AdsState { get; set; }
+        public string? DeviceState { get; set; }
+        public string? StateReadError { get; set; }
+
+        /// <summary>Información del dispositivo</summary>
+        public string? DeviceName { get; set; }
+        public string? DeviceVersion { get; set; }
+
+        /// <summary>Lista de errores/warnings durante el diagnóstico</summary>
+        public List<string> DiagnosticMessages { get; set; } = new();
+
+        /// <summary>Resumen del diagnóstico</summary>
+        public string Summary { get; set; } = "";
+
+        /// <summary>¿Conexión exitosa general?</summary>
+        public bool OverallSuccess { get; set; }
+    }
+
+    // ===== CONFIGURACIÓN DESDE EXCEL =====
+
     /// <summary>
     /// 🌐 Configuración del diagnóstico EtherCAT desde Excel
     /// </summary>
@@ -10,6 +383,13 @@ namespace SW.PC.API.Backend.Models.EtherCAT
 
         /// <summary>AMS Net ID del Master EtherCAT (ej: 192.168.1.151.3.1)</summary>
         public string EtherCATMasterNetId { get; set; } = "";
+
+        /// <summary>
+        /// Dirección IP del PC con TwinCAT (ej: 192.168.1.160).
+        /// Necesaria para conexión ADS remota cuando no hay ruta preconfigurada.
+        /// Si vacío, se extrae de los primeros 4 octetos del NetId.
+        /// </summary>
+        public string EtherNETIdTwincat { get; set; } = "";
 
         /// <summary>Device ID del Master EtherCAT (típicamente 1)</summary>
         public int EtherCATMasterDeviceId { get; set; } = 1;
@@ -62,15 +442,10 @@ namespace SW.PC.API.Backend.Models.EtherCAT
         public string? ErrorMessage { get; set; }
 
         /// <summary>
-        /// Indica si los datos son SIMULADOS (no reales del PLC).
-        /// IMPORTANTE: Solo se simula en modo Development.
+        /// Indica si los datos son SIMULADOS (controlado por UseSimulatedPlc del Excel).
+        /// Si UseSimulatedPlc=true y no hay conexión real, se simulan los datos.
         /// </summary>
         public bool IsSimulated { get; set; } = false;
-
-        /// <summary>
-        /// Modo del entorno: "development" o "production"
-        /// </summary>
-        public string EnvironmentMode { get; set; } = "unknown";
     }
 
     /// <summary>

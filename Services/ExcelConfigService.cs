@@ -2883,6 +2883,17 @@ namespace SW.PC.API.Backend.Services
                                 _logger.LogDebug("🌐 EtherCATMasterNetId raw value: '{RawValue}'", paramValue);
                                 break;
                             
+                            case "ethernetidtwincat":
+                            case "ethernet_id_twincat":
+                            case "ethernettwincat":
+                            case "twincat_ip":
+                            case "twincatip":
+                            case "ads_ip":
+                            case "adsip":
+                                config.EtherNETIdTwincat = paramValue?.Trim() ?? "";
+                                _logger.LogDebug("🌐 EtherNETIdTwincat raw value: '{RawValue}'", paramValue);
+                                break;
+                            
                             case "ethercatmasterdeviceid":
                             case "ethercat_master_deviceid":
                             case "ethercat_master_device_id":

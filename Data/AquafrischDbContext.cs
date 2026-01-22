@@ -65,6 +65,9 @@ public class AquafrischDbContext : DbContext
     /// <summary>Tipo de tren activo (selección actual del operador)</summary>
     public DbSet<ActiveTrainType> ActiveTrainTypes { get; set; } = null!;
 
+    /// <summary>Configuración de topología EtherCAT guardada</summary>
+    public DbSet<Models.EtherCAT.EtherCATSavedConfiguration> EtherCATSavedConfigurations { get; set; } = null!;
+
     #endregion
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -349,6 +352,24 @@ public class AquafrischDbContext : DbContext
                   .WithMany(t => t.GantryData)
                   .HasForeignKey(e => e.TrainTypeId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ============================================
+        // Configuración de EtherCATSavedConfiguration
+        // ============================================
+        modelBuilder.Entity<Models.EtherCAT.EtherCATSavedConfiguration>(entity =>
+        {
+            entity.ToTable("EtherCATSavedConfigurations");
+            entity.HasKey(e => e.Id);
+            
+            // Índice único por proyecto (solo una configuración guardada por proyecto)
+            entity.HasIndex(e => e.ProjectId).IsUnique();
+            entity.HasIndex(e => e.SavedAt);
+            
+            entity.Property(e => e.ProjectId).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.TopologyJson).IsRequired();
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.ConfigurationHash).HasMaxLength(64);
         });
 
         // ============================================

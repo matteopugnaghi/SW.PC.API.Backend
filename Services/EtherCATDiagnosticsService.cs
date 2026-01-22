@@ -1,6 +1,11 @@
 using SW.PC.API.Backend.Models.EtherCAT;
+using SW.PC.API.Backend.Data;
+using Microsoft.EntityFrameworkCore;
 using TwinCAT.Ads;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace SW.PC.API.Backend.Services
 {
@@ -9,6 +14,7 @@ namespace SW.PC.API.Backend.Services
     /// Lee información del Master EtherCAT via ADS para visualización de red.
     /// 
     /// OPTIMIZACIÓN: Solo lee cuando se solicita (no polling continuo)
+    /// Soporta configuración guardada vs escaneo en tiempo real
     /// </summary>
     public interface IEtherCATDiagnosticsService
     {
@@ -18,8 +24,11 @@ namespace SW.PC.API.Backend.Services
         /// <summary>Verifica si el diagnóstico EtherCAT está habilitado</summary>
         bool IsEnabled { get; }
 
-        /// <summary>Lee la topología completa del Master EtherCAT</summary>
-        Task<EtherCATTopology> GetTopologyAsync();
+        /// <summary>
+        /// Lee la topología. Si hay configuración guardada, la usa como base.
+        /// Si rescan=true, fuerza un escaneo completo ignorando config guardada.
+        /// </summary>
+        Task<EtherCATTopology> GetTopologyAsync(bool rescan = false);
 
         /// <summary>Obtiene solo el resumen (para panel compacto, más ligero)</summary>
         Task<EtherCATSummary> GetSummaryAsync();
@@ -29,21 +38,43 @@ namespace SW.PC.API.Backend.Services
 
         /// <summary>Fuerza una nueva lectura (invalida cache)</summary>
         void InvalidateCache();
+
+        // === Métodos para configuración guardada ===
+
+        /// <summary>Guarda la topología actual como configuración de referencia</summary>
+        Task<EtherCATSavedConfiguration> SaveConfigurationAsync(string? notes = null);
+
+        /// <summary>Obtiene la configuración guardada (si existe)</summary>
+        Task<EtherCATSavedConfiguration?> GetSavedConfigurationAsync();
+
+        /// <summary>Elimina la configuración guardada</summary>
+        Task<bool> DeleteSavedConfigurationAsync();
+
+        /// <summary>Compara la configuración guardada con el estado actual</summary>
+        Task<EtherCATConfigurationComparison> CompareWithSavedConfigurationAsync();
+
+        /// <summary>Verifica si existe configuración guardada</summary>
+        Task<bool> HasSavedConfigurationAsync();
+
+        /// <summary>Prueba la conexión al Master EtherCAT y retorna diagnóstico detallado</summary>
+        Task<EtherCATConnectionDiagnostics> TestConnectionAsync();
     }
 
     public class EtherCATDiagnosticsService : IEtherCATDiagnosticsService, IDisposable
     {
         private readonly ILogger<EtherCATDiagnosticsService> _logger;
         private readonly IESIParserService _esiParser;
+        private readonly IServiceProvider _serviceProvider;
+        private readonly IProjectContextService _projectContext;
         private readonly EtherCATConfiguration _config;
-        private readonly string _environmentMode;
+        private readonly bool _useSimulatedPlc;
         private AdsClient? _masterClient;
         private bool _isInitialized = false;
 
         /// <summary>
-        /// Indica si estamos en modo desarrollo (permite simulación)
+        /// Indica si usar modo simulado (leído de Excel: UseSimulatedPlc)
         /// </summary>
-        private bool IsDevelopmentMode => _environmentMode.Equals("development", StringComparison.OrdinalIgnoreCase);
+        private bool IsSimulatedMode => _useSimulatedPlc;
 
         // Cache para evitar lecturas excesivas
         private EtherCATTopology? _cachedTopology;
@@ -92,45 +123,79 @@ namespace SW.PC.API.Backend.Services
             public const ushort SerialNumber = 0x000E;      // 4 bytes
         }
 
-        // ADS Index Groups para EtherCAT Master
+        // ADS Index Groups para EtherCAT Master (TwinCAT 3)
+        // Documentación: https://infosys.beckhoff.com/
+        // Puerto: AmsPort.R0_IO (300) - Acceso directo I/O
         private static class EcAdsIndexGroups
         {
-            // Para acceso al estado del dispositivo I/O
-            public const uint IODEVICESTATE_BASE = 0x5000;
-            public const uint DEVICE_COUNT = 0x02;
-            public const uint DEVICE_IDS = 0x01;
-            public const uint DEVICE_NAME = 0x01;
-            public const uint DEVICE_NETID = 0x05;
-            public const uint DEVICE_TYPE = 0x07;
+            // ========================================
+            // TwinCAT 3 - Acceso directo al EtherCAT Master via I/O (Puerto 300)
+            // ========================================
             
-            // Comandos EtherCAT
-            public const uint ECMASTER_GETSLAVECOUNT = 0x0F020010;
-            public const uint ECMASTER_GETSLAVEINFO = 0x0F020011;
-            public const uint ECMASTER_GETSLAVESTATE = 0x0F020012;
+            /// <summary>
+            /// Base del Index Group para EtherCAT Master
+            /// Fórmula: 0xF302 + (DeviceId * 0x10000)
+            /// Ejemplo: DeviceId=2 → 0x0002F302
+            /// </summary>
+            public const uint EC_MASTER_BASE = 0xF302;
             
-            // Acceso a registros de esclavos
-            public const uint ECMASTER_READSLAVEREGISTER = 0x0F020020;
-            public const uint ECMASTER_READSLAVEEEEPROM = 0x0F020021;
+            // Index Offsets para el Master (usados con EC_MASTER_BASE + DeviceId*0x10000)
+            public const uint EC_MASTER_INFO = 0x00;           // Información del Master
+            public const uint EC_MASTER_SLAVECOUNT = 0x01;     // Número de esclavos (UINT16)
+            public const uint EC_SLAVE_IDENTITY_BASE = 0x02;   // Base para identidad de esclavos
+            public const uint EC_SLAVE_STATE_BASE = 0x100;     // Base para estado AL de esclavos
+            public const uint EC_SLAVE_IDENTITY_SIZE = 16;     // Tamaño ST_EcSlaveIdentity (4x UINT32)
+            
+            // ========================================
+            // Métodos de cálculo de Index Groups
+            // ========================================
+            
+            /// <summary>
+            /// Calcula el Index Group base para un EtherCAT Master específico
+            /// </summary>
+            public static uint GetMasterIndexGroup(int deviceId) 
+                => EC_MASTER_BASE + ((uint)deviceId * 0x10000);
+            
+            /// <summary>
+            /// Calcula el Index Offset para leer la identidad de un esclavo
+            /// </summary>
+            public static uint GetSlaveIdentityOffset(ushort slaveIndex)
+                => EC_SLAVE_IDENTITY_BASE + (uint)(slaveIndex * EC_SLAVE_IDENTITY_SIZE);
+            
+            /// <summary>
+            /// Calcula el Index Offset para leer el estado AL de un esclavo
+            /// </summary>
+            public static uint GetSlaveStateOffset(ushort slaveIndex)
+                => EC_SLAVE_STATE_BASE + slaveIndex;
+            
+            // ========================================
+            // Alternativa: Index Groups legados (por si los anteriores no funcionan)
+            // ========================================
+            public const uint ECMASTER_LEGACY_SLAVECOUNT = 0x0F020001;
+            public const uint ECMASTER_LEGACY_SLAVEIDENTITY = 0x0F020002;
         }
 
         public EtherCATDiagnosticsService(
             ILogger<EtherCATDiagnosticsService> logger,
             IExcelConfigService excelConfig,
             IProjectContextService projectContext,
-            IESIParserService esiParser)
+            IESIParserService esiParser,
+            IServiceProvider serviceProvider)
         {
             _logger = logger;
             _esiParser = esiParser;
+            _serviceProvider = serviceProvider;
+            _projectContext = projectContext;
 
-            // Cargar configuración desde Excel (incluye EnvironmentMode)
-            var (config, envMode) = LoadConfigurationFromExcel(excelConfig, projectContext);
+            // Cargar configuración desde Excel (incluye UseSimulatedPlc)
+            var (config, useSimulated) = LoadConfigurationFromExcel(excelConfig, projectContext);
             _config = config;
-            _environmentMode = envMode;
+            _useSimulatedPlc = useSimulated;
 
             if (_config.EnableEtherCATTopology)
             {
-                _logger.LogInformation("🌐 EtherCAT Diagnostics enabled - Master: {NetId}, Device: {DeviceId}, Mode: {Mode}",
-                    _config.EtherCATMasterNetId, _config.EtherCATMasterDeviceId, _environmentMode);
+                _logger.LogInformation("🌐 EtherCAT Diagnostics enabled - Master: {NetId}, Device: {DeviceId}, UseSimulatedPlc: {Simulated}",
+                    _config.EtherCATMasterNetId, _config.EtherCATMasterDeviceId, _useSimulatedPlc);
             }
             else
             {
@@ -138,7 +203,7 @@ namespace SW.PC.API.Backend.Services
             }
         }
 
-        private (EtherCATConfiguration config, string environmentMode) LoadConfigurationFromExcel(
+        private (EtherCATConfiguration config, bool useSimulatedPlc) LoadConfigurationFromExcel(
             IExcelConfigService excelConfig,
             IProjectContextService projectContext)
         {
@@ -157,30 +222,43 @@ namespace SW.PC.API.Backend.Services
                 if (excelPath == null)
                 {
                     _logger.LogWarning("📊 EtherCAT: No se encontró ProjectConfig.xlsm");
-                    return (new EtherCATConfiguration(), "development");
+                    return (new EtherCATConfiguration(), true); // Default: simulado
                 }
 
-                // Cargar configuración del sistema que incluye EtherCAT y EnvironmentMode
+                // Cargar configuración del sistema que incluye EtherCAT y UseSimulatedPlc
                 var systemConfig = excelConfig.LoadSystemConfigurationAsync(excelPath).GetAwaiter().GetResult();
-                var environmentMode = systemConfig?.EnvironmentMode?.ToLower() ?? "development";
+                
+                if (systemConfig == null)
+                {
+                    _logger.LogWarning("📊 EtherCAT: SystemConfig es null");
+                    return (new EtherCATConfiguration(), true); // Default: simulado
+                }
+                
+                // ⭐ Usar UseSimulatedPlc del Excel (igual que TwinCATService)
+                var useSimulatedPlc = systemConfig.UseSimulatedPlc;
+                _logger.LogInformation("📊 EtherCAT: UseSimulatedPlc leído desde Excel: {Value}", useSimulatedPlc);
 
                 // Mapear a EtherCATConfiguration
                 var config = new EtherCATConfiguration
                 {
                     EnableEtherCATTopology = systemConfig.EnableEtherCATTopology,
                     EtherCATMasterNetId = systemConfig.EtherCATMasterNetId,
+                    EtherNETIdTwincat = systemConfig.EtherNETIdTwincat,
                     EtherCATMasterDeviceId = systemConfig.EtherCATMasterDeviceId,
                     ESIFilesPath = systemConfig.ESIFilesPath,
                     TopologyReadIntervalMs = systemConfig.EtherCATTopologyReadIntervalMs,
                     UseESIFiles = systemConfig.UseEtherCATESIFiles
                 };
 
-                return (config, environmentMode);
+                _logger.LogInformation("📊 EtherCAT: Config cargada - NetId: {NetId}, IP: {IP}, DeviceId: {DevId}",
+                    config.EtherCATMasterNetId, config.EtherNETIdTwincat, config.EtherCATMasterDeviceId);
+
+                return (config, useSimulatedPlc);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error cargando configuración EtherCAT desde Excel");
-                return (new EtherCATConfiguration(), "development");
+                return (new EtherCATConfiguration(), true); // Default: simulado por seguridad
             }
         }
 
@@ -197,6 +275,235 @@ namespace SW.PC.API.Backend.Services
                 _cacheTimestamp = DateTime.MinValue;
             }
             _logger.LogDebug("🌐 EtherCAT topology cache invalidated");
+        }
+
+        /// <summary>
+        /// 🔍 Prueba la conexión al Master EtherCAT con diagnóstico detallado
+        /// </summary>
+        public async Task<EtherCATConnectionDiagnostics> TestConnectionAsync()
+        {
+            var diag = new EtherCATConnectionDiagnostics
+            {
+                Timestamp = DateTime.Now,
+                IsEnabled = IsEnabled,
+                IsSimulatedMode = IsSimulatedMode,
+                ConfiguredNetId = _config.EtherCATMasterNetId,
+                ConfiguredDeviceId = _config.EtherCATMasterDeviceId
+            };
+
+            _logger.LogInformation("🔍 Iniciando diagnóstico de conexión EtherCAT...");
+
+            // Paso 1: Verificar si está habilitado
+            if (!IsEnabled)
+            {
+                diag.DiagnosticMessages.Add("❌ EtherCAT diagnóstico NO está habilitado en Excel");
+                diag.DiagnosticMessages.Add($"   - EnableEtherCATTopology: {_config.EnableEtherCATTopology}");
+                diag.DiagnosticMessages.Add($"   - EtherCATMasterNetId: '{_config.EtherCATMasterNetId}'");
+                diag.Summary = "EtherCAT diagnóstico no está habilitado. Configure EnableEtherCATTopology=true y EtherCATMasterNetId en Excel.";
+                return diag;
+            }
+
+            diag.DiagnosticMessages.Add("✅ EtherCAT diagnóstico habilitado en Excel");
+            diag.DiagnosticMessages.Add($"   - UseSimulatedPlc: {_useSimulatedPlc}");
+            diag.DiagnosticMessages.Add($"   - NetId: {_config.EtherCATMasterNetId}");
+            diag.DiagnosticMessages.Add($"   - EtherNETIdTwincat (IP): {_config.EtherNETIdTwincat}");
+            diag.DiagnosticMessages.Add($"   - DeviceId: {_config.EtherCATMasterDeviceId}");
+
+            // Determinar IP a usar: EtherNETIdTwincat o extraer de NetId
+            string targetIpAddress;
+            if (!string.IsNullOrWhiteSpace(_config.EtherNETIdTwincat))
+            {
+                targetIpAddress = _config.EtherNETIdTwincat;
+                diag.DiagnosticMessages.Add($"   → Usando IP de EtherNETIdTwincat: {targetIpAddress}");
+            }
+            else
+            {
+                // Extraer IP de los primeros 4 octetos del NetId
+                var ipParts = _config.EtherCATMasterNetId.Split('.');
+                if (ipParts.Length >= 4)
+                {
+                    targetIpAddress = $"{ipParts[0]}.{ipParts[1]}.{ipParts[2]}.{ipParts[3]}";
+                    diag.DiagnosticMessages.Add($"   → IP extraída del NetId: {targetIpAddress}");
+                }
+                else
+                {
+                    diag.DiagnosticMessages.Add("❌ No se pudo determinar la IP de destino");
+                    diag.Summary = "Configure EtherNETIdTwincat en Excel con la IP del PC TwinCAT";
+                    return diag;
+                }
+            }
+
+            // Paso 2: Verificar conectividad de red (ping)
+            diag.DiagnosticMessages.Add($"⏳ Verificando ping a {targetIpAddress}...");
+            
+            try
+            {
+                using var ping = new System.Net.NetworkInformation.Ping();
+                var reply = await ping.SendPingAsync(targetIpAddress, 2000);
+                
+                if (reply.Status == System.Net.NetworkInformation.IPStatus.Success)
+                {
+                    diag.DiagnosticMessages.Add($"✅ Ping exitoso a {targetIpAddress} ({reply.RoundtripTime}ms)");
+                }
+                else
+                {
+                    diag.DiagnosticMessages.Add($"❌ Ping falló a {targetIpAddress}: {reply.Status}");
+                    diag.DiagnosticMessages.Add("   💡 Verifique:");
+                    diag.DiagnosticMessages.Add("      - Que el PC industrial esté encendido");
+                    diag.DiagnosticMessages.Add("      - Conectividad de red (cable, switch)");
+                    diag.DiagnosticMessages.Add("      - Firewall no bloquea ICMP");
+                }
+            }
+            catch (Exception pingEx)
+            {
+                diag.DiagnosticMessages.Add($"⚠️ No se pudo hacer ping: {pingEx.Message}");
+            }
+
+            // Paso 3: Verificar TwinCAT.Ads
+            try
+            {
+                var testType = typeof(TwinCAT.Ads.AdsClient);
+                diag.TwinCATAdsInstalled = true;
+                diag.DiagnosticMessages.Add("✅ TwinCAT.Ads library disponible");
+            }
+            catch (Exception ex)
+            {
+                diag.TwinCATAdsInstalled = false;
+                diag.DiagnosticMessages.Add($"❌ TwinCAT.Ads library no disponible: {ex.Message}");
+                diag.Summary = "TwinCAT.Ads library no está disponible. Instale TwinCAT XAE.";
+                return diag;
+            }
+
+            // Paso 4: Parsear NetId
+            TwinCAT.Ads.AmsNetId netId;
+            try
+            {
+                netId = new TwinCAT.Ads.AmsNetId(_config.EtherCATMasterNetId);
+                diag.NetIdValid = true;
+                diag.DiagnosticMessages.Add($"✅ NetId parseado correctamente: {netId}");
+            }
+            catch (Exception ex)
+            {
+                diag.NetIdValid = false;
+                diag.NetIdParseError = ex.Message;
+                diag.DiagnosticMessages.Add($"❌ NetId inválido '{_config.EtherCATMasterNetId}': {ex.Message}");
+                diag.DiagnosticMessages.Add("   Formato esperado: x.x.x.x.x.x (ej: 192.168.1.151.1.1)");
+                diag.Summary = $"NetId inválido: {_config.EtherCATMasterNetId}";
+                return diag;
+            }
+
+            // Paso 5: Probar múltiples puertos ADS
+            var portsToTest = new[]
+            {
+                (AmsPort.PlcRuntime_851, "PLC Runtime 1 (851)"),
+                (AmsPort.PlcRuntime_852, "PLC Runtime 2 (852)"),
+                (AmsPort.R0_IO, "I/O (R0_IO)"),
+                ((AmsPort)10000, "TC3 Router (10000)"),
+            };
+
+            diag.DiagnosticMessages.Add("");
+            diag.DiagnosticMessages.Add($"🔍 Probando conexión ADS a NetId {netId} (IP: {targetIpAddress})...");
+            diag.DiagnosticMessages.Add($"   ⚠️ NOTA: Requiere ruta ADS configurada en TwinCAT Router");
+
+            AdsClient? workingClient = null;
+            AmsPort workingPort = AmsPort.PlcRuntime_851;
+            
+            foreach (var (port, portName) in portsToTest)
+            {
+                AdsClient? testClient = null;
+                try
+                {
+                    testClient = new AdsClient();
+                    
+                    // Conectar usando NetId + Puerto (requiere ruta ADS configurada)
+                    testClient.Connect(netId, port);
+                    
+                    // El Connect() no falla aunque no haya ruta, hay que intentar leer algo
+                    var state = testClient.ReadState();
+                    
+                    diag.DiagnosticMessages.Add($"   ✅ Puerto {portName}: CONECTADO (State: {state.AdsState})");
+                    diag.ConnectionSuccessful = true;
+                    diag.StateReadSuccessful = true;
+                    diag.AdsState = state.AdsState.ToString();
+                    diag.DeviceState = state.DeviceState.ToString();
+                    
+                    workingClient = testClient;
+                    workingPort = port;
+                    testClient = null; // No dispose, lo usamos
+                    break;
+                }
+                catch (AdsErrorException adsEx)
+                {
+                    var errorInfo = adsEx.ErrorCode == AdsErrorCode.TargetMachineNotFound 
+                        ? "Target no encontrado" 
+                        : adsEx.ErrorCode == AdsErrorCode.TargetPortNotFound
+                            ? "Puerto no existe"
+                            : adsEx.ErrorCode.ToString();
+                    diag.DiagnosticMessages.Add($"   ❌ Puerto {portName}: {errorInfo}");
+                }
+                catch (Exception ex)
+                {
+                    diag.DiagnosticMessages.Add($"   ❌ Puerto {portName}: {ex.Message}");
+                }
+                finally
+                {
+                    testClient?.Dispose();
+                }
+            }
+
+            diag.DiagnosticMessages.Add("");
+
+            if (workingClient != null)
+            {
+                diag.AdsClientCreated = true;
+                diag.DiagnosticMessages.Add($"✅ Conexión exitosa en puerto {workingPort}");
+
+                // Leer info del dispositivo
+                try
+                {
+                    var deviceInfo = workingClient.ReadDeviceInfo();
+                    diag.DeviceName = deviceInfo.Name;
+                    diag.DeviceVersion = $"{deviceInfo.Version.Version}.{deviceInfo.Version.Revision}.{deviceInfo.Version.Build}";
+                    diag.DiagnosticMessages.Add($"✅ Dispositivo: {deviceInfo.Name} v{diag.DeviceVersion}");
+                }
+                catch (Exception ex)
+                {
+                    diag.DiagnosticMessages.Add($"⚠️ No se pudo leer info del dispositivo: {ex.Message}");
+                }
+
+                workingClient.Dispose();
+                
+                diag.OverallSuccess = true;
+                diag.Summary = $"✅ Conexión exitosa a {_config.EtherCATMasterNetId} puerto {workingPort}. Estado: {diag.AdsState}";
+            }
+            else
+            {
+                diag.AdsClientCreated = true;
+                diag.ConnectionSuccessful = false;
+                diag.ConnectionError = "No se pudo conectar a ningún puerto ADS";
+                
+                diag.DiagnosticMessages.Add("❌ NO se pudo conectar a ningún puerto ADS");
+                diag.DiagnosticMessages.Add("");
+                diag.DiagnosticMessages.Add("💡 POSIBLES CAUSAS:");
+                diag.DiagnosticMessages.Add("   1. La RUTA ADS no está configurada en este PC");
+                diag.DiagnosticMessages.Add("      → Abra TwinCAT XAE → System → Routes → Add Route");
+                diag.DiagnosticMessages.Add($"      → Añada ruta a {_config.EtherCATMasterNetId}");
+                diag.DiagnosticMessages.Add("");
+                diag.DiagnosticMessages.Add("   2. TwinCAT NO está corriendo en el PC remoto");
+                diag.DiagnosticMessages.Add("      → Verifique que TwinCAT esté en RUN en el PC industrial");
+                diag.DiagnosticMessages.Add("");
+                diag.DiagnosticMessages.Add("   3. El PC remoto NO tiene ruta de vuelta");
+                diag.DiagnosticMessages.Add("      → En el PC industrial, añada ruta ADS hacia este PC");
+                diag.DiagnosticMessages.Add("");
+                diag.DiagnosticMessages.Add("   4. Firewall bloqueando puerto ADS (48898 TCP/UDP)");
+                diag.DiagnosticMessages.Add("      → Verifique reglas de firewall en ambos PCs");
+                
+                diag.OverallSuccess = false;
+                diag.Summary = "❌ No hay comunicación ADS. Verifique rutas ADS y estado de TwinCAT.";
+            }
+
+            _logger.LogInformation("🔍 Diagnóstico completado: {Summary}", diag.Summary);
+            return diag;
         }
 
         public async Task<EtherCATSummary> GetSummaryAsync()
@@ -223,7 +530,7 @@ namespace SW.PC.API.Backend.Services
                 }
 
                 // Lectura rápida solo del summary (sin topología completa)
-                var topology = await GetTopologyAsync();
+                var topology = await GetTopologyAsync(rescan: false);
                 return topology.Summary;
             }
             catch (Exception ex)
@@ -237,7 +544,7 @@ namespace SW.PC.API.Backend.Services
             }
         }
 
-        public async Task<EtherCATTopology> GetTopologyAsync()
+        public async Task<EtherCATTopology> GetTopologyAsync(bool rescan = false)
         {
             if (!IsEnabled)
             {
@@ -246,22 +553,30 @@ namespace SW.PC.API.Backend.Services
                     HasCommunicationError = true,
                     ErrorMessage = "EtherCAT diagnostics not enabled in Excel configuration",
                     Timestamp = DateTime.Now,
-                    EnvironmentMode = _environmentMode
+                    IsSimulated = _useSimulatedPlc
                 };
             }
 
-            // Verificar cache
-            lock (_cacheLock)
+            // Si no es rescan, verificar cache primero
+            if (!rescan)
             {
-                if (_cachedTopology != null &&
-                    (DateTime.Now - _cacheTimestamp).TotalMilliseconds < _config.TopologyReadIntervalMs)
+                lock (_cacheLock)
                 {
-                    _logger.LogDebug("🌐 Returning cached EtherCAT topology");
-                    return _cachedTopology;
+                    if (_cachedTopology != null &&
+                        (DateTime.Now - _cacheTimestamp).TotalMilliseconds < _config.TopologyReadIntervalMs)
+                    {
+                        _logger.LogDebug("🌐 Returning cached EtherCAT topology");
+                        return _cachedTopology;
+                    }
                 }
             }
+            else
+            {
+                // Si es rescan, invalidar cache
+                InvalidateCache();
+            }
 
-            _logger.LogInformation("🌐 Reading EtherCAT topology from Master... (Mode: {Mode})", _environmentMode);
+            _logger.LogInformation("🌐 Reading EtherCAT topology from Master... (UseSimulatedPlc: {Simulated}, Rescan: {Rescan})", _useSimulatedPlc, rescan);
 
             try
             {
@@ -270,22 +585,21 @@ namespace SW.PC.API.Backend.Services
                 
                 if (!connected)
                 {
-                    // ⚠️ IMPORTANTE: En producción NO simular, mostrar error real
-                    if (!IsDevelopmentMode)
+                    // ⭐ Si UseSimulatedPlc=false, NO simular, mostrar error real
+                    if (!IsSimulatedMode)
                     {
-                        _logger.LogWarning("🌐 PRODUCCIÓN: No hay conexión con EtherCAT Master - NO se usarán datos simulados");
+                        _logger.LogWarning("🌐 UseSimulatedPlc=FALSE: No hay conexión con EtherCAT Master - NO se usarán datos simulados");
                         return CreateErrorTopology($"No hay comunicación con el Master EtherCAT ({_config.EtherCATMasterNetId}). Verifique la conexión de red y el estado del PLC.");
                     }
                     
-                    // En desarrollo, usar datos simulados
-                    _logger.LogWarning("🌐 DESARROLLO: No hay conexión - Usando datos SIMULADOS");
+                    // UseSimulatedPlc=true: usar datos simulados
+                    _logger.LogWarning("🌐 UseSimulatedPlc=TRUE: No hay conexión - Usando datos SIMULADOS");
                     return await CreateSimulatedTopologyAsync();
                 }
 
                 var topology = new EtherCATTopology
                 {
                     Timestamp = DateTime.Now,
-                    EnvironmentMode = _environmentMode,
                     IsSimulated = false
                 };
 
@@ -345,7 +659,6 @@ namespace SW.PC.API.Backend.Services
             var topology = new EtherCATTopology
             {
                 Timestamp = DateTime.Now,
-                EnvironmentMode = _environmentMode,
                 IsSimulated = true,  // ⚠️ Marcamos como SIMULADO
                 HasCommunicationError = false
             };
@@ -412,16 +725,16 @@ namespace SW.PC.API.Backend.Services
                 }
 
                 // No se encontraron esclavos reales
-                if (IsDevelopmentMode)
+                if (IsSimulatedMode)
                 {
-                    _logger.LogWarning("⚠️ DESARROLLO: No hay esclavos reales, usando datos SIMULADOS");
+                    _logger.LogWarning("⚠️ UseSimulatedPlc=TRUE: No hay esclavos reales, usando datos SIMULADOS");
                     slaves = GenerateSimulatedSlaves();
                     isSimulated = true;
                 }
                 else
                 {
-                    _logger.LogWarning("⚠️ PRODUCCIÓN: No se detectaron esclavos EtherCAT en el bus");
-                    // En producción, retornamos lista vacía - no simulamos
+                    _logger.LogWarning("⚠️ UseSimulatedPlc=FALSE: No se detectaron esclavos EtherCAT en el bus");
+                    // En modo real, retornamos lista vacía - no simulamos
                     slaves = new List<EtherCATSlaveNode>();
                     isSimulated = false;
                 }
@@ -430,16 +743,16 @@ namespace SW.PC.API.Backend.Services
             {
                 _logger.LogError(ex, "Error reading slaves");
                 
-                if (IsDevelopmentMode)
+                if (IsSimulatedMode)
                 {
-                    _logger.LogWarning("⚠️ DESARROLLO: Error de lectura, usando datos SIMULADOS");
+                    _logger.LogWarning("⚠️ UseSimulatedPlc=TRUE: Error de lectura, usando datos SIMULADOS");
                     slaves = GenerateSimulatedSlaves();
                     isSimulated = true;
                 }
                 else
                 {
-                    _logger.LogError("✕ PRODUCCIÓN: Error de comunicación con bus EtherCAT");
-                    throw; // Re-lanzar en producción
+                    _logger.LogError("✕ UseSimulatedPlc=FALSE: Error de comunicación con bus EtherCAT");
+                    throw; // Re-lanzar en modo real
                 }
             }
 
@@ -460,22 +773,31 @@ namespace SW.PC.API.Backend.Services
 
                 var netId = new AmsNetId(_config.EtherCATMasterNetId);
                 
-                // Puerto 0xFFFF para comandos del sistema, o puerto específico del Master
-                // Típicamente puerto 851 para PLC, pero para EtherCAT Master directo usamos otro
-                _masterClient.Connect(netId, AmsPort.R0_IO);
+                // Determinar IP para logging
+                string targetIpAddress = !string.IsNullOrWhiteSpace(_config.EtherNETIdTwincat)
+                    ? _config.EtherNETIdTwincat
+                    : "(extraer de NetId)";
+                
+                // Puerto 27905 = EtherCAT Master ADS Server (confirmado por Beckhoff)
+                const int EtherCATMasterAdsPort = 27905;
+                
+                // Conectar usando NetId al puerto del EtherCAT Master
+                _logger.LogInformation("🌐 Conectando a NetId {NetId} puerto {Port} (IP: {IP})...", 
+                    netId, EtherCATMasterAdsPort, targetIpAddress);
+                _masterClient.Connect(netId, (AmsPort)EtherCATMasterAdsPort);
 
                 // Verificar conexión
                 var state = _masterClient.ReadState();
                 _isInitialized = state.AdsState == AdsState.Run || state.AdsState == AdsState.Config;
 
-                _logger.LogInformation("🌐 Connected to EtherCAT Master at {NetId}, State: {State}",
-                    _config.EtherCATMasterNetId, state.AdsState);
+                _logger.LogInformation("🌐 Connected to EtherCAT Master at {NetId}:{Port}, State: {State}",
+                    _config.EtherCATMasterNetId, EtherCATMasterAdsPort, state.AdsState);
 
                 return _isInitialized;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Cannot connect to EtherCAT Master at {NetId}",
+                _logger.LogError(ex, "Cannot connect to EtherCAT Master at {NetId}. Verifique que existe ruta ADS configurada.",
                     _config.EtherCATMasterNetId);
                 return false;
             }
@@ -554,24 +876,404 @@ namespace SW.PC.API.Backend.Services
         }
 
         // NOTA: ReadAllSlavesAsync reemplazada por ReadAllSlavesWithSimulationCheckAsync
-        // que controla correctamente la simulación según EnvironmentMode
+        // que controla correctamente la simulación según UseSimulatedPlc
 
         private async Task<List<EtherCATSlaveNode>> TryReadSlavesFromPlcVariablesAsync()
         {
             var slaves = new List<EtherCATSlaveNode>();
 
-            // Estructura típica en TwinCAT para exponer info de esclavos
-            // GVL_EtherCAT.aSlaveInfo[1..n] : ARRAY OF ST_EcSlaveInfo
-            var arrayNames = new[]
-            {
-                "GVL_EtherCAT.aSlaveInfo",
-                "GVL.aEcSlaves",
-                "MAIN.aEtherCATSlaves"
-            };
+            if (_masterClient == null || !_masterClient.IsConnected)
+                return slaves;
 
-            // Por ahora retornamos vacío - implementación completa requiere
-            // conocer la estructura exacta de variables en tu PLC
+            try
+            {
+                // =====================================================
+                // TwinCAT 3: Acceso directo al EtherCAT Master via I/O
+                // Puerto: 300 (R0_IO)
+                // Index Group: 0xF302 + (DeviceId * 0x10000)
+                // =====================================================
+                
+                var deviceId = _config.EtherCATMasterDeviceId;
+                var masterIndexGroup = EcAdsIndexGroups.GetMasterIndexGroup(deviceId);
+                
+                _logger.LogInformation("🔍 Leyendo esclavos via Index Group 0x{IG:X8} (DeviceId={DevId})", 
+                    masterIndexGroup, deviceId);
+                
+                // =====================================================
+                // MÉTODO 1: Index Groups TwinCAT 3 (nuevos)
+                // =====================================================
+                try
+                {
+                    // Leer número de esclavos
+                    var slaveCountBuffer = new byte[4];
+                    _masterClient.Read(masterIndexGroup, EcAdsIndexGroups.EC_MASTER_SLAVECOUNT, slaveCountBuffer.AsMemory());
+                    var slaveCount = BitConverter.ToUInt16(slaveCountBuffer, 0);
+                    
+                    _logger.LogInformation("✅ EtherCAT Master (IG 0x{IG:X8}) reporta {Count} esclavos", 
+                        masterIndexGroup, slaveCount);
+                    
+                    if (slaveCount > 0)
+                    {
+                        for (ushort i = 0; i < slaveCount && i < 100; i++)
+                        {
+                            try
+                            {
+                                var slave = await ReadSlaveInfoByIndexAsync(i, masterIndexGroup);
+                                if (slave != null)
+                                {
+                                    slave.Position = (ushort)(i + 1);
+                                    slaves.Add(slave);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogDebug("Error leyendo esclavo {Index}: {Error}", i, ex.Message);
+                            }
+                        }
+                        
+                        if (slaves.Count > 0)
+                        {
+                            _logger.LogInformation("✅ Leídos {Count} esclavos via Index Group TwinCAT 3", slaves.Count);
+                            return slaves;
+                        }
+                    }
+                }
+                catch (AdsErrorException adsEx)
+                {
+                    _logger.LogWarning("⚠️ Index Group TC3 (0x{IG:X8}) falló: {Error} (Code: {Code})", 
+                        masterIndexGroup, adsEx.Message, adsEx.ErrorCode);
+                }
+                
+                // =====================================================
+                // MÉTODO 2: Index Groups legados (fallback)
+                // =====================================================
+                _logger.LogDebug("🔍 Intentando Index Groups legados...");
+                try
+                {
+                    var slaveCountBuffer = new byte[4];
+                    _masterClient.Read(EcAdsIndexGroups.ECMASTER_LEGACY_SLAVECOUNT, 0, slaveCountBuffer.AsMemory());
+                    var slaveCount = BitConverter.ToUInt16(slaveCountBuffer, 0);
+                    
+                    _logger.LogInformation("✅ Legacy IG reporta {Count} esclavos", slaveCount);
+                    
+                    if (slaveCount > 0)
+                    {
+                        for (ushort i = 0; i < slaveCount && i < 100; i++)
+                        {
+                            try
+                            {
+                                var slave = await ReadSlaveInfoByIndexLegacyAsync(i);
+                                if (slave != null)
+                                {
+                                    slave.Position = (ushort)(i + 1);
+                                    slaves.Add(slave);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogDebug("Error leyendo esclavo legacy {Index}: {Error}", i, ex.Message);
+                            }
+                        }
+                        
+                        if (slaves.Count > 0)
+                        {
+                            _logger.LogInformation("✅ Leídos {Count} esclavos via Index Group Legacy", slaves.Count);
+                            return slaves;
+                        }
+                    }
+                }
+                catch (AdsErrorException adsEx)
+                {
+                    _logger.LogDebug("⚠️ Legacy Index Group falló: {Error}", adsEx.Message);
+                }
+                
+                // =====================================================
+                // MÉTODO 3: Escaneo de direcciones (último recurso)
+                // =====================================================
+                if (slaves.Count == 0)
+                {
+                    _logger.LogDebug("🔍 Intentando escaneo de direcciones...");
+                    slaves = await TryReadSlavesViaDeviceInfoAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Error en TryReadSlavesFromPlcVariablesAsync: {Error}", ex.Message);
+            }
+
             return slaves;
+        }
+
+        /// <summary>
+        /// Lee información de un esclavo por su índice usando Index Groups TwinCAT 3
+        /// </summary>
+        private async Task<EtherCATSlaveNode?> ReadSlaveInfoByIndexAsync(ushort slaveIndex, uint masterIndexGroup)
+        {
+            if (_masterClient == null) return null;
+
+            try
+            {
+                // Calcular offset para la identidad del esclavo
+                var identityOffset = EcAdsIndexGroups.GetSlaveIdentityOffset(slaveIndex);
+                
+                var infoBuffer = new byte[16]; // ST_EcSlaveIdentity: 4x UINT32
+                
+                _masterClient.Read(masterIndexGroup, identityOffset, infoBuffer.AsMemory());
+                
+                // Parsear ST_EcSlaveIdentity
+                var vendorId = BitConverter.ToUInt32(infoBuffer, 0);
+                var productCode = BitConverter.ToUInt32(infoBuffer, 4);
+                var revisionNumber = BitConverter.ToUInt32(infoBuffer, 8);
+                var serialNumber = BitConverter.ToUInt32(infoBuffer, 12);
+                
+                // Si todos son 0, puede ser un esclavo no válido
+                if (vendorId == 0 && productCode == 0)
+                {
+                    _logger.LogDebug("Esclavo {Index}: identidad vacía, ignorando", slaveIndex);
+                    return null;
+                }
+
+                var slave = new EtherCATSlaveNode
+                {
+                    ConfiguredAddress = (ushort)(1001 + slaveIndex),
+                    VendorId = vendorId,
+                    ProductCode = productCode,
+                    RevisionNumber = revisionNumber,
+                    SerialNumber = serialNumber,
+                    State = EtherCATState.Operational,
+                    Health = NodeHealth.Healthy
+                };
+
+                // Intentar leer estado AL del esclavo
+                try
+                {
+                    var stateOffset = EcAdsIndexGroups.GetSlaveStateOffset(slaveIndex);
+                    var stateBuffer = new byte[2];
+                    _masterClient.Read(masterIndexGroup, stateOffset, stateBuffer.AsMemory());
+                    slave.State = (EtherCATState)(stateBuffer[0] & 0x0F);
+                    
+                    // Determinar salud basada en estado
+                    slave.Health = slave.State switch
+                    {
+                        EtherCATState.Operational => NodeHealth.Healthy,
+                        EtherCATState.SafeOp => NodeHealth.Warning,
+                        EtherCATState.PreOp => NodeHealth.Warning,
+                        EtherCATState.Init => NodeHealth.Warning,
+                        _ => NodeHealth.Error
+                    };
+                }
+                catch
+                {
+                    // Si no podemos leer estado, asumimos OP
+                }
+
+                // Obtener nombre desde ESI
+                var esiInfo = _esiParser.GetDeviceInfo(vendorId, productCode);
+                if (esiInfo != null)
+                {
+                    slave.Name = esiInfo.ProductName;
+                    slave.Description = esiInfo.Description;
+                    slave.DeviceType = esiInfo.Type;
+                    slave.VendorName = esiInfo.VendorName;
+                }
+                else
+                {
+                    slave.Name = GetGenericDeviceName(vendorId, productCode);
+                    slave.Description = $"VID: 0x{vendorId:X8}, PID: 0x{productCode:X8}";
+                }
+
+                _logger.LogDebug("✓ Esclavo {Index}: {Name} (VID:0x{VID:X4} PID:0x{PID:X8})", 
+                    slaveIndex, slave.Name, vendorId, productCode);
+                
+                return slave;
+            }
+            catch (AdsErrorException adsEx)
+            {
+                _logger.LogDebug("Error ADS leyendo esclavo {Index}: {Error}", slaveIndex, adsEx.Message);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug("Error leyendo esclavo {Index}: {Error}", slaveIndex, ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Lee información de un esclavo usando Index Groups legados
+        /// </summary>
+        private async Task<EtherCATSlaveNode?> ReadSlaveInfoByIndexLegacyAsync(ushort slaveIndex)
+        {
+            if (_masterClient == null) return null;
+
+            try
+            {
+                var infoBuffer = new byte[16];
+                _masterClient.Read(EcAdsIndexGroups.ECMASTER_LEGACY_SLAVEIDENTITY, slaveIndex, infoBuffer.AsMemory());
+                
+                var vendorId = BitConverter.ToUInt32(infoBuffer, 0);
+                var productCode = BitConverter.ToUInt32(infoBuffer, 4);
+                var revisionNumber = BitConverter.ToUInt32(infoBuffer, 8);
+                var serialNumber = BitConverter.ToUInt32(infoBuffer, 12);
+                
+                if (vendorId == 0 && productCode == 0)
+                    return null;
+
+                var slave = new EtherCATSlaveNode
+                {
+                    ConfiguredAddress = (ushort)(1001 + slaveIndex),
+                    VendorId = vendorId,
+                    ProductCode = productCode,
+                    RevisionNumber = revisionNumber,
+                    SerialNumber = serialNumber,
+                    State = EtherCATState.Operational,
+                    Health = NodeHealth.Healthy
+                };
+
+                var esiInfo = _esiParser.GetDeviceInfo(vendorId, productCode);
+                if (esiInfo != null)
+                {
+                    slave.Name = esiInfo.ProductName;
+                    slave.Description = esiInfo.Description;
+                    slave.DeviceType = esiInfo.Type;
+                }
+                else
+                {
+                    slave.Name = GetGenericDeviceName(vendorId, productCode);
+                    slave.Description = $"VID: 0x{vendorId:X8}, PID: 0x{productCode:X8}";
+                }
+
+                return slave;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Método alternativo: Leer esclavos via Device Info del sistema TwinCAT
+        /// </summary>
+        private async Task<List<EtherCATSlaveNode>> TryReadSlavesViaDeviceInfoAsync()
+        {
+            var slaves = new List<EtherCATSlaveNode>();
+
+            if (_masterClient == null) return slaves;
+
+            try
+            {
+                _logger.LogDebug("🔍 Intentando lectura via Device Info...");
+
+                // Obtener lista de dispositivos I/O configurados
+                // Index Group 0x2100 = IO Device Info
+                // Este método funciona en la mayoría de configuraciones TwinCAT 3
+                
+                var deviceCountBuffer = new byte[4];
+                try
+                {
+                    // ADSIGRP_IODEVICE_COUNT = 0x00002001
+                    _masterClient.Read(0x2001, 0, deviceCountBuffer.AsMemory());
+                    var deviceCount = BitConverter.ToUInt16(deviceCountBuffer, 0);
+                    _logger.LogDebug("Dispositivos I/O encontrados: {Count}", deviceCount);
+                }
+                catch
+                {
+                    _logger.LogDebug("No se pudo leer conteo de dispositivos I/O");
+                }
+
+                // Intentar escanear direcciones conocidas de esclavos EtherCAT
+                // Las direcciones típicas van de 1001 en adelante
+                ushort position = 1;
+                int consecutiveFailures = 0;
+
+                for (ushort addr = 1001; addr <= 1100 && consecutiveFailures < 5; addr++)
+                {
+                    try
+                    {
+                        // Intentar leer estado del esclavo usando Index Group específico
+                        // 0x0F02XXYY donde XX = DeviceId, YY = operación
+                        var stateBuffer = new byte[2];
+                        
+                        // ADSIGRP_ECAT_SLAVECNT (obtener si existe esclavo)
+                        uint indexGroup = 0x0F020000 | ((uint)_config.EtherCATMasterDeviceId << 16);
+                        
+                        try
+                        {
+                            _masterClient.Read(indexGroup, addr, stateBuffer.AsMemory());
+                            
+                            // Si llegamos aquí, el esclavo existe
+                            var slave = new EtherCATSlaveNode
+                            {
+                                Position = position++,
+                                ConfiguredAddress = addr,
+                                State = (EtherCATState)stateBuffer[0],
+                                Name = $"EtherCAT Slave {addr}",
+                                Health = NodeHealth.Healthy
+                            };
+
+                            slaves.Add(slave);
+                            consecutiveFailures = 0;
+                            _logger.LogDebug("✓ Encontrado esclavo en dirección {Addr}", addr);
+                        }
+                        catch (AdsErrorException adsEx) when (adsEx.ErrorCode == AdsErrorCode.DeviceSymbolNotFound ||
+                                                              adsEx.ErrorCode == AdsErrorCode.DeviceInvalidOffset)
+                        {
+                            consecutiveFailures++;
+                        }
+                    }
+                    catch
+                    {
+                        consecutiveFailures++;
+                    }
+                }
+
+                if (slaves.Count > 0)
+                {
+                    _logger.LogInformation("🔍 Encontrados {Count} esclavos via escaneo de direcciones", slaves.Count);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Error en TryReadSlavesViaDeviceInfoAsync: {Error}", ex.Message);
+            }
+
+            return slaves;
+        }
+
+        /// <summary>
+        /// Obtiene un nombre genérico para el dispositivo basado en VendorId/ProductCode
+        /// </summary>
+        private string GetGenericDeviceName(uint vendorId, uint productCode)
+        {
+            // Beckhoff = 0x00000002
+            if (vendorId == 0x00000002)
+            {
+                // Extraer tipo de terminal del ProductCode
+                // Los ProductCodes de Beckhoff suelen tener el número de terminal codificado
+                var terminalType = (productCode >> 16) & 0xFFFF;
+                
+                // Algunos tipos conocidos
+                return terminalType switch
+                {
+                    0x044C => "EK1100 Coupler",
+                    0x0456 => "EK1110 Extension",
+                    0x0462 => "EK1122 Junction",
+                    0x03F0 => "EL1xxx Digital Input",
+                    0x07D8 => "EL2xxx Digital Output",
+                    0x0BF6 => "EL3xxx Analog Input",
+                    0x0FA0 => "EL4xxx Analog Output",
+                    0x1771 => "EL6xxx Communication",
+                    0x1B81 => "EL7xxx Motion",
+                    _ => $"Beckhoff 0x{productCode:X8}"
+                };
+            }
+
+            // Otros vendors conocidos
+            return vendorId switch
+            {
+                0x00000001 => $"EtherCAT Device 0x{productCode:X8}",
+                _ => $"Vendor 0x{vendorId:X4} Product 0x{productCode:X8}"
+            };
         }
 
         private async Task<List<EtherCATSlaveNode>> TryScanSlavesByAddressAsync()
@@ -618,10 +1320,60 @@ namespace SW.PC.API.Backend.Services
 
         private async Task<EtherCATSlaveNode?> TryReadSlaveAtAddressAsync(ushort address)
         {
-            // Esta implementación requiere acceso directo a registros ESC
-            // via ADS o comandos específicos de TwinCAT
-            // Por ahora retornamos null - se implementará con acceso real
-            return null;
+            if (_masterClient == null || !_masterClient.IsConnected)
+                return null;
+
+            try
+            {
+                // Intentar leer información del esclavo usando diferentes Index Groups
+                // TwinCAT provee varios métodos dependiendo de la versión/configuración
+                
+                // Método 1: ADSIGRP_ECAT_SLAVE_IDENTITY = 0x0F020002
+                var identityBuffer = new byte[24];
+                try
+                {
+                    // Index Group para obtener identidad de esclavo por dirección
+                    _masterClient.Read(0x0F020002, address, identityBuffer.AsMemory());
+                    
+                    var vendorId = BitConverter.ToUInt32(identityBuffer, 0);
+                    var productCode = BitConverter.ToUInt32(identityBuffer, 4);
+                    var revisionNumber = BitConverter.ToUInt32(identityBuffer, 8);
+                    var serialNumber = BitConverter.ToUInt32(identityBuffer, 12);
+                    
+                    // Si todos son 0, probablemente el esclavo no existe
+                    if (vendorId == 0 && productCode == 0)
+                        return null;
+
+                    var slave = new EtherCATSlaveNode
+                    {
+                        ConfiguredAddress = address,
+                        VendorId = vendorId,
+                        ProductCode = productCode,
+                        RevisionNumber = revisionNumber,
+                        SerialNumber = serialNumber,
+                        State = EtherCATState.Operational,
+                        Health = NodeHealth.Healthy
+                    };
+
+                    slave.Name = GetGenericDeviceName(vendorId, productCode);
+                    slave.Description = $"Addr: {address}, VID: 0x{vendorId:X4}, PID: 0x{productCode:X8}";
+
+                    _logger.LogDebug("✓ Esclavo encontrado en {Addr}: {Name}", address, slave.Name);
+                    return slave;
+                }
+                catch (AdsErrorException adsEx) when (adsEx.ErrorCode == AdsErrorCode.DeviceSymbolNotFound ||
+                                                      adsEx.ErrorCode == AdsErrorCode.DeviceInvalidOffset ||
+                                                      adsEx.ErrorCode == AdsErrorCode.DeviceInvalidData)
+                {
+                    // Esclavo no existe en esta dirección
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug("Error leyendo esclavo en dirección {Addr}: {Error}", address, ex.Message);
+                return null;
+            }
         }
 
         /// <summary>
@@ -1032,13 +1784,272 @@ namespace SW.PC.API.Backend.Services
                 ErrorMessage = errorMessage,
                 Timestamp = DateTime.Now,
                 IsSimulated = false,  // No es simulación, es error real
-                EnvironmentMode = _environmentMode,
                 Summary = new EtherCATSummary
                 {
                     OverallHealth = NetworkHealth.Offline,
-                    MasterStateText = IsDevelopmentMode ? "Error (DEV)" : "Error - Sin comunicación"
+                    MasterStateText = IsSimulatedMode ? "Error (SIM)" : "Error - Sin comunicación"
                 }
             };
+        }
+
+        // ===== MÉTODOS PARA CONFIGURACIÓN GUARDADA =====
+
+        /// <summary>
+        /// Guarda la topología actual como configuración de referencia en la base de datos
+        /// </summary>
+        public async Task<EtherCATSavedConfiguration> SaveConfigurationAsync(string? notes = null)
+        {
+            var topology = await GetTopologyAsync(rescan: true);
+            
+            if (topology.HasCommunicationError)
+            {
+                throw new InvalidOperationException($"No se puede guardar configuración: {topology.ErrorMessage}");
+            }
+
+            var projectId = _projectContext.ActiveProjectId;
+            var topologyJson = JsonSerializer.Serialize(topology, new JsonSerializerOptions 
+            { 
+                WriteIndented = false,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+            var configHash = ComputeConfigurationHash(topology);
+
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+
+            // Buscar configuración existente para este proyecto
+            var existing = await dbContext.EtherCATSavedConfigurations
+                .FirstOrDefaultAsync(c => c.ProjectId == projectId);
+
+            if (existing != null)
+            {
+                // Actualizar existente
+                existing.TopologyJson = topologyJson;
+                existing.TotalSlaves = topology.Slaves.Count;
+                existing.SavedAt = DateTime.Now;
+                existing.Notes = notes;
+                existing.ConfigurationHash = configHash;
+                
+                _logger.LogInformation("💾 EtherCAT: Configuración actualizada para proyecto {ProjectId} ({Count} esclavos)", 
+                    projectId, topology.Slaves.Count);
+            }
+            else
+            {
+                // Crear nueva
+                existing = new EtherCATSavedConfiguration
+                {
+                    ProjectId = projectId,
+                    TopologyJson = topologyJson,
+                    TotalSlaves = topology.Slaves.Count,
+                    SavedAt = DateTime.Now,
+                    Notes = notes,
+                    ConfigurationHash = configHash
+                };
+                dbContext.EtherCATSavedConfigurations.Add(existing);
+                
+                _logger.LogInformation("💾 EtherCAT: Nueva configuración guardada para proyecto {ProjectId} ({Count} esclavos)", 
+                    projectId, topology.Slaves.Count);
+            }
+
+            await dbContext.SaveChangesAsync();
+            return existing;
+        }
+
+        /// <summary>
+        /// Obtiene la configuración guardada para el proyecto activo
+        /// </summary>
+        public async Task<EtherCATSavedConfiguration?> GetSavedConfigurationAsync()
+        {
+            var projectId = _projectContext.ActiveProjectId;
+
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+
+            return await dbContext.EtherCATSavedConfigurations
+                .FirstOrDefaultAsync(c => c.ProjectId == projectId);
+        }
+
+        /// <summary>
+        /// Elimina la configuración guardada del proyecto activo
+        /// </summary>
+        public async Task<bool> DeleteSavedConfigurationAsync()
+        {
+            var projectId = _projectContext.ActiveProjectId;
+
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+
+            var existing = await dbContext.EtherCATSavedConfigurations
+                .FirstOrDefaultAsync(c => c.ProjectId == projectId);
+
+            if (existing == null)
+            {
+                return false;
+            }
+
+            dbContext.EtherCATSavedConfigurations.Remove(existing);
+            await dbContext.SaveChangesAsync();
+            
+            _logger.LogInformation("🗑️ EtherCAT: Configuración eliminada para proyecto {ProjectId}", projectId);
+            return true;
+        }
+
+        /// <summary>
+        /// Verifica si existe configuración guardada
+        /// </summary>
+        public async Task<bool> HasSavedConfigurationAsync()
+        {
+            var projectId = _projectContext.ActiveProjectId;
+
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+
+            return await dbContext.EtherCATSavedConfigurations
+                .AnyAsync(c => c.ProjectId == projectId);
+        }
+
+        /// <summary>
+        /// Compara la configuración guardada con el estado actual del sistema
+        /// </summary>
+        public async Task<EtherCATConfigurationComparison> CompareWithSavedConfigurationAsync()
+        {
+            var comparison = new EtherCATConfigurationComparison();
+            
+            // Obtener configuración guardada
+            var savedConfig = await GetSavedConfigurationAsync();
+            
+            if (savedConfig == null)
+            {
+                comparison.HasSavedConfiguration = false;
+                return comparison;
+            }
+
+            comparison.HasSavedConfiguration = true;
+            comparison.SavedAt = savedConfig.SavedAt;
+            comparison.SavedNotes = savedConfig.Notes;
+            comparison.SavedSlaveCount = savedConfig.TotalSlaves;
+
+            // Deserializar topología guardada
+            EtherCATTopology? savedTopology;
+            try
+            {
+                savedTopology = JsonSerializer.Deserialize<EtherCATTopology>(savedConfig.TopologyJson, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deserializando configuración guardada");
+                comparison.ConfigurationMatches = false;
+                return comparison;
+            }
+
+            if (savedTopology == null)
+            {
+                comparison.ConfigurationMatches = false;
+                return comparison;
+            }
+
+            // Obtener topología actual (forzar rescan)
+            var currentTopology = await GetTopologyAsync(rescan: true);
+            comparison.CurrentSlaveCount = currentTopology.Slaves.Count;
+
+            // Comparar esclavos
+            var savedSlaves = savedTopology.Slaves.ToDictionary(s => s.ConfiguredAddress);
+            var currentSlaves = currentTopology.Slaves.ToDictionary(s => s.ConfiguredAddress);
+
+            // Encontrar esclavos faltantes (estaban en config guardada pero no están ahora)
+            foreach (var saved in savedTopology.Slaves)
+            {
+                if (!currentSlaves.ContainsKey(saved.ConfiguredAddress))
+                {
+                    comparison.MissingSlaves.Add(new MissingSlaveInfo
+                    {
+                        Position = saved.Position,
+                        ConfiguredAddress = saved.ConfiguredAddress,
+                        Name = saved.Name,
+                        VendorId = saved.VendorId,
+                        ProductCode = saved.ProductCode
+                    });
+                }
+            }
+
+            // Encontrar esclavos nuevos (no estaban en config guardada)
+            foreach (var current in currentTopology.Slaves)
+            {
+                if (!savedSlaves.ContainsKey(current.ConfiguredAddress))
+                {
+                    comparison.NewSlaves.Add(new NewSlaveInfo
+                    {
+                        Position = current.Position,
+                        ConfiguredAddress = current.ConfiguredAddress,
+                        Name = current.Name,
+                        VendorId = current.VendorId,
+                        ProductCode = current.ProductCode
+                    });
+                }
+            }
+
+            // Encontrar diferencias en esclavos que existen en ambos
+            foreach (var saved in savedTopology.Slaves)
+            {
+                if (currentSlaves.TryGetValue(saved.ConfiguredAddress, out var current))
+                {
+                    // Comparar VendorId + ProductCode (hardware diferente)
+                    if (saved.VendorId != current.VendorId || saved.ProductCode != current.ProductCode)
+                    {
+                        comparison.Differences.Add(new SlaveConfigDifference
+                        {
+                            Position = saved.Position,
+                            SlaveName = saved.Name,
+                            Field = "Hardware",
+                            SavedValue = $"0x{saved.VendorId:X8}:{saved.ProductCode:X8}",
+                            CurrentValue = $"0x{current.VendorId:X8}:{current.ProductCode:X8}"
+                        });
+                    }
+
+                    // Comparar posición en el bus
+                    if (saved.Position != current.Position)
+                    {
+                        comparison.Differences.Add(new SlaveConfigDifference
+                        {
+                            Position = saved.Position,
+                            SlaveName = saved.Name,
+                            Field = "Position",
+                            SavedValue = saved.Position.ToString(),
+                            CurrentValue = current.Position.ToString()
+                        });
+                    }
+                }
+            }
+
+            // La configuración coincide si no hay diferencias significativas
+            comparison.ConfigurationMatches = 
+                comparison.MissingSlaves.Count == 0 && 
+                comparison.NewSlaves.Count == 0 && 
+                comparison.Differences.Count == 0;
+
+            _logger.LogInformation("🔍 EtherCAT: Comparación - Guardados: {Saved}, Actuales: {Current}, Match: {Match}, Faltantes: {Missing}, Nuevos: {New}", 
+                comparison.SavedSlaveCount, comparison.CurrentSlaveCount, comparison.ConfigurationMatches,
+                comparison.MissingSlaves.Count, comparison.NewSlaves.Count);
+
+            return comparison;
+        }
+
+        /// <summary>
+        /// Calcula un hash de la configuración para detectar cambios rápidamente
+        /// </summary>
+        private static string ComputeConfigurationHash(EtherCATTopology topology)
+        {
+            // Hash basado en: número de esclavos + sus VendorId:ProductCode + posiciones
+            var hashInput = string.Join("|", topology.Slaves
+                .OrderBy(s => s.Position)
+                .Select(s => $"{s.Position}:{s.VendorId}:{s.ProductCode}:{s.ConfiguredAddress}"));
+
+            using var sha256 = SHA256.Create();
+            var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(hashInput));
+            return Convert.ToHexString(hashBytes);
         }
 
         public void Dispose()

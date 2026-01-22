@@ -21,6 +21,12 @@ public interface IESIParserService
     ESIDeviceInfo? GetDeviceInfo(uint vendorId, uint productCode);
     
     /// <summary>
+    /// Obtiene información de un dispositivo por el sType del PLC (ej: "EK1122-0000-0018" o "EL2798")
+    /// Este es el método principal para correlacionar datos del FB_EtherCATDiag con ESI
+    /// </summary>
+    ESIDeviceInfo? GetDeviceInfoByType(string sType);
+    
+    /// <summary>
     /// Obtiene el nombre del vendor por su ID
     /// </summary>
     string GetVendorName(uint vendorId);
@@ -34,6 +40,16 @@ public interface IESIParserService
     /// Obtiene estadísticas del cache
     /// </summary>
     ESICacheStats GetCacheStats();
+    
+    /// <summary>
+    /// Lista todos los Types cargados en el cache (para debug)
+    /// </summary>
+    IEnumerable<string> GetAllCachedTypes();
+    
+    /// <summary>
+    /// Busca Types que contengan el texto especificado (para debug)
+    /// </summary>
+    IEnumerable<(string Type, string ProductName, string PhysicsRaw)> SearchTypes(string searchText);
 }
 
 /// <summary>
@@ -50,6 +66,38 @@ public class ESIDeviceInfo
     public string GroupType { get; set; } = "";  // Ej: "DigOut"
     public string ImageFile { get; set; } = "";  // Ruta a imagen si existe
     public List<string> Capabilities { get; set; } = new();
+    
+    /// <summary>
+    /// Física de cada puerto (0-3). Valores: "Y"=EBUS, "K"=MII (100BASE-TX), " "=no implementado
+    /// Extraído del campo Physics del ESI (ej: "YY  " = Port0 EBUS, Port1 EBUS, Port2/3 no implementados)
+    /// </summary>
+    public List<ESIPortPhysics> PortPhysics { get; set; } = new(4);
+    
+    /// <summary>
+    /// Cadena original de Physics del ESI (ej: "YY  ", "K  K", "YKYY")
+    /// </summary>
+    public string PhysicsRaw { get; set; } = "";
+}
+
+/// <summary>
+/// Información física de un puerto según el ESI
+/// </summary>
+public class ESIPortPhysics
+{
+    /// <summary>Número de puerto (0-3)</summary>
+    public int PortNumber { get; set; }
+    
+    /// <summary>Tipo físico: EBUS, MII (cable Ethernet), o NotImplemented</summary>
+    public string PhysicsType { get; set; } = "NotImplemented";
+    
+    /// <summary>Nombre descriptivo del conector (X1, X2, E-Bus IN, E-Bus OUT, etc.)</summary>
+    public string? ConnectorName { get; set; }
+    
+    /// <summary>Es un puerto de cable Ethernet (MII/100BASE-TX)</summary>
+    public bool IsCable => PhysicsType == "MII" || PhysicsType == "K";
+    
+    /// <summary>Es un puerto E-Bus (backplane)</summary>
+    public bool IsEBus => PhysicsType == "EBUS" || PhysicsType == "Y";
 }
 
 /// <summary>
@@ -74,6 +122,9 @@ public class ESIParserService : IESIParserService
     
     // Cache de dispositivos: Key = "VendorId_ProductCode"
     private readonly Dictionary<string, ESIDeviceInfo> _deviceCache = new();
+    
+    // Cache de dispositivos por Type: Key = tipo normalizado (ej: "EL2798", "EK1122")
+    private readonly Dictionary<string, ESIDeviceInfo> _deviceByTypeCache = new(StringComparer.OrdinalIgnoreCase);
     
     // Cache de vendors: Key = VendorId
     private readonly Dictionary<uint, string> _vendorCache = new();
@@ -142,6 +193,60 @@ public class ESIParserService : IESIParserService
         };
     }
 
+    public ESIDeviceInfo? GetDeviceInfoByType(string sType)
+    {
+        if (string.IsNullOrWhiteSpace(sType))
+            return null;
+        
+        // sType del PLC puede ser:
+        // - "EK1122-0000-0018" (tipo-variante-revision)
+        // - "EL2798-0000-0018"
+        // - "EL2798" (solo tipo)
+        
+        // Extraer el tipo base (EK1122, EL2798, etc.)
+        var typeBase = ExtractTypeBase(sType);
+        
+        // Buscar en cache por tipo base
+        if (_deviceByTypeCache.TryGetValue(typeBase, out var info))
+        {
+            return info;
+        }
+        
+        // Intentar búsqueda parcial si no hay match exacto
+        // Por ejemplo "EL2798" podría matchear "EL2798-xxxx"
+        foreach (var kvp in _deviceByTypeCache)
+        {
+            if (kvp.Key.StartsWith(typeBase, StringComparison.OrdinalIgnoreCase))
+            {
+                return kvp.Value;
+            }
+        }
+        
+        // No encontrado - devolver null (el llamador decidirá qué hacer)
+        return null;
+    }
+    
+    /// <summary>
+    /// Extrae el tipo base de un sType del PLC
+    /// "EK1122-0000-0018" → "EK1122"
+    /// "EL2798" → "EL2798"
+    /// </summary>
+    private static string ExtractTypeBase(string sType)
+    {
+        if (string.IsNullOrWhiteSpace(sType))
+            return "";
+        
+        // Si contiene guión, tomar solo la primera parte
+        var dashIndex = sType.IndexOf('-');
+        if (dashIndex > 0)
+        {
+            return sType.Substring(0, dashIndex).Trim();
+        }
+        
+        // Si no hay guión, devolver todo (puede ser "EL2798" directamente)
+        return sType.Trim();
+    }
+
     public string GetVendorName(uint vendorId)
     {
         // NO bloquear - usar lo que haya en cache
@@ -162,6 +267,22 @@ public class ESIParserService : IESIParserService
     {
         return _stats;
     }
+    
+    public IEnumerable<string> GetAllCachedTypes()
+    {
+        return _deviceByTypeCache.Keys.OrderBy(k => k);
+    }
+    
+    public IEnumerable<(string Type, string ProductName, string PhysicsRaw)> SearchTypes(string searchText)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+            return Enumerable.Empty<(string, string, string)>();
+        
+        return _deviceByTypeCache
+            .Where(kvp => kvp.Key.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+            .Select(kvp => (kvp.Key, kvp.Value.ProductName, kvp.Value.PhysicsRaw))
+            .OrderBy(x => x.Key);
+    }
 
     public async Task RefreshCacheAsync()
     {
@@ -179,6 +300,7 @@ public class ESIParserService : IESIParserService
     private async Task LoadESIFilesAsync()
     {
         _deviceCache.Clear();
+        _deviceByTypeCache.Clear();
         _vendorCache.Clear();
         _stats = new ESICacheStats { LastRefresh = DateTime.UtcNow };
         
@@ -415,6 +537,114 @@ public class ESIParserService : IESIParserService
             capabilities.Add("DC");
         }
         
+        // ⭐ PHYSICS - Tipo físico de cada puerto (CRÍTICO para topología)
+        // Hay DOS formatos posibles en ESI:
+        // 1. <Physics>KYKY</Physics> - Formato compacto
+        // 2. <Info><Port><Type>MII</Type></Port>...</Info> - Formato detallado (Beckhoff)
+        
+        var physicsRaw = "";
+        var portPhysics = new List<ESIPortPhysics>();
+        
+        // MÉTODO 1: Buscar elemento <Physics> directo
+        var physicsElement = device.Element(ns + "Physics") ?? device.Element("Physics");
+        if (physicsElement == null)
+        {
+            physicsElement = device.Descendants(ns + "Physics").FirstOrDefault()
+                          ?? device.Descendants("Physics").FirstOrDefault();
+        }
+        
+        if (physicsElement != null && !string.IsNullOrWhiteSpace(physicsElement.Value))
+        {
+            physicsRaw = physicsElement.Value.Trim();
+            _logger.LogTrace("📦 ESI Physics (direct) for {Type}: '{Physics}'", type, physicsRaw);
+            
+            for (int i = 0; i < 4; i++)
+            {
+                var physChar = i < physicsRaw.Length ? physicsRaw[i] : ' ';
+                var physType = physChar switch
+                {
+                    'Y' => "EBUS",
+                    'K' => "MII",
+                    'H' => "MII",
+                    'L' => "LVDS",
+                    ' ' => "NotImplemented",
+                    _ => "Unknown"
+                };
+                
+                portPhysics.Add(new ESIPortPhysics
+                {
+                    PortNumber = i,
+                    PhysicsType = physType
+                });
+            }
+        }
+        else
+        {
+            // MÉTODO 2: Buscar en <Info><Port><Type>...</Type></Port></Info>
+            var infoElement = device.Element(ns + "Info") ?? device.Element("Info");
+            var portElements = infoElement?.Elements(ns + "Port").ToList() 
+                            ?? infoElement?.Elements("Port").ToList()
+                            ?? new List<XElement>();
+            
+            if (portElements.Count > 0)
+            {
+                var portTypes = new List<string>();
+                foreach (var portEl in portElements)
+                {
+                    var portTypeEl = portEl.Element(ns + "Type") ?? portEl.Element("Type");
+                    var portType = portTypeEl?.Value?.Trim() ?? "";
+                    var labelEl = portEl.Element(ns + "Label") ?? portEl.Element("Label");
+                    var label = labelEl?.Value?.Trim() ?? "";
+                    
+                    // Convertir tipo de puerto
+                    var physType = portType.ToUpperInvariant() switch
+                    {
+                        "EBUS" => "EBUS",
+                        "MII" => "MII",
+                        "100BASE-TX" => "MII",
+                        "LVDS" => "LVDS",
+                        _ => "Unknown"
+                    };
+                    
+                    portPhysics.Add(new ESIPortPhysics
+                    {
+                        PortNumber = portPhysics.Count,
+                        PhysicsType = physType,
+                        ConnectorName = !string.IsNullOrEmpty(label) ? label : null
+                    });
+                    
+                    // Construir physicsRaw equivalente
+                    portTypes.Add(physType == "MII" ? "K" : (physType == "EBUS" ? "Y" : " "));
+                }
+                
+                physicsRaw = string.Join("", portTypes);
+                _logger.LogTrace("📦 ESI Physics (from Info/Port) for {Type}: '{Physics}'", type, physicsRaw);
+                
+                // Rellenar hasta 4 puertos
+                while (portPhysics.Count < 4)
+                {
+                    portPhysics.Add(new ESIPortPhysics
+                    {
+                        PortNumber = portPhysics.Count,
+                        PhysicsType = "NotImplemented"
+                    });
+                }
+            }
+            else
+            {
+                _logger.LogTrace("📦 ESI Physics NOT found for {Type}, using default EBUS", type);
+                // Sin Physics en ESI - asumir 2 puertos EBUS (típico para terminales)
+                for (int i = 0; i < 4; i++)
+                {
+                    portPhysics.Add(new ESIPortPhysics
+                    {
+                        PortNumber = i,
+                        PhysicsType = i < 2 ? "EBUS" : "NotImplemented"
+                    });
+                }
+            }
+        }
+        
         var info = new ESIDeviceInfo
         {
             VendorId = defaultVendorId,
@@ -425,14 +655,34 @@ public class ESIParserService : IESIParserService
             Type = type,
             GroupType = groupType,
             ImageFile = imageFile,
-            Capabilities = capabilities
+            Capabilities = capabilities,
+            PortPhysics = portPhysics,
+            PhysicsRaw = physicsRaw
         };
         
         var key = $"{defaultVendorId}_{productCode}";
         _deviceCache[key] = info;
         
-        _logger.LogTrace("📦 ESI: {Type} ({ProductName}) - VendorId: 0x{VendorId:X4}, ProductCode: 0x{ProductCode:X8}",
-            type, productName, defaultVendorId, productCode);
+        // ⭐ También añadir al cache por Type para búsqueda por sType del PLC
+        // Ej: "EK1122" -> ESIDeviceInfo
+        // IMPORTANTE: Preferir versiones que tienen Physics definido
+        if (!string.IsNullOrEmpty(type))
+        {
+            if (!_deviceByTypeCache.ContainsKey(type))
+            {
+                // Primera vez que vemos este tipo - guardar
+                _deviceByTypeCache[type] = info;
+            }
+            else if (!string.IsNullOrEmpty(physicsRaw) && string.IsNullOrEmpty(_deviceByTypeCache[type].PhysicsRaw))
+            {
+                // Ya existe pero SIN Physics, y esta versión SÍ tiene Physics - actualizar
+                _deviceByTypeCache[type] = info;
+                _logger.LogDebug("📦 ESI: Actualizado {Type} con Physics: '{Physics}'", type, physicsRaw);
+            }
+        }
+        
+        _logger.LogTrace("📦 ESI: {Type} ({ProductName}) - Physics: '{Physics}' - VendorId: 0x{VendorId:X4}, ProductCode: 0x{ProductCode:X8}",
+            type, productName, physicsRaw, defaultVendorId, productCode);
     }
 
     private static uint ParseHexOrDecimal(string value)

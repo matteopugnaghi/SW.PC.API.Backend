@@ -969,6 +969,13 @@ namespace SW.PC.API.Backend.Models.Excel
         public string EtherCATMasterNetId { get; set; } = "";
 
         /// <summary>
+        /// Dirección IP del PC con TwinCAT (ej: 192.168.1.160).
+        /// Necesaria para conexión ADS remota cuando no hay ruta preconfigurada.
+        /// Si vacío, se extrae de los primeros 4 octetos del NetId.
+        /// </summary>
+        public string EtherNETIdTwincat { get; set; } = "";
+
+        /// <summary>
         /// Device ID del Master EtherCAT (típicamente 1).
         /// Identificador del dispositivo EtherCAT dentro del runtime TwinCAT.
         /// </summary>
