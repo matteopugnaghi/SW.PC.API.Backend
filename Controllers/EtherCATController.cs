@@ -41,7 +41,6 @@ namespace SW.PC.API.Backend.Controllers
             {
                 IsEnabled = _etherCATService.IsEnabled,
                 MasterNetId = config.EtherCATMasterNetId,
-                MasterDeviceId = config.EtherCATMasterDeviceId,
                 ESIFilesPath = config.ESIFilesPath,
                 UseESIFiles = config.UseESIFiles,
                 TopologyReadIntervalMs = config.TopologyReadIntervalMs
@@ -1529,13 +1528,18 @@ namespace SW.PC.API.Backend.Controllers
         /// Usa las estructuras ST_SlaveStateInfo, ST_TopologyData, etc.
         /// </summary>
         [HttpGet("plc-diag")]
-        public async Task<ActionResult<object>> ReadPLCDiagnostic([FromQuery] string fbInstance = "MAIN.fbEtherCATDiag")
+        public async Task<ActionResult<object>> ReadPLCDiagnostic([FromQuery] string? fbInstance = null)
         {
             var config = _etherCATService.GetConfiguration();
             var netIdStr = config.EtherCATMasterNetId;
             const int port = 851;
             
-            _logger.LogInformation("🔬 Leyendo FB_EtherCATDiag desde PLC {NetId}:{Port}, instancia: {FB}", netIdStr, port, fbInstance);
+            // Usar el valor del Excel si no se especifica en el query
+            var effectiveFbInstance = string.IsNullOrWhiteSpace(fbInstance) 
+                ? config.EtherCATDiagFbInstance 
+                : fbInstance;
+            
+            _logger.LogInformation("🔬 Leyendo FB_EtherCATDiag desde PLC {NetId}:{Port}, instancia: {FB}", netIdStr, port, effectiveFbInstance);
             
             var diagnostics = new List<string>();
             var masterState = new Dictionary<string, object>();
@@ -1568,7 +1572,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     try
                     {
-                        var fullName = $"{fbInstance}.{varName}";
+                        var fullName = $"{effectiveFbInstance}.{varName}";
                         var handle = client.CreateVariableHandle(fullName);
                         var buffer = new byte[size];
                         var bytesRead = client.Read(handle, buffer.AsMemory());
@@ -1587,7 +1591,7 @@ namespace SW.PC.API.Backend.Controllers
                 // ====== Leer stMasterDevState (ST_EcMasterDevState) ======
                 try
                 {
-                    var handle = client.CreateVariableHandle($"{fbInstance}.stMasterDevState");
+                    var handle = client.CreateVariableHandle($"{effectiveFbInstance}.stMasterDevState");
                     var buffer = new byte[32]; // Tamaño aproximado de ST_EcMasterDevState
                     var bytesRead = client.Read(handle, buffer.AsMemory());
                     client.DeleteVariableHandle(handle);
@@ -1643,7 +1647,7 @@ namespace SW.PC.API.Backend.Controllers
                 
                 try
                 {
-                    var handle = client.CreateVariableHandle($"{fbInstance}.iNumOfSlavesRead");
+                    var handle = client.CreateVariableHandle($"{effectiveFbInstance}.iNumOfSlavesRead");
                     var buffer = new byte[2];
                     client.Read(handle, buffer.AsMemory());
                     client.DeleteVariableHandle(handle);
@@ -1658,7 +1662,7 @@ namespace SW.PC.API.Backend.Controllers
                 // Leer el array interno de esclavos
                 try
                 {
-                    var handle = client.CreateVariableHandle($"{fbInstance}.arrSlaveInfo");
+                    var handle = client.CreateVariableHandle($"{effectiveFbInstance}.arrSlaveInfo");
                     // Leer todo el array - usar un buffer grande para detectar el tamaño real
                     const int maxArrayElements = 257; // ARRAY[0..256]
                     const int maxElementSize = 300;   // Tamaño máximo estimado por elemento
@@ -1820,7 +1824,7 @@ namespace SW.PC.API.Backend.Controllers
                 var topologyData = new List<object>();
                 try
                 {
-                    var handle = client.CreateVariableHandle($"{fbInstance}.arrTopologyData");
+                    var handle = client.CreateVariableHandle($"{effectiveFbInstance}.arrTopologyData");
                     // Leer más datos para detectar el tamaño real
                     var buffer = new byte[slaveCount * 128]; // Buffer generoso
                     var bytesRead = client.Read(handle, buffer.AsMemory());
@@ -1958,7 +1962,7 @@ namespace SW.PC.API.Backend.Controllers
                     timestamp = DateTime.Now,
                     netId = netIdStr,
                     port,
-                    fbInstance,
+                    fbInstance = effectiveFbInstance,
                     method = "FB_EtherCATDiag (Puerto 851)",
                     diagnostics,
                     masterState,
@@ -1966,7 +1970,7 @@ namespace SW.PC.API.Backend.Controllers
                     slaves,
                     topologyCount = topologyData.Count,
                     topology = topologyData,
-                    hint = "Ajustar fbInstance si el nombre es diferente (ej: GVL.fbEtherCATDiag)"
+                    hint = "Configurable en Excel: EtherCATDiagFbInstance"
                 });
             }
             catch (TwinCAT.Ads.AdsErrorException ex)
@@ -1976,10 +1980,10 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     timestamp = DateTime.Now,
                     port,
-                    fbInstance,
+                    fbInstance = effectiveFbInstance,
                     error = $"ADS Error: {ex.ErrorCode}",
                     message = ex.Message,
-                    hint = "Verificar que el nombre de la instancia es correcto"
+                    hint = "Verificar configuración en Excel: EtherCATDiagFbInstance"
                 });
             }
             catch (Exception ex)
@@ -2023,13 +2027,18 @@ namespace SW.PC.API.Backend.Controllers
         /// Basado en el XML exportado del FB - Lee: arrSlaveInfo, arrTopologyData, arrSlaveStates
         /// </summary>
         [HttpGet("plc-diag-full")]
-        public async Task<ActionResult<object>> ReadPLCDiagnosticFull([FromQuery] string fbInstance = "MAIN.fbEtherCATDiag")
+        public async Task<ActionResult<object>> ReadPLCDiagnosticFull([FromQuery] string? fbInstance = null)
         {
             var config = _etherCATService.GetConfiguration();
             var netIdStr = config.EtherCATMasterNetId;
             const int port = 851;
             
-            _logger.LogInformation("🔬 Leyendo FB_EtherCATDiag COMPLETO desde PLC {NetId}:{Port}", netIdStr, port);
+            // Usar el valor del Excel si no se especifica en el query
+            var effectiveFbInstance = string.IsNullOrWhiteSpace(fbInstance) 
+                ? config.EtherCATDiagFbInstance 
+                : fbInstance;
+            
+            _logger.LogInformation("🔬 Leyendo FB_EtherCATDiag COMPLETO desde PLC {NetId}:{Port}, instancia: {FB}", netIdStr, port, effectiveFbInstance);
             
             var diagnostics = new List<string>();
             var result = new Dictionary<string, object>();
@@ -2062,7 +2071,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     try
                     {
-                        var handle = client.CreateVariableHandle($"{fbInstance}.{varName}");
+                        var handle = client.CreateVariableHandle($"{effectiveFbInstance}.{varName}");
                         var buffer = new byte[size];
                         client.Read(handle, buffer.AsMemory());
                         client.DeleteVariableHandle(handle);
@@ -2081,20 +2090,20 @@ namespace SW.PC.API.Backend.Controllers
                 try
                 {
                     // nSlaveCount (UINT)
-                    var h = client.CreateVariableHandle($"{fbInstance}.nSlaveCount");
+                    var h = client.CreateVariableHandle($"{effectiveFbInstance}.nSlaveCount");
                     var buf = new byte[2];
                     client.Read(h, buf.AsMemory());
                     client.DeleteVariableHandle(h);
                     inputs["nSlaveCount"] = BitConverter.ToUInt16(buf, 0);
                     
                     // nSlaveCountCfg (UINT)
-                    h = client.CreateVariableHandle($"{fbInstance}.nSlaveCountCfg");
+                    h = client.CreateVariableHandle($"{effectiveFbInstance}.nSlaveCountCfg");
                     client.Read(h, buf.AsMemory());
                     client.DeleteVariableHandle(h);
                     inputs["nSlaveCountCfg"] = BitConverter.ToUInt16(buf, 0);
                     
                     // nMasterDevState (WORD)
-                    h = client.CreateVariableHandle($"{fbInstance}.nMasterDevState");
+                    h = client.CreateVariableHandle($"{effectiveFbInstance}.nMasterDevState");
                     client.Read(h, buf.AsMemory());
                     client.DeleteVariableHandle(h);
                     inputs["nMasterDevState"] = $"0x{BitConverter.ToUInt16(buf, 0):X4}";
@@ -2106,7 +2115,7 @@ namespace SW.PC.API.Backend.Controllers
                 int slaveCount = 0;
                 try
                 {
-                    var h = client.CreateVariableHandle($"{fbInstance}.iNumOfSlavesRead");
+                    var h = client.CreateVariableHandle($"{effectiveFbInstance}.iNumOfSlavesRead");
                     var buf = new byte[2];
                     client.Read(h, buf.AsMemory());
                     client.DeleteVariableHandle(h);
@@ -2124,7 +2133,7 @@ namespace SW.PC.API.Backend.Controllers
                 var slaveAddresses = new List<ushort>();
                 try
                 {
-                    var h = client.CreateVariableHandle($"{fbInstance}.arrSlaveAddresses");
+                    var h = client.CreateVariableHandle($"{effectiveFbInstance}.arrSlaveAddresses");
                     var buf = new byte[(slaveCount + 1) * 2]; // UINT = 2 bytes
                     var bytesRead = client.Read(h, buf.AsMemory());
                     client.DeleteVariableHandle(h);
@@ -2147,7 +2156,7 @@ namespace SW.PC.API.Backend.Controllers
                 var slaveStates = new List<object>();
                 try
                 {
-                    var h = client.CreateVariableHandle($"{fbInstance}.arrSlaveStates");
+                    var h = client.CreateVariableHandle($"{effectiveFbInstance}.arrSlaveStates");
                     var stateSize = 4; // WORD + WORD
                     var buf = new byte[(slaveCount + 1) * stateSize];
                     var bytesRead = client.Read(h, buf.AsMemory());
@@ -2199,7 +2208,7 @@ namespace SW.PC.API.Backend.Controllers
                 var topology = new List<object>();
                 try
                 {
-                    var h = client.CreateVariableHandle($"{fbInstance}.arrTopologyData");
+                    var h = client.CreateVariableHandle($"{effectiveFbInstance}.arrTopologyData");
                     var topoSize = 32; // Aproximado, puede variar
                     var buf = new byte[(slaveCount + 1) * topoSize];
                     var bytesRead = client.Read(h, buf.AsMemory());
@@ -2250,7 +2259,7 @@ namespace SW.PC.API.Backend.Controllers
                 var slavesInfo = new List<object>();
                 try
                 {
-                    var h = client.CreateVariableHandle($"{fbInstance}.arrSlaveInfo");
+                    var h = client.CreateVariableHandle($"{effectiveFbInstance}.arrSlaveInfo");
                     // ST_SlaveStateInfo: nIndex(4) + sName(81) + sType(81) + nECAddr(2) + bDiagData(1) + stPortCRCErrors(~24) + nSumCRCErrors(4) + stState(~20) ≈ 220 bytes
                     var infoSize = 256; // Aproximado generoso
                     var buf = new byte[Math.Min(slaveCount + 1, 50) * infoSize]; // Limitar a 50 para no saturar
@@ -2295,7 +2304,7 @@ namespace SW.PC.API.Backend.Controllers
                 var diagSlaves = new List<object>();
                 try
                 {
-                    var h = client.CreateVariableHandle($"{fbInstance}.arrDiagSlaveInfo");
+                    var h = client.CreateVariableHandle($"{effectiveFbInstance}.arrDiagSlaveInfo");
                     var buf = new byte[4 * 256]; // 4 elementos x ~256 bytes
                     var bytesRead = client.Read(h, buf.AsMemory());
                     client.DeleteVariableHandle(h);
@@ -2335,7 +2344,7 @@ namespace SW.PC.API.Backend.Controllers
                     timestamp = DateTime.Now,
                     netId = netIdStr,
                     port,
-                    fbInstance,
+                    fbInstance = effectiveFbInstance,
                     method = "FB_EtherCATDiag FULL (basado en XML exportado)",
                     diagnostics,
                     data = result,
@@ -2357,7 +2366,7 @@ namespace SW.PC.API.Backend.Controllers
                     timestamp = DateTime.Now,
                     error = $"ADS Error: {ex.ErrorCode}",
                     message = ex.Message,
-                    fbInstance,
+                    fbInstance = effectiveFbInstance,
                     diagnostics
                 });
             }
@@ -2422,7 +2431,6 @@ namespace SW.PC.API.Backend.Controllers
     {
         public bool IsEnabled { get; set; }
         public string MasterNetId { get; set; } = "";
-        public int MasterDeviceId { get; set; }
         public string ESIFilesPath { get; set; } = "";
         public bool UseESIFiles { get; set; }
         public int TopologyReadIntervalMs { get; set; }

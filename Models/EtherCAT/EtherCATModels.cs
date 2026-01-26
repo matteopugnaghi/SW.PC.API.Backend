@@ -332,9 +332,6 @@ namespace SW.PC.API.Backend.Models.EtherCAT
         /// <summary>NetId configurado en Excel</summary>
         public string ConfiguredNetId { get; set; } = "";
 
-        /// <summary>DeviceId configurado en Excel</summary>
-        public int ConfiguredDeviceId { get; set; }
-
         // --- Pasos de diagnóstico ---
 
         /// <summary>¿TwinCAT ADS está instalado?</summary>
@@ -391,9 +388,6 @@ namespace SW.PC.API.Backend.Models.EtherCAT
         /// </summary>
         public string EtherNETIdTwincat { get; set; } = "";
 
-        /// <summary>Device ID del Master EtherCAT (típicamente 1)</summary>
-        public int EtherCATMasterDeviceId { get; set; } = 1;
-
         /// <summary>
         /// Ruta a los archivos ESI (EtherCAT Slave Information).
         /// Si vacío, usa la ruta estándar de TwinCAT: C:\TwinCAT\3.1\Config\Io\EtherCAT
@@ -410,6 +404,12 @@ namespace SW.PC.API.Backend.Models.EtherCAT
         /// Habilitar lectura de ESI files para nombres de dispositivos
         /// </summary>
         public bool UseESIFiles { get; set; } = false;
+
+        /// <summary>
+        /// Nombre de la instancia del FB_EtherCATDiag en el PLC.
+        /// Ejemplo: MAIN.fbEtherCATDiag, GVL.fbEtherCATDiag, PRG_Diagnostic.fbEtherCATDiag
+        /// </summary>
+        public string EtherCATDiagFbInstance { get; set; } = "MAIN.fbEtherCATDiag";
     }
 
     /// <summary>
@@ -491,7 +491,6 @@ namespace SW.PC.API.Backend.Models.EtherCAT
     public class EtherCATMaster
     {
         public string NetId { get; set; } = "";
-        public int DeviceId { get; set; }
         public string Name { get; set; } = "EtherCAT Master";
         public EtherCATState State { get; set; } = EtherCATState.Unknown;
         public int ConfiguredSlaveCount { get; set; }
@@ -595,6 +594,13 @@ namespace SW.PC.API.Backend.Models.EtherCAT
         public bool SupportsFoE { get; set; }
         public bool SupportsEoE { get; set; }
         public bool SupportsSoE { get; set; }
+
+        // === Diagnóstico desde FB_EtherCATDiag ===
+        /// <summary>Indica si hay datos de diagnóstico disponibles (bDiagData del FB)</summary>
+        public bool DiagnosticsAvailable { get; set; }
+
+        /// <summary>Contador total de errores CRC (nSumCRCErrors del FB)</summary>
+        public int ErrorCount { get; set; }
 
         // === Imágenes ===
         /// <summary>URL o ruta a imagen del dispositivo (desde ESI)</summary>

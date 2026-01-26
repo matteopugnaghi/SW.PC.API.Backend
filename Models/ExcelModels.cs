@@ -976,12 +976,6 @@ namespace SW.PC.API.Backend.Models.Excel
         public string EtherNETIdTwincat { get; set; } = "";
 
         /// <summary>
-        /// Device ID del Master EtherCAT (típicamente 1).
-        /// Identificador del dispositivo EtherCAT dentro del runtime TwinCAT.
-        /// </summary>
-        public int EtherCATMasterDeviceId { get; set; } = 1;
-
-        /// <summary>
         /// Ruta a los archivos ESI (EtherCAT Slave Information).
         /// Si está vacío, usa la ruta estándar de TwinCAT: C:\TwinCAT\3.1\Config\Io\EtherCAT
         /// Los ESI files contienen nombres y descripciones de dispositivos EtherCAT.
@@ -1001,6 +995,13 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Recomendado: 2000ms (2 segundos).
         /// </summary>
         public int EtherCATTopologyReadIntervalMs { get; set; } = 2000;
+
+        /// <summary>
+        /// Nombre de la instancia del FB_EtherCATDiag en el PLC.
+        /// Ejemplo: MAIN.fbEtherCATDiag, GVL.fbEtherCATDiag, PRG_Diagnostic.fbEtherCATDiag
+        /// Este es el bloque de función de Beckhoff para diagnóstico EtherCAT.
+        /// </summary>
+        public string EtherCATDiagFbInstance { get; set; } = "MAIN.fbEtherCATDiag";
 
         // ═══════════════════════════════════════════════════════════════════════════
         // 🌐 INTERNATIONALIZATION (i18n) - Sistema de traducciones

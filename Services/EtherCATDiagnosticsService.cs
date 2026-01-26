@@ -194,8 +194,8 @@ namespace SW.PC.API.Backend.Services
 
             if (_config.EnableEtherCATTopology)
             {
-                _logger.LogInformation("🌐 EtherCAT Diagnostics enabled - Master: {NetId}, Device: {DeviceId}, UseSimulatedPlc: {Simulated}",
-                    _config.EtherCATMasterNetId, _config.EtherCATMasterDeviceId, _useSimulatedPlc);
+                _logger.LogInformation("🌐 EtherCAT Diagnostics enabled - Master: {NetId}, FB: {FB}, UseSimulatedPlc: {Simulated}",
+                    _config.EtherCATMasterNetId, _config.EtherCATDiagFbInstance, _useSimulatedPlc);
             }
             else
             {
@@ -244,14 +244,14 @@ namespace SW.PC.API.Backend.Services
                     EnableEtherCATTopology = systemConfig.EnableEtherCATTopology,
                     EtherCATMasterNetId = systemConfig.EtherCATMasterNetId,
                     EtherNETIdTwincat = systemConfig.EtherNETIdTwincat,
-                    EtherCATMasterDeviceId = systemConfig.EtherCATMasterDeviceId,
                     ESIFilesPath = systemConfig.ESIFilesPath,
                     TopologyReadIntervalMs = systemConfig.EtherCATTopologyReadIntervalMs,
-                    UseESIFiles = systemConfig.UseEtherCATESIFiles
+                    UseESIFiles = systemConfig.UseEtherCATESIFiles,
+                    EtherCATDiagFbInstance = systemConfig.EtherCATDiagFbInstance
                 };
 
-                _logger.LogInformation("📊 EtherCAT: Config cargada - NetId: {NetId}, IP: {IP}, DeviceId: {DevId}",
-                    config.EtherCATMasterNetId, config.EtherNETIdTwincat, config.EtherCATMasterDeviceId);
+                _logger.LogInformation("📊 EtherCAT: Config cargada - NetId: {NetId}, FB: {FB}, IP: {IP}",
+                    config.EtherCATMasterNetId, config.EtherCATDiagFbInstance, config.EtherNETIdTwincat);
 
                 return (config, useSimulatedPlc);
             }
@@ -287,8 +287,7 @@ namespace SW.PC.API.Backend.Services
                 Timestamp = DateTime.Now,
                 IsEnabled = IsEnabled,
                 IsSimulatedMode = IsSimulatedMode,
-                ConfiguredNetId = _config.EtherCATMasterNetId,
-                ConfiguredDeviceId = _config.EtherCATMasterDeviceId
+                ConfiguredNetId = _config.EtherCATMasterNetId
             };
 
             _logger.LogInformation("🔍 Iniciando diagnóstico de conexión EtherCAT...");
@@ -307,7 +306,7 @@ namespace SW.PC.API.Backend.Services
             diag.DiagnosticMessages.Add($"   - UseSimulatedPlc: {_useSimulatedPlc}");
             diag.DiagnosticMessages.Add($"   - NetId: {_config.EtherCATMasterNetId}");
             diag.DiagnosticMessages.Add($"   - EtherNETIdTwincat (IP): {_config.EtherNETIdTwincat}");
-            diag.DiagnosticMessages.Add($"   - DeviceId: {_config.EtherCATMasterDeviceId}");
+            diag.DiagnosticMessages.Add($"   - FB_EtherCATDiag: {_config.EtherCATDiagFbInstance}");
 
             // Determinar IP a usar: EtherNETIdTwincat o extraer de NetId
             string targetIpAddress;
@@ -667,7 +666,6 @@ namespace SW.PC.API.Backend.Services
             topology.Master = new EtherCATMaster
             {
                 NetId = _config.EtherCATMasterNetId,
-                DeviceId = _config.EtherCATMasterDeviceId,
                 Name = "EtherCAT Master (SIMULATED)",
                 IsConnected = false,
                 State = EtherCATState.Operational,
@@ -778,20 +776,21 @@ namespace SW.PC.API.Backend.Services
                     ? _config.EtherNETIdTwincat
                     : "(extraer de NetId)";
                 
-                // Puerto 27905 = EtherCAT Master ADS Server (confirmado por Beckhoff)
-                const int EtherCATMasterAdsPort = 27905;
+                // ⭐ ESTRATEGIA: Leer desde el PLC Runtime (puerto 851) usando FB_EtherCATDiag
+                // En lugar de conectar directamente al EtherCAT Master (puerto 27905)
+                const int PlcRuntimePort = 851;
                 
-                // Conectar usando NetId al puerto del EtherCAT Master
-                _logger.LogInformation("🌐 Conectando a NetId {NetId} puerto {Port} (IP: {IP})...", 
-                    netId, EtherCATMasterAdsPort, targetIpAddress);
-                _masterClient.Connect(netId, (AmsPort)EtherCATMasterAdsPort);
+                // Conectar al PLC Runtime donde está instanciado FB_EtherCATDiag
+                _logger.LogInformation("🌐 Conectando a PLC {NetId}:{Port} (IP: {IP}), FB: {FB}...", 
+                    netId, PlcRuntimePort, targetIpAddress, _config.EtherCATDiagFbInstance);
+                _masterClient.Connect(netId, (AmsPort)PlcRuntimePort);
 
                 // Verificar conexión
                 var state = _masterClient.ReadState();
                 _isInitialized = state.AdsState == AdsState.Run || state.AdsState == AdsState.Config;
 
-                _logger.LogInformation("🌐 Connected to EtherCAT Master at {NetId}:{Port}, State: {State}",
-                    _config.EtherCATMasterNetId, EtherCATMasterAdsPort, state.AdsState);
+                _logger.LogInformation("🌐 Conectado al PLC {NetId}:{Port}, State: {State}",
+                    _config.EtherCATMasterNetId, PlcRuntimePort, state.AdsState);
 
                 return _isInitialized;
             }
@@ -808,7 +807,6 @@ namespace SW.PC.API.Backend.Services
             var master = new EtherCATMaster
             {
                 NetId = _config.EtherCATMasterNetId,
-                DeviceId = _config.EtherCATMasterDeviceId,
                 Name = "EtherCAT Master",
                 IsConnected = _masterClient?.IsConnected ?? false
             };
@@ -878,6 +876,10 @@ namespace SW.PC.API.Backend.Services
         // NOTA: ReadAllSlavesAsync reemplazada por ReadAllSlavesWithSimulationCheckAsync
         // que controla correctamente la simulación según UseSimulatedPlc
 
+        /// <summary>
+        /// Lee esclavos desde FB_EtherCATDiag.arrSlaveInfo vía variables PLC (puerto 851)
+        /// Esta es la estrategia correcta: usar el FB de Beckhoff en lugar de Index Groups directos
+        /// </summary>
         private async Task<List<EtherCATSlaveNode>> TryReadSlavesFromPlcVariablesAsync()
         {
             var slaves = new List<EtherCATSlaveNode>();
@@ -885,115 +887,106 @@ namespace SW.PC.API.Backend.Services
             if (_masterClient == null || !_masterClient.IsConnected)
                 return slaves;
 
+            var fbInstance = _config.EtherCATDiagFbInstance;
+            _logger.LogInformation("🔍 Leyendo esclavos desde {FB}.arrSlaveInfo (puerto 851)", fbInstance);
+
             try
             {
                 // =====================================================
-                // TwinCAT 3: Acceso directo al EtherCAT Master via I/O
-                // Puerto: 300 (R0_IO)
-                // Index Group: 0xF302 + (DeviceId * 0x10000)
+                // ESTRATEGIA: Leer desde FB_EtherCATDiag.arrSlaveInfo
+                // El FB de Beckhoff ya hace todo el trabajo de diagnóstico
+                // Solo necesitamos leer sus variables de salida
                 // =====================================================
-                
-                var deviceId = _config.EtherCATMasterDeviceId;
-                var masterIndexGroup = EcAdsIndexGroups.GetMasterIndexGroup(deviceId);
-                
-                _logger.LogInformation("🔍 Leyendo esclavos via Index Group 0x{IG:X8} (DeviceId={DevId})", 
-                    masterIndexGroup, deviceId);
-                
-                // =====================================================
-                // MÉTODO 1: Index Groups TwinCAT 3 (nuevos)
-                // =====================================================
+
+                // Primero verificar si el FB está activo
+                bool fbOk = false;
                 try
                 {
-                    // Leer número de esclavos
-                    var slaveCountBuffer = new byte[4];
-                    _masterClient.Read(masterIndexGroup, EcAdsIndexGroups.EC_MASTER_SLAVECOUNT, slaveCountBuffer.AsMemory());
-                    var slaveCount = BitConverter.ToUInt16(slaveCountBuffer, 0);
-                    
-                    _logger.LogInformation("✅ EtherCAT Master (IG 0x{IG:X8}) reporta {Count} esclavos", 
-                        masterIndexGroup, slaveCount);
-                    
-                    if (slaveCount > 0)
-                    {
-                        for (ushort i = 0; i < slaveCount && i < 100; i++)
-                        {
-                            try
-                            {
-                                var slave = await ReadSlaveInfoByIndexAsync(i, masterIndexGroup);
-                                if (slave != null)
-                                {
-                                    slave.Position = (ushort)(i + 1);
-                                    slaves.Add(slave);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogDebug("Error leyendo esclavo {Index}: {Error}", i, ex.Message);
-                            }
-                        }
-                        
-                        if (slaves.Count > 0)
-                        {
-                            _logger.LogInformation("✅ Leídos {Count} esclavos via Index Group TwinCAT 3", slaves.Count);
-                            return slaves;
-                        }
-                    }
+                    var handle = _masterClient.CreateVariableHandle($"{fbInstance}.bEtherCATOK");
+                    var buffer = new byte[1];
+                    _masterClient.Read(handle, buffer.AsMemory());
+                    _masterClient.DeleteVariableHandle(handle);
+                    fbOk = buffer[0] != 0;
+                    _logger.LogDebug("✅ {FB}.bEtherCATOK = {Value}", fbInstance, fbOk);
                 }
-                catch (AdsErrorException adsEx)
+                catch (AdsErrorException ex)
                 {
-                    _logger.LogWarning("⚠️ Index Group TC3 (0x{IG:X8}) falló: {Error} (Code: {Code})", 
-                        masterIndexGroup, adsEx.Message, adsEx.ErrorCode);
+                    _logger.LogWarning("❌ No se pudo leer {FB}.bEtherCATOK: {Error}", fbInstance, ex.ErrorCode);
+                    _logger.LogWarning("   Verifique que existe la instancia '{FB}' en el PLC", fbInstance);
+                    return slaves;
                 }
-                
-                // =====================================================
-                // MÉTODO 2: Index Groups legados (fallback)
-                // =====================================================
-                _logger.LogDebug("🔍 Intentando Index Groups legados...");
+
+                // Leer número de esclavos
+                ushort slaveCount = 0;
                 try
                 {
-                    var slaveCountBuffer = new byte[4];
-                    _masterClient.Read(EcAdsIndexGroups.ECMASTER_LEGACY_SLAVECOUNT, 0, slaveCountBuffer.AsMemory());
-                    var slaveCount = BitConverter.ToUInt16(slaveCountBuffer, 0);
+                    var handle = _masterClient.CreateVariableHandle($"{fbInstance}.iNumOfSlavesRead");
+                    var buffer = new byte[2];
+                    _masterClient.Read(handle, buffer.AsMemory());
+                    _masterClient.DeleteVariableHandle(handle);
+                    slaveCount = BitConverter.ToUInt16(buffer, 0);
+                    _logger.LogInformation("✅ {FB}.iNumOfSlavesRead = {Count}", fbInstance, slaveCount);
+                }
+                catch (AdsErrorException ex)
+                {
+                    _logger.LogDebug("⚠️ No se pudo leer iNumOfSlavesRead: {Error}, usando tamaño de array", ex.ErrorCode);
+                    slaveCount = 256; // Tamaño máximo del array por defecto
+                }
+
+                if (slaveCount == 0)
+                {
+                    _logger.LogInformation("ℹ️ No hay esclavos reportados por FB_EtherCATDiag");
+                    return slaves;
+                }
+
+                // =====================================================
+                // Leer el array arrSlaveInfo (ARRAY[0..256] OF ST_SlaveStateInfo)
+                // =====================================================
+                const int maxArrayElements = 257; // ARRAY[0..256]
+                const int maxElementSize = 300;   // Tamaño máximo estimado por elemento
+                
+                try
+                {
+                    var handle = _masterClient.CreateVariableHandle($"{fbInstance}.arrSlaveInfo");
+                    var buffer = new byte[maxArrayElements * maxElementSize];
+                    var bytesRead = _masterClient.Read(handle, buffer.AsMemory());
+                    _masterClient.DeleteVariableHandle(handle);
+
+                    _logger.LogDebug("✅ Leídos {Bytes} bytes de arrSlaveInfo", bytesRead);
+
+                    // Detectar tamaño real de cada elemento buscando nECAddr consecutivos
+                    // ST_SlaveStateInfo tiene nECAddr en offset ~166 (después de nIndex + sName + sType)
+                    int actualSlaveSize = DetectSlaveInfoSize(buffer, bytesRead);
                     
-                    _logger.LogInformation("✅ Legacy IG reporta {Count} esclavos", slaveCount);
-                    
-                    if (slaveCount > 0)
+                    if (actualSlaveSize == 0)
                     {
-                        for (ushort i = 0; i < slaveCount && i < 100; i++)
+                        _logger.LogWarning("⚠️ No se pudo detectar el tamaño de ST_SlaveStateInfo");
+                        return slaves;
+                    }
+
+                    _logger.LogDebug("📏 Tamaño detectado de ST_SlaveStateInfo: {Size} bytes", actualSlaveSize);
+
+                    // Parsear cada esclavo
+                    for (int i = 0; i < slaveCount && i < 100; i++)
+                    {
+                        var offset = i * actualSlaveSize;
+                        if (offset + actualSlaveSize > bytesRead)
+                            break;
+
+                        var slave = ParseSlaveStateInfo(buffer, offset, i);
+                        if (slave != null)
                         {
-                            try
-                            {
-                                var slave = await ReadSlaveInfoByIndexLegacyAsync(i);
-                                if (slave != null)
-                                {
-                                    slave.Position = (ushort)(i + 1);
-                                    slaves.Add(slave);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogDebug("Error leyendo esclavo legacy {Index}: {Error}", i, ex.Message);
-                            }
-                        }
-                        
-                        if (slaves.Count > 0)
-                        {
-                            _logger.LogInformation("✅ Leídos {Count} esclavos via Index Group Legacy", slaves.Count);
-                            return slaves;
+                            // Enriquecer con datos de ESI si está habilitado
+                            EnrichSlaveFromESI(slave);
+                            slaves.Add(slave);
                         }
                     }
+
+                    _logger.LogInformation("✅ Parseados {Count} esclavos desde {FB}.arrSlaveInfo", slaves.Count, fbInstance);
                 }
-                catch (AdsErrorException adsEx)
+                catch (AdsErrorException ex)
                 {
-                    _logger.LogDebug("⚠️ Legacy Index Group falló: {Error}", adsEx.Message);
-                }
-                
-                // =====================================================
-                // MÉTODO 3: Escaneo de direcciones (último recurso)
-                // =====================================================
-                if (slaves.Count == 0)
-                {
-                    _logger.LogDebug("🔍 Intentando escaneo de direcciones...");
-                    slaves = await TryReadSlavesViaDeviceInfoAsync();
+                    _logger.LogWarning("❌ Error leyendo arrSlaveInfo: {Error} (Code: {Code})", ex.Message, ex.ErrorCode);
                 }
             }
             catch (Exception ex)
@@ -1005,7 +998,179 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
+        /// Detecta el tamaño real de ST_SlaveStateInfo buscando nECAddr consecutivos
+        /// </summary>
+        private int DetectSlaveInfoSize(byte[] buffer, int bytesRead)
+        {
+            // nECAddr está aproximadamente en offset 166 (4+81+81 = nIndex + sName + sType)
+            const int nECAddrOffset = 166;
+            
+            // Buscar el primer nECAddr válido (debería ser 1001)
+            if (nECAddrOffset + 2 > bytesRead)
+                return 0;
+                
+            var firstECAddr = BitConverter.ToUInt16(buffer, nECAddrOffset);
+            
+            if (firstECAddr < 1001 || firstECAddr > 1256)
+            {
+                // Intentar con otros offsets comunes
+                foreach (var testOffset in new[] { 166, 168, 170, 172, 164 })
+                {
+                    if (testOffset + 2 <= bytesRead)
+                    {
+                        firstECAddr = BitConverter.ToUInt16(buffer, testOffset);
+                        if (firstECAddr >= 1001 && firstECAddr <= 1256)
+                        {
+                            _logger.LogDebug("🔍 nECAddr encontrado en offset {Offset}: {Addr}", testOffset, firstECAddr);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (firstECAddr < 1001 || firstECAddr > 1256)
+            {
+                _logger.LogDebug("⚠️ No se encontró nECAddr válido, asumiendo tamaño 256");
+                return 256; // Valor por defecto
+            }
+
+            // Buscar el siguiente nECAddr (firstECAddr + 1) para determinar el tamaño
+            var nextExpectedAddr = (ushort)(firstECAddr + 1);
+            
+            for (int testSize = 200; testSize <= 300; testSize += 4)
+            {
+                var testOffset = nECAddrOffset + testSize;
+                if (testOffset + 2 <= bytesRead)
+                {
+                    var testAddr = BitConverter.ToUInt16(buffer, testOffset);
+                    if (testAddr == nextExpectedAddr)
+                    {
+                        _logger.LogDebug("✅ Tamaño detectado: {Size} bytes (nECAddr={Addr} en offset {Offset})", 
+                            testSize, testAddr, testOffset);
+                        return testSize;
+                    }
+                }
+            }
+
+            _logger.LogDebug("⚠️ No se pudo detectar tamaño exacto, usando 256 bytes");
+            return 256;
+        }
+
+        /// <summary>
+        /// Parsea un ST_SlaveStateInfo desde el buffer
+        /// </summary>
+        private EtherCATSlaveNode? ParseSlaveStateInfo(byte[] buffer, int offset, int index)
+        {
+            try
+            {
+                // Estructura ST_SlaveStateInfo (aproximada):
+                // nIndex: DINT (4 bytes)
+                // sName: STRING(80) (81 bytes)
+                // sType: STRING(80) (81 bytes)
+                // nECAddr: UINT (2 bytes)
+                // bDiagData: BOOL (1 byte)
+                // stPortCRCErrors: ST_PortCRCErrors (~20 bytes)
+                // nSumCRCErrors: UDINT (4 bytes)
+                // stState: ST_EcSlaveState (~20 bytes)
+
+                var nIndex = BitConverter.ToInt32(buffer, offset);
+                
+                // Leer sName (STRING 80 + null terminator)
+                var nameBytes = new byte[81];
+                Array.Copy(buffer, offset + 4, nameBytes, 0, 81);
+                var name = System.Text.Encoding.ASCII.GetString(nameBytes).TrimEnd('\0');
+
+                // Leer sType (STRING 80 + null terminator)  
+                var typeBytes = new byte[81];
+                Array.Copy(buffer, offset + 4 + 81, typeBytes, 0, 81);
+                var deviceType = System.Text.Encoding.ASCII.GetString(typeBytes).TrimEnd('\0');
+
+                // nECAddr en offset 166
+                var nECAddr = BitConverter.ToUInt16(buffer, offset + 166);
+                
+                // Si nECAddr es 0 o inválido, saltar este esclavo
+                if (nECAddr == 0 || nECAddr < 1001)
+                    return null;
+
+                // bDiagData en offset 168
+                var bDiagData = buffer[offset + 168] != 0;
+
+                // nSumCRCErrors aproximadamente en offset ~190
+                var nSumCRCErrors = BitConverter.ToUInt32(buffer, offset + 188);
+
+                // stState aproximadamente en offset ~192
+                var stateOffset = offset + 192;
+                EtherCATState state = EtherCATState.Init;
+                if (stateOffset + 2 <= buffer.Length)
+                {
+                    var stateValue = buffer[stateOffset] & 0x0F;
+                    state = stateValue switch
+                    {
+                        1 => EtherCATState.Init,
+                        2 => EtherCATState.PreOp,
+                        3 => EtherCATState.Bootstrap,
+                        4 => EtherCATState.SafeOp,
+                        8 => EtherCATState.Operational,
+                        _ => EtherCATState.Unknown
+                    };
+                }
+
+                var slave = new EtherCATSlaveNode
+                {
+                    Position = (ushort)(index + 1),
+                    ConfiguredAddress = nECAddr,
+                    Name = string.IsNullOrWhiteSpace(name) ? $"Slave {nECAddr}" : name,
+                    DeviceType = deviceType,
+                    State = state,
+                    Health = state == EtherCATState.Operational ? NodeHealth.Healthy : 
+                             state == EtherCATState.SafeOp ? NodeHealth.Warning : NodeHealth.Error,
+                    DiagnosticsAvailable = bDiagData,
+                    ErrorCount = (int)nSumCRCErrors
+                };
+
+                _logger.LogDebug("  [{Index}] {Name} (ECAddr:{Addr}, State:{State})", 
+                    index, slave.Name, nECAddr, state);
+
+                return slave;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug("Error parseando esclavo {Index}: {Error}", index, ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Enriquece datos del esclavo con información de ESI files
+        /// </summary>
+        private void EnrichSlaveFromESI(EtherCATSlaveNode slave)
+        {
+            if (!_config.UseESIFiles || slave.VendorId == 0)
+                return;
+
+            try
+            {
+                var esiInfo = _esiParser.GetDeviceInfo(slave.VendorId, slave.ProductCode);
+                if (esiInfo != null)
+                {
+                    if (string.IsNullOrWhiteSpace(slave.Name) || slave.Name.StartsWith("Slave "))
+                        slave.Name = esiInfo.ProductName;
+                    if (string.IsNullOrWhiteSpace(slave.Description))
+                        slave.Description = esiInfo.Description;
+                    if (string.IsNullOrWhiteSpace(slave.VendorName))
+                        slave.VendorName = esiInfo.VendorName;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug("Error obteniendo ESI para esclavo {Name}: {Error}", slave.Name, ex.Message);
+            }
+        }
+
+        /// <summary>
         /// Lee información de un esclavo por su índice usando Index Groups TwinCAT 3
+        /// (Método legacy, mantenido como fallback)
+        /// </summary>
         /// </summary>
         private async Task<EtherCATSlaveNode?> ReadSlaveInfoByIndexAsync(ushort slaveIndex, uint masterIndexGroup)
         {
@@ -1191,11 +1356,12 @@ namespace SW.PC.API.Backend.Services
                     try
                     {
                         // Intentar leer estado del esclavo usando Index Group específico
-                        // 0x0F02XXYY donde XX = DeviceId, YY = operación
+                        // 0x0F02XXYY donde XX = DeviceId (usamos 1 por defecto), YY = operación
+                        // NOTA: Este método es legacy y no debería ejecutarse con la nueva estrategia FB_EtherCATDiag
                         var stateBuffer = new byte[2];
                         
                         // ADSIGRP_ECAT_SLAVECNT (obtener si existe esclavo)
-                        uint indexGroup = 0x0F020000 | ((uint)_config.EtherCATMasterDeviceId << 16);
+                        uint indexGroup = 0x0F020000 | (1u << 16); // DeviceId = 1 (fijo)
                         
                         try
                         {

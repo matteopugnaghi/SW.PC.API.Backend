@@ -2894,15 +2894,6 @@ namespace SW.PC.API.Backend.Services
                                 _logger.LogDebug("🌐 EtherNETIdTwincat raw value: '{RawValue}'", paramValue);
                                 break;
                             
-                            case "ethercatmasterdeviceid":
-                            case "ethercat_master_deviceid":
-                            case "ethercat_master_device_id":
-                            case "ecatmasterdeviceid":
-                                if (int.TryParse(paramValue?.Trim(), out int ecatDeviceId))
-                                    config.EtherCATMasterDeviceId = ecatDeviceId;
-                                _logger.LogDebug("🌐 EtherCATMasterDeviceId raw value: '{RawValue}' -> {Parsed}", paramValue, config.EtherCATMasterDeviceId);
-                                break;
-                            
                             case "esifilespath":
                             case "esi_files_path":
                             case "ethercatesipath":
@@ -2918,6 +2909,17 @@ namespace SW.PC.API.Backend.Services
                                 var esiValue = paramValue?.ToLower()?.Trim() ?? "";
                                 config.UseEtherCATESIFiles = esiValue == "true" || esiValue == "1" || esiValue == "on" || esiValue == "si" || esiValue == "yes";
                                 _logger.LogDebug("🌐 UseEtherCATESIFiles raw value: '{RawValue}' -> {Parsed}", paramValue, config.UseEtherCATESIFiles);
+                                break;
+                            
+                            case "ethercatdiagfbinstance":
+                            case "ethercat_diag_fb_instance":
+                            case "ethercat_fb_instance":
+                            case "ethercatfbinstance":
+                            case "fbethercatdiag":
+                            case "fb_ethercat_diag":
+                            case "diag_fb_instance":
+                                config.EtherCATDiagFbInstance = paramValue?.Trim() ?? "MAIN.fbEtherCATDiag";
+                                _logger.LogDebug("🌐 EtherCATDiagFbInstance raw value: '{RawValue}'", paramValue);
                                 break;
                             
                             case "ethercattopologyreadintervalms":
