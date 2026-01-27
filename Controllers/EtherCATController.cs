@@ -644,6 +644,61 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         /// <summary>
+        /// ⚡ OPTIMIZADO: Obtiene la topología guardada con estados actualizados del PLC.
+        /// NO procesa ESI, NO recalcula layout - solo actualiza estados.
+        /// Usar cuando ya existe configuración guardada para máximo rendimiento.
+        /// Si no hay configuración guardada, retorna null y el frontend debe usar /topology normal.
+        /// </summary>
+        [HttpGet("topology/optimized")]
+        public async Task<ActionResult<EtherCATTopology>> GetOptimizedTopology()
+        {
+            if (!_etherCATService.IsEnabled)
+            {
+                return Ok(new EtherCATTopology
+                {
+                    HasCommunicationError = true,
+                    ErrorMessage = "EtherCAT diagnostics not enabled",
+                    Timestamp = DateTime.Now,
+                    Summary = new EtherCATSummary { OverallHealth = NetworkHealth.Offline }
+                });
+            }
+
+            try
+            {
+                _logger.LogInformation("⚡ EtherCAT optimized topology requested");
+                
+                // Primero verificar si hay configuración guardada
+                var hasSaved = await _etherCATService.HasSavedConfigurationAsync();
+                if (!hasSaved)
+                {
+                    // No hay config guardada - indicar al frontend que use /topology normal
+                    return Ok(new { 
+                        hasConfiguration = false, 
+                        message = "No saved configuration. Use /topology to get full topology and save it." 
+                    });
+                }
+
+                // Cargar topología guardada con estados actualizados
+                var topology = await _etherCATService.GetSavedTopologyWithCurrentStatesAsync();
+                
+                if (topology == null)
+                {
+                    return Ok(new { 
+                        hasConfiguration = false, 
+                        message = "Error loading saved configuration" 
+                    });
+                }
+
+                return Ok(topology);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting optimized topology");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Obtiene información detallada de un esclavo específico
         /// </summary>
         [HttpGet("slave/{address:int}")]
@@ -1665,59 +1720,49 @@ namespace SW.PC.API.Backend.Controllers
                     var handle = client.CreateVariableHandle($"{effectiveFbInstance}.arrSlaveInfo");
                     // Leer todo el array - usar un buffer grande para detectar el tamaño real
                     const int maxArrayElements = 257; // ARRAY[0..256]
-                    const int maxElementSize = 300;   // Tamaño máximo estimado por elemento
+                    const int maxElementSize = 320;   // Tamaño máximo estimado por elemento
                     var buffer = new byte[maxArrayElements * maxElementSize];
                     var bytesRead = client.Read(handle, buffer.AsMemory());
                     client.DeleteVariableHandle(handle);
                     
                     diagnostics.Add($"✅ arrSlaveInfo: {bytesRead} bytes leídos");
                     
-                    // ✅ MÉTODO: Detectar tamaño real buscando patrón de nECAddr consecutivos
-                    // El primer esclavo tiene nECAddr=1001 en offset ~166, el segundo en offset ~166+slaveSize
+                    // ⭐ MÉTODO MEJORADO: Detectar tamaño real Y offset de nECAddr dinámicamente
+                    // Posibles offsets donde puede estar nECAddr:
+                    // - 247/248 = con sESIfile: nIndex(4) + sName(81) + sType(81) + sESIfile(81) = 247 (con padding: 248)
+                    // - 166 = sin sESIfile: nIndex(4) + sName(81) + sType(81) = 166
                     int actualSlaveSize = 0;
+                    int nECAddrOffset = 248; // Default: con sESIfile y padding
                     
-                    // Buscar nECAddr del primer esclavo (debería ser 1001)
-                    var firstECAddr = BitConverter.ToUInt16(buffer, 166); // offset 4+81+81=166
-                    diagnostics.Add($"🔍 Primer nECAddr en offset 166: {firstECAddr}");
+                    int[] possibleNECAddrOffsets = { 248, 247, 166 };
+                    int[] possibleSizes = { 292, 290, 288, 296, 294, 212, 210, 208, 214 };
                     
-                    if (firstECAddr >= 1001 && firstECAddr <= 1256)
+                    bool patternFound = false;
+                    foreach (var testOffset in possibleNECAddrOffsets)
                     {
-                        // Buscar el siguiente nECAddr válido (firstECAddr + 1)
-                        var nextExpectedAddr = (ushort)(firstECAddr + 1);
-                        for (int testSize = 200; testSize <= 300; testSize += 4) // Probar tamaños alineados a 4
+                        if (patternFound) break;
+                        foreach (var testSize in possibleSizes)
                         {
-                            var testOffset = 166 + testSize;
-                            if (testOffset + 2 <= bytesRead)
+                            // Necesitamos al menos 3 estructuras para verificar
+                            if (testOffset + (testSize * 3) > bytesRead)
+                                continue;
+                            
+                            // Leer 3 valores de nECAddr consecutivos
+                            var addr1 = BitConverter.ToUInt16(buffer, testOffset);
+                            var addr2 = BitConverter.ToUInt16(buffer, testOffset + testSize);
+                            var addr3 = BitConverter.ToUInt16(buffer, testOffset + (testSize * 2));
+                            
+                            // Verificar que son válidos (rango 1001-1256) y consecutivos
+                            if (addr1 >= 1001 && addr1 <= 1256 &&
+                                addr2 == addr1 + 1 &&
+                                addr3 == addr1 + 2)
                             {
-                                var testAddr = BitConverter.ToUInt16(buffer, testOffset);
-                                if (testAddr == nextExpectedAddr)
-                                {
-                                    actualSlaveSize = testSize;
-                                    diagnostics.Add($"✅ Tamaño detectado: {actualSlaveSize} bytes (encontrado nECAddr={testAddr} en offset {testOffset})");
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Si no pudimos detectar, usar método alternativo
-                    if (actualSlaveSize == 0)
-                    {
-                        // Buscar el patrón "EL" o "EK" que indica inicio de sType del siguiente esclavo
-                        // sType está en offset 85 dentro de cada estructura
-                        for (int testSize = 200; testSize <= 300; testSize += 4)
-                        {
-                            var testOffset = 85 + testSize; // sType del segundo esclavo
-                            if (testOffset + 2 <= bytesRead)
-                            {
-                                var char1 = (char)buffer[testOffset];
-                                var char2 = (char)buffer[testOffset + 1];
-                                if (char1 == 'E' && (char2 == 'L' || char2 == 'K'))
-                                {
-                                    actualSlaveSize = testSize;
-                                    diagnostics.Add($"✅ Tamaño detectado por patrón sType: {actualSlaveSize} bytes");
-                                    break;
-                                }
+                                actualSlaveSize = testSize;
+                                nECAddrOffset = testOffset;
+                                diagnostics.Add($"✅ Patrón detectado: nECAddr en offset {nECAddrOffset}, tamaño = {actualSlaveSize} bytes");
+                                diagnostics.Add($"   Valores: {addr1}, {addr2}, {addr3}");
+                                patternFound = true;
+                                break;
                             }
                         }
                     }
@@ -1725,13 +1770,14 @@ namespace SW.PC.API.Backend.Controllers
                     // Fallback si ningún método funcionó
                     if (actualSlaveSize == 0)
                     {
-                        actualSlaveSize = 264; // Valor común en TwinCAT 3.1
-                        diagnostics.Add($"⚠️ No se pudo detectar tamaño, usando default: {actualSlaveSize} bytes");
+                        actualSlaveSize = 288; // Valor más común detectado
+                        nECAddrOffset = 248;
+                        diagnostics.Add($"⚠️ No se pudo detectar patrón, usando defaults: size={actualSlaveSize}, offset={nECAddrOffset}");
                     }
                     
                     diagnostics.Add($"📊 Elementos estimados en array: {bytesRead / actualSlaveSize}");
                     
-                    // Parsear cada esclavo
+                    // Parsear cada esclavo usando offsets dinámicos
                     for (int i = 0; i < slaveCount && (i + 1) * actualSlaveSize <= bytesRead; i++)
                     {
                         int offset = i * actualSlaveSize;
@@ -1750,18 +1796,30 @@ namespace SW.PC.API.Backend.Controllers
                         var sTypeOffset = sNameOffset + 81;
                         var sType = ExtractTwinCATString(buffer, sTypeOffset, 81);
                         
-                        var nECAddr = BitConverter.ToUInt16(buffer, sTypeOffset + 81);
-                        var bDiagData = buffer[sTypeOffset + 83] != 0;
+                        // ⭐ USAR OFFSET DETECTADO DINÁMICAMENTE para nECAddr
+                        var nECAddr = BitConverter.ToUInt16(buffer, offset + nECAddrOffset);
+                        var bDiagData = buffer[offset + nECAddrOffset + 2] != 0;
                         
-                        // stPortCRCErrors (16 bytes) + nSumCRCErrors
-                        var crcOffset = sTypeOffset + 84 + 16;
-                        var nSumCRCErrors = (crcOffset + 4 <= bytesRead) 
-                            ? BitConverter.ToUInt32(buffer, crcOffset) 
-                            : 0u;
+                        // Estructura después de nECAddr:
+                        // nECAddr(2) + bDiagData(1) + padding(1) + stPortCRCErrors(16) + nSumCRCErrors(4) = 24 bytes hasta stState
+                        var nSumCRCErrorsOffset = offset + nECAddrOffset + 20; // 2+1+1+16 = 20
+                        var nSumCRCErrors = 0u;
+                        if (nSumCRCErrorsOffset + 4 <= buffer.Length)
+                        {
+                            nSumCRCErrors = BitConverter.ToUInt32(buffer, nSumCRCErrorsOffset);
+                        }
                         
-                        // Parsear stState
-                        var stateOffset = crcOffset + 4;
-                        var slaveStateData = ParseSlaveState(buffer, stateOffset, bytesRead);
+                        // Parsear stState (está en nECAddrOffset + 24)
+                        var stateOffset = offset + nECAddrOffset + 24;
+                        var slaveStateData = ParseSlaveState(buffer, stateOffset, buffer.Length);
+                        
+                        // ⭐ DEBUG: Mostrar bytes raw de stState para los primeros 3 esclavos
+                        if (i < 3)
+                        {
+                            var rawStateBytes = new byte[16];
+                            Array.Copy(buffer, stateOffset, rawStateBytes, 0, Math.Min(16, buffer.Length - stateOffset));
+                            diagnostics.Add($"🔬 Slave[{i}] stState @offset={stateOffset}: {BitConverter.ToString(rawStateBytes)}");
+                        }
                         
                         // ⭐ Buscar información ESI por sType para obtener Physics de puertos
                         var esiInfo = _esiParser.GetDeviceInfoByType(sType.Trim());
@@ -1857,22 +1915,28 @@ namespace SW.PC.API.Backend.Controllers
                     diagnostics.Add($"📊 Raw bytes [0-63]: {rawFirst64}");
                     
                     // ⭐ Crear un diccionario de sType por physAddr para enriquecer topología
-                    var slaveTypeByAddr = slaves
-                        .Where(s => s is not null)
-                        .Select(s => 
+                    // IMPORTANTE: Filtrar nECAddr > 0 para evitar duplicados con Key=0
+                    var slaveTypeByAddr = new Dictionary<ushort, string>();
+                    foreach (var s in slaves)
+                    {
+                        if (s is null) continue;
+                        
+                        var props = s.GetType().GetProperties();
+                        var nECAddrProp = props.FirstOrDefault(p => p.Name == "nECAddr");
+                        var sTypeProp = props.FirstOrDefault(p => p.Name == "sType");
+                        
+                        if (nECAddrProp != null && sTypeProp != null)
                         {
-                            var dict = (IDictionary<string, object?>)new System.Dynamic.ExpandoObject();
-                            foreach (var prop in s.GetType().GetProperties())
+                            var nECAddr = Convert.ToUInt16(nECAddrProp.GetValue(s));
+                            var sType = sTypeProp.GetValue(s)?.ToString() ?? "";
+                            
+                            // Solo agregar si nECAddr > 0 y no existe ya
+                            if (nECAddr > 0 && !slaveTypeByAddr.ContainsKey(nECAddr))
                             {
-                                dict[prop.Name] = prop.GetValue(s);
+                                slaveTypeByAddr[nECAddr] = sType;
                             }
-                            return dict;
-                        })
-                        .Where(d => d.ContainsKey("nECAddr") && d.ContainsKey("sType"))
-                        .ToDictionary(
-                            d => Convert.ToUInt16(d["nECAddr"]), 
-                            d => d["sType"]?.ToString() ?? ""
-                        );
+                        }
+                    }
                     
                     for (int i = 0; i < slaveCount && (i + 1) * topoSize <= bytesRead; i++)
                     {
@@ -2380,20 +2444,21 @@ namespace SW.PC.API.Backend.Controllers
         // Helper: Parsear ST_SlaveState
         private object ParseSlaveState(byte[] buffer, int offset, int maxLen)
         {
-            if (offset + 16 > maxLen) return new { error = "insufficient data" };
+            if (offset + 16 > maxLen) return new { error = "insufficient data", eEcState = "UNDEFINED" };
             
             try
             {
-                var eEcState = BitConverter.ToUInt16(buffer, offset);
-                var stateName = eEcState switch
+                // ⭐ CORREGIDO: Leer solo el primer byte y aplicar máscara 0x0F
+                // El enum eEcState está en los 4 bits inferiores del primer byte
+                var stateValue = buffer[offset] & 0x0F;
+                var stateName = stateValue switch
                 {
-                    0 => "UNDEFINED",
                     1 => "INIT",
                     2 => "PREOP", 
                     3 => "BOOT",
                     4 => "SAFEOP",
                     8 => "OP",
-                    _ => $"UNKNOWN({eEcState})"
+                    _ => stateValue == 0 ? "UNDEFINED" : $"UNKNOWN({stateValue})"
                 };
                 
                 // Offset 4: bError, bInvalidVPRS
@@ -2403,24 +2468,31 @@ namespace SW.PC.API.Backend.Controllers
                 // Link state flags (offset ~8)
                 var linkFlags = buffer[offset + 8];
                 
+                // ⭐ NUEVO: Puertos activos están en offsets 12-15 dentro de ST_SlaveState
+                var bPortA = buffer[offset + 12] != 0;
+                var bPortB = buffer[offset + 13] != 0;
+                var bPortC = buffer[offset + 14] != 0;
+                var bPortD = buffer[offset + 15] != 0;
+                
                 return new
                 {
                     eEcState = stateName,
+                    rawStateValue = stateValue,
                     bError,
                     bInvalidVPRS,
                     bNoCommToSlave = (linkFlags & 0x01) != 0,
                     bLinkError = (linkFlags & 0x02) != 0,
                     bMissingLink = (linkFlags & 0x04) != 0,
                     bUnexpectedLink = (linkFlags & 0x08) != 0,
-                    bPortA = (linkFlags & 0x10) != 0,
-                    bPortB = (linkFlags & 0x20) != 0,
-                    bPortC = (linkFlags & 0x40) != 0,
-                    bPortD = (linkFlags & 0x80) != 0
+                    bPortA,
+                    bPortB,
+                    bPortC,
+                    bPortD
                 };
             }
             catch
             {
-                return new { error = "parse error" };
+                return new { error = "parse error", eEcState = "UNDEFINED" };
             }
         }
     }

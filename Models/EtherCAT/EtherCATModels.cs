@@ -125,30 +125,34 @@ namespace SW.PC.API.Backend.Models.EtherCAT
 
     /// <summary>
     /// ST_SlaveStateInfo - Información completa de un esclavo configurado
-    /// Tamaño: 208 bytes exactos
+    /// Estructura según XML del PLC (sESIfile está ENTRE sType y nECAddr):
+    ///   nIndex, sName, sType, sESIfile, nECAddr, bDiagData, stPortCRCErrors, nSumCRCErrors, stState
+    /// Tamaño aproximado: ~290 bytes
     /// </summary>
     public class ST_SlaveStateInfo_Parsed
     {
         public int nIndex;                    // DINT (4 bytes)
         public string sName = "";             // STRING(80) + 1 = 81 bytes
         public string sType = "";             // STRING(80) + 1 = 81 bytes
+        public string sESIfile = "";          // STRING(80) + 1 = 81 bytes - ⭐ Archivo ESI para no-Beckhoff
         public ushort nECAddr;                // UINT (2 bytes)
-        public bool bDiagData;                // BOOL (1 byte + 1 padding)
+        public bool bDiagData;                // BOOL (1 byte + padding)
         public ST_EcCrcErrorEx stPortCRCErrors; // 16 bytes
         public uint nSumCRCErrors;            // UDINT (4 bytes)
         public ST_SlaveState stState;         // 16 bytes
         
-        // Offsets exactos para parsing manual
-        public const int Offset_nIndex = 0;           // 0
-        public const int Offset_sName = 4;            // 4
-        public const int Offset_sType = 85;           // 4 + 81 = 85
-        public const int Offset_nECAddr = 166;        // 85 + 81 = 166
-        public const int Offset_bDiagData = 168;      // 166 + 2 = 168
-        public const int Offset_stPortCRCErrors = 170; // 168 + 2 (con padding)
-        public const int Offset_nSumCRCErrors = 186;  // 170 + 16 = 186
-        public const int Offset_stState = 190;        // 186 + 4 = 190
+        // Offsets exactos para parsing manual (según estructura PLC con sESIfile)
+        public const int Offset_nIndex = 0;            // 0
+        public const int Offset_sName = 4;             // 4
+        public const int Offset_sType = 85;            // 4 + 81 = 85
+        public const int Offset_sESIfile = 166;        // 85 + 81 = 166 - ⭐ sESIfile está AQUÍ
+        public const int Offset_nECAddr = 247;         // 166 + 81 = 247
+        public const int Offset_bDiagData = 249;       // 247 + 2 = 249
+        public const int Offset_stPortCRCErrors = 252; // 249 + 1 + padding ~= 252
+        public const int Offset_nSumCRCErrors = 268;   // 252 + 16 = 268
+        public const int Offset_stState = 272;         // 268 + 4 = 272
         
-        public const int Size = 208;                  // 190 + 16 + padding = ~208
+        public const int Size = 290;                   // 272 + 16 + padding ~= 290
     }
 
     /// <summary>
@@ -605,6 +609,10 @@ namespace SW.PC.API.Backend.Models.EtherCAT
         // === Imágenes ===
         /// <summary>URL o ruta a imagen del dispositivo (desde ESI)</summary>
         public string ImageUrl { get; set; } = "";
+
+        // === ESI File ===
+        /// <summary>Nombre del archivo ESI especificado en el PLC (sESIfile). Para dispositivos no-Beckhoff.</summary>
+        public string ESIFileName { get; set; } = "";
 
         // === Para visualización ===
         /// <summary>Posición X en el layout (calculada)</summary>

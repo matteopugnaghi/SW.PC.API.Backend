@@ -56,6 +56,13 @@ namespace SW.PC.API.Backend.Services
         /// <summary>Verifica si existe configuración guardada</summary>
         Task<bool> HasSavedConfigurationAsync();
 
+        /// <summary>
+        /// ⭐ OPTIMIZADO: Obtiene la topología guardada con estados actualizados del PLC.
+        /// NO procesa ESI, NO recalcula layout - solo actualiza estados.
+        /// Usar cuando ya existe configuración guardada para máximo rendimiento.
+        /// </summary>
+        Task<EtherCATTopology?> GetSavedTopologyWithCurrentStatesAsync();
+
         /// <summary>Prueba la conexión al Master EtherCAT y retorna diagnóstico detallado</summary>
         Task<EtherCATConnectionDiagnostics> TestConnectionAsync();
     }
@@ -955,8 +962,8 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogDebug("✅ Leídos {Bytes} bytes de arrSlaveInfo", bytesRead);
 
                     // Detectar tamaño real de cada elemento buscando nECAddr consecutivos
-                    // ST_SlaveStateInfo tiene nECAddr en offset ~166 (después de nIndex + sName + sType)
-                    int actualSlaveSize = DetectSlaveInfoSize(buffer, bytesRead);
+                    // ST_SlaveStateInfo tiene nECAddr en offset ~247-248 (después de nIndex + sName + sType + sESIfile)
+                    var (actualSlaveSize, detectedNECAddrOffset) = DetectSlaveInfoSize(buffer, bytesRead);
                     
                     if (actualSlaveSize == 0)
                     {
@@ -964,7 +971,8 @@ namespace SW.PC.API.Backend.Services
                         return slaves;
                     }
 
-                    _logger.LogDebug("📏 Tamaño detectado de ST_SlaveStateInfo: {Size} bytes", actualSlaveSize);
+                    _logger.LogDebug("📏 Tamaño detectado de ST_SlaveStateInfo: {Size} bytes, nECAddr offset: {Offset}", 
+                        actualSlaveSize, detectedNECAddrOffset);
 
                     // Parsear cada esclavo
                     for (int i = 0; i < slaveCount && i < 100; i++)
@@ -973,10 +981,11 @@ namespace SW.PC.API.Backend.Services
                         if (offset + actualSlaveSize > bytesRead)
                             break;
 
-                        var slave = ParseSlaveStateInfo(buffer, offset, i);
+                        var slave = ParseSlaveStateInfo(buffer, offset, i, actualSlaveSize, detectedNECAddrOffset);
                         if (slave != null)
                         {
                             // Enriquecer con datos de ESI si está habilitado
+                            // ⭐ Ahora pasa también el ESIFileName del PLC
                             EnrichSlaveFromESI(slave);
                             slaves.Add(slave);
                         }
@@ -998,112 +1007,178 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
-        /// Detecta el tamaño real de ST_SlaveStateInfo buscando nECAddr consecutivos
+        /// Extrae un string terminado en nulo desde un array de bytes.
+        /// Trunca en el primer byte nulo encontrado.
         /// </summary>
-        private int DetectSlaveInfoSize(byte[] buffer, int bytesRead)
+        private static string ExtractNullTerminatedString(byte[] bytes)
         {
-            // nECAddr está aproximadamente en offset 166 (4+81+81 = nIndex + sName + sType)
-            const int nECAddrOffset = 166;
+            int nullIndex = Array.IndexOf(bytes, (byte)0);
+            int length = nullIndex >= 0 ? nullIndex : bytes.Length;
+            return System.Text.Encoding.ASCII.GetString(bytes, 0, length).Trim();
+        }
+
+        /// <summary>
+        /// Detecta el tamaño real de ST_SlaveStateInfo buscando nECAddr consecutivos
+        /// ⭐ ESTRATEGIA: Busca 3 valores consecutivos de nECAddr (N, N+1, N+2) para confirmar el tamaño
+        /// ⭐ Devuelve (size, nECAddrOffset) - el offset detectado de nECAddr dentro de cada estructura
+        /// </summary>
+        private (int Size, int NECAddrOffset) DetectSlaveInfoSize(byte[] buffer, int bytesRead)
+        {
+            _logger.LogDebug("🔍 Detectando tamaño de ST_SlaveStateInfo... (buffer: {Bytes} bytes)", bytesRead);
             
-            // Buscar el primer nECAddr válido (debería ser 1001)
-            if (nECAddrOffset + 2 > bytesRead)
-                return 0;
-                
-            var firstECAddr = BitConverter.ToUInt16(buffer, nECAddrOffset);
+            // Posibles offsets donde podría estar nECAddr dentro de la estructura:
+            // - 247 = con sESIfile: nIndex(4) + sName(81) + sType(81) + sESIfile(81) = 247
+            // - 166 = sin sESIfile: nIndex(4) + sName(81) + sType(81) = 166
+            int[] possibleNECAddrOffsets = { 247, 166 };
             
-            if (firstECAddr < 1001 || firstECAddr > 1256)
+            // Posibles tamaños de estructura a probar
+            int[] possibleSizes = { 292, 290, 288, 296, 294, 212, 210, 208, 214 };
+            
+            foreach (var nECAddrOffset in possibleNECAddrOffsets)
             {
-                // Intentar con otros offsets comunes
-                foreach (var testOffset in new[] { 166, 168, 170, 172, 164 })
+                foreach (var testSize in possibleSizes)
                 {
-                    if (testOffset + 2 <= bytesRead)
+                    // Necesitamos al menos 3 estructuras para verificar
+                    if (nECAddrOffset + (testSize * 3) > bytesRead)
+                        continue;
+                    
+                    // Leer 3 valores de nECAddr consecutivos
+                    var addr1 = BitConverter.ToUInt16(buffer, nECAddrOffset);
+                    var addr2 = BitConverter.ToUInt16(buffer, nECAddrOffset + testSize);
+                    var addr3 = BitConverter.ToUInt16(buffer, nECAddrOffset + (testSize * 2));
+                    
+                    // Verificar que son válidos (rango 1001-1256) y consecutivos
+                    if (addr1 >= 1001 && addr1 <= 1256 &&
+                        addr2 == addr1 + 1 &&
+                        addr3 == addr1 + 2)
                     {
-                        firstECAddr = BitConverter.ToUInt16(buffer, testOffset);
-                        if (firstECAddr >= 1001 && firstECAddr <= 1256)
-                        {
-                            _logger.LogDebug("🔍 nECAddr encontrado en offset {Offset}: {Addr}", testOffset, firstECAddr);
+                        _logger.LogInformation("✅ Patrón detectado: nECAddr en offset {Offset}, tamaño estructura = {Size} bytes",
+                            nECAddrOffset, testSize);
+                        _logger.LogDebug("   Valores: {A1}, {A2}, {A3}", addr1, addr2, addr3);
+                        return (testSize, nECAddrOffset);
+                    }
+                }
+            }
+            
+            // Si no encontramos el patrón, hacer un escaneo más exhaustivo
+            _logger.LogWarning("⚠️ Patrón estándar no encontrado, haciendo escaneo exhaustivo...");
+            
+            // Buscar cualquier secuencia de 3 valores consecutivos en rango 1001-1256
+            for (int startOffset = 0; startOffset < Math.Min(500, bytesRead - 6); startOffset += 2)
+            {
+                var val = BitConverter.ToUInt16(buffer, startOffset);
+                if (val >= 1001 && val <= 1256)
+                {
+                    // Encontramos un posible nECAddr, buscar el siguiente
+                    for (int testSize = 200; testSize <= 320; testSize += 2)
+                    {
+                        if (startOffset + (testSize * 2) + 2 > bytesRead)
                             break;
+                            
+                        var val2 = BitConverter.ToUInt16(buffer, startOffset + testSize);
+                        var val3 = BitConverter.ToUInt16(buffer, startOffset + (testSize * 2));
+                        
+                        if (val2 == val + 1 && val3 == val + 2)
+                        {
+                            _logger.LogInformation("✅ Escaneo: nECAddr encontrado en offset {Offset}, tamaño = {Size} bytes",
+                                startOffset, testSize);
+                            return (testSize, startOffset);
                         }
                     }
                 }
             }
             
-            if (firstECAddr < 1001 || firstECAddr > 1256)
-            {
-                _logger.LogDebug("⚠️ No se encontró nECAddr válido, asumiendo tamaño 256");
-                return 256; // Valor por defecto
-            }
-
-            // Buscar el siguiente nECAddr (firstECAddr + 1) para determinar el tamaño
-            var nextExpectedAddr = (ushort)(firstECAddr + 1);
-            
-            for (int testSize = 200; testSize <= 300; testSize += 4)
-            {
-                var testOffset = nECAddrOffset + testSize;
-                if (testOffset + 2 <= bytesRead)
-                {
-                    var testAddr = BitConverter.ToUInt16(buffer, testOffset);
-                    if (testAddr == nextExpectedAddr)
-                    {
-                        _logger.LogDebug("✅ Tamaño detectado: {Size} bytes (nECAddr={Addr} en offset {Offset})", 
-                            testSize, testAddr, testOffset);
-                        return testSize;
-                    }
-                }
-            }
-
-            _logger.LogDebug("⚠️ No se pudo detectar tamaño exacto, usando 256 bytes");
-            return 256;
+            // Último recurso: usar el tamaño por defecto
+            _logger.LogWarning("⚠️ No se pudo detectar tamaño, usando valores por defecto: Size={Size}, Offset={Offset}", 
+                ST_SlaveStateInfo_Parsed.Size, ST_SlaveStateInfo_Parsed.Offset_nECAddr);
+            return (ST_SlaveStateInfo_Parsed.Size, ST_SlaveStateInfo_Parsed.Offset_nECAddr); // 290 bytes, offset 247
         }
 
         /// <summary>
         /// Parsea un ST_SlaveStateInfo desde el buffer
+        /// ⭐ Estructura según XML del PLC:
+        ///    nIndex, sName, sType, sESIfile, nECAddr, bDiagData, stPortCRCErrors, nSumCRCErrors, stState
         /// </summary>
-        private EtherCATSlaveNode? ParseSlaveStateInfo(byte[] buffer, int offset, int index)
+        /// <param name="nECAddrOffset">Offset detectado dinámicamente de nECAddr dentro de la estructura</param>
+        private EtherCATSlaveNode? ParseSlaveStateInfo(byte[] buffer, int offset, int index, int slaveSize, int nECAddrOffset)
         {
             try
             {
-                // Estructura ST_SlaveStateInfo (aproximada):
-                // nIndex: DINT (4 bytes)
-                // sName: STRING(80) (81 bytes)
-                // sType: STRING(80) (81 bytes)
-                // nECAddr: UINT (2 bytes)
-                // bDiagData: BOOL (1 byte)
-                // stPortCRCErrors: ST_PortCRCErrors (~20 bytes)
-                // nSumCRCErrors: UDINT (4 bytes)
-                // stState: ST_EcSlaveState (~20 bytes)
+                // Estructura ST_SlaveStateInfo según PLC:
+                // nIndex:         DINT (4 bytes)        → offset 0
+                // sName:          STRING(80) (81 bytes) → offset 4
+                // sType:          STRING(80) (81 bytes) → offset 85
+                // sESIfile:       STRING(80) (81 bytes) → offset 166 ⭐ 
+                // nECAddr:        UINT (2 bytes)        → offset 247
+                // bDiagData:      BOOL (1 byte)         → offset 249
+                // stPortCRCErrors: ST_EcCrcErrorEx (16) → offset ~252
+                // nSumCRCErrors:  UDINT (4 bytes)       → offset ~268
+                // stState:        ST_SlaveState (16)    → offset ~272
 
-                var nIndex = BitConverter.ToInt32(buffer, offset);
+                var nIndex = BitConverter.ToInt32(buffer, offset + ST_SlaveStateInfo_Parsed.Offset_nIndex);
                 
                 // Leer sName (STRING 80 + null terminator)
                 var nameBytes = new byte[81];
-                Array.Copy(buffer, offset + 4, nameBytes, 0, 81);
-                var name = System.Text.Encoding.ASCII.GetString(nameBytes).TrimEnd('\0');
+                Array.Copy(buffer, offset + ST_SlaveStateInfo_Parsed.Offset_sName, nameBytes, 0, 81);
+                var name = ExtractNullTerminatedString(nameBytes);
 
                 // Leer sType (STRING 80 + null terminator)  
                 var typeBytes = new byte[81];
-                Array.Copy(buffer, offset + 4 + 81, typeBytes, 0, 81);
-                var deviceType = System.Text.Encoding.ASCII.GetString(typeBytes).TrimEnd('\0');
+                Array.Copy(buffer, offset + ST_SlaveStateInfo_Parsed.Offset_sType, typeBytes, 0, 81);
+                var deviceType = ExtractNullTerminatedString(typeBytes);
 
-                // nECAddr en offset 166
-                var nECAddr = BitConverter.ToUInt16(buffer, offset + 166);
-                
-                // Si nECAddr es 0 o inválido, saltar este esclavo
-                if (nECAddr == 0 || nECAddr < 1001)
-                    return null;
-
-                // bDiagData en offset 168
-                var bDiagData = buffer[offset + 168] != 0;
-
-                // nSumCRCErrors aproximadamente en offset ~190
-                var nSumCRCErrors = BitConverter.ToUInt32(buffer, offset + 188);
-
-                // stState aproximadamente en offset ~192
-                var stateOffset = offset + 192;
-                EtherCATState state = EtherCATState.Init;
-                if (stateOffset + 2 <= buffer.Length)
+                // ⭐ Leer sESIfile (STRING 80 + null terminator) - offset 166
+                string esiFileName = "";
+                if (offset + ST_SlaveStateInfo_Parsed.Offset_sESIfile + 81 <= buffer.Length)
                 {
-                    var stateValue = buffer[stateOffset] & 0x0F;
+                    var esiBytes = new byte[81];
+                    Array.Copy(buffer, offset + ST_SlaveStateInfo_Parsed.Offset_sESIfile, esiBytes, 0, 81);
+                    esiFileName = ExtractNullTerminatedString(esiBytes);
+                }
+
+                // nECAddr en offset 247
+                // ⭐ Usar el offset detectado dinámicamente, no el hardcodeado
+                var nECAddr = BitConverter.ToUInt16(buffer, offset + nECAddrOffset);
+                
+                // 🔍 DEBUG: Log detallado para diagnóstico de posiciones faltantes
+                _logger.LogDebug("  [{Index}] Parseando: offset={Offset}, nECAddr={ECAddr}, name='{Name}', type='{Type}'", 
+                    index, offset, nECAddr, name, deviceType);
+                
+                // Si nECAddr es 0, saltar este esclavo (entrada vacía en el array)
+                // NOTA: No filtrar por < 1001 porque dispositivos como YASKAWA pueden tener direcciones bajas (1024+)
+                if (nECAddr == 0)
+                {
+                    _logger.LogWarning("  [{Index}] ⚠️ Saltado: nECAddr=0 (entrada vacía). Nombre='{Name}', Tipo='{Type}'", 
+                        index, name, deviceType);
+                    return null;
+                }
+
+                // ⭐ Calcular offsets relativos basándose en el offset detectado de nECAddr
+                // Los offsets después de nECAddr son relativos a su posición:
+                // nECAddr(2) + bDiagData(1) + padding(2) = 5 bytes hasta stPortCRCErrors
+                // stPortCRCErrors(16) + nSumCRCErrors(4) = 20 bytes hasta stState
+                int bDiagDataOffset = nECAddrOffset + 2;              // nECAddr es 2 bytes
+                int stPortCRCErrorsOffset = nECAddrOffset + 5;        // +2 (nECAddr) +1 (bDiagData) +2 (padding)
+                int nSumCRCErrorsOffset = nECAddrOffset + 21;         // +5 + 16 (stPortCRCErrors)
+                int stStateOffset = nECAddrOffset + 25;               // +21 + 4 (nSumCRCErrors)
+
+                // bDiagData - ahora con offset dinámico
+                var bDiagData = buffer[offset + bDiagDataOffset] != 0;
+
+                // nSumCRCErrors - ahora con offset dinámico
+                uint nSumCRCErrors = 0;
+                if (offset + nSumCRCErrorsOffset + 4 <= buffer.Length)
+                {
+                    nSumCRCErrors = BitConverter.ToUInt32(buffer, offset + nSumCRCErrorsOffset);
+                }
+
+                // stState - ahora con offset dinámico
+                EtherCATState state = EtherCATState.Init;
+                bool portAActive = false, portBActive = false, portCActive = false, portDActive = false;
+                int stateOffsetAbs = offset + stStateOffset;
+                if (stateOffsetAbs + ST_SlaveState.Size <= buffer.Length)
+                {
+                    var stateValue = buffer[stateOffsetAbs] & 0x0F;
                     state = stateValue switch
                     {
                         1 => EtherCATState.Init,
@@ -1113,7 +1188,26 @@ namespace SW.PC.API.Backend.Services
                         8 => EtherCATState.Operational,
                         _ => EtherCATState.Unknown
                     };
+                    
+                    // ⭐ Extraer flags de puertos activos de stState (offsets 12-15 dentro de ST_SlaveState)
+                    portAActive = buffer[stateOffsetAbs + 12] != 0;  // bPortA
+                    portBActive = buffer[stateOffsetAbs + 13] != 0;  // bPortB
+                    portCActive = buffer[stateOffsetAbs + 14] != 0;  // bPortC
+                    portDActive = buffer[stateOffsetAbs + 15] != 0;  // bPortD
                 }
+
+                // ⭐ Determinar tipo físico y número de puertos basado en deviceType
+                var (physicalType, portCount) = DetermineDevicePhysicalType(deviceType);
+                
+                // ⭐ Generar información de puertos basada en datos reales del PLC
+                // IMPORTANTE: Pasar physicalType para generar correctamente el tipo de conector
+                var ports = GeneratePortsFromPLCData(portCount, portAActive, portBActive, portCActive, portDActive, physicalType);
+                byte activePortsBitmap = (byte)(
+                    (portAActive ? 0x01 : 0) |
+                    (portBActive ? 0x02 : 0) |
+                    (portCActive ? 0x04 : 0) |
+                    (portDActive ? 0x08 : 0)
+                );
 
                 var slave = new EtherCATSlaveNode
                 {
@@ -1125,11 +1219,26 @@ namespace SW.PC.API.Backend.Services
                     Health = state == EtherCATState.Operational ? NodeHealth.Healthy : 
                              state == EtherCATState.SafeOp ? NodeHealth.Warning : NodeHealth.Error,
                     DiagnosticsAvailable = bDiagData,
-                    ErrorCount = (int)nSumCRCErrors
+                    ErrorCount = (int)nSumCRCErrors,
+                    ESIFileName = esiFileName,  // ⭐ Nombre del archivo ESI (para no-Beckhoff)
+                    // ⭐ Información de puertos
+                    Ports = ports,
+                    ActivePortsBitmap = activePortsBitmap,
+                    ActivePortCount = ports.Count(p => p.HasCommunication),
+                    PhysicalType = physicalType
                 };
 
-                _logger.LogDebug("  [{Index}] {Name} (ECAddr:{Addr}, State:{State})", 
-                    index, slave.Name, nECAddr, state);
+                // Log con info de ESI si está especificado
+                if (!string.IsNullOrWhiteSpace(esiFileName))
+                {
+                    _logger.LogDebug("  [{Index}] {Name} (ECAddr:{Addr}, State:{State}, ESI:'{ESI}')", 
+                        index, slave.Name, nECAddr, state, esiFileName);
+                }
+                else
+                {
+                    _logger.LogDebug("  [{Index}] {Name} (ECAddr:{Addr}, State:{State})", 
+                        index, slave.Name, nECAddr, state);
+                }
 
                 return slave;
             }
@@ -1142,15 +1251,51 @@ namespace SW.PC.API.Backend.Services
 
         /// <summary>
         /// Enriquece datos del esclavo con información de ESI files
+        /// ⭐ MEJORADO: Si el esclavo tiene ESIFileName especificado, busca en ese archivo primero
+        ///    Esto es útil para dispositivos no-Beckhoff (ej: variadores Yaskawa)
         /// </summary>
         private void EnrichSlaveFromESI(EtherCATSlaveNode slave)
         {
-            if (!_config.UseESIFiles || slave.VendorId == 0)
+            if (!_config.UseESIFiles)
                 return;
 
             try
             {
-                var esiInfo = _esiParser.GetDeviceInfo(slave.VendorId, slave.ProductCode);
+                ESIDeviceInfo? esiInfo = null;
+                
+                // ⭐ NUEVO: Si el PLC especificó un archivo ESI (sESIfile), buscarlo ahí primero
+                if (!string.IsNullOrWhiteSpace(slave.ESIFileName))
+                {
+                    _logger.LogDebug("🔍 Buscando ESI para '{Name}' en archivo especificado: '{ESIFile}'", 
+                        slave.Name, slave.ESIFileName);
+                    
+                    esiInfo = _esiParser.GetDeviceInfoFromESIFile(slave.ESIFileName, slave.DeviceType);
+                    
+                    if (esiInfo != null)
+                    {
+                        _logger.LogInformation("✅ ESI encontrado para '{Name}' en '{ESIFile}': {ProductName} ({VendorName})", 
+                            slave.Name, slave.ESIFileName, esiInfo.ProductName, esiInfo.VendorName);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("⚠️ No se encontró ESI en archivo '{ESIFile}' para '{Name}' (type: {Type})", 
+                            slave.ESIFileName, slave.Name, slave.DeviceType);
+                    }
+                }
+                
+                // Si no se encontró por ESIFileName, intentar por VendorId/ProductCode (Beckhoff y otros)
+                if (esiInfo == null && slave.VendorId != 0)
+                {
+                    esiInfo = _esiParser.GetDeviceInfo(slave.VendorId, slave.ProductCode);
+                }
+                
+                // Si aún no se encontró, intentar por DeviceType (sType)
+                if (esiInfo == null && !string.IsNullOrWhiteSpace(slave.DeviceType))
+                {
+                    esiInfo = _esiParser.GetDeviceInfoByType(slave.DeviceType);
+                }
+                
+                // Aplicar información del ESI si se encontró
                 if (esiInfo != null)
                 {
                     if (string.IsNullOrWhiteSpace(slave.Name) || slave.Name.StartsWith("Slave "))
@@ -1159,12 +1304,95 @@ namespace SW.PC.API.Backend.Services
                         slave.Description = esiInfo.Description;
                     if (string.IsNullOrWhiteSpace(slave.VendorName))
                         slave.VendorName = esiInfo.VendorName;
+                    if (slave.VendorId == 0)
+                        slave.VendorId = esiInfo.VendorId;
+                    if (slave.ProductCode == 0)
+                        slave.ProductCode = esiInfo.ProductCode;
+                    if (string.IsNullOrWhiteSpace(slave.ImageUrl) && !string.IsNullOrWhiteSpace(esiInfo.ImageFile))
+                        slave.ImageUrl = esiInfo.ImageFile;
+                    
+                    // ⭐ NUEVO: Aplicar información de puertos del ESI
+                    if (esiInfo.PortPhysics != null && esiInfo.PortPhysics.Count > 0)
+                    {
+                        EnrichPortsFromESI(slave, esiInfo);
+                        _logger.LogDebug("  🔌 Puertos ESI para '{Name}': {Physics} ({Count} puertos definidos)", 
+                            slave.Name, esiInfo.PhysicsRaw, esiInfo.PortPhysics.Count(p => p.PhysicsType != "NotImplemented"));
+                    }
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogDebug("Error obteniendo ESI para esclavo {Name}: {Error}", slave.Name, ex.Message);
             }
+        }
+
+        /// <summary>
+        /// ⭐ Enriquece los puertos del esclavo con información del archivo ESI
+        /// Esto permite determinar correctamente qué tipo de conector tiene cada puerto
+        /// </summary>
+        private void EnrichPortsFromESI(EtherCATSlaveNode slave, ESIDeviceInfo esiInfo)
+        {
+            if (esiInfo.PortPhysics == null || esiInfo.PortPhysics.Count == 0)
+                return;
+
+            // Si el slave no tiene puertos definidos, crearlos basándose en el ESI
+            if (slave.Ports == null || slave.Ports.Count == 0)
+            {
+                slave.Ports = new List<EtherCATPort>();
+                for (int i = 0; i < esiInfo.PortPhysics.Count; i++)
+                {
+                    var portPhysics = esiInfo.PortPhysics[i];
+                    if (portPhysics.PhysicsType == "NotImplemented")
+                        continue;
+                    
+                    slave.Ports.Add(new EtherCATPort
+                    {
+                        PortNumber = (byte)i,
+                        Type = portPhysics.PhysicsType == "MII" ? PortType.MII : PortType.EBUS,
+                        Physics = portPhysics.PhysicsType switch
+                        {
+                            "EBUS" => PortPhysics.EBus,
+                            "MII" => PortPhysics.Ethernet,
+                            "LVDS" => PortPhysics.LVDS,
+                            _ => PortPhysics.Unknown
+                        },
+                        HasCommunication = false,
+                        LinkUp = false,
+                        IsOpen = false,
+                        Health = LinkHealth.Unknown
+                    });
+                }
+            }
+            else
+            {
+                // Actualizar física de puertos existentes con info del ESI
+                foreach (var port in slave.Ports)
+                {
+                    if (port.PortNumber < esiInfo.PortPhysics.Count)
+                    {
+                        var esiPort = esiInfo.PortPhysics[port.PortNumber];
+                        port.Physics = esiPort.PhysicsType switch
+                        {
+                            "EBUS" => PortPhysics.EBus,
+                            "MII" => PortPhysics.Ethernet,
+                            "LVDS" => PortPhysics.LVDS,
+                            _ => port.Physics  // Mantener el valor actual si no se reconoce
+                        };
+                        port.Type = esiPort.PhysicsType == "MII" ? PortType.MII : PortType.EBUS;
+                    }
+                }
+            }
+
+            // Determinar PhysicalType del esclavo basándose en los puertos
+            var hasEBus = slave.Ports.Any(p => p.Physics == PortPhysics.EBus);
+            var hasEthernet = slave.Ports.Any(p => p.Physics == PortPhysics.Ethernet);
+            
+            if (hasEBus && hasEthernet)
+                slave.PhysicalType = PhysicalType.Mixed;
+            else if (hasEthernet)
+                slave.PhysicalType = PhysicalType.EthernetOnly;
+            else if (hasEBus)
+                slave.PhysicalType = PhysicalType.EBusOnly;
         }
 
         /// <summary>
@@ -1665,6 +1893,151 @@ namespace SW.PC.API.Backend.Services
             return slaves;
         }
 
+        /// <summary>
+        /// ⭐ Determina el tipo físico y número de puertos basado en el deviceType (sType del PLC)
+        /// </summary>
+        private (PhysicalType physicalType, int portCount) DetermineDevicePhysicalType(string deviceType)
+        {
+            if (string.IsNullOrWhiteSpace(deviceType))
+                return (PhysicalType.EBusOnly, 2);
+            
+            var dt = deviceType.ToUpperInvariant();
+            
+            // Extraer modelo base (ej: "EK1100-0000-0018" → "EK1100")
+            var modelBase = dt.Split('-')[0];
+            
+            // === Couplers EtherCAT (entrada Ethernet, salida E-Bus) ===
+            // EK1100 = Coupler estándar (1 puerto Ethernet IN, E-Bus OUT)
+            if (modelBase.StartsWith("EK1100"))
+                return (PhysicalType.Mixed, 2);  // Puerto 0=Ethernet IN, Puerto 1=E-Bus
+            
+            // EK1101 = Coupler con ID switch
+            if (modelBase.StartsWith("EK1101"))
+                return (PhysicalType.Mixed, 2);
+            
+            // === Junction/Splitters (múltiples puertos Ethernet) ===
+            // EK1122 = Junction con 2 puertos downstream adicionales
+            if (modelBase.StartsWith("EK1122"))
+                return (PhysicalType.Mixed, 4);  // Puerto 0=E-Bus IN, 1=E-Bus OUT, 2=Ethernet OUT, 3=Ethernet OUT
+            
+            // EK1521 = Junction con fibra óptica
+            if (modelBase.StartsWith("EK1521") || modelBase.StartsWith("EK1541"))
+                return (PhysicalType.Mixed, 4);
+            
+            // === Extension (Ethernet a Ethernet, cable largo) ===
+            // EK1110 = Extension terminal (permite cable Ethernet hasta 100m)
+            if (modelBase.StartsWith("EK1110"))
+                return (PhysicalType.EthernetOnly, 2);  // Ethernet IN → Ethernet OUT
+            
+            // === Box modules (IP67, todo Ethernet) ===
+            if (modelBase.StartsWith("EP") || modelBase.StartsWith("ER") || modelBase.StartsWith("EQ"))
+                return (PhysicalType.EthernetOnly, 4);  // Generalmente 4 puertos Ethernet
+            
+            // === Drives y Motion ===
+            // AX5xxx, AX8xxx = Drives Beckhoff
+            if (modelBase.StartsWith("AX5") || modelBase.StartsWith("AX8"))
+                return (PhysicalType.EthernetOnly, 2);  // Ethernet IN/OUT
+            
+            // === Variadores externos (YASKAWA, etc.) ===
+            if (dt.Contains("YASKAWA") || dt.Contains("GA500") || dt.Contains("GA700"))
+                return (PhysicalType.EthernetOnly, 2);  // Ethernet IN/OUT típicamente
+            
+            // === Terminales E-Bus estándar ===
+            // EL/ES/EM series = Terminales de carril
+            if (modelBase.StartsWith("EL") || modelBase.StartsWith("ES") || modelBase.StartsWith("EM"))
+                return (PhysicalType.EBusOnly, 2);  // E-Bus IN/OUT (conector plano)
+            
+            // === Bus End / System ===
+            if (modelBase.StartsWith("EL9") || dt.Contains("END"))
+                return (PhysicalType.EBusOnly, 1);  // Solo entrada, termina el bus
+            
+            // Default: Terminal E-Bus estándar con 2 puertos
+            return (PhysicalType.EBusOnly, 2);
+        }
+
+        /// <summary>
+        /// ⭐ Genera lista de puertos con información real del PLC
+        /// </summary>
+        private List<EtherCATPort> GeneratePortsFromPLCData(int portCount, bool portA, bool portB, bool portC, bool portD, PhysicalType physicalType)
+        {
+            var ports = new List<EtherCATPort>();
+            bool[] activeFlags = { portA, portB, portC, portD };
+            string[] portNames = { "Port A (X1/IN)", "Port B (X2/OUT)", "Port C (X3/Branch)", "Port D (X4/Branch)" };
+            
+            for (int i = 0; i < portCount && i < 4; i++)
+            {
+                // Determinar tipo de puerto según PhysicalType del dispositivo
+                PortType portType;
+                PortPhysics portPhysics;
+                
+                switch (physicalType)
+                {
+                    case PhysicalType.EthernetOnly:
+                        // Dispositivos solo Ethernet (drives, YASKAWA, Box modules)
+                        // Todos los puertos son RJ45 Ethernet (MII)
+                        portType = PortType.MII;
+                        portPhysics = PortPhysics.Ethernet;
+                        break;
+                        
+                    case PhysicalType.Mixed:
+                        // Dispositivos mixtos - depende del número de puertos:
+                        // - 2 puertos (EK1100 coupler): Puerto 0 = Ethernet IN, Puerto 1 = E-Bus OUT
+                        // - 4 puertos (EK1122 junction): Puerto 0-1 = E-Bus, Puerto 2-3 = Ethernet
+                        if (portCount == 2)
+                        {
+                            // Coupler: P0=Ethernet (upstream), P1=E-Bus (downstream)
+                            if (i == 0)
+                            {
+                                portType = PortType.MII;
+                                portPhysics = PortPhysics.Ethernet;
+                            }
+                            else
+                            {
+                                portType = PortType.EBUS;
+                                portPhysics = PortPhysics.EBus;
+                            }
+                        }
+                        else
+                        {
+                            // Junction (4 puertos): P0-1=E-Bus, P2-3=Ethernet
+                            if (i < 2)
+                            {
+                                portType = PortType.EBUS;
+                                portPhysics = PortPhysics.EBus;
+                            }
+                            else
+                            {
+                                portType = PortType.MII;
+                                portPhysics = PortPhysics.Ethernet;
+                            }
+                        }
+                        break;
+                        
+                    case PhysicalType.EBusOnly:
+                    default:
+                        // Terminales estándar (EL series)
+                        // Todos los puertos son E-Bus (conector plano)
+                        portType = PortType.EBUS;
+                        portPhysics = PortPhysics.EBus;
+                        break;
+                }
+                
+                ports.Add(new EtherCATPort
+                {
+                    PortNumber = (byte)i,
+                    Type = portType,
+                    Physics = portPhysics,
+                    HasCommunication = activeFlags[i],
+                    LinkUp = activeFlags[i],
+                    IsOpen = activeFlags[i],
+                    ConnectedToSlaveIndex = -1,  // Se calcula después en la topología
+                    Health = activeFlags[i] ? LinkHealth.Good : LinkHealth.Unknown
+                });
+            }
+            
+            return ports;
+        }
+
         private List<EtherCATPort> GenerateSimulatedPorts(int slaveIndex, string deviceType, int totalSlaves)
         {
             var ports = new List<EtherCATPort>();
@@ -2072,6 +2445,234 @@ namespace SW.PC.API.Backend.Services
 
             return await dbContext.EtherCATSavedConfigurations
                 .AnyAsync(c => c.ProjectId == projectId);
+        }
+
+        /// <summary>
+        /// ⭐ OPTIMIZADO: Obtiene la topología guardada con estados actualizados del PLC.
+        /// NO procesa ESI, NO recalcula layout - solo lee estados actuales y los aplica.
+        /// Usar cuando ya existe configuración guardada para máximo rendimiento.
+        /// </summary>
+        public async Task<EtherCATTopology?> GetSavedTopologyWithCurrentStatesAsync()
+        {
+            var projectId = _projectContext.ActiveProjectId;
+            _logger.LogInformation("⚡ EtherCAT: Cargando topología guardada con estados actuales (modo optimizado)");
+
+            // 1. Cargar configuración guardada
+            var savedConfig = await GetSavedConfigurationAsync();
+            if (savedConfig == null)
+            {
+                _logger.LogWarning("⚠️ No hay configuración guardada para proyecto {ProjectId}", projectId);
+                return null;
+            }
+
+            // 2. Deserializar topología guardada
+            EtherCATTopology? savedTopology;
+            try
+            {
+                savedTopology = JsonSerializer.Deserialize<EtherCATTopology>(savedConfig.TopologyJson, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deserializando configuración guardada");
+                return null;
+            }
+
+            if (savedTopology == null || savedTopology.Slaves.Count == 0)
+            {
+                _logger.LogWarning("⚠️ Topología guardada vacía o inválida");
+                return null;
+            }
+
+            // 3. Leer SOLO estados actuales del PLC (ligero, sin ESI)
+            var currentStates = await ReadSlaveStatesOnlyAsync();
+            
+            if (currentStates.Count == 0)
+            {
+                _logger.LogWarning("⚠️ No se pudieron leer estados del PLC, devolviendo topología guardada sin actualizar");
+                savedTopology.Timestamp = DateTime.Now;
+                savedTopology.Summary.MasterStateText = "States unavailable";
+                return savedTopology;
+            }
+
+            // 4. Actualizar estados en la topología guardada
+            int updatedCount = 0;
+            foreach (var slave in savedTopology.Slaves)
+            {
+                // Buscar estado actual por ConfiguredAddress (nECAddr)
+                if (currentStates.TryGetValue(slave.ConfiguredAddress, out var currentState))
+                {
+                    slave.State = currentState.State;
+                    slave.Health = currentState.Health;
+                    slave.ErrorCounters = currentState.ErrorCounters;
+                    slave.DiagnosticsAvailable = currentState.DiagnosticsAvailable;
+                    slave.ErrorCount = currentState.ErrorCount;
+                    
+                    // Actualizar estado de puertos si disponible
+                    if (currentState.PortsActive != null && slave.Ports != null)
+                    {
+                        for (int i = 0; i < slave.Ports.Count && i < 4; i++)
+                        {
+                            slave.Ports[i].HasCommunication = currentState.PortsActive[i];
+                            slave.Ports[i].LinkUp = currentState.PortsActive[i];
+                        }
+                    }
+                    updatedCount++;
+                }
+            }
+
+            // 5. Actualizar resumen
+            savedTopology.Timestamp = DateTime.Now;
+            savedTopology.Summary.OperationalSlaveCount = savedTopology.Slaves.Count(s => s.State == EtherCATState.Operational);
+            savedTopology.Summary.SlavesWithErrors = savedTopology.Slaves.Count(s => s.Health == NodeHealth.Error || s.ErrorCounters.HasErrors);
+            savedTopology.Summary.TotalCRCErrors = savedTopology.Slaves.Sum(s => s.ErrorCounters.CRCErrorCount);
+            savedTopology.Summary.OverallHealth = DetermineOverallHealth(savedTopology.Slaves);
+            savedTopology.Summary.MasterStateText = savedTopology.Master.State.ToString();
+
+            _logger.LogInformation("⚡ EtherCAT: Topología optimizada cargada - {Updated}/{Total} esclavos actualizados, {Op} en OP", 
+                updatedCount, savedTopology.Slaves.Count, savedTopology.Summary.OperationalSlaveCount);
+
+            return savedTopology;
+        }
+
+        /// <summary>
+        /// Lee SOLO los estados de los esclavos desde el PLC (sin ESI, sin layout).
+        /// Retorna diccionario [ConfiguredAddress → SlaveStateInfo]
+        /// </summary>
+        private async Task<Dictionary<ushort, SlaveCurrentState>> ReadSlaveStatesOnlyAsync()
+        {
+            var states = new Dictionary<ushort, SlaveCurrentState>();
+
+            if (!IsEnabled || _masterClient == null)
+            {
+                return states;
+            }
+
+            try
+            {
+                await EnsureConnectedAsync();
+
+                // Leer arrSlaveInfo pero solo extraer estado y errores
+                var fbInstance = _config.EtherCATDiagFbInstance ?? "Diagnostic.fbEtherCATDiag";
+                
+                // Primero obtener número de esclavos
+                var slaveCountHandle = _masterClient.CreateVariableHandle($"{fbInstance}.iNumOfSlavesRead");
+                var slaveCount = _masterClient.ReadAny<short>(slaveCountHandle);
+                _masterClient.DeleteVariableHandle(slaveCountHandle);
+
+                if (slaveCount <= 0)
+                {
+                    return states;
+                }
+
+                // Leer array completo
+                int maxArrayElements = 100;
+                int maxElementSize = 320;
+                var handle = _masterClient.CreateVariableHandle($"{fbInstance}.arrSlaveInfo");
+                var buffer = new byte[maxArrayElements * maxElementSize];
+                var bytesRead = _masterClient.Read(handle, buffer.AsMemory());
+                _masterClient.DeleteVariableHandle(handle);
+
+                // Detectar tamaño y offset
+                var (actualSlaveSize, nECAddrOffset) = DetectSlaveInfoSize(buffer, bytesRead);
+                if (actualSlaveSize == 0) return states;
+
+                // Calcular offsets relativos
+                int bDiagDataOffset = nECAddrOffset + 2;
+                int nSumCRCErrorsOffset = nECAddrOffset + 21;
+                int stStateOffset = nECAddrOffset + 25;
+
+                // Parsear solo estados
+                for (int i = 0; i < slaveCount && i < 100; i++)
+                {
+                    var offset = i * actualSlaveSize;
+                    if (offset + actualSlaveSize > bytesRead) break;
+
+                    var nECAddr = BitConverter.ToUInt16(buffer, offset + nECAddrOffset);
+                    if (nECAddr == 0) continue;
+
+                    var bDiagData = buffer[offset + bDiagDataOffset] != 0;
+                    
+                    uint nSumCRCErrors = 0;
+                    if (offset + nSumCRCErrorsOffset + 4 <= buffer.Length)
+                    {
+                        nSumCRCErrors = BitConverter.ToUInt32(buffer, offset + nSumCRCErrorsOffset);
+                    }
+
+                    // Estado y puertos activos
+                    var state = EtherCATState.Unknown;
+                    bool[] portsActive = new bool[4];
+                    int stateOffsetAbs = offset + stStateOffset;
+                    if (stateOffsetAbs + 16 <= buffer.Length)
+                    {
+                        var stateValue = buffer[stateOffsetAbs] & 0x0F;
+                        state = stateValue switch
+                        {
+                            1 => EtherCATState.Init,
+                            2 => EtherCATState.PreOp,
+                            3 => EtherCATState.Bootstrap,
+                            4 => EtherCATState.SafeOp,
+                            8 => EtherCATState.Operational,
+                            _ => EtherCATState.Unknown
+                        };
+                        
+                        portsActive[0] = buffer[stateOffsetAbs + 12] != 0;
+                        portsActive[1] = buffer[stateOffsetAbs + 13] != 0;
+                        portsActive[2] = buffer[stateOffsetAbs + 14] != 0;
+                        portsActive[3] = buffer[stateOffsetAbs + 15] != 0;
+                    }
+
+                    states[nECAddr] = new SlaveCurrentState
+                    {
+                        State = state,
+                        Health = state == EtherCATState.Operational ? NodeHealth.Healthy :
+                                 state == EtherCATState.SafeOp ? NodeHealth.Warning : NodeHealth.Error,
+                        DiagnosticsAvailable = bDiagData,
+                        ErrorCount = (int)nSumCRCErrors,
+                        PortsActive = portsActive,
+                        ErrorCounters = new SlaveErrorCounters { CRCErrorCount = nSumCRCErrors }
+                    };
+                }
+
+                _logger.LogDebug("⚡ Leídos {Count} estados de esclavos (modo ligero)", states.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Error leyendo estados: {Error}", ex.Message);
+            }
+
+            return states;
+        }
+
+        /// <summary>
+        /// Estado actual de un esclavo (datos mínimos para actualización)
+        /// </summary>
+        private class SlaveCurrentState
+        {
+            public EtherCATState State { get; set; }
+            public NodeHealth Health { get; set; }
+            public bool DiagnosticsAvailable { get; set; }
+            public int ErrorCount { get; set; }
+            public bool[]? PortsActive { get; set; }
+            public SlaveErrorCounters ErrorCounters { get; set; } = new();
+        }
+
+        /// <summary>
+        /// Determina la salud general de la red
+        /// </summary>
+        private static NetworkHealth DetermineOverallHealth(List<EtherCATSlaveNode> slaves)
+        {
+            if (slaves.Count == 0) return NetworkHealth.Offline;
+            
+            var errorCount = slaves.Count(s => s.Health == NodeHealth.Error);
+            var warningCount = slaves.Count(s => s.Health == NodeHealth.Warning);
+            var opCount = slaves.Count(s => s.State == EtherCATState.Operational);
+            
+            if (errorCount > 0) return NetworkHealth.Error;
+            if (warningCount > 0 || opCount < slaves.Count) return NetworkHealth.Warning;
+            return NetworkHealth.Healthy;
         }
 
         /// <summary>

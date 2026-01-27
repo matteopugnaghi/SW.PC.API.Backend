@@ -615,6 +615,9 @@ public static class AquafrischDbContextFactory
         
         // Crear tablas TrainTypes para tipos de tren
         await EnsureTrainTypesTablesAsync(context);
+        
+        // Crear tabla EtherCATSavedConfigurations para configuración guardada
+        await EnsureEtherCATSavedConfigurationsTableAsync(context);
     }
     
     /// <summary>
@@ -829,6 +832,33 @@ public static class AquafrischDbContextFactory
         catch (Exception)
         {
             // Tablas ya existen o error menor - ignorar
+        }
+    }
+    
+    /// <summary>
+    /// Crear tabla EtherCATSavedConfigurations si no existe
+    /// </summary>
+    private static async Task EnsureEtherCATSavedConfigurationsTableAsync(AquafrischDbContext context)
+    {
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS EtherCATSavedConfigurations (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ProjectId TEXT NOT NULL,
+                    SavedAt TEXT NOT NULL,
+                    TopologyJson TEXT NOT NULL,
+                    TotalSlaves INTEGER NOT NULL DEFAULT 0,
+                    Notes TEXT,
+                    ConfigurationHash TEXT
+                )");
+            
+            // Índice por ProjectId
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_EtherCATSavedConfigurations_ProjectId ON EtherCATSavedConfigurations(ProjectId)");
+        }
+        catch (Exception)
+        {
+            // Tabla ya existe o error menor - ignorar
         }
     }
 }

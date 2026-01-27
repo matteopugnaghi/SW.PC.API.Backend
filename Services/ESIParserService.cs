@@ -27,6 +27,14 @@ public interface IESIParserService
     ESIDeviceInfo? GetDeviceInfoByType(string sType);
     
     /// <summary>
+    /// ⭐ NUEVO: Obtiene información buscando específicamente en un archivo ESI
+    /// Usado para dispositivos no-Beckhoff donde el PLC especifica el nombre del archivo ESI (sESIfile)
+    /// </summary>
+    /// <param name="esiFileName">Nombre del archivo ESI (ej: "Yaskawa Sigma-7.xml")</param>
+    /// <param name="sType">Tipo del dispositivo para búsqueda dentro del archivo (opcional)</param>
+    ESIDeviceInfo? GetDeviceInfoFromESIFile(string esiFileName, string? sType = null);
+    
+    /// <summary>
     /// Obtiene el nombre del vendor por su ID
     /// </summary>
     string GetVendorName(uint vendorId);
@@ -66,6 +74,11 @@ public class ESIDeviceInfo
     public string GroupType { get; set; } = "";  // Ej: "DigOut"
     public string ImageFile { get; set; } = "";  // Ruta a imagen si existe
     public List<string> Capabilities { get; set; } = new();
+    
+    /// <summary>
+    /// Nombre del archivo ESI de origen (para buscar dispositivos por sESIfile del PLC)
+    /// </summary>
+    public string SourceFileName { get; set; } = "";
     
     /// <summary>
     /// Física de cada puerto (0-3). Valores: "Y"=EBUS, "K"=MII (100BASE-TX), " "=no implementado
@@ -245,6 +258,85 @@ public class ESIParserService : IESIParserService
         
         // Si no hay guión, devolver todo (puede ser "EL2798" directamente)
         return sType.Trim();
+    }
+
+    /// <summary>
+    /// ⭐ NUEVO: Busca información de un dispositivo en un archivo ESI específico
+    /// Usado para dispositivos no-Beckhoff donde el PLC especifica el nombre del archivo ESI (sESIfile)
+    /// </summary>
+    public ESIDeviceInfo? GetDeviceInfoFromESIFile(string esiFileName, string? sType = null)
+    {
+        if (string.IsNullOrWhiteSpace(esiFileName))
+            return null;
+        
+        // Normalizar nombre de archivo (quitar extensión si la tiene)
+        var fileNameLower = esiFileName.ToLowerInvariant();
+        if (!fileNameLower.EndsWith(".xml"))
+            fileNameLower += ".xml";
+        
+        // Extraer nombre base sin extensión para comparación más flexible
+        var fileNameBase = Path.GetFileNameWithoutExtension(esiFileName).ToLowerInvariant();
+        
+        // Buscar en cache por archivos que matchean
+        var matchingDevices = new List<ESIDeviceInfo>();
+        
+        // ⭐ NUEVO: Buscar directamente por SourceFileName guardado en cada dispositivo
+        foreach (var kvp in _deviceByTypeCache)
+        {
+            var device = kvp.Value;
+            if (string.IsNullOrEmpty(device.SourceFileName))
+                continue;
+                
+            var sourceNameLower = device.SourceFileName.ToLowerInvariant();
+            var sourceBase = Path.GetFileNameWithoutExtension(device.SourceFileName).ToLowerInvariant();
+            
+            // Comparar: nombre exacto, nombre sin extensión, o contenido parcial
+            if (sourceNameLower == fileNameLower ||
+                sourceBase == fileNameBase ||
+                sourceNameLower.Contains(fileNameBase) ||
+                fileNameBase.Contains(sourceBase))
+            {
+                matchingDevices.Add(device);
+            }
+        }
+        
+        if (matchingDevices.Count == 0)
+        {
+            _logger.LogDebug("⚠️ No se encontraron dispositivos del archivo ESI: {FileName}", esiFileName);
+            
+            // Intentar buscar por type si se proporcionó
+            if (!string.IsNullOrWhiteSpace(sType))
+            {
+                return GetDeviceInfoByType(sType);
+            }
+            return null;
+        }
+        
+        // Si se proporcionó sType, buscar coincidencia específica
+        if (!string.IsNullOrWhiteSpace(sType))
+        {
+            var typeBase = ExtractTypeBase(sType);
+            var exactMatch = matchingDevices.FirstOrDefault(d => 
+                d.Type.Equals(typeBase, StringComparison.OrdinalIgnoreCase) ||
+                d.Type.StartsWith(typeBase, StringComparison.OrdinalIgnoreCase));
+            
+            if (exactMatch != null)
+            {
+                _logger.LogDebug("✅ Encontrado en ESI '{File}': {Type} → {Name}", 
+                    esiFileName, sType, exactMatch.ProductName);
+                return exactMatch;
+            }
+        }
+        
+        // Devolver el primer dispositivo del archivo ESI
+        var firstDevice = matchingDevices.FirstOrDefault();
+        if (firstDevice != null)
+        {
+            _logger.LogDebug("✅ Usando primer dispositivo de ESI '{File}': {Name}", 
+                esiFileName, firstDevice.ProductName);
+        }
+        
+        return firstDevice;
     }
 
     public string GetVendorName(uint vendorId)
@@ -657,7 +749,8 @@ public class ESIParserService : IESIParserService
             ImageFile = imageFile,
             Capabilities = capabilities,
             PortPhysics = portPhysics,
-            PhysicsRaw = physicsRaw
+            PhysicsRaw = physicsRaw,
+            SourceFileName = Path.GetFileName(filePath)  // ⭐ Guardar nombre del archivo ESI
         };
         
         var key = $"{defaultVendorId}_{productCode}";
