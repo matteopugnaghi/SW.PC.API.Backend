@@ -1708,8 +1708,20 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Modo Semiautomático</summary>
         public const string SEMIAUTOMATIC = "SEMIAUTOMATIC";
 
-        /// <summary>Todas las vistas válidas</summary>
+        /// <summary>Detalle de modelo 3D (panel temporal)</summary>
+        public const string MODEL_DETAIL = "MODEL_DETAIL";
+
+        /// <summary>Panel de pantalla (panel temporal)</summary>
+        public const string SCREEN_PANEL = "SCREEN_PANEL";
+
+        /// <summary>Vistas principales (polling continuo)</summary>
         public static readonly string[] AllViews = { GLOBAL, MAIN, TRAIN, WASH, SETTINGS, STATS, ALARMS, USERS, MANUAL, SEMIAUTOMATIC };
+
+        /// <summary>Vistas adicionales (temporales, activadas por demanda)</summary>
+        public static readonly string[] AdditionalViews = { MODEL_DETAIL, SCREEN_PANEL };
+
+        /// <summary>Todas las vistas válidas (principales + adicionales) - para parseo de Excel</summary>
+        public static readonly string[] AllViewsIncludingAdditional = { GLOBAL, MAIN, TRAIN, WASH, SETTINGS, STATS, ALARMS, USERS, MANUAL, SEMIAUTOMATIC, MODEL_DETAIL, SCREEN_PANEL };
 
         /// <summary>
         /// Mapeo de currentView del frontend a PlcViewId
@@ -1725,7 +1737,10 @@ namespace SW.PC.API.Backend.Models.Excel
             "tiposlavado" => WASH,
             "manual" => MANUAL,
             "semiautomatic" => SEMIAUTOMATIC,
-            _ => MAIN // Por defecto, vista principal
+            // Vistas adicionales (ya vienen en mayúsculas del frontend)
+            "screen_panel" => SCREEN_PANEL,
+            "model_detail" => MODEL_DETAIL,
+            _ => currentView?.ToUpper() ?? MAIN // Si no se reconoce, devolver tal cual en mayúsculas
         };
     }
 

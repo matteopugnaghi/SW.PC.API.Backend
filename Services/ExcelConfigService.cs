@@ -621,10 +621,10 @@ namespace SW.PC.API.Backend.Services
 
                 if (!string.IsNullOrEmpty(pattern) && !string.IsNullOrEmpty(viewsText))
                 {
-                    // Parsear vistas (separadas por coma)
+                    // Parsear vistas (separadas por coma) - usar AllViewsIncludingAdditional para incluir MODEL_DETAIL, SCREEN_PANEL
                     var views = viewsText.Split(',', StringSplitOptions.RemoveEmptyEntries)
                         .Select(v => v.Trim().ToUpper())
-                        .Where(v => PlcViewIds.AllViews.Contains(v))
+                        .Where(v => PlcViewIds.AllViewsIncludingAdditional.Contains(v))
                         .ToList();
 
                     if (views.Count > 0)
