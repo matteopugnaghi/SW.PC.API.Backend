@@ -618,7 +618,8 @@ namespace SW.PC.API.Backend.Services
                 topology.IsSimulated = isSimulated;
 
                 // 3. Construir relaciones de topología (parent/child)
-                BuildTopologyRelations(topology.Slaves);
+                // ⭐ USAR topología REAL del PLC si está disponible
+                await BuildTopologyRelationsFromPlcAsync(topology.Slaves);
 
                 // 4. Calcular layout para visualización
                 CalculateLayout(topology);
@@ -762,6 +763,22 @@ namespace SW.PC.API.Backend.Services
             }
 
             return (slaves, isSimulated);
+        }
+
+        /// <summary>
+        /// Intenta conectar al PLC sin lanzar excepciones
+        /// </summary>
+        private async Task<bool> TryEnsureConnectedAsync()
+        {
+            try
+            {
+                return await EnsureConnectedAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug("TryEnsureConnectedAsync failed: {Error}", ex.Message);
+                return false;
+            }
         }
 
         private async Task<bool> EnsureConnectedAsync()
@@ -1155,12 +1172,11 @@ namespace SW.PC.API.Backend.Services
 
                 // ⭐ Calcular offsets relativos basándose en el offset detectado de nECAddr
                 // Los offsets después de nECAddr son relativos a su posición:
-                // nECAddr(2) + bDiagData(1) + padding(2) = 5 bytes hasta stPortCRCErrors
-                // stPortCRCErrors(16) + nSumCRCErrors(4) = 20 bytes hasta stState
+                // nECAddr(2) + bDiagData(1) + padding(1) + stPortCRCErrors(16) + nSumCRCErrors(4) = 24 bytes hasta stState
                 int bDiagDataOffset = nECAddrOffset + 2;              // nECAddr es 2 bytes
-                int stPortCRCErrorsOffset = nECAddrOffset + 5;        // +2 (nECAddr) +1 (bDiagData) +2 (padding)
-                int nSumCRCErrorsOffset = nECAddrOffset + 21;         // +5 + 16 (stPortCRCErrors)
-                int stStateOffset = nECAddrOffset + 25;               // +21 + 4 (nSumCRCErrors)
+                int stPortCRCErrorsOffset = nECAddrOffset + 4;        // +2 (nECAddr) +1 (bDiagData) +1 (padding)
+                int nSumCRCErrorsOffset = nECAddrOffset + 20;         // +4 + 16 (stPortCRCErrors)
+                int stStateOffset = nECAddrOffset + 24;               // ✅ CORREGIDO: +20 + 4 (nSumCRCErrors)
 
                 // bDiagData - ahora con offset dinámico
                 var bDiagData = buffer[offset + bDiagDataOffset] != 0;
@@ -2143,6 +2159,29 @@ namespace SW.PC.API.Backend.Services
                     }
                 }
             }
+            
+            // ⭐ SEGUNDO PASO: Llenar ConnectedToSlaveIndex en los puertos
+            // Esto es necesario para que el frontend pueda reconstruir la topología
+            for (int i = 0; i < slaves.Count; i++)
+            {
+                var slave = slaves[i];
+                
+                // Port A (entrada) = conectado al padre
+                if (slave.Ports.Count > 0 && slave.ParentSlaveIndex >= 0)
+                {
+                    slave.Ports[0].ConnectedToSlaveIndex = slave.ParentSlaveIndex;
+                }
+                
+                // Puertos B, C, D (salida) = conectados a los hijos
+                for (int childIdx = 0; childIdx < slave.ChildSlaveIndices.Count && childIdx < 3; childIdx++)
+                {
+                    int portIndex = childIdx + 1; // B=1, C=2, D=3
+                    if (portIndex < slave.Ports.Count)
+                    {
+                        slave.Ports[portIndex].ConnectedToSlaveIndex = slave.ChildSlaveIndices[childIdx];
+                    }
+                }
+            }
         }
 
         private (int index, byte? port) FindParent(List<EtherCATSlaveNode> slaves, int currentIndex)
@@ -2154,6 +2193,203 @@ namespace SW.PC.API.Backend.Services
                 return (currentIndex - 1, (byte)1);
             }
             return (-1, null);
+        }
+
+        /// <summary>
+        /// Lee los datos de topología real del PLC (arrTopologyData) que contiene las conexiones de puertos reales
+        /// </summary>
+        private async Task<Dictionary<ushort, (ushort portA, ushort portB, ushort portC, ushort portD)>> ReadTopologyDataFromPlcAsync()
+        {
+            var result = new Dictionary<ushort, (ushort portA, ushort portB, ushort portC, ushort portD)>();
+            
+            try
+            {
+                if (_masterClient == null || !_masterClient.IsConnected)
+                {
+                    return result;
+                }
+
+                var fbInstance = _config.EtherCATDiagFbInstance;
+                var handle = _masterClient.CreateVariableHandle($"{fbInstance}.arrTopologyData");
+                var buffer = new byte[256 * 64]; // Buffer para hasta 256 esclavos, ~64 bytes cada uno
+                var bytesRead = _masterClient.Read(handle, buffer.AsMemory());
+                _masterClient.DeleteVariableHandle(handle);
+
+                if (bytesRead == 0) return result;
+
+                // Detectar tamaño de estructura buscando dónde está el segundo physicalAddr (1002)
+                int topoSize = 64; // default
+                for (int searchSize = 20; searchSize <= 128 && searchSize < bytesRead; searchSize += 2)
+                {
+                    var testAddr = BitConverter.ToUInt16(buffer, searchSize);
+                    if (testAddr == 1002)
+                    {
+                        topoSize = searchSize;
+                        _logger.LogDebug("🔍 Detectado tamaño ST_TopologyData: {Size} bytes", topoSize);
+                        break;
+                    }
+                }
+
+                // Parsear cada entrada de topología
+                int maxEntries = bytesRead / topoSize;
+                for (int i = 0; i < maxEntries; i++)
+                {
+                    int off = i * topoSize;
+                    var physAddr = BitConverter.ToUInt16(buffer, off);
+                    
+                    if (physAddr > 0 && physAddr >= 1001 && physAddr <= 1256)
+                    {
+                        var portA = BitConverter.ToUInt16(buffer, off + 4);
+                        var portB = BitConverter.ToUInt16(buffer, off + 6);
+                        var portC = BitConverter.ToUInt16(buffer, off + 8);
+                        var portD = BitConverter.ToUInt16(buffer, off + 10);
+                        
+                        result[physAddr] = (portA, portB, portC, portD);
+                        
+                        if (i < 5 || (physAddr >= 1027 && physAddr <= 1042))
+                        {
+                            _logger.LogDebug("📊 TopologyData[{Index}]: addr={Addr}, ports=[A:{A}, B:{B}, C:{C}, D:{D}]", 
+                                i, physAddr, portA, portB, portC, portD);
+                        }
+                    }
+                }
+
+                _logger.LogInformation("📊 Leídos {Count} registros de topología del PLC", result.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ No se pudo leer arrTopologyData del PLC");
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Construye las relaciones de topología usando la información REAL del PLC (arrTopologyData)
+        /// En lugar de asumir cadena lineal, lee qué puerto conecta a qué esclavo
+        /// </summary>
+        private async Task BuildTopologyRelationsFromPlcAsync(List<EtherCATSlaveNode> slaves)
+        {
+            // Primero intentar leer topología real del PLC
+            var realTopology = await ReadTopologyDataFromPlcAsync();
+            
+            if (realTopology.Count > 0)
+            {
+                _logger.LogInformation("🔗 Usando topología REAL del PLC para construir relaciones");
+                BuildTopologyRelationsFromRealData(slaves, realTopology);
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ No hay topología real, usando heurística lineal");
+                BuildTopologyRelations(slaves);
+            }
+        }
+
+        /// <summary>
+        /// Construye relaciones usando los datos reales de arrTopologyData
+        /// </summary>
+        private void BuildTopologyRelationsFromRealData(
+            List<EtherCATSlaveNode> slaves, 
+            Dictionary<ushort, (ushort portA, ushort portB, ushort portC, ushort portD)> realTopology)
+        {
+            // Crear mapas de dirección a índice
+            var addrToIndex = new Dictionary<ushort, int>();
+            for (int i = 0; i < slaves.Count; i++)
+            {
+                addrToIndex[slaves[i].ConfiguredAddress] = i;
+            }
+
+            // Para cada esclavo, construir relaciones basadas en arrTopologyData
+            for (int i = 0; i < slaves.Count; i++)
+            {
+                var slave = slaves[i];
+                var addr = slave.ConfiguredAddress;
+
+                // Inicializar
+                slave.ChildSlaveIndices.Clear();
+                slave.ParentSlaveIndex = -1;
+                slave.ParentPort = null;
+                slave.EntryPort = 0;
+                slave.TreeLevel = 0;
+
+                if (!realTopology.TryGetValue(addr, out var ports))
+                {
+                    continue;
+                }
+
+                // Asegurar que tenemos al menos 4 puertos en el esclavo
+                while (slave.Ports.Count < 4)
+                {
+                    slave.Ports.Add(new EtherCATPort { PortNumber = (byte)slave.Ports.Count });
+                }
+
+                // Mapear conexiones de puertos reales
+                // Port A (entrada) - de donde viene la señal
+                if (ports.portA > 0 && addrToIndex.TryGetValue(ports.portA, out var parentIdx))
+                {
+                    slave.ParentSlaveIndex = parentIdx;
+                    slave.ParentPort = 0; // Conectado desde algún puerto del padre
+                    slave.EntryPort = 0;
+                    slave.Ports[0].ConnectedToSlaveIndex = parentIdx;
+                }
+
+                // Port B (salida) - primer hijo
+                if (ports.portB > 0 && addrToIndex.TryGetValue(ports.portB, out var childBIdx))
+                {
+                    slave.ChildSlaveIndices.Add(childBIdx);
+                    slave.Ports[1].ConnectedToSlaveIndex = childBIdx;
+                }
+
+                // Port C (salida) - segundo hijo (ramificación)
+                if (ports.portC > 0 && addrToIndex.TryGetValue(ports.portC, out var childCIdx))
+                {
+                    slave.ChildSlaveIndices.Add(childCIdx);
+                    slave.Ports[2].ConnectedToSlaveIndex = childCIdx;
+                }
+
+                // Port D (salida) - tercer hijo (ramificación)
+                if (ports.portD > 0 && addrToIndex.TryGetValue(ports.portD, out var childDIdx))
+                {
+                    slave.ChildSlaveIndices.Add(childDIdx);
+                    slave.Ports[3].ConnectedToSlaveIndex = childDIdx;
+                }
+            }
+
+            // Calcular niveles de árbol
+            CalculateTreeLevels(slaves);
+
+            _logger.LogInformation("🔗 Relaciones construidas desde topología real: {Count} esclavos procesados", slaves.Count);
+        }
+
+        /// <summary>
+        /// Calcula los niveles del árbol de topología
+        /// </summary>
+        private void CalculateTreeLevels(List<EtherCATSlaveNode> slaves)
+        {
+            // BFS desde el primer esclavo (conectado al Master)
+            var visited = new HashSet<int>();
+            var queue = new Queue<(int index, int level)>();
+            
+            if (slaves.Count > 0)
+            {
+                queue.Enqueue((0, 0));
+                visited.Add(0);
+            }
+
+            while (queue.Count > 0)
+            {
+                var (idx, level) = queue.Dequeue();
+                slaves[idx].TreeLevel = level;
+
+                foreach (var childIdx in slaves[idx].ChildSlaveIndices)
+                {
+                    if (!visited.Contains(childIdx) && childIdx >= 0 && childIdx < slaves.Count)
+                    {
+                        visited.Add(childIdx);
+                        queue.Enqueue((childIdx, level + 1));
+                    }
+                }
+            }
         }
 
         private void CalculateLayout(EtherCATTopology topology)
@@ -2487,23 +2723,39 @@ namespace SW.PC.API.Backend.Services
             }
 
             // 3. Leer SOLO estados actuales del PLC (ligero, sin ESI)
+            _logger.LogInformation("⚡ Paso 3: Llamando a ReadSlaveStatesOnlyAsync...");
             var currentStates = await ReadSlaveStatesOnlyAsync();
+            _logger.LogInformation("⚡ Paso 3: ReadSlaveStatesOnlyAsync retornó {Count} estados", currentStates.Count);
             
             if (currentStates.Count == 0)
             {
-                _logger.LogWarning("⚠️ No se pudieron leer estados del PLC, devolviendo topología guardada sin actualizar");
+                _logger.LogWarning("⚠️ No se pudieron leer estados del PLC, devolviendo topología guardada CON ESTADOS PRESERVADOS");
                 savedTopology.Timestamp = DateTime.Now;
-                savedTopology.Summary.MasterStateText = "States unavailable";
+                savedTopology.HasCommunicationError = true;
+                savedTopology.ErrorMessage = "PLC disconnected - showing saved topology with last known states";
+                savedTopology.Summary.MasterStateText = "Offline (saved states)";
+                savedTopology.Summary.OverallHealth = NetworkHealth.Offline;
+                
+                // ✅ PRESERVAR los estados guardados - NO sobrescribir con Unknown
+                // Los estados ya vienen de la última lectura exitosa (rescan)
+                _logger.LogInformation("📊 Preservando estados guardados: {OpCount} esclavos en OP según última lectura",
+                    savedTopology.Slaves.Count(s => s.State == EtherCATState.Operational));
+                
                 return savedTopology;
             }
 
             // 4. Actualizar estados en la topología guardada
+            _logger.LogInformation("⚡ Paso 4: Actualizando estados de {Total} esclavos guardados con {Current} estados actuales",
+                savedTopology.Slaves.Count, currentStates.Count);
+            
             int updatedCount = 0;
+            int notFoundCount = 0;
             foreach (var slave in savedTopology.Slaves)
             {
                 // Buscar estado actual por ConfiguredAddress (nECAddr)
                 if (currentStates.TryGetValue(slave.ConfiguredAddress, out var currentState))
                 {
+                    var oldState = slave.State;
                     slave.State = currentState.State;
                     slave.Health = currentState.Health;
                     slave.ErrorCounters = currentState.ErrorCounters;
@@ -2520,7 +2772,27 @@ namespace SW.PC.API.Backend.Services
                         }
                     }
                     updatedCount++;
+                    
+                    if (updatedCount <= 3)
+                    {
+                        _logger.LogInformation("⚡   Esclavo {Addr} ({Name}): {Old} → {New}", 
+                            slave.ConfiguredAddress, slave.Name, oldState, slave.State);
+                    }
                 }
+                else
+                {
+                    notFoundCount++;
+                    if (notFoundCount <= 3)
+                    {
+                        _logger.LogWarning("⚡   Esclavo {Addr} ({Name}): NO encontrado en estados actuales", 
+                            slave.ConfiguredAddress, slave.Name);
+                    }
+                }
+            }
+            
+            if (notFoundCount > 0)
+            {
+                _logger.LogWarning("⚡ {NotFound} esclavos guardados NO encontrados en estados actuales", notFoundCount);
             }
 
             // 5. Actualizar resumen
@@ -2545,14 +2817,24 @@ namespace SW.PC.API.Backend.Services
         {
             var states = new Dictionary<ushort, SlaveCurrentState>();
 
-            if (!IsEnabled || _masterClient == null)
+            if (!IsEnabled)
             {
+                _logger.LogWarning("⚡ ReadSlaveStatesOnlyAsync: EtherCAT no habilitado");
                 return states;
             }
 
             try
             {
-                await EnsureConnectedAsync();
+                // Intentar conectar - si falla, devolvemos diccionario vacío (no excepción)
+                var connected = await TryEnsureConnectedAsync();
+                if (!connected || _masterClient == null || !_masterClient.IsConnected)
+                {
+                    _logger.LogWarning("⚡ ReadSlaveStatesOnlyAsync: Sin conexión al PLC - connected={Connected}, client={Client}, isConnected={IsConnected}",
+                        connected, _masterClient != null, _masterClient?.IsConnected);
+                    return states;
+                }
+
+                _logger.LogInformation("⚡ ReadSlaveStatesOnlyAsync: Conectado al PLC, leyendo estados...");
 
                 // Leer arrSlaveInfo pero solo extraer estado y errores
                 var fbInstance = _config.EtherCATDiagFbInstance ?? "Diagnostic.fbEtherCATDiag";
@@ -2562,8 +2844,11 @@ namespace SW.PC.API.Backend.Services
                 var slaveCount = _masterClient.ReadAny<short>(slaveCountHandle);
                 _masterClient.DeleteVariableHandle(slaveCountHandle);
 
+                _logger.LogInformation("⚡ ReadSlaveStatesOnlyAsync: iNumOfSlavesRead = {Count}", slaveCount);
+
                 if (slaveCount <= 0)
                 {
+                    _logger.LogWarning("⚡ ReadSlaveStatesOnlyAsync: slaveCount <= 0, retornando vacío");
                     return states;
                 }
 
@@ -2575,14 +2860,24 @@ namespace SW.PC.API.Backend.Services
                 var bytesRead = _masterClient.Read(handle, buffer.AsMemory());
                 _masterClient.DeleteVariableHandle(handle);
 
+                _logger.LogInformation("⚡ ReadSlaveStatesOnlyAsync: Leídos {Bytes} bytes de arrSlaveInfo", bytesRead);
+
                 // Detectar tamaño y offset
                 var (actualSlaveSize, nECAddrOffset) = DetectSlaveInfoSize(buffer, bytesRead);
-                if (actualSlaveSize == 0) return states;
+                if (actualSlaveSize == 0) 
+                {
+                    _logger.LogWarning("⚡ ReadSlaveStatesOnlyAsync: actualSlaveSize=0, no se pudo detectar tamaño");
+                    return states;
+                }
+
+                _logger.LogInformation("⚡ ReadSlaveStatesOnlyAsync: slaveSize={Size}, nECAddrOffset={Offset}", actualSlaveSize, nECAddrOffset);
 
                 // Calcular offsets relativos
+                // Estructura ST_SlaveStateInfo después de nECAddr:
+                // nECAddr(2) + bDiagData(1) + padding(1) + stPortCRCErrors(16) + nSumCRCErrors(4) = 24 bytes hasta stState
                 int bDiagDataOffset = nECAddrOffset + 2;
-                int nSumCRCErrorsOffset = nECAddrOffset + 21;
-                int stStateOffset = nECAddrOffset + 25;
+                int nSumCRCErrorsOffset = nECAddrOffset + 20;  // 2 + 1 + 1 + 16 = 20
+                int stStateOffset = nECAddrOffset + 24;        // ✅ CORREGIDO: 20 + 4 = 24
 
                 // Parsear solo estados
                 for (int i = 0; i < slaveCount && i < 100; i++)
@@ -2605,6 +2900,26 @@ namespace SW.PC.API.Backend.Services
                     var state = EtherCATState.Unknown;
                     bool[] portsActive = new bool[4];
                     int stateOffsetAbs = offset + stStateOffset;
+                    
+                    // 🔍 DEBUG: Probar múltiples offsets para encontrar el byte de estado
+                    if (i == 0) // Solo para el primer esclavo
+                    {
+                        _logger.LogInformation("🔍 DEBUG Slave[0] nECAddr={Addr}: buscando estado en diferentes offsets:", nECAddr);
+                        // Probar offsets relativos al nECAddr: +25, +26, +27, +28, +29, +30
+                        for (int testOffset = 20; testOffset <= 35; testOffset++)
+                        {
+                            int absOffset = offset + nECAddrOffset + testOffset;
+                            if (absOffset < bytesRead)
+                            {
+                                var testByte = buffer[absOffset];
+                                var testMasked = testByte & 0x0F;
+                                _logger.LogInformation("   offset nECAddr+{Off}={AbsOff}: byte=0x{Byte:X2}, masked=0x{Masked:X2} ({Meaning})",
+                                    testOffset, absOffset, testByte, testMasked,
+                                    testMasked switch { 1 => "INIT", 2 => "PREOP", 3 => "BOOT", 4 => "SAFEOP", 8 => "OP", _ => "?" });
+                            }
+                        }
+                    }
+                    
                     if (stateOffsetAbs + 16 <= buffer.Length)
                     {
                         var stateValue = buffer[stateOffsetAbs] & 0x0F;
@@ -2636,11 +2951,18 @@ namespace SW.PC.API.Backend.Services
                     };
                 }
 
-                _logger.LogDebug("⚡ Leídos {Count} estados de esclavos (modo ligero)", states.Count);
+                _logger.LogInformation("⚡ ReadSlaveStatesOnlyAsync: Leídos {Count} estados de esclavos (modo ligero)", states.Count);
+                
+                // Log algunos ejemplos de estados leídos
+                if (states.Count > 0)
+                {
+                    var samples = states.Take(3).Select(s => $"[{s.Key}]={s.Value.State}");
+                    _logger.LogInformation("⚡ Ejemplos de estados: {Samples}", string.Join(", ", samples));
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning("Error leyendo estados: {Error}", ex.Message);
+                _logger.LogError(ex, "⚡ ReadSlaveStatesOnlyAsync ERROR: {Error}", ex.Message);
             }
 
             return states;
@@ -2759,13 +3081,24 @@ namespace SW.PC.API.Backend.Services
             }
 
             // Encontrar diferencias en esclavos que existen en ambos
+            // Solo diferencias de HARDWARE son críticas (VendorId/ProductCode)
+            // Las diferencias de posición son informativas pero no críticas
             foreach (var saved in savedTopology.Slaves)
             {
                 if (currentSlaves.TryGetValue(saved.ConfiguredAddress, out var current))
                 {
-                    // Comparar VendorId + ProductCode (hardware diferente)
-                    if (saved.VendorId != current.VendorId || saved.ProductCode != current.ProductCode)
+                    // Comparar VendorId + ProductCode (hardware diferente) - CRÍTICO
+                    // ⚠️ Solo comparar si ambos tienen valores válidos (no 0)
+                    bool savedHasHardwareInfo = saved.VendorId != 0 || saved.ProductCode != 0;
+                    bool currentHasHardwareInfo = current.VendorId != 0 || current.ProductCode != 0;
+                    
+                    if (savedHasHardwareInfo && currentHasHardwareInfo &&
+                        (saved.VendorId != current.VendorId || saved.ProductCode != current.ProductCode))
                     {
+                        _logger.LogWarning("⚠️ Hardware mismatch @{Addr}: Saved={SavedName} (V:0x{SV:X8} P:0x{SP:X8}), Current={CurrentName} (V:0x{CV:X8} P:0x{CP:X8})",
+                            saved.ConfiguredAddress, saved.Name, saved.VendorId, saved.ProductCode,
+                            current.Name, current.VendorId, current.ProductCode);
+                            
                         comparison.Differences.Add(new SlaveConfigDifference
                         {
                             Position = saved.Position,
@@ -2776,30 +3109,23 @@ namespace SW.PC.API.Backend.Services
                         });
                     }
 
-                    // Comparar posición en el bus
-                    if (saved.Position != current.Position)
-                    {
-                        comparison.Differences.Add(new SlaveConfigDifference
-                        {
-                            Position = saved.Position,
-                            SlaveName = saved.Name,
-                            Field = "Position",
-                            SavedValue = saved.Position.ToString(),
-                            CurrentValue = current.Position.ToString()
-                        });
-                    }
+                    // Las diferencias de posición NO se consideran críticas
+                    // ya que pueden variar según el orden de enumeración del bus
                 }
             }
 
-            // La configuración coincide si no hay diferencias significativas
+            // La configuración coincide si:
+            // - No hay esclavos faltantes (que estaban antes y ya no están)
+            // - No hay esclavos nuevos (que no estaban antes)
+            // - No hay diferencias de HARDWARE (mismo address pero diferente dispositivo)
             comparison.ConfigurationMatches = 
                 comparison.MissingSlaves.Count == 0 && 
                 comparison.NewSlaves.Count == 0 && 
                 comparison.Differences.Count == 0;
 
-            _logger.LogInformation("🔍 EtherCAT: Comparación - Guardados: {Saved}, Actuales: {Current}, Match: {Match}, Faltantes: {Missing}, Nuevos: {New}", 
+            _logger.LogInformation("🔍 EtherCAT: Comparación - Guardados: {Saved}, Actuales: {Current}, Match: {Match}, Faltantes: {Missing}, Nuevos: {New}, Diffs Hardware: {Diffs}", 
                 comparison.SavedSlaveCount, comparison.CurrentSlaveCount, comparison.ConfigurationMatches,
-                comparison.MissingSlaves.Count, comparison.NewSlaves.Count);
+                comparison.MissingSlaves.Count, comparison.NewSlaves.Count, comparison.Differences.Count);
 
             return comparison;
         }
