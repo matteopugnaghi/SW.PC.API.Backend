@@ -2,8 +2,8 @@
 
 Hoja Excel para configurar la visualización de información de elementos 3D en la página principal.
 
-> **Estado**: ✅ Implementado (WIP - 5% probado)  
-> **Última actualización**: 2026-01-05
+> **Estado**: ✅ Implementado (WIP - 10% probado)  
+> **Última actualización**: 2026-01-28
 
 ---
 
@@ -12,10 +12,10 @@ Hoja Excel para configurar la visualización de información de elementos 3D en 
 | Concepto | Valor |
 |----------|-------|
 | **Nombre de hoja** | `3D_Elements_Info_Setting` |
-| **Total columnas** | 158 (A-FB) |
+| **Total columnas** | 417 (A-PA) |
 | **Columnas base** | A-L (12 columnas) |
 | **Botones escritura PLC** | 5 máximo (columnas M-AA, 3 cols/botón) |
-| **Slots lectura PLC** | 10 máximo (columnas AB-FB, 13 cols/slot) |
+| **Slots lectura PLC** | 30 máximo (columnas AB-PA, 13 cols/slot) |
 | **Endpoint API** | `GET /api/config/3d-elements-info-setting` |
 
 ---
@@ -25,34 +25,39 @@ Hoja Excel para configurar la visualización de información de elementos 3D en 
 | Funcionalidad | Estado | Notas |
 |---------------|--------|-------|
 | Slots tipo `Numeric` | ✅ Funciona | Probado con `lr_LevelTank[1]`, `lr_LevelTank[2]` |
+| Slots tipo `String` (TEXT/WSTRING) | ✅ Funciona | Configurar con `SlotX_Type = "text"` o `"string"` |
 | Iconos en slots (imagen) | ✅ Funciona | Via base64 data URL (CORS solucionado) |
 | SignalR valor inicial | ✅ Funciona | Envía valor al suscribirse |
 | Layout vertical slots | ✅ Funciona | Altura dinámica del panel |
+| Ocultar nombre variable sin descripción | ✅ Funciona | Si `SlotX_Description` vacío, no muestra nada |
 
 ## ⏳ Pendiente de Probar
 
 | Funcionalidad | Estado |
 |---------------|--------|
-| Slots tipo `Boolean` | ⏳ Pendiente |
-| Slots tipo `Progress` | ⏳ Pendiente |
-| Slots tipo `Gauge` | ⏳ Pendiente |
-| Slots tipo `Sparkline` | ⏳ Pendiente |
-| Botones escritura PLC | ⏳ Pendiente |
-| DisplayTypes (linked, screen-fixed, etc.) | ⏳ Pendiente |
-| Umbrales warning/critical | ⏳ Pendiente |
+| Slots tipo `Boolean` | ⚙️ Implementado (pendiente validar en planta) |
+| Slots tipo `Progress` | ⚙️ Implementado (pendiente validar en planta) |
+| Slots tipo `Gauge` | ⚙️ Implementado (pendiente validar en planta) |
+| Slots tipo `Sparkline` | ⚙️ Implementado (pendiente validar en planta) |
+| Botones escritura PLC (Pulse/Set/Toggle/Input) | ⚙️ Implementado (pendiente validar en planta) |
+| DisplayTypes (linked, screen-fixed, dual-toggle, etc.) | ⚙️ Implementado (pendiente validar en planta) |
+| Umbrales warning/critical | ⚙️ Implementado (pendiente validar en planta) |
 
 ---
 
 ## 🎯 DisplayType - Tipos de Visualización
 
-| Valor | Panel Pantalla | Label Modelo | Checkbox | Descripción |
-|-------|----------------|--------------|----------|-------------|
-| `always-visible` | ❌ | SIEMPRE (info) | ❌ | Info pegada al modelo, sin control |
-| `attached-label` | ❌ | Toggle (info) | ✅ | Info pegada al modelo, toggle con checkbox |
-| `screen-fixed` | Toggle | ❌ | ✅ | Panel en pantalla, toggle con checkbox |
-| `linked` | Toggle | Toggle (nombre) | ✅ | Panel pantalla + nombre en modelo, ambos toggle |
-| `screen-always` | SIEMPRE | Toggle (nombre) | ✅ | Panel siempre visible + checkbox para localizar en 3D |
-| `always-linked` | ❌ | SIEMPRE (info) | ✅ | Info siempre visible + checkbox para resaltar modelo |
+La lógica real se basa en `ElementDisplayType` (backend) y `_initializeVisibility`/`_hasHighlight` en `InfoDisplayManager` (frontend).
+
+| Valor (`DisplayType`) | `modelLabel` (label 3D info) | `screenPanel` (panel pantalla) | `highlight` (📍 localización) | Checkbox en UI | Descripción funcional |
+|------------------------|-------------------------------|-------------------------------|-------------------------------|----------------|------------------------|
+| `always-visible` | ✅ Siempre visible | ❌ | ❌ | ❌ | Info pegada al modelo SIEMPRE, sin checkbox ni panel en pantalla |
+| `always-linked` | ✅ Siempre visible | ❌ | Toggle | ✅ (highlight) | Info pegada al modelo SIEMPRE + checkbox para resaltar/localizar modelo (highlight) |
+| `attached-label` | ❌ | ❌ | Toggle | ✅ (highlight) | Solo highlight tipo etiqueta pequeña pegada al modelo, controlado por checkbox |
+| `screen-fixed` | ❌ | ✅ Siempre visible | ❌ | ❌ | Panel fijo en pantalla, sin checkbox (siempre visible) |
+| `linked` | ❌ | ✅ Siempre visible | Toggle | ✅ (highlight) | Panel en pantalla SIEMPRE + checkbox para mostrar highlight/localización sobre el modelo |
+| `screen-always` | ❌ | Toggle | ❌ | ✅ (panel) | Panel en pantalla con checkbox para mostrar/ocultar (si se marca, se muestra siempre hasta ocultar) |
+| `dual-toggle` | ❌ | Toggle | Toggle | ✅✅ (2 checkboxes) | Un checkbox controla panel en pantalla, el otro el highlight/localización sobre el modelo |
 
 ---
 
@@ -60,31 +65,47 @@ Hoja Excel para configurar la visualización de información de elementos 3D en 
 
 Para `screen-fixed`, `linked` y `screen-always`.
 
+El software actual usa un **grid de 4 columnas x 3 filas**. Cada panel de pantalla ocupa una de estas 12 posiciones fijas.
+
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│ top-left-1  top-left-2  │  top-center-1  │  top-right-1  top-right-2
-│ top-left-3  top-left-4  │  top-center-2  │  top-right-3  top-right-4
-│─────────────────────────┼────────────────┼─────────────────────────│
-│                         │                │                         │
-│ center-left-1           │    [ESCENA     │           center-right-1│
-│ center-left-2           │       3D]      │           center-right-2│
-│                         │                │                         │
-│─────────────────────────┼────────────────┼─────────────────────────│
-│ bottom-left-1           │ bottom-center-1│         bottom-right-1  │
-│ bottom-left-2           │ bottom-center-2│         bottom-right-2  │
+│ top-left        top-center-left   top-center-right    top-right│
+│────────────────────────────────────────────────────────────────│
+│ middle-left     middle-center-left middle-center-right middle-right
+│ (aliases:       (alias:            (alias:             (alias:
+│  center-left)    center-center-left) center-center-right) center-right)
+│────────────────────────────────────────────────────────────────│
+│ bottom-left     bottom-center-left bottom-center-right bottom-right│
 └────────────────────────────────────────────────────────────────┘
 ```
 
-| Zona | Slots disponibles |
-|------|-------------------|
-| `top-left` | `top-left-1`, `top-left-2`, `top-left-3`, `top-left-4` |
-| `top-center` | `top-center-1`, `top-center-2` |
-| `top-right` | `top-right-1`, `top-right-2`, `top-right-3`, `top-right-4` |
-| `center-left` | `center-left-1`, `center-left-2` |
-| `center-right` | `center-right-1`, `center-right-2` |
-| `bottom-left` | `bottom-left-1`, `bottom-left-2` |
-| `bottom-center` | `bottom-center-1`, `bottom-center-2` |
-| `bottom-right` | `bottom-right-1`, `bottom-right-2` |
+### Valores válidos de `ScreenPosition`
+
+| Valor | Fila | Columna | Notas |
+|-------|------|---------|-------|
+| `top-left` | superior | izquierda | Panel arriba a la izquierda |
+| `top-center-left` | superior | centro-izquierda | Panel arriba centrado (1) |
+| `top-center-right` | superior | centro-derecha | Panel arriba centrado (2) |
+| `top-right` | superior | derecha | Panel arriba a la derecha (desplazado para no tapar InfoPanel) |
+| `middle-left` | media | izquierda | Panel centrado vertical, a la izquierda |
+| `middle-center-left` | media | centro-izquierda | Panel centrado vertical, centro-izquierda |
+| `middle-center-right` | media | centro-derecha | Panel centrado vertical, centro-derecha |
+| `middle-right` | media | derecha | Panel centrado vertical, derecha |
+| `bottom-left` | inferior | izquierda | Panel abajo a la izquierda |
+| `bottom-center-left` | inferior | centro-izquierda | Panel abajo centrado (1) |
+| `bottom-center-right` | inferior | centro-derecha | Panel abajo centrado (2) |
+| `bottom-right` | inferior | derecha | Panel abajo a la derecha |
+
+### Alias aceptados (compatibilidad Excel)
+
+En Excel también se aceptan estos valores, que internamente se mapean a las posiciones `middle-*`:
+
+| Alias | Equivale a |
+|-------|------------|
+| `center-left` | `middle-left` |
+| `center-center-left` | `middle-center-left` |
+| `center-center-right` | `middle-center-right` |
+| `center-right` | `middle-right` |
 
 ---
 
@@ -115,18 +136,49 @@ Para `attached-label`, `always-visible`, `linked`, `screen-always` y `always-lin
 
 ## 📊 Slot_Type - Tipos de Datos para Slots de Lectura
 
-| Valor | Visual | Descripción |
-|-------|--------|-------------|
-| `numeric` | `45.2 mm` | Valor numérico con unidad |
-| `boolean` | `● Activo` / `○ Parado` | Estado ON/OFF con texto |
-| `text` | `AUTO_MODE` | Texto literal del PLC |
-| `progress` | `████████░░ 80%` | Barra de progreso horizontal |
-| `gauge` | 🎯 Velocímetro circular | Indicador tipo reloj |
-| `sparkline` | 📈 Mini gráfico | Tendencia últimos N valores |
-| `numeric+sparkline` | `45.2 A` + 📈 | Valor numérico + tendencia |
-| `numeric+gauge` | `45.2 A` + 🎯 | Valor numérico + velocímetro |
-| `progress+numeric` | `████░░` + `75%` | Barra + valor numérico |
-| `gauge+sparkline` | 🎯 + 📈 | Velocímetro + tendencia |
+| Valor | Visual | Descripción | Tipo PLC |
+|-------|--------|-------------|----------|
+| `numeric` | `45.2 mm` | Valor numérico con unidad | `INT`, `DINT`, `REAL`, `LREAL` |
+| `boolean` | `● Activo` / `○ Parado` | Estado ON/OFF con texto | `BOOL` |
+| `text` / `string` | `AUTO_MODE` | Texto literal del PLC | `STRING`, `WSTRING` |
+| `progress` | `████████░░ 80%` | Barra de progreso horizontal | Numérico |
+| `gauge` | 🎯 Velocímetro circular | Indicador tipo reloj | Numérico |
+| `sparkline` | 📈 Mini gráfico | Tendencia últimos N valores | Numérico |
+| `numeric+sparkline` | `45.2 A` + 📈 | Valor numérico + tendencia | Numérico |
+| `numeric+gauge` | `45.2 A` + 🎯 | Valor numérico + velocímetro | Numérico |
+| `progress+numeric` | `████░░` + `75%` | Barra + valor numérico | Numérico |
+| `gauge+sparkline` | 🎯 + 📈 | Velocímetro + tendencia | Numérico |
+
+### ⚙️ Configuración de Slots tipo STRING
+
+Para mostrar variables de texto del PLC (`STRING` o `WSTRING`):
+
+| Campo Excel | Valor | Obligatorio | Ejemplo |
+|-------------|-------|-------------|---------|
+| `SlotX_Type` | `"text"` o `"string"` | ✅ Sí | `text` |
+| `SlotX_PlcVar` | Nombre variable PLC | ✅ Sí | `MAIN.fbMachine.sMode` |
+| `SlotX_Description` | Etiqueta mostrada | ⚠️ Opcional* | `Modo actual` |
+| `SlotX_Icon` | Emoji o ruta imagen | ❌ No | `📝` |
+
+> **⚠️ IMPORTANTE**: Si `SlotX_Description` está **vacío**, el slot **NO mostrará ningún texto** (ni descripción ni nombre de variable). Solo se mostrará el valor del PLC. Si quieres ver una etiqueta, debes poner algo en `SlotX_Description`.
+
+**Ejemplo de configuración:**
+
+| Offset | Campo | Valor | Notas |
+|--------|-------|-------|-------|
+| +0 | `Slot1_Type` | `text` | Tipo STRING |
+| +1 | `Slot1_PlcVar` | `MAIN.fbMachine.sStatusMessage` | Variable WSTRING del PLC |
+| +2 | `Slot1_Description` | `Estado máquina` | Etiqueta visible (OBLIGATORIO para ver algo) |
+| +3 | `Slot1_Unit` | *(vacío)* | No se usa para strings |
+| +12 | `Slot1_Icon` | `📝` | Opcional |
+
+**Resultado visual:**
+```
+┌─────────────────────────────────┐
+│ 📝 Estado máquina               │  ← Descripción + icono
+│    LAVADO EN CURSO              │  ← Valor del PLC
+└─────────────────────────────────┘
+```
 
 ---
 
@@ -138,7 +190,7 @@ Para `attached-label`, `always-visible`, `linked`, `screen-always` y `always-lin
 |-----|---|-------|------|---------|-------------|
 | **A** | 1 | `ModelName` | string | `GANTRY_1` | Nombre del modelo padre (debe existir en hoja "3D Elements") |
 | **B** | 2 | `DisplayType` | enum | `linked` | Tipo de visualización (ver tabla DisplayType) |
-| **C** | 3 | `ScreenPosition` | string | `top-left-1` | Posición en pantalla (ver tabla ScreenPosition) |
+| **C** | 3 | `ScreenPosition` | string | `top-left` | Posición en pantalla (ver tabla ScreenPosition) |
 | **D** | 4 | `ModelPosition` | enum | `top` | Posición relativa al modelo (ver tabla ModelPosition) |
 | **E** | 5 | `OffsetX` | double | `0` | Ajuste fino posición X |
 | **F** | 6 | `OffsetY` | double | `30` | Ajuste fino posición Y (arriba/abajo) |
@@ -153,38 +205,57 @@ Para `attached-label`, `always-visible`, `linked`, `screen-always` y `always-lin
 
 5 botones de acción, **3 columnas cada uno**. Si `BtnX_PlcVar` está vacío, el botón no aparece.
 
+> ⚠️ Formato NUEVO: la segunda columna es una cadena de configuración compuesta `icon|behaviorType|dataType|enableVar`.
+
 | Botón | Columnas | # Base | Campos |
 |-------|----------|--------|--------|
-| Botón 1 | M-O | 13 | PlcVar, Description, Icon |
-| Botón 2 | P-R | 16 | PlcVar, Description, Icon |
-| Botón 3 | S-U | 19 | PlcVar, Description, Icon |
-| Botón 4 | V-X | 22 | PlcVar, Description, Icon |
-| Botón 5 | Y-AA | 25 | PlcVar, Description, Icon |
+| Botón 1 | M-O | 13 | PlcVar, Config, Description |
+| Botón 2 | P-R | 16 | PlcVar, Config, Description |
+| Botón 3 | S-U | 19 | PlcVar, Config, Description |
+| Botón 4 | V-X | 22 | PlcVar, Config, Description |
+| Botón 5 | Y-AA | 25 | PlcVar, Config, Description |
 
 #### Detalle de Columnas por Botón
 
-| Offset | Campo | Tipo | Ejemplo | Descripción |
-|--------|-------|------|---------|-------------|
-| +0 | `BtnX_PlcVar` | string | `MAIN.fbMachine.CMD_Start` | Variable PLC a escribir (BOOL) |
-| +1 | `BtnX_Description` | string | `Arrancar` | Texto del botón |
-| +2 | `BtnX_Icon` | string | `▶️` o `play.png` | Icono (vacío = sin icono) |
+| Offset | Campo (nombre sugerido) | Tipo | Ejemplo | Descripción |
+|--------|-------------------------|------|---------|-------------|
+| +0 | `BtnX_PlcVar` | string | `MAIN.fbMachine.CMD_Start` | Variable PLC a escribir (BOOL/INT/LREAL/STRING) |
+| +1 | `BtnX_Config` | string | `start.png|pulse|bool|GVL.EnableStart` | Config compuesta: `icon|behaviorType|dataType|enableVar` (todas las partes opcionales) |
+| +2 | `BtnX_Description` | string | `Arrancar` | Texto visible en el botón |
 
-### SECCIÓN 3: Slots de Lectura PLC (AB-FB)
+### SECCIÓN 3: Slots de Lectura PLC (AB-PA)
 
-10 slots de datos, **13 columnas cada uno**. Si `SlotX_Type` está vacío, el slot no aparece.
+Hasta **30 slots de datos**, **13 columnas cada uno**. Si `SlotX_Type` está vacío, el slot no aparece.
 
-| Slot | Columnas | # Base | Campos (13) |
-|------|----------|--------|-------------|
-| Slot 1 | AB-AN | 28 | Type, PlcVar, Desc, Unit, Format, Min, Max, Warning, Critical, History, TextOn, TextOff, Icon |
-| Slot 2 | AO-BA | 41 | (mismo patrón) |
-| Slot 3 | BB-BN | 54 | (mismo patrón) |
-| Slot 4 | BO-CA | 67 | (mismo patrón) |
-| Slot 5 | CB-CN | 80 | (mismo patrón) |
-| Slot 6 | CO-DA | 93 | (mismo patrón) |
-| Slot 7 | DB-DN | 106 | (mismo patrón) |
-| Slot 8 | DO-EA | 119 | (mismo patrón) |
-| Slot 9 | EB-EN | 132 | (mismo patrón) |
-| Slot 10 | EO-FA | 145 | (mismo patrón) |
+Resumen de rangos de columnas:
+
+| Slots | Columnas | Índice de columna inicial | Comentario |
+|-------|----------|---------------------------|------------|
+| 1-10 | AB-FA | 28 | Configuración original (compatibilidad) |
+| 11-20 | FB-KA | 158 | Segundo bloque de 10 slots |
+| 21-30 | KB-PA | 288 | Tercer bloque de 10 slots |
+
+La fórmula general es: **columna inicial = 28 + (slotIndex - 1) × 13**.
+
+Ejemplos concretos:
+
+| Slot | Columnas |
+|------|----------|
+| 1 | AB-AN |
+| 2 | AO-BA |
+| 3 | BB-BN |
+| 4 | BO-CA |
+| 5 | CB-CN |
+| 6 | CO-DA |
+| 7 | DB-DN |
+| 8 | DO-EA |
+| 9 | EB-EN |
+| 10 | EO-FA |
+| 11 | FB-FN |
+| 12 | FO-GA |
+| 20 | IO-KA |
+| 21 | KB-KN |
+| 30 | MO-PA |
 
 #### Detalle de Columnas por Slot (13 columnas)
 
@@ -192,9 +263,9 @@ Para `attached-label`, `always-visible`, `linked`, `screen-always` y `always-lin
 |--------|-------|------|---------|-------------|
 | +0 | `SlotX_Type` | enum | `numeric` | Tipo de visualización (ver tabla Slot_Type) |
 | +1 | `SlotX_PlcVar` | string | `MAIN.fbMachine.lr_LevelTank[1]` | Variable PLC a leer |
-| +2 | `SlotX_Description` | string | `Nivel Tanque 1` | Etiqueta/descripción del dato |
-| +3 | `SlotX_Unit` | string | `mm` | Unidad de medida |
-| +4 | `SlotX_Format` | string | `#.0` | Formato numérico |
+| +2 | `SlotX_Description` | string | `Nivel Tanque 1` | Etiqueta opcional. Si está vacío, el slot se muestra **solo con el valor/visual** (sin cabecera de texto) |
+| +3 | `SlotX_Unit` | string | `mm` | Unidad de medida (opcional, no usar con STRING) |
+| +4 | `SlotX_Format` | string | `#.0` | Formato numérico (`#` = entero, `#.0` = 1 decimal, `#.00` = 2 decimales) |
 | +5 | `SlotX_Min` | double | `0` | Valor mínimo (para gauge/progress) |
 | +6 | `SlotX_Max` | double | `5000` | Valor máximo (para gauge/progress) |
 | +7 | `SlotX_Warning` | double | `4000` | Umbral amarillo (para gauge) |
@@ -203,6 +274,8 @@ Para `attached-label`, `always-visible`, `linked`, `screen-always` y `always-lin
 | +10 | `SlotX_TextOn` | string | `Activo` | Texto cuando TRUE (para boolean) |
 | +11 | `SlotX_TextOff` | string | `Parado` | Texto cuando FALSE (para boolean) |
 | +12 | `SlotX_Icon` | string | `🌡️` o `temp.png` | Icono del slot (vacío = sin icono) |
+
+> **⚠️ CAMBIO IMPORTANTE (2026-01-28)**: Anteriormente, si `SlotX_Description` estaba vacío, se mostraba el nombre de la variable PLC. **Ahora, si no hay descripción, el slot NO muestra ningún encabezado** (más limpio). Si quieres ver una etiqueta, debes rellenar `SlotX_Description`.
 
 ---
 
@@ -261,10 +334,14 @@ Si el campo de icono está **vacío**, no se muestra ningún icono.
 
 | Característica | Descripción |
 |----------------|-------------|
-| **Acción** | Escribe `TRUE` (1) a la variable PLC |
-| **Tipo** | Pulso momentáneo (TRUE → espera → FALSE) |
-| **Vacío** | Si `BtnX_PlcVar` está vacío, el botón no aparece |
-| **Permisos** | Respeta permisos de usuario para escritura PLC |
+| **Acción por defecto (Pulse)** | Escribe `TRUE` (1) al PLC, espera y vuelve a `FALSE` automáticamente |
+| **Tipo `Set`** | Escribe `TRUE` y mantiene el estado (latch) hasta que otro control lo cambie |
+| **Tipo `Toggle`** | Alterna entre `TRUE` y `FALSE` leyendo el valor actual de la variable PLC |
+| **Tipo `Input`** | Abre un teclado virtual para escribir un valor (INT/LREAL/STRING) y lo envía al PLC |
+| **DataType** | Definido en `BtnX_Config` (`bool`, `int`, `lreal`, `string`) y mapeado a `ButtonDataType` en backend |
+| **EnableVariable** | Tercer/cuarto campo de `BtnX_Config`: 0=oculto, 1=visible y habilitado, 2=visible pero deshabilitado |
+| **Visibilidad** | Si `BtnX_PlcVar` está vacío, el botón no se crea |
+| **Permisos** | Respeta permisos de usuario y lógica de escritura PLC en backend |
 
 ---
 
@@ -278,6 +355,9 @@ Si el campo de icono está **vacío**, no se muestra ningún icono.
 | 2026-01-05 | 1.3 | Añadidos campos LabelWidth/LabelHeight/LabelScale/ShortName/OffsetZ |
 | 2026-01-05 | 1.4 | Fix SignalR: envía valor al suscribirse (no solo en cambios) |
 | 2026-01-05 | 1.5 | CORS fix: iconos como base64 data URL |
+| 2026-01-28 | 1.6 | **CAMBIO**: Si `SlotX_Description` vacío, no muestra header (ni variable PLC) |
+| 2026-01-28 | 1.7 | Documentación completa para slots tipo STRING/TEXT (variables WSTRING del PLC) |
+| 2026-01-28 | 1.8 | Soporte hasta 30 slots (AB-PA) y actualización de `ScreenPosition`/botones según implementación real |
 
 ---
 
@@ -298,7 +378,7 @@ Si el campo de icono está **vacío**, no se muestra ningún icono.
 | Archivo | Descripción |
 |---------|-------------|
 | [services/api.js](../../../my-3d-app/src/services/api.js) | Método `get3DElementsInfoSetting()` |
-| [babylon/ui/InfoDisplayManager.js](../../../my-3d-app/src/babylon/ui/InfoDisplayManager.js) | Manager para paneles de info 3D |
+| [src/utils/InfoDisplayManager.js](../../../my-3d-app/src/utils/InfoDisplayManager.js) | Manager para paneles de info 3D (labels 3D + Screen Panels) |
 | [BabylonScene.js](../../../my-3d-app/src/BabylonScene.js) | Integración con escena 3D |
 
 ### Flujo de Datos
