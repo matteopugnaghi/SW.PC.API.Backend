@@ -2885,6 +2885,11 @@ namespace SW.PC.API.Backend.Services
             savedTopology.Summary.TotalCRCErrors = savedTopology.Slaves.Sum(s => s.ErrorCounters.CRCErrorCount);
             savedTopology.Summary.OverallHealth = DetermineOverallHealth(savedTopology.Slaves);
             savedTopology.Summary.MasterStateText = savedTopology.Master.State.ToString();
+            
+            // 5.1 Leer contadores globales del FB (nLostFrames, nLostQueuedFrames)
+            await ReadFBGlobalCountersAsync(savedTopology);
+            savedTopology.Summary.LostFrames = savedTopology.LostFrames;
+            savedTopology.Summary.LostQueuedFrames = savedTopology.LostQueuedFrames;
 
             _logger.LogInformation("⚡ EtherCAT: Topología optimizada cargada - {Updated}/{Total} esclavos actualizados, {Op} en OP", 
                 updatedCount, savedTopology.Slaves.Count, savedTopology.Summary.OperationalSlaveCount);
