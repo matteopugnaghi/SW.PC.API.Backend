@@ -450,6 +450,12 @@ namespace SW.PC.API.Backend.Models.EtherCAT
         /// Si UseSimulatedPlc=true y no hay conexión real, se simulan los datos.
         /// </summary>
         public bool IsSimulated { get; set; } = false;
+
+        /// <summary>Frames perdidos del Master (Diagnostic.fbEtherCATDiag.nLostFrames)</summary>
+        public uint LostFrames { get; set; }
+
+        /// <summary>Frames perdidos en cola (Diagnostic.fbEtherCATDiag.nLostQueuedFrames)</summary>
+        public uint LostQueuedFrames { get; set; }
     }
 
     /// <summary>
@@ -469,11 +475,14 @@ namespace SW.PC.API.Backend.Models.EtherCAT
         /// <summary>Número de esclavos con errores</summary>
         public int SlavesWithErrors { get; set; }
 
-        /// <summary>Total de errores CRC acumulados</summary>
+        /// <summary>Total de errores CRC acumulados (suma de nSumCRCErrors de todos los esclavos)</summary>
         public long TotalCRCErrors { get; set; }
 
-        /// <summary>Total de Lost Links acumulados</summary>
-        public long TotalLostLinks { get; set; }
+        /// <summary>Frames perdidos del Master (Diagnostic.fbEtherCATDiag.nLostFrames)</summary>
+        public long LostFrames { get; set; }
+
+        /// <summary>Frames perdidos en cola (Diagnostic.fbEtherCATDiag.nLostQueuedFrames)</summary>
+        public long LostQueuedFrames { get; set; }
 
         /// <summary>Estado del Master (texto corto)</summary>
         public string MasterStateText { get; set; } = "Unknown";
@@ -688,19 +697,28 @@ namespace SW.PC.API.Backend.Models.EtherCAT
         public uint CRCErrorCount { get; set; }
         public uint WatchdogErrors { get; set; }
         
+        /// <summary>Errores CRC en Puerto A (de stPortCRCErrors)</summary>
+        public uint CRCErrorPortA { get; set; }
+        
+        /// <summary>Errores CRC en Puerto B (de stPortCRCErrors)</summary>
+        public uint CRCErrorPortB { get; set; }
+        
+        /// <summary>Errores CRC en Puerto C (de stPortCRCErrors)</summary>
+        public uint CRCErrorPortC { get; set; }
+        
+        /// <summary>Errores CRC en Puerto D (de stPortCRCErrors)</summary>
+        public uint CRCErrorPortD { get; set; }
+        
         /// <summary>¿Tiene errores significativos?</summary>
         public bool HasErrors => 
-            InvalidFrameCount > 10 || 
-            RxErrorCount > 10 || 
             CRCErrorCount > 10 || 
-            LostLinkCount > 5 ||
-            WatchdogErrors > 0;
+            CRCErrorPortA > 5 || 
+            CRCErrorPortB > 5 || 
+            CRCErrorPortC > 5 || 
+            CRCErrorPortD > 5;
 
-        /// <summary>Total de errores</summary>
-        public long TotalErrors => 
-            InvalidFrameCount + RxErrorCount + ForwardedRxErrorCount + 
-            ProcessingUnitErrorCount + PDIErrorCount + LostLinkCount + 
-            CRCErrorCount + WatchdogErrors;
+        /// <summary>Total de errores CRC (sum de todos los puertos)</summary>
+        public long TotalErrors => CRCErrorCount;
     }
 
     /// <summary>

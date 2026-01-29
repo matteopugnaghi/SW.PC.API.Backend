@@ -65,6 +65,17 @@ namespace SW.PC.API.Backend.Services
 
         /// <summary>Prueba la conexión al Master EtherCAT y retorna diagnóstico detallado</summary>
         Task<EtherCATConnectionDiagnostics> TestConnectionAsync();
+
+        // === Métodos para comandos de reset ===
+
+        /// <summary>Limpia los contadores CRC de todas las tarjetas (bClearCRC=TRUE)</summary>
+        Task<bool> ClearCRCErrorsAsync();
+
+        /// <summary>Limpia los contadores de Frames perdidos (bClearFrames=TRUE)</summary>
+        Task<bool> ClearFrameErrorsAsync();
+
+        /// <summary>Fuerza un diagnóstico completo en el PLC (bCompleteDiag=TRUE)</summary>
+        Task<bool> TriggerCompleteDiagnosticAsync();
     }
 
     public class EtherCATDiagnosticsService : IEtherCATDiagnosticsService, IDisposable
@@ -617,6 +628,9 @@ namespace SW.PC.API.Backend.Services
                 topology.Slaves = slaves;
                 topology.IsSimulated = isSimulated;
 
+                // 2.1 Leer contadores globales del FB (nLostFrames, nLostQueuedFrames)
+                await ReadFBGlobalCountersAsync(topology);
+
                 // 3. Construir relaciones de topología (parent/child)
                 // ⭐ USAR topología REAL del PLC si está disponible
                 await BuildTopologyRelationsFromPlcAsync(topology.Slaves);
@@ -894,6 +908,54 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogDebug("Could not read slave count directly: {Error}", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Lee contadores globales del FB_EtherCATDiag: nLostFrames, nLostQueuedFrames
+        /// </summary>
+        private async Task ReadFBGlobalCountersAsync(EtherCATTopology topology)
+        {
+            if (_masterClient == null || !_masterClient.IsConnected)
+                return;
+
+            var fbInstance = _config.EtherCATDiagFbInstance;
+
+            try
+            {
+                // Leer nLostFrames (UDINT - 4 bytes)
+                try
+                {
+                    var handle = _masterClient.CreateVariableHandle($"{fbInstance}.nLostFrames");
+                    var buffer = new byte[4];
+                    _masterClient.Read(handle, buffer.AsMemory());
+                    _masterClient.DeleteVariableHandle(handle);
+                    topology.LostFrames = BitConverter.ToUInt32(buffer, 0);
+                    _logger.LogDebug("✅ {FB}.nLostFrames = {Value}", fbInstance, topology.LostFrames);
+                }
+                catch (AdsErrorException ex)
+                {
+                    _logger.LogDebug("⚠️ No se pudo leer {FB}.nLostFrames: {Error}", fbInstance, ex.ErrorCode);
+                }
+
+                // Leer nLostQueuedFrames (UDINT - 4 bytes)
+                try
+                {
+                    var handle = _masterClient.CreateVariableHandle($"{fbInstance}.nLostQueuedFrames");
+                    var buffer = new byte[4];
+                    _masterClient.Read(handle, buffer.AsMemory());
+                    _masterClient.DeleteVariableHandle(handle);
+                    topology.LostQueuedFrames = BitConverter.ToUInt32(buffer, 0);
+                    _logger.LogDebug("✅ {FB}.nLostQueuedFrames = {Value}", fbInstance, topology.LostQueuedFrames);
+                }
+                catch (AdsErrorException ex)
+                {
+                    _logger.LogDebug("⚠️ No se pudo leer {FB}.nLostQueuedFrames: {Error}", fbInstance, ex.ErrorCode);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Error leyendo contadores globales del FB: {Error}", ex.Message);
             }
         }
 
@@ -1181,6 +1243,16 @@ namespace SW.PC.API.Backend.Services
                 // bDiagData - ahora con offset dinámico
                 var bDiagData = buffer[offset + bDiagDataOffset] != 0;
 
+                // ⭐ stPortCRCErrors - leer errores CRC por puerto (4 x UDINT = 16 bytes)
+                uint crcPortA = 0, crcPortB = 0, crcPortC = 0, crcPortD = 0;
+                if (offset + stPortCRCErrorsOffset + 16 <= buffer.Length)
+                {
+                    crcPortA = BitConverter.ToUInt32(buffer, offset + stPortCRCErrorsOffset);
+                    crcPortB = BitConverter.ToUInt32(buffer, offset + stPortCRCErrorsOffset + 4);
+                    crcPortC = BitConverter.ToUInt32(buffer, offset + stPortCRCErrorsOffset + 8);
+                    crcPortD = BitConverter.ToUInt32(buffer, offset + stPortCRCErrorsOffset + 12);
+                }
+
                 // nSumCRCErrors - ahora con offset dinámico
                 uint nSumCRCErrors = 0;
                 if (offset + nSumCRCErrorsOffset + 4 <= buffer.Length)
@@ -1241,7 +1313,16 @@ namespace SW.PC.API.Backend.Services
                     Ports = ports,
                     ActivePortsBitmap = activePortsBitmap,
                     ActivePortCount = ports.Count(p => p.HasCommunication),
-                    PhysicalType = physicalType
+                    PhysicalType = physicalType,
+                    // ⭐ Contadores de errores CRC por puerto (de stPortCRCErrors)
+                    ErrorCounters = new SlaveErrorCounters
+                    {
+                        CRCErrorCount = nSumCRCErrors,
+                        CRCErrorPortA = crcPortA,
+                        CRCErrorPortB = crcPortB,
+                        CRCErrorPortC = crcPortC,
+                        CRCErrorPortD = crcPortD
+                    }
                 };
 
                 // Log con info de ESI si está especificado
@@ -2528,7 +2609,9 @@ namespace SW.PC.API.Backend.Services
                 OperationalSlaveCount = topology.Slaves.Count(s => s.State == EtherCATState.Operational),
                 SlavesWithErrors = topology.Slaves.Count(s => s.State.HasError() || s.ErrorCounters.HasErrors),
                 TotalCRCErrors = topology.Slaves.Sum(s => s.ErrorCounters.CRCErrorCount),
-                TotalLostLinks = topology.Slaves.Sum(s => s.ErrorCounters.LostLinkCount),
+                // ⭐ Usar LostFrames y LostQueuedFrames del FB en lugar de sumar LostLinkCount
+                LostFrames = topology.LostFrames,
+                LostQueuedFrames = topology.LostQueuedFrames,
                 MasterStateText = topology.Master.State.ToShortString()
             };
 
@@ -2876,6 +2959,7 @@ namespace SW.PC.API.Backend.Services
                 // Estructura ST_SlaveStateInfo después de nECAddr:
                 // nECAddr(2) + bDiagData(1) + padding(1) + stPortCRCErrors(16) + nSumCRCErrors(4) = 24 bytes hasta stState
                 int bDiagDataOffset = nECAddrOffset + 2;
+                int stPortCRCErrorsOffset = nECAddrOffset + 4;  // ⭐ Offset para CRC por puerto
                 int nSumCRCErrorsOffset = nECAddrOffset + 20;  // 2 + 1 + 1 + 16 = 20
                 int stStateOffset = nECAddrOffset + 24;        // ✅ CORREGIDO: 20 + 4 = 24
 
@@ -2889,6 +2973,16 @@ namespace SW.PC.API.Backend.Services
                     if (nECAddr == 0) continue;
 
                     var bDiagData = buffer[offset + bDiagDataOffset] != 0;
+                    
+                    // ⭐ Leer CRC por puerto (stPortCRCErrors - 4 x UDINT = 16 bytes)
+                    uint crcPortA = 0, crcPortB = 0, crcPortC = 0, crcPortD = 0;
+                    if (offset + stPortCRCErrorsOffset + 16 <= buffer.Length)
+                    {
+                        crcPortA = BitConverter.ToUInt32(buffer, offset + stPortCRCErrorsOffset);
+                        crcPortB = BitConverter.ToUInt32(buffer, offset + stPortCRCErrorsOffset + 4);
+                        crcPortC = BitConverter.ToUInt32(buffer, offset + stPortCRCErrorsOffset + 8);
+                        crcPortD = BitConverter.ToUInt32(buffer, offset + stPortCRCErrorsOffset + 12);
+                    }
                     
                     uint nSumCRCErrors = 0;
                     if (offset + nSumCRCErrorsOffset + 4 <= buffer.Length)
@@ -2947,7 +3041,15 @@ namespace SW.PC.API.Backend.Services
                         DiagnosticsAvailable = bDiagData,
                         ErrorCount = (int)nSumCRCErrors,
                         PortsActive = portsActive,
-                        ErrorCounters = new SlaveErrorCounters { CRCErrorCount = nSumCRCErrors }
+                        // ⭐ Incluir CRC por puerto (stPortCRCErrors)
+                        ErrorCounters = new SlaveErrorCounters 
+                        { 
+                            CRCErrorCount = nSumCRCErrors,
+                            CRCErrorPortA = crcPortA,
+                            CRCErrorPortB = crcPortB,
+                            CRCErrorPortC = crcPortC,
+                            CRCErrorPortD = crcPortD
+                        }
                     };
                 }
 
@@ -3143,6 +3245,129 @@ namespace SW.PC.API.Backend.Services
             using var sha256 = SHA256.Create();
             var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(hashInput));
             return Convert.ToHexString(hashBytes);
+        }
+
+        // === Métodos para comandos de reset ===
+
+        /// <summary>
+        /// Limpia los contadores CRC de todas las tarjetas.
+        /// Escribe TRUE en Diagnostic.fbEtherCATDiag.bClearCRC (el PLC lo pondrá a FALSE)
+        /// </summary>
+        public async Task<bool> ClearCRCErrorsAsync()
+        {
+            if (_masterClient == null || !_masterClient.IsConnected)
+            {
+                var connected = await EnsureConnectedAsync();
+                if (!connected)
+                {
+                    _logger.LogWarning("❌ ClearCRCErrors: No hay conexión con el PLC");
+                    return false;
+                }
+            }
+
+            var fbInstance = _config.EtherCATDiagFbInstance;
+            
+            try
+            {
+                var handle = _masterClient!.CreateVariableHandle($"{fbInstance}.bClearCRC");
+                var buffer = new byte[1] { 1 }; // TRUE
+                _masterClient.Write(handle, buffer.AsMemory());
+                _masterClient.DeleteVariableHandle(handle);
+                
+                _logger.LogInformation("✅ {FB}.bClearCRC = TRUE (reset CRC solicitado)", fbInstance);
+                
+                // Invalidar cache para que la próxima lectura obtenga valores actualizados
+                InvalidateCache();
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error escribiendo {FB}.bClearCRC", fbInstance);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Limpia los contadores de Frames perdidos.
+        /// Escribe TRUE en Diagnostic.fbEtherCATDiag.bClearFrames (el PLC lo pondrá a FALSE)
+        /// </summary>
+        public async Task<bool> ClearFrameErrorsAsync()
+        {
+            if (_masterClient == null || !_masterClient.IsConnected)
+            {
+                var connected = await EnsureConnectedAsync();
+                if (!connected)
+                {
+                    _logger.LogWarning("❌ ClearFrameErrors: No hay conexión con el PLC");
+                    return false;
+                }
+            }
+
+            var fbInstance = _config.EtherCATDiagFbInstance ?? "Diagnostic.fbEtherCATDiag";
+            var varPath = $"{fbInstance}.bClearFrames";
+            
+            try
+            {
+                _logger.LogInformation("🔧 Intentando escribir TRUE en: {VarPath}", varPath);
+                
+                var handle = _masterClient!.CreateVariableHandle(varPath);
+                var buffer = new byte[1] { 1 }; // TRUE
+                _masterClient.Write(handle, buffer.AsMemory());
+                _masterClient.DeleteVariableHandle(handle);
+                
+                _logger.LogInformation("✅ {VarPath} = TRUE (reset Frames solicitado)", varPath);
+                
+                // Invalidar cache para que la próxima lectura obtenga valores actualizados
+                InvalidateCache();
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error escribiendo {VarPath}", varPath);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Fuerza un diagnóstico completo en el PLC.
+        /// Escribe TRUE en Diagnostic.bCompleteDiag (el PLC lo pondrá a FALSE)
+        /// </summary>
+        public async Task<bool> TriggerCompleteDiagnosticAsync()
+        {
+            if (_masterClient == null || !_masterClient.IsConnected)
+            {
+                var connected = await EnsureConnectedAsync();
+                if (!connected)
+                {
+                    _logger.LogWarning("❌ TriggerCompleteDiagnostic: No hay conexión con el PLC");
+                    return false;
+                }
+            }
+
+            // NOTA: Diagnostic.bCompleteDiag está fuera del FB, es una variable global
+            var varPath = "Diagnostic.bCompleteDiag";
+            
+            try
+            {
+                var handle = _masterClient!.CreateVariableHandle(varPath);
+                var buffer = new byte[1] { 1 }; // TRUE
+                _masterClient.Write(handle, buffer.AsMemory());
+                _masterClient.DeleteVariableHandle(handle);
+                
+                _logger.LogInformation("✅ {Var} = TRUE (diagnóstico completo solicitado)", varPath);
+                
+                // Invalidar cache
+                InvalidateCache();
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error escribiendo {Var}", varPath);
+                return false;
+            }
         }
 
         public void Dispose()

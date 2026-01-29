@@ -749,6 +749,125 @@ namespace SW.PC.API.Backend.Controllers
             }
         }
 
+        // === Endpoints para comandos de reset ===
+
+        /// <summary>
+        /// Limpia los contadores CRC de todas las tarjetas.
+        /// Escribe TRUE en Diagnostic.fbEtherCATDiag.bClearCRC
+        /// El PLC lo procesará y pondrá a FALSE automáticamente.
+        /// </summary>
+        [HttpPost("clear-crc")]
+        public async Task<ActionResult> ClearCRCErrors()
+        {
+            _logger.LogInformation("🧹 Solicitud de limpieza de contadores CRC");
+            
+            try
+            {
+                var success = await _etherCATService.ClearCRCErrorsAsync();
+                
+                if (success)
+                {
+                    // ⭐ Invalidar caché para que la próxima lectura sea fresca
+                    _etherCATService.InvalidateCache();
+                    
+                    return Ok(new { 
+                        success = true, 
+                        message = "Comando de limpieza CRC enviado. Los valores se actualizarán en unos segundos." 
+                    });
+                }
+                else
+                {
+                    return StatusCode(500, new { 
+                        success = false, 
+                        message = "No se pudo enviar el comando de limpieza CRC. Verifique la conexión con el PLC." 
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error clearing CRC errors");
+                return StatusCode(500, new { success = false, message = $"Error: {ex.Message}" });
+            }
+        }
+
+        /// <summary>
+        /// Limpia los contadores de Frames perdidos (LostFrames, LostQueuedFrames).
+        /// Escribe TRUE en Diagnostic.fbEtherCATDiag.bClearFrames
+        /// El PLC lo procesará y pondrá a FALSE automáticamente.
+        /// </summary>
+        [HttpPost("clear-frames")]
+        public async Task<ActionResult> ClearFrameErrors()
+        {
+            _logger.LogInformation("🧹 Solicitud de limpieza de contadores de Frames");
+            
+            try
+            {
+                var success = await _etherCATService.ClearFrameErrorsAsync();
+                
+                if (success)
+                {
+                    // ⭐ Invalidar caché para que la próxima lectura sea fresca
+                    _etherCATService.InvalidateCache();
+                    
+                    return Ok(new { 
+                        success = true, 
+                        message = "Comando de limpieza Frames enviado. Los valores se actualizarán en unos segundos." 
+                    });
+                }
+                else
+                {
+                    return StatusCode(500, new { 
+                        success = false, 
+                        message = "No se pudo enviar el comando de limpieza Frames. Verifique la conexión con el PLC." 
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error clearing frame errors");
+                return StatusCode(500, new { success = false, message = $"Error: {ex.Message}" });
+            }
+        }
+
+        /// <summary>
+        /// Fuerza un diagnóstico completo de todos los nodos EtherCAT en el PLC.
+        /// Escribe TRUE en Diagnostic.bCompleteDiag
+        /// El PLC realizará el escaneo y pondrá a FALSE automáticamente.
+        /// </summary>
+        [HttpPost("trigger-complete-diagnostic")]
+        public async Task<ActionResult> TriggerCompleteDiagnostic()
+        {
+            _logger.LogInformation("🔍 Solicitud de diagnóstico completo TwinCAT");
+            
+            try
+            {
+                var success = await _etherCATService.TriggerCompleteDiagnosticAsync();
+                
+                if (success)
+                {
+                    // ⭐ Invalidar caché para que la próxima lectura sea fresca
+                    _etherCATService.InvalidateCache();
+                    
+                    return Ok(new { 
+                        success = true, 
+                        message = "Comando de diagnóstico completo enviado al PLC." 
+                    });
+                }
+                else
+                {
+                    return StatusCode(500, new { 
+                        success = false, 
+                        message = "No se pudo enviar el comando de diagnóstico. Verifique la conexión con el PLC." 
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error triggering complete diagnostic");
+                return StatusCode(500, new { success = false, message = $"Error: {ex.Message}" });
+            }
+        }
+
         /// <summary>
         /// Fuerza una nueva lectura de la topología (invalida cache)
         /// </summary>
