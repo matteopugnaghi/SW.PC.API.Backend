@@ -215,14 +215,25 @@ public class ESIParserService : IESIParserService
         // - "EK1122-0000-0018" (tipo-variante-revision)
         // - "EL2798-0000-0018"
         // - "EL2798" (solo tipo)
+        // - "YASKAWA GA500 series 3.02" (tipo con espacios, sin guión de revisión)
         
         // Extraer el tipo base (EK1122, EL2798, etc.)
         var typeBase = ExtractTypeBase(sType);
         
+        _logger.LogTrace("🔍 GetDeviceInfoByType: sType='{sType}', typeBase='{typeBase}'", sType, typeBase);
+        
         // Buscar en cache por tipo base
         if (_deviceByTypeCache.TryGetValue(typeBase, out var info))
         {
+            _logger.LogTrace("✅ GetDeviceInfoByType: Encontrado directamente: {Type}", typeBase);
             return info;
+        }
+        
+        // Intentar búsqueda EXACTA primero (para tipos como "YASKAWA GA500 series 3.02")
+        if (typeBase != sType && _deviceByTypeCache.TryGetValue(sType, out var infoExact))
+        {
+            _logger.LogTrace("✅ GetDeviceInfoByType: Encontrado por sType exacto: {Type}", sType);
+            return infoExact;
         }
         
         // Intentar búsqueda parcial si no hay match exacto
@@ -307,7 +318,16 @@ public class ESIParserService : IESIParserService
             // Intentar buscar por type si se proporcionó
             if (!string.IsNullOrWhiteSpace(sType))
             {
-                return GetDeviceInfoByType(sType);
+                var fallbackResult = GetDeviceInfoByType(sType);
+                if (fallbackResult != null)
+                {
+                    _logger.LogDebug("✅ Fallback por tipo exitoso: {Type} → {ProductName}", sType, fallbackResult.ProductName);
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ Fallback por tipo también falló para: {Type}", sType);
+                }
+                return fallbackResult;
             }
             return null;
         }
@@ -630,38 +650,77 @@ public class ESIParserService : IESIParserService
         }
         
         // ⭐ PHYSICS - Tipo físico de cada puerto (CRÍTICO para topología)
-        // Hay DOS formatos posibles en ESI:
-        // 1. <Physics>KYKY</Physics> - Formato compacto
-        // 2. <Info><Port><Type>MII</Type></Port>...</Info> - Formato detallado (Beckhoff)
+        // Hay TRES formatos posibles en ESI:
+        // 1. <Device Physics="YY"> - Atributo del elemento Device (SICK, otros terceros)
+        // 2. <Physics>KYKY</Physics> - Formato compacto como elemento hijo
+        // 3. <Info><Port><Type>MII</Type></Port>...</Info> - Formato detallado (Beckhoff)
         
         var physicsRaw = "";
         var portPhysics = new List<ESIPortPhysics>();
         
-        // MÉTODO 1: Buscar elemento <Physics> directo
-        var physicsElement = device.Element(ns + "Physics") ?? device.Element("Physics");
-        if (physicsElement == null)
+        // MÉTODO 0: ⭐ NUEVO - Buscar atributo Physics en el elemento Device
+        var physicsAttr = device.Attribute("Physics");
+        if (physicsAttr != null && !string.IsNullOrWhiteSpace(physicsAttr.Value))
         {
-            physicsElement = device.Descendants(ns + "Physics").FirstOrDefault()
-                          ?? device.Descendants("Physics").FirstOrDefault();
+            physicsRaw = physicsAttr.Value.Trim();
+            _logger.LogTrace("📦 ESI Physics (attribute) for {Type}: '{Physics}'", type, physicsRaw);
         }
         
-        if (physicsElement != null && !string.IsNullOrWhiteSpace(physicsElement.Value))
+        // MÉTODO 1: Si no se encontró como atributo, buscar elemento <Physics> directo
+        if (string.IsNullOrEmpty(physicsRaw))
         {
-            physicsRaw = physicsElement.Value.Trim();
-            _logger.LogTrace("📦 ESI Physics (direct) for {Type}: '{Physics}'", type, physicsRaw);
+            var physicsElement = device.Element(ns + "Physics") ?? device.Element("Physics");
+            if (physicsElement == null)
+            {
+                physicsElement = device.Descendants(ns + "Physics").FirstOrDefault()
+                              ?? device.Descendants("Physics").FirstOrDefault();
+            }
+            
+            if (physicsElement != null && !string.IsNullOrWhiteSpace(physicsElement.Value))
+            {
+                physicsRaw = physicsElement.Value.Trim();
+                _logger.LogTrace("📦 ESI Physics (element) for {Type}: '{Physics}'", type, physicsRaw);
+            }
+        }
+        
+        // Procesar physicsRaw (ya sea de atributo o elemento)
+        if (!string.IsNullOrEmpty(physicsRaw))
+        {
+            // ⭐ IMPORTANTE: Interpretación de Physics según ETG.2000
+            // - 'Y' = E-Bus (siempre)
+            // - 'K' = MII/100BASE-TX - PERO para terminales simples con solo 2 puertos "KK" significa E-Bus
+            // - 'H' = Hot Connect (MII)
+            // - 'L' = LVDS
+            // - ' ' = No implementado
+            //
+            // Terminales simples (EL) tienen Physics="KK" pero son E-Bus
+            // Junctions (EK1122) tienen Physics="KYKY" donde K=Cable, Y=E-Bus
+            
+            // Detectar si es un terminal simple (solo 2 caracteres, ambos K)
+            bool isSimpleTerminal = physicsRaw.Length == 2 && physicsRaw == "KK";
             
             for (int i = 0; i < 4; i++)
             {
                 var physChar = i < physicsRaw.Length ? physicsRaw[i] : ' ';
-                var physType = physChar switch
+                string physType;
+                
+                if (isSimpleTerminal && physChar == 'K')
                 {
-                    'Y' => "EBUS",
-                    'K' => "MII",
-                    'H' => "MII",
-                    'L' => "LVDS",
-                    ' ' => "NotImplemented",
-                    _ => "Unknown"
-                };
+                    // Para terminales simples "KK", K significa E-Bus (backplane)
+                    physType = "EBUS";
+                }
+                else
+                {
+                    physType = physChar switch
+                    {
+                        'Y' => "EBUS",
+                        'K' => "MII",   // Para junctions y devices con 4 puertos, K es cable
+                        'H' => "MII",
+                        'L' => "LVDS",
+                        ' ' => "NotImplemented",
+                        _ => "Unknown"
+                    };
+                }
                 
                 portPhysics.Add(new ESIPortPhysics
                 {
