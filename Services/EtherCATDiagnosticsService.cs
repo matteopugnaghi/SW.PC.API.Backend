@@ -1432,6 +1432,11 @@ namespace SW.PC.API.Backend.Services
             if (esiInfo.PortPhysics == null || esiInfo.PortPhysics.Count == 0)
                 return;
 
+            // ⭐ REGLA CLAVE: Solo Beckhoff (VendorId=2) usa E-Bus
+            // Todos los demás fabricantes (YASKAWA, SICK, etc.) se conectan SIEMPRE por cable Ethernet
+            const uint BECKHOFF_VENDOR_ID = 2;
+            bool isBeckhoff = slave.VendorId == BECKHOFF_VENDOR_ID;
+
             // Si el slave no tiene puertos definidos, crearlos basándose en el ESI
             if (slave.Ports == null || slave.Ports.Count == 0)
             {
@@ -1442,11 +1447,14 @@ namespace SW.PC.API.Backend.Services
                     if (portPhysics.PhysicsType == "NotImplemented")
                         continue;
                     
+                    // Para no-Beckhoff: forzar MII (cable Ethernet)
+                    var effectiveType = isBeckhoff ? portPhysics.PhysicsType : "MII";
+                    
                     slave.Ports.Add(new EtherCATPort
                     {
                         PortNumber = (byte)i,
-                        Type = portPhysics.PhysicsType == "MII" ? PortType.MII : PortType.EBUS,
-                        Physics = portPhysics.PhysicsType switch
+                        Type = effectiveType == "MII" ? PortType.MII : PortType.EBUS,
+                        Physics = effectiveType switch
                         {
                             "EBUS" => PortPhysics.EBus,
                             "MII" => PortPhysics.Ethernet,
@@ -1468,14 +1476,18 @@ namespace SW.PC.API.Backend.Services
                     if (port.PortNumber < esiInfo.PortPhysics.Count)
                     {
                         var esiPort = esiInfo.PortPhysics[port.PortNumber];
-                        port.Physics = esiPort.PhysicsType switch
+                        
+                        // Para no-Beckhoff: forzar MII (cable Ethernet)
+                        var effectiveType = isBeckhoff ? esiPort.PhysicsType : "MII";
+                        
+                        port.Physics = effectiveType switch
                         {
                             "EBUS" => PortPhysics.EBus,
                             "MII" => PortPhysics.Ethernet,
                             "LVDS" => PortPhysics.LVDS,
                             _ => port.Physics  // Mantener el valor actual si no se reconoce
                         };
-                        port.Type = esiPort.PhysicsType == "MII" ? PortType.MII : PortType.EBUS;
+                        port.Type = effectiveType == "MII" ? PortType.MII : PortType.EBUS;
                     }
                 }
             }
