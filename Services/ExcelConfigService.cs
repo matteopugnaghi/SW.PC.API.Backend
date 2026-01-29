@@ -167,6 +167,38 @@ namespace SW.PC.API.Backend.Services
             return Path.Combine(_configFolder, "ProjectConfig.xlsm");
         }
         
+        /// <summary>
+        /// 🔄 Abre un archivo Excel con reintentos automáticos.
+        /// Cuando Excel está guardando el archivo, puede bloquearlo momentáneamente.
+        /// Este método reintenta la apertura hasta 3 veces con delays progresivos.
+        /// </summary>
+        /// <param name="fullPath">Ruta completa al archivo Excel</param>
+        /// <param name="maxRetries">Número máximo de reintentos (default: 3)</param>
+        /// <param name="initialDelayMs">Delay inicial en milisegundos (default: 100)</param>
+        /// <returns>FileStream abierto en modo lectura con FileShare.ReadWrite</returns>
+        private FileStream OpenExcelFileWithRetry(string fullPath, int maxRetries = 3, int initialDelayMs = 100)
+        {
+            int attempt = 0;
+            int delayMs = initialDelayMs;
+            
+            while (true)
+            {
+                try
+                {
+                    return new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                }
+                catch (IOException ex) when (attempt < maxRetries)
+                {
+                    attempt++;
+                    _logger.LogWarning("⏳ Excel file locked (attempt {Attempt}/{MaxRetries}), waiting {Delay}ms: {Path}", 
+                        attempt, maxRetries, delayMs, fullPath);
+                    
+                    Thread.Sleep(delayMs);
+                    delayMs *= 2; // Exponential backoff: 100ms, 200ms, 400ms
+                }
+            }
+        }
+
         public async Task<ProjectConfiguration> LoadProjectConfigurationAsync(string filePath)
         {
             try
@@ -180,8 +212,8 @@ namespace SW.PC.API.Backend.Services
                 
                 var config = new ProjectConfiguration();
                 
-                // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
-                using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using (var stream = OpenExcelFileWithRetry(fullPath))
                 using (var package = new ExcelPackage(stream))
                 {
                     // Leer hoja de información general
@@ -324,8 +356,8 @@ namespace SW.PC.API.Backend.Services
         {
             var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
             
-            // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
-            using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+            using (var stream = OpenExcelFileWithRetry(fullPath))
             using (var package = new ExcelPackage(stream))
             {
                 return await LoadPlcVariablesFromSheetAsync(package);
@@ -336,8 +368,8 @@ namespace SW.PC.API.Backend.Services
         {
             var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
             
-            // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
-            using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+            using (var stream = OpenExcelFileWithRetry(fullPath))
             using (var package = new ExcelPackage(stream))
             {
                 return await LoadHMIScreensFromSheetAsync(package);
@@ -576,7 +608,8 @@ namespace SW.PC.API.Backend.Services
                     return new List<VariableViewMapping>();
                 }
 
-                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using var stream = OpenExcelFileWithRetry(fullPath);
                 using var package = new ExcelPackage(stream);
                 
                 var mappings = await LoadVariableViewsFromSheetAsync(package);
@@ -1017,7 +1050,8 @@ namespace SW.PC.API.Backend.Services
                     return new List<ElementInfoSettingConfig>();
                 }
 
-                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using var stream = OpenExcelFileWithRetry(fullPath);
                 using var package = new ExcelPackage(stream);
                 
                 var configs = await LoadElementsInfoSettingFromSheetAsync(package);
@@ -1336,7 +1370,8 @@ namespace SW.PC.API.Backend.Services
                     return new SemiautomaticConfiguration();
                 }
 
-                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using var stream = OpenExcelFileWithRetry(fullPath);
                 using var package = new ExcelPackage(stream);
                 
                 var sheet = package.Workbook.Worksheets["Semiautomatic_Mode"];
@@ -1500,8 +1535,8 @@ namespace SW.PC.API.Backend.Services
                     return emptyList;
                 }
                 
-                // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
-                using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using (var stream = OpenExcelFileWithRetry(fullPath))
                 using (var package = new ExcelPackage(stream))
                 {
                     var stateColors = await LoadStateColorsFromSheetAsync(package);
@@ -1869,7 +1904,9 @@ namespace SW.PC.API.Backend.Services
                     return new List<string>();
                 }
 
-                using (var package = new ExcelPackage(new FileInfo(fullPath)))
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using var stream = OpenExcelFileWithRetry(fullPath);
+                using (var package = new ExcelPackage(stream))
                 {
                     var variableNames = new HashSet<string>(); // Usar HashSet para evitar duplicados
                     var variablesBySheet = new Dictionary<string, int>(); // Para logging
@@ -2179,7 +2216,8 @@ namespace SW.PC.API.Backend.Services
                     return defaultConfig;
                 }
                 
-                using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using (var stream = OpenExcelFileWithRetry(fullPath))
                 using (var package = new ExcelPackage(stream))
                 {
                     // Buscar hoja "System Config" (varios nombres posibles)
@@ -3066,7 +3104,8 @@ namespace SW.PC.API.Backend.Services
                 
                 _logger.LogInformation("📂 Loading 3D models from Excel: {Path}", fullPath);
                 
-                using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using (var stream = OpenExcelFileWithRetry(fullPath))
                 using (var package = new ExcelPackage(stream))
                 {
                     var models = await LoadModels3DFromSheetAsync(package);
@@ -3114,7 +3153,8 @@ namespace SW.PC.API.Backend.Services
                     return config;
                 }
                 
-                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using var stream = OpenExcelFileWithRetry(fullPath);
                 using var package = new ExcelPackage(stream);
                 
                 // 📋 Listar todas las hojas disponibles para debugging
@@ -3390,8 +3430,8 @@ namespace SW.PC.API.Backend.Services
                 
                 _logger.LogInformation("⚙️ Loading machine settings from Excel: {Path}", fullPath);
                 
-                // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
-                using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using (var stream = OpenExcelFileWithRetry(fullPath))
                 using (var package = new ExcelPackage(stream))
                 {
                     // Buscar hoja "setting page" (case-insensitive)
@@ -3660,7 +3700,8 @@ namespace SW.PC.API.Backend.Services
                 
                 await Task.Run(() =>
                 {
-                    using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                    using var stream = OpenExcelFileWithRetry(fullPath);
                     using var package = new ExcelPackage(stream);
                     
                     // Buscar hoja "WashRecipe" (case-insensitive)
@@ -3900,7 +3941,8 @@ namespace SW.PC.API.Backend.Services
                 
                 await Task.Run(() =>
                 {
-                    using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                    using var stream = OpenExcelFileWithRetry(fullPath);
                     using var package = new ExcelPackage(stream);
                     
                     // Buscar hoja "TrainRecipe" (case-insensitive)
@@ -4280,8 +4322,8 @@ namespace SW.PC.API.Backend.Services
                 
                 await Task.Run(() =>
                 {
-                    // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
-                    using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                    using var stream = OpenExcelFileWithRetry(fullPath);
                     using var package = new ExcelPackage(stream);
                     
                     // Buscar hoja "Manual" (case-insensitive)
@@ -4373,8 +4415,8 @@ namespace SW.PC.API.Backend.Services
                 
                 _logger.LogInformation("⚡ Loading fast configuration from Excel: {Path}", fullPath);
                 
-                // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
-                using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using (var stream = OpenExcelFileWithRetry(fullPath))
                 using (var package = new ExcelPackage(stream))
                 {
                     // Buscar hoja "Fast_Configuration" (case-insensitive)
@@ -4578,8 +4620,8 @@ namespace SW.PC.API.Backend.Services
                 
                 _logger.LogInformation("📟 Loading PLC Info Panel configuration from Excel: {Path}", fullPath);
                 
-                // Abrir archivo en modo solo lectura para permitir que esté abierto en Excel
-                using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
+                using (var stream = OpenExcelFileWithRetry(fullPath))
                 using (var package = new ExcelPackage(stream))
                 {
                     // Buscar hoja "Plc_InfoPanel" (case-insensitive)
