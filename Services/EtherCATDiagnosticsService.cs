@@ -1384,6 +1384,21 @@ namespace SW.PC.API.Backend.Services
                 if (esiInfo == null && slave.VendorId != 0)
                 {
                     esiInfo = _esiParser.GetDeviceInfo(slave.VendorId, slave.ProductCode);
+                    
+                    // ⭐ VERIFICAR: Si devolvió un placeholder sin DeviceCategory, buscar por Type también
+                    if (esiInfo != null && string.IsNullOrWhiteSpace(esiInfo.DeviceCategory))
+                    {
+                        _logger.LogDebug("🔍 ESI placeholder para '{Name}' (VendorId=0x{V:X4}, ProductCode=0x{P:X8}) - intentando por Type", 
+                            slave.Name, slave.VendorId, slave.ProductCode);
+                        
+                        // Intentar por DeviceType para obtener info completa del cache
+                        var esiByType = _esiParser.GetDeviceInfoByType(slave.DeviceType);
+                        if (esiByType != null && !string.IsNullOrWhiteSpace(esiByType.DeviceCategory))
+                        {
+                            esiInfo = esiByType;
+                            _logger.LogDebug("✅ ESI encontrado por Type '{Type}' para '{Name}'", slave.DeviceType, slave.Name);
+                        }
+                    }
                 }
                 
                 // Si aún no se encontró, intentar por DeviceType (sType)
@@ -1395,6 +1410,12 @@ namespace SW.PC.API.Backend.Services
                 // Aplicar información del ESI si se encontró
                 if (esiInfo != null)
                 {
+                    _logger.LogInformation("  📦 ESI Info para '{Name}':", slave.Name);
+                    _logger.LogInformation("      VendorId=0x{VendorId:X4}, VendorName='{VendorName}'", esiInfo.VendorId, esiInfo.VendorName);
+                    _logger.LogInformation("      ProductName='{ProductName}', Type='{Type}'", esiInfo.ProductName, esiInfo.Type);
+                    _logger.LogInformation("      PhysicsRaw='{Physics}', PortPhysics.Count={Count}", esiInfo.PhysicsRaw, esiInfo.PortPhysics?.Count ?? 0);
+                    _logger.LogInformation("      DeviceCategory='{Cat}', ConnectionType='{Conn}', IsJunction={Junc}", esiInfo.DeviceCategory, esiInfo.ConnectionType, esiInfo.IsJunction);
+                    
                     if (string.IsNullOrWhiteSpace(slave.Name) || slave.Name.StartsWith("Slave "))
                         slave.Name = esiInfo.ProductName;
                     if (string.IsNullOrWhiteSpace(slave.Description))
@@ -1408,28 +1429,92 @@ namespace SW.PC.API.Backend.Services
                     if (string.IsNullOrWhiteSpace(slave.ImageUrl) && !string.IsNullOrWhiteSpace(esiInfo.ImageFile))
                         slave.ImageUrl = esiInfo.ImageFile;
                     
-                    // ⭐ NUEVO: Copiar propiedades calculadas para sistema modular
+                    // ⭐ COPIAR propiedades calculadas para sistema modular
                     slave.DeviceCategory = esiInfo.DeviceCategory;
                     slave.ConnectionType = esiInfo.ConnectionType;
                     slave.IsJunction = esiInfo.IsJunction;
                     slave.ESIPortCount = esiInfo.PortCount;
                     
-                    // ⭐ NUEVO: Aplicar información de puertos del ESI
+                    _logger.LogInformation("      → Aplicado (ESI): VendorName='{V}', DeviceCategory='{C}', ConnectionType='{CT}', IsJunction={J}", 
+                        slave.VendorName, slave.DeviceCategory, slave.ConnectionType, slave.IsJunction);
+                    
+                    // ⭐ Aplicar información de puertos del ESI
                     if (esiInfo.PortPhysics != null && esiInfo.PortPhysics.Count > 0)
                     {
                         EnrichPortsFromESI(slave, esiInfo);
-                        _logger.LogDebug("  🔌 Puertos ESI para '{Name}': {Physics} ({Count} puertos definidos)", 
-                            slave.Name, esiInfo.PhysicsRaw, esiInfo.PortPhysics.Count(p => p.PhysicsType != "NotImplemented"));
+                        _logger.LogInformation("      🔌 Puertos ESI: {Physics} ({Count} puertos definidos)", 
+                            esiInfo.PhysicsRaw, esiInfo.PortPhysics.Count(p => p.PhysicsType != "NotImplemented"));
+                        
+                        // ⭐ RECALCULAR ConnectionType basándose en los puertos DESPUÉS de EnrichPortsFromESI
+                        // EnrichPortsFromESI puede haber forzado MII para dispositivos no-Beckhoff
+                        if (slave.Ports != null && slave.Ports.Count > 0)
+                        {
+                            var hasEBus = slave.Ports.Any(p => p.Physics == PortPhysics.EBus);
+                            var hasEthernet = slave.Ports.Any(p => p.Physics == PortPhysics.Ethernet);
+                            
+                            var newConnectionType = (hasEBus, hasEthernet) switch
+                            {
+                                (true, true) => "mixed",
+                                (false, true) => "ethernet-only",
+                                (true, false) => "ebus-only",
+                                _ => slave.ConnectionType
+                            };
+                            
+                            if (newConnectionType != slave.ConnectionType)
+                            {
+                                _logger.LogInformation("      🔄 ConnectionType recalculado: '{Old}' → '{New}'", 
+                                    slave.ConnectionType, newConnectionType);
+                                slave.ConnectionType = newConnectionType;
+                            }
+                        }
                     }
-                    
-                    _logger.LogDebug("  ✅ ESI MODULAR para '{Name}': category={Category}, connection={Connection}, isJunction={IsJunction}", 
-                        slave.Name, slave.DeviceCategory, slave.ConnectionType, slave.IsJunction);
                 }
                 else
                 {
-                    // ⭐ LOG: ESI NO encontrado - frontend usará fallback
-                    _logger.LogWarning("  ⚠️ SIN ESI para '{Name}' (type:{Type}, esiFile:{ESI}) → DeviceCategory=unknown, frontend usará fallback", 
-                        slave.Name, slave.DeviceType ?? "null", slave.ESIFileName ?? "null");
+                    // ⭐ ESI NO encontrado - aplicar FALLBACK inteligente basado en ESIFileName/Name/DeviceType
+                    _logger.LogWarning("  ⚠️ SIN ESI para '{Name}' (VendorId=0x{V:X4}, ProductCode=0x{P:X8}, type:{Type}, esiFile:{ESI})", 
+                        slave.Name, slave.VendorId, slave.ProductCode, slave.DeviceType ?? "null", slave.ESIFileName ?? "null");
+                    
+                    // ⭐ FALLBACK: Detectar vendor por ESIFileName o nombre del dispositivo
+                    var esiFileName = (slave.ESIFileName ?? "").ToUpperInvariant();
+                    var deviceName = (slave.Name ?? "").ToUpperInvariant();
+                    var deviceType = (slave.DeviceType ?? "").ToUpperInvariant();
+                    
+                    string detectedVendor = null;
+                    
+                    // Detectar por ESIFileName (más confiable - viene del PLC)
+                    if (esiFileName.Contains("FESTO") || esiFileName.Contains("CMMT"))
+                        detectedVendor = "Festo";
+                    else if (esiFileName.Contains("IFM"))
+                        detectedVendor = "ifm";
+                    else if (esiFileName.Contains("YASKAWA") || esiFileName.Contains("SIGMA"))
+                        detectedVendor = "YASKAWA";
+                    else if (esiFileName.Contains("SICK"))
+                        detectedVendor = "SICK AG";
+                    else if (esiFileName.Contains("SIEMENS"))
+                        detectedVendor = "Siemens";
+                    // Fallback por nombre/tipo del dispositivo
+                    else if (deviceName.Contains("FESTO") || deviceType.Contains("CMMT"))
+                        detectedVendor = "Festo";
+                    else if (deviceName.Contains("IFM") || deviceType.Contains("IFM"))
+                        detectedVendor = "ifm";
+                    else if (deviceName.Contains("YASKAWA") || deviceType.Contains("YASKAWA"))
+                        detectedVendor = "YASKAWA";
+                    
+                    if (!string.IsNullOrEmpty(detectedVendor))
+                    {
+                        slave.VendorName = detectedVendor;
+                        _logger.LogInformation("      🔧 Vendor detectado por fallback: '{Vendor}' (ESIFile: {ESI})", 
+                            detectedVendor, slave.ESIFileName);
+                        
+                        // Para no-Beckhoff sin ESI, asumir ethernet-only
+                        slave.ConnectionType = "ethernet-only";
+                        slave.DeviceCategory = "drive";  // Drives externos típicamente
+                    }
+                    else
+                    {
+                        _logger.LogWarning("      → DeviceCategory=unknown, frontend usará fallback");
+                    }
                 }
             }
             catch (Exception ex)

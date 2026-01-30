@@ -184,17 +184,19 @@ public class ESIParserService : IESIParserService
     private readonly TaskCompletionSource<bool> _cacheReadySignal = new();
     
     // Vendors conocidos (fallback si no hay ESI)
+    // VendorIds según ETG (EtherCAT Technology Group)
     private static readonly Dictionary<uint, string> KnownVendors = new()
     {
-        { 0x00000002, "Beckhoff Automation GmbH" },
         { 0x00000001, "EtherCAT Technology Group" },
+        { 0x00000002, "Beckhoff Automation GmbH" },
         { 0x00000022, "Hilscher GmbH" },
+        { 0x0000001D, "Festo" },            // ⭐ VendorId CORRECTO de Festo (29 decimal = 0x1D)
+        { 0x00000092, "ifm electronic" },   // ⭐ VendorId de ifm (146 decimal = 0x92)
         { 0x000000E8, "Omron Corporation" },
         { 0x00000156, "Kollmorgen" },
         { 0x000001DD, "Delta Electronics" },
-        { 0x00000539, "Yaskawa" },
+        { 0x00000539, "Yaskawa" },          // VendorId Yaskawa (1337 decimal)
         { 0x000005A3, "Mitsubishi Electric" },
-        { 0x00000732, "Festo SE & Co. KG" },
         { 0x00000B95, "SMC Corporation" },
         { 0x00001000, "Siemens AG" },
         { 0x00001A05, "Lenze SE" }
@@ -272,15 +274,10 @@ public class ESIParserService : IESIParserService
             return info;
         }
         
-        // Si no está en cache, devolver info básica con vendor conocido
-        return new ESIDeviceInfo
-        {
-            VendorId = vendorId,
-            VendorName = GetVendorName(vendorId),
-            ProductCode = productCode,
-            ProductName = $"Product 0x{productCode:X8}",
-            Type = $"0x{productCode:X8}"
-        };
+        // ⭐ CAMBIO: Devolver null si no encontramos en cache
+        // Esto permite que la búsqueda por Type entre como fallback
+        // El llamador decidirá qué hacer si es null
+        return null;
     }
 
     public ESIDeviceInfo? GetDeviceInfoByType(string sType)
@@ -392,8 +389,12 @@ public class ESIParserService : IESIParserService
         // Extraer nombre base sin extensión para comparación más flexible
         var fileNameBase = Path.GetFileNameWithoutExtension(esiFileName).ToLowerInvariant();
         
+        _logger.LogDebug("🔍 GetDeviceInfoFromESIFile: Buscando archivo '{FileName}' (base: '{Base}'), sType='{Type}'", 
+            esiFileName, fileNameBase, sType);
+        
         // Buscar en cache por archivos que matchean
         var matchingDevices = new List<ESIDeviceInfo>();
+        var partialMatches = new List<(string SourceFile, string Type)>();
         
         // ⭐ NUEVO: Buscar directamente por SourceFileName guardado en cada dispositivo
         foreach (var kvp in _deviceByTypeCache)
@@ -412,6 +413,29 @@ public class ESIParserService : IESIParserService
                 fileNameBase.Contains(sourceBase))
             {
                 matchingDevices.Add(device);
+                _logger.LogDebug("  📁 Match: SourceFile='{Source}' → Type='{Type}', ProductName='{Name}'", 
+                    device.SourceFileName, device.Type, device.ProductName);
+            }
+            // ⭐ DEBUG: Mostrar archivos similares para ayudar a diagnosticar
+            else if (sourceBase.Contains("ifm") || sourceBase.Contains("festo") || 
+                     fileNameBase.Contains("ifm") || fileNameBase.Contains("festo"))
+            {
+                // Solo para debug de ifm/festo
+                if ((fileNameBase.Contains("ifm") && sourceBase.Contains("ifm")) ||
+                    (fileNameBase.Contains("festo") && sourceBase.Contains("festo")))
+                {
+                    partialMatches.Add((device.SourceFileName, device.Type));
+                }
+            }
+        }
+        
+        // Log de archivos relacionados si no hay match exacto
+        if (matchingDevices.Count == 0 && partialMatches.Count > 0)
+        {
+            _logger.LogWarning("  ⚠️ No match exacto pero archivos relacionados encontrados:");
+            foreach (var pm in partialMatches.Take(10))
+            {
+                _logger.LogWarning("    - '{SourceFile}' contiene Type='{Type}'", pm.SourceFile, pm.Type);
             }
         }
         
@@ -422,18 +446,48 @@ public class ESIParserService : IESIParserService
             // Intentar buscar por type si se proporcionó
             if (!string.IsNullOrWhiteSpace(sType))
             {
+                _logger.LogDebug("  🔄 Intentando fallback por sType: '{Type}'", sType);
                 return GetDeviceInfoByType(sType);
             }
             return null;
         }
         
+        _logger.LogDebug("  📦 Encontrados {Count} dispositivos en archivo ESI '{File}'", matchingDevices.Count, esiFileName);
+        
         // Si se proporcionó sType, buscar coincidencia específica
         if (!string.IsNullOrWhiteSpace(sType))
         {
             var typeBase = ExtractTypeBase(sType);
+            _logger.LogDebug("  🔍 Buscando Type que coincida con '{TypeBase}' (extraído de '{FullType}')", typeBase, sType);
+            
+            // ⭐ MEJORADO: Buscar de forma más flexible
             var exactMatch = matchingDevices.FirstOrDefault(d => 
-                d.Type.Equals(typeBase, StringComparison.OrdinalIgnoreCase) ||
-                d.Type.StartsWith(typeBase, StringComparison.OrdinalIgnoreCase));
+                d.Type.Equals(typeBase, StringComparison.OrdinalIgnoreCase));
+            
+            if (exactMatch == null)
+            {
+                // Intentar con StartsWith
+                exactMatch = matchingDevices.FirstOrDefault(d => 
+                    d.Type.StartsWith(typeBase, StringComparison.OrdinalIgnoreCase));
+            }
+            
+            if (exactMatch == null)
+            {
+                // ⭐ NUEVO: Intentar que el Type del ESI contenga parte del sType
+                exactMatch = matchingDevices.FirstOrDefault(d => 
+                    d.Type.Contains(typeBase, StringComparison.OrdinalIgnoreCase) ||
+                    typeBase.Contains(d.Type, StringComparison.OrdinalIgnoreCase));
+            }
+            
+            if (exactMatch == null)
+            {
+                // Log de todos los Types disponibles para diagnóstico
+                _logger.LogWarning("  ⚠️ No se encontró Type '{TypeBase}' en el archivo. Types disponibles:", typeBase);
+                foreach (var dev in matchingDevices.Take(10))
+                {
+                    _logger.LogWarning("    - Type='{Type}', ProductName='{Name}'", dev.Type, dev.ProductName);
+                }
+            }
             
             if (exactMatch != null)
             {
@@ -447,8 +501,8 @@ public class ESIParserService : IESIParserService
         var firstDevice = matchingDevices.FirstOrDefault();
         if (firstDevice != null)
         {
-            _logger.LogDebug("✅ Usando primer dispositivo de ESI '{File}': {Name}", 
-                esiFileName, firstDevice.ProductName);
+            _logger.LogDebug("✅ Usando primer dispositivo de ESI '{File}': {Name} (Type={Type})", 
+                esiFileName, firstDevice.ProductName, firstDevice.Type);
         }
         
         return firstDevice;
@@ -558,11 +612,14 @@ public class ESIParserService : IESIParserService
         }
         
         // Determinar ruta ESI
+        _logger.LogInformation("🌐 ESI Parser: ESIFilesPath del Excel = '{EsiPath}'", esiPath ?? "(vacío)");
+        
         if (string.IsNullOrWhiteSpace(esiPath))
         {
             // Buscar rutas comunes de TwinCAT
             var commonPaths = new[]
             {
+                @"C:\Program Files (x86)\Beckhoff\TwinCAT\3.1\Config\Io\EtherCAT",
                 @"C:\TwinCAT\3.1\Config\Io\EtherCAT",
                 @"C:\TwinCAT\3.0\Config\Io\EtherCAT",
                 @"D:\TwinCAT\3.1\Config\Io\EtherCAT",
@@ -627,8 +684,10 @@ public class ESIParserService : IESIParserService
         // Namespace típico de ESI
         XNamespace ns = doc.Root?.GetDefaultNamespace() ?? "";
         
-        // Obtener información del Vendor
-        var vendorElement = doc.Descendants(ns + "Vendor").FirstOrDefault() 
+        // Obtener información del Vendor a nivel raíz (EtherCATInfo/Vendor)
+        var vendorElement = doc.Root?.Element(ns + "Vendor") 
+                          ?? doc.Root?.Element("Vendor")
+                          ?? doc.Descendants(ns + "Vendor").FirstOrDefault() 
                           ?? doc.Descendants("Vendor").FirstOrDefault();
         
         uint vendorId = 0;
@@ -643,16 +702,28 @@ public class ESIParserService : IESIParserService
             {
                 var idText = idElement.Value.Trim();
                 vendorId = ParseHexOrDecimal(idText);
+                _logger.LogDebug("📦 ESI '{File}': VendorId parsed = 0x{Id:X4} from '{Raw}'", 
+                    Path.GetFileName(filePath), vendorId, idText);
             }
             
             if (nameElement != null)
             {
                 vendorName = nameElement.Value.Trim();
+                _logger.LogDebug("📦 ESI '{File}': VendorName = '{Name}'", 
+                    Path.GetFileName(filePath), vendorName);
+                    
                 if (vendorId > 0 && !string.IsNullOrEmpty(vendorName))
                 {
                     _vendorCache[vendorId] = vendorName;
+                    _logger.LogInformation("📦 ESI '{File}': Cacheado Vendor 0x{Id:X4} = '{Name}'", 
+                        Path.GetFileName(filePath), vendorId, vendorName);
                 }
             }
+        }
+        else
+        {
+            _logger.LogDebug("⚠️ ESI '{File}': No se encontró elemento Vendor a nivel raíz", 
+                Path.GetFileName(filePath));
         }
         
         // Buscar dispositivos
@@ -686,6 +757,58 @@ public class ESIParserService : IESIParserService
         
         var productCode = ParseHexOrDecimal(productCodeAttr.Value);
         if (productCode == 0) return;
+        
+        // ⭐ NUEVO: Buscar Vendor específico del Device (algunos ESI lo tienen a nivel de Device)
+        uint deviceVendorId = defaultVendorId;
+        string deviceVendorName = defaultVendorName;
+        
+        // Buscar VendorId en atributo del Type o en elemento Vendor dentro del Device
+        var vendorIdAttr = typeElement.Attribute("VendorId");
+        if (vendorIdAttr != null)
+        {
+            deviceVendorId = ParseHexOrDecimal(vendorIdAttr.Value);
+        }
+        
+        // Buscar Vendor element dentro del Device
+        var deviceVendor = device.Element(ns + "Vendor") ?? device.Element("Vendor");
+        if (deviceVendor != null)
+        {
+            var vendorIdEl = deviceVendor.Element(ns + "Id") ?? deviceVendor.Element("Id");
+            var vendorNameEl = deviceVendor.Element(ns + "Name") ?? deviceVendor.Element("Name");
+            
+            if (vendorIdEl != null)
+                deviceVendorId = ParseHexOrDecimal(vendorIdEl.Value);
+            if (vendorNameEl != null)
+                deviceVendorName = vendorNameEl.Value.Trim();
+        }
+        
+        // ⭐ FALLBACK: Si no hay VendorName, intentar obtenerlo del cache por VendorId
+        if (string.IsNullOrWhiteSpace(deviceVendorName) && deviceVendorId > 0)
+        {
+            if (_vendorCache.TryGetValue(deviceVendorId, out var cachedName))
+            {
+                deviceVendorName = cachedName;
+            }
+            else
+            {
+                // Usar GetVendorName que tiene tabla de vendors conocidos
+                deviceVendorName = GetVendorName(deviceVendorId);
+            }
+        }
+        
+        // ⭐ FALLBACK FINAL: Detectar por nombre de archivo ESI
+        if (string.IsNullOrWhiteSpace(deviceVendorName) || deviceVendorName == "Unknown")
+        {
+            var fileName = Path.GetFileName(filePath).ToUpperInvariant();
+            if (fileName.Contains("FESTO") || fileName.Contains("CMMT"))
+                deviceVendorName = "Festo";
+            else if (fileName.Contains("IFM"))
+                deviceVendorName = "ifm";
+            else if (fileName.Contains("YASKAWA") || fileName.Contains("SIGMA"))
+                deviceVendorName = "YASKAWA";
+            else if (fileName.Contains("SICK"))
+                deviceVendorName = "SICK AG";
+        }
         
         // Nombre
         var nameElement = device.Element(ns + "Name") ?? device.Element("Name");
@@ -745,34 +868,56 @@ public class ESIParserService : IESIParserService
         }
         
         // ⭐ PHYSICS - Tipo físico de cada puerto (CRÍTICO para topología)
-        // Hay DOS formatos posibles en ESI:
-        // 1. <Physics>KYKY</Physics> - Formato compacto
-        // 2. <Info><Port><Type>MII</Type></Port>...</Info> - Formato detallado (Beckhoff)
+        // Hay TRES formatos posibles en ESI:
+        // 1. <Physics>KYKY</Physics> - Formato compacto (elemento)
+        // 2. <Device Physics="YY">  - Formato compacto (atributo) - usado por Yaskawa, ifm, Festo
+        // 3. <Info><Port><Type>MII</Type></Port>...</Info> - Formato detallado (Beckhoff)
         
         var physicsRaw = "";
         var portPhysics = new List<ESIPortPhysics>();
         
-        // MÉTODO 1: Buscar elemento <Physics> directo
-        var physicsElement = device.Element(ns + "Physics") ?? device.Element("Physics");
-        if (physicsElement == null)
+        // MÉTODO 0: ⭐ NUEVO - Buscar atributo Physics en <Device Physics="YY">
+        // Usado por fabricantes como Yaskawa, ifm, Festo
+        var physicsAttr = device.Attribute("Physics")?.Value ?? "";
+        if (!string.IsNullOrWhiteSpace(physicsAttr))
         {
-            physicsElement = device.Descendants(ns + "Physics").FirstOrDefault()
-                          ?? device.Descendants("Physics").FirstOrDefault();
+            physicsRaw = physicsAttr;
+            _logger.LogDebug("📦 Physics encontrado como ATRIBUTO para {Type}: '{Physics}'", type, physicsRaw);
         }
         
-        if (physicsElement != null && !string.IsNullOrWhiteSpace(physicsElement.Value))
+        // MÉTODO 1: Buscar elemento <Physics> directo (si no se encontró atributo)
+        if (string.IsNullOrWhiteSpace(physicsRaw))
         {
-            physicsRaw = physicsElement.Value.Trim();
-            _logger.LogTrace("📦 ESI Physics (direct) for {Type}: '{Physics}'", type, physicsRaw);
+            var physicsElement = device.Element(ns + "Physics") ?? device.Element("Physics");
+            if (physicsElement == null)
+            {
+                physicsElement = device.Descendants(ns + "Physics").FirstOrDefault()
+                              ?? device.Descendants("Physics").FirstOrDefault();
+            }
             
+            if (physicsElement != null && !string.IsNullOrWhiteSpace(physicsElement.Value))
+            {
+                physicsRaw = physicsElement.Value;
+                _logger.LogDebug("📦 Physics encontrado como ELEMENTO para {Type}: '{Physics}'", type, physicsRaw);
+            }
+        }
+        
+        // Si encontramos Physics (atributo o elemento), parsear los puertos
+        if (!string.IsNullOrWhiteSpace(physicsRaw))
+        {
             for (int i = 0; i < 4; i++)
             {
                 var physChar = i < physicsRaw.Length ? physicsRaw[i] : ' ';
+                // ⭐ Según especificación EtherCAT ESI:
+                // K = E-Bus (contactos internos del bus)
+                // Y = MII/100BASE-TX (puerto Ethernet RJ45)
+                // H = LVDS (alta velocidad)
+                // L = LVDS
                 var physType = physChar switch
                 {
-                    'Y' => "EBUS",
-                    'K' => "MII",
-                    'H' => "MII",
+                    'K' => "EBUS",      // ⭐ K = E-Bus (Beckhoff terminals)
+                    'Y' => "MII",       // ⭐ Y = MII/Ethernet (RJ45 connectors)
+                    'H' => "MII",       // H también es cable (100BASE-TX)
                     'L' => "LVDS",
                     ' ' => "NotImplemented",
                     _ => "Unknown"
@@ -854,8 +999,8 @@ public class ESIParserService : IESIParserService
         
         var info = new ESIDeviceInfo
         {
-            VendorId = defaultVendorId,
-            VendorName = defaultVendorName,
+            VendorId = deviceVendorId,
+            VendorName = deviceVendorName,
             ProductCode = productCode,
             ProductName = productName,
             Description = productName,
@@ -873,7 +1018,7 @@ public class ESIParserService : IESIParserService
         // ═══════════════════════════════════════════════════════════════════════════
         CalculateDeviceProperties(info);
         
-        var key = $"{defaultVendorId}_{productCode}";
+        var key = $"{deviceVendorId}_{productCode}";
         _deviceCache[key] = info;
         
         // ⭐ También añadir al cache por Type para búsqueda por sType del PLC

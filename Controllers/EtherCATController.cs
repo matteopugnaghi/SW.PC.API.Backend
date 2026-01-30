@@ -1915,6 +1915,16 @@ namespace SW.PC.API.Backend.Controllers
                         var sTypeOffset = sNameOffset + 81;
                         var sType = ExtractTwinCATString(buffer, sTypeOffset, 81);
                         
+                        // ⭐ sESIfile empieza después de sType (si existe)
+                        // Offset: 4 (nIndex) + 81 (sName) + 81 (sType) = 166
+                        var sESIfileOffset = sTypeOffset + 81;
+                        var sESIfile = "";
+                        // Solo extraer si nECAddrOffset es 248 (indica que hay sESIfile)
+                        if (nECAddrOffset >= 248 && sESIfileOffset + 81 <= buffer.Length)
+                        {
+                            sESIfile = ExtractTwinCATString(buffer, sESIfileOffset, 81);
+                        }
+                        
                         // ⭐ USAR OFFSET DETECTADO DINÁMICAMENTE para nECAddr
                         var nECAddr = BitConverter.ToUInt16(buffer, offset + nECAddrOffset);
                         var bDiagData = buffer[offset + nECAddrOffset + 2] != 0;
@@ -1940,15 +1950,36 @@ namespace SW.PC.API.Backend.Controllers
                             diagnostics.Add($"🔬 Slave[{i}] stState @offset={stateOffset}: {BitConverter.ToString(rawStateBytes)}");
                         }
                         
-                        // ⭐ Buscar información ESI por sType para obtener Physics de puertos
-                        var esiInfo = _esiParser.GetDeviceInfoByType(sType.Trim());
+                        // ⭐ MEJORADO: Buscar ESI por sESIfile PRIMERO (para fabricantes no-Beckhoff)
+                        // Luego fallback a sType (para Beckhoff)
+                        ESIDeviceInfo? esiInfo = null;
+                        
+                        // Intentar primero por nombre de archivo ESI si existe
+                        if (!string.IsNullOrWhiteSpace(sESIfile))
+                        {
+                            esiInfo = _esiParser.GetDeviceInfoFromESIFile(sESIfile.Trim(), sType.Trim());
+                        }
+                        
+                        // Fallback: buscar por sType
+                        if (esiInfo == null)
+                        {
+                            esiInfo = _esiParser.GetDeviceInfoByType(sType.Trim());
+                        }
+                        
                         object? esiData = null;
                         if (esiInfo != null)
                         {
                             esiData = new
                             {
                                 productName = esiInfo.ProductName,
+                                productCode = esiInfo.ProductCode,
                                 physicsRaw = esiInfo.PhysicsRaw,
+                                // ⭐ PROPIEDADES MODULARES para frontend (sin hardcoding)
+                                vendorName = esiInfo.VendorName,
+                                deviceCategory = esiInfo.DeviceCategory,
+                                connectionType = esiInfo.ConnectionType,
+                                isJunction = esiInfo.IsJunction,
+                                esiPortCount = esiInfo.PortPhysics?.Count(p => p.PhysicsType != "NotImplemented") ?? 0,
                                 ports = esiInfo.PortPhysics.Select(p => new
                                 {
                                     port = p.PortNumber,
@@ -2128,6 +2159,12 @@ namespace SW.PC.API.Backend.Controllers
                                 autoIncAddr,
                                 sType,
                                 physicsRaw = esiInfo?.PhysicsRaw ?? "",
+                                // ⭐ PROPIEDADES MODULARES para frontend
+                                vendorName = esiInfo?.VendorName ?? "",
+                                deviceCategory = esiInfo?.DeviceCategory ?? "unknown",
+                                connectionType = esiInfo?.ConnectionType ?? "unknown",
+                                isJunction = esiInfo?.IsJunction ?? false,
+                                esiPortCount = esiInfo?.PortPhysics?.Count(p => p.PhysicsType != "NotImplemented") ?? 0,
                                 ports = new { portA = portAPhys, portB = portBPhys, portC = portCPhys, portD = portDPhys },
                                 portDetails
                             });
