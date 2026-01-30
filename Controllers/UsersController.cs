@@ -384,6 +384,160 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// Obtiene los permisos de un rol específico
+    /// SuperAdmin puede obtener permisos de cualquier rol
+    /// Administrator no puede obtener permisos de SuperAdmin
+    /// </summary>
+    [HttpGet("roles/{roleName}/permissions")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    public async Task<ActionResult<RolePermissions>> GetRolePermissions(string roleName)
+    {
+        try
+        {
+            // Administrator no puede ver permisos de SuperAdmin
+            if (!IsSuperAdmin() && roleName.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase))
+            {
+                return NotFound(new { message = "Rol no encontrado" });
+            }
+
+            var permissionsService = HttpContext.RequestServices.GetRequiredService<IRolePermissionsService>();
+            var permissions = await permissionsService.GetRolePermissionsAsync(roleName);
+
+            return Ok(permissions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo permisos del rol {RoleName}", roleName);
+            return StatusCode(500, new { message = "Error al obtener permisos" });
+        }
+    }
+
+    /// <summary>
+    /// Actualiza los permisos de un rol
+    /// SuperAdmin puede modificar cualquier rol
+    /// Administrator puede modificar: Maintenance, Operator, Viewer, Auditor
+    /// </summary>
+    [HttpPut("roles/{roleName}/permissions")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    public async Task<ActionResult<PermissionsOperationResponse>> UpdateRolePermissions(
+        string roleName, 
+        [FromBody] UpdateRolePermissionsRequest request)
+    {
+        try
+        {
+            // Validar que Administrator no intente modificar SuperAdmin o Administrator
+            if (!IsSuperAdmin())
+            {
+                if (roleName.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) ||
+                    roleName.Equals("Administrator", StringComparison.OrdinalIgnoreCase))
+                {
+                    await _auditLog.LogAsync(
+                        AuditCategory.Configuration,
+                        AuditAction.PermissionDenied,
+                        AuditResult.Failure,
+                        $"Usuario {GetCurrentUsername()} intentó modificar permisos del rol {roleName}",
+                        GetCurrentUserId().ToString(),
+                        GetCurrentUsername(),
+                        HttpContext.Connection.RemoteIpAddress?.ToString());
+
+                    return Forbid();
+                }
+            }
+
+            var permissionsService = HttpContext.RequestServices.GetRequiredService<IRolePermissionsService>();
+            var result = await permissionsService.UpdateRolePermissionsAsync(
+                roleName, 
+                request.Modules, 
+                GetCurrentUsername());
+
+            if (result.Success)
+            {
+                await _auditLog.LogAsync(
+                    AuditCategory.Configuration,
+                    AuditAction.Modified,
+                    AuditResult.Success,
+                    $"Permisos del rol {roleName} actualizados",
+                    GetCurrentUserId().ToString(),
+                    GetCurrentUsername(),
+                    HttpContext.Connection.RemoteIpAddress?.ToString());
+
+                _logger.LogInformation("Usuario {User} actualizó permisos del rol {RoleName}", 
+                    GetCurrentUsername(), roleName);
+            }
+
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error actualizando permisos del rol {RoleName}", roleName);
+            return StatusCode(500, new { message = "Error al actualizar permisos" });
+        }
+    }
+
+    /// <summary>
+    /// Restaura los permisos por defecto de un rol
+    /// </summary>
+    [HttpPost("roles/{roleName}/permissions/reset")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    public async Task<ActionResult<PermissionsOperationResponse>> ResetRolePermissions(string roleName)
+    {
+        try
+        {
+            // Validar permisos igual que en Update
+            if (!IsSuperAdmin())
+            {
+                if (roleName.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) ||
+                    roleName.Equals("Administrator", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid();
+                }
+            }
+
+            var permissionsService = HttpContext.RequestServices.GetRequiredService<IRolePermissionsService>();
+            var result = await permissionsService.ResetToDefaultPermissionsAsync(roleName, GetCurrentUsername());
+
+            if (result.Success)
+            {
+                await _auditLog.LogAsync(
+                    AuditCategory.Configuration,
+                    AuditAction.Modified,
+                    AuditResult.Success,
+                    $"Permisos del rol {roleName} restaurados a valores por defecto",
+                    GetCurrentUserId().ToString(),
+                    GetCurrentUsername(),
+                    HttpContext.Connection.RemoteIpAddress?.ToString());
+            }
+
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error restaurando permisos del rol {RoleName}", roleName);
+            return StatusCode(500, new { message = "Error al restaurar permisos" });
+        }
+    }
+
+    /// <summary>
+    /// Obtiene la lista de módulos/vistas disponibles en el sistema
+    /// </summary>
+    [HttpGet("modules")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    public ActionResult<List<ModuleInfo>> GetAvailableModules()
+    {
+        try
+        {
+            var permissionsService = HttpContext.RequestServices.GetRequiredService<IRolePermissionsService>();
+            var modules = permissionsService.GetAvailableModules();
+            return Ok(modules);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo módulos disponibles");
+            return StatusCode(500, new { message = "Error al obtener módulos" });
+        }
+    }
+
+    /// <summary>
     /// Obtiene información de ayuda sobre el sistema de usuarios y roles (EU CRA)
     /// </summary>
     [HttpGet("help")]

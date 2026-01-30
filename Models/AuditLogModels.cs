@@ -76,6 +76,8 @@ namespace SW.PC.API.Backend.Models
         UsersListed,
         PermissionDenied,
         RoleChanged,
+        PermissionUpdated,  // ⭐ Actualización de permisos de rol
+        Modified,           // ⭐ Modificación genérica
         
         // Configuración ✅ (parcial)
         ConfigChange,

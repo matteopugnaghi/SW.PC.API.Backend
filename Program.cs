@@ -144,12 +144,18 @@ builder.Services.AddDbContext<AquafrischDbContext>(options =>
     options.UseSqlite($"Data Source={defaultDbPath}"), 
     ServiceLifetime.Scoped);
 
+// ⭐ NUEVO: Registrar DbContextFactory para servicios que lo necesitan (ej: RolePermissionsService)
+builder.Services.AddDbContextFactory<AquafrischDbContext>(options =>
+    options.UseSqlite($"Data Source={defaultDbPath}"),
+    ServiceLifetime.Scoped);
+
 // Registrar la factory de DbContext multi-proyecto
 builder.Services.AddScoped<IProjectDbContextFactory, ProjectDbContextFactory>();
 
 // Register Authentication Service
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IRecoveryCodeService, RecoveryCodeService>(); // 🔐 EU CRA - Recovery Codes Offline
+builder.Services.AddScoped<IRolePermissionsService, RolePermissionsService>(); // 👥 Gestión de permisos por rol
 
 // Register SCADA Services
 builder.Services.AddSingleton<IProjectContextService, ProjectContextService>(); // 📁 Multi-Project Support (global)
