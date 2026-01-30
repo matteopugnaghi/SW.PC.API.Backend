@@ -11,6 +11,17 @@ using System.Text.Json;
 
 namespace SW.PC.API.Backend.Services;
 
+// Opciones JSON consistentes con el resto de la API (camelCase)
+public static class PermissionsJsonOptions
+{
+    public static readonly JsonSerializerOptions Options = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = false
+    };
+}
+
 /// <summary>
 /// Servicio de gestión de permisos por rol
 /// Almacena permisos en PermissionsJson de la tabla Roles
@@ -56,7 +67,9 @@ public class RolePermissionsService : IRolePermissionsService
             // Deserializar permisos guardados
             try
             {
-                var permissions = JsonSerializer.Deserialize<ModulePermissions>(role.PermissionsJson);
+                var permissions = JsonSerializer.Deserialize<ModulePermissions>(
+                    role.PermissionsJson, 
+                    PermissionsJsonOptions.Options);
                 return new RolePermissions
                 {
                     RoleId = role.Id,
@@ -116,11 +129,8 @@ public class RolePermissionsService : IRolePermissionsService
                 };
             }
 
-            // Serializar permisos a JSON
-            var permissionsJson = JsonSerializer.Serialize(permissions, new JsonSerializerOptions 
-            { 
-                WriteIndented = false 
-            });
+            // Serializar permisos a JSON (con camelCase para consistencia)
+            var permissionsJson = JsonSerializer.Serialize(permissions, PermissionsJsonOptions.Options);
 
             role.PermissionsJson = permissionsJson;
             await context.SaveChangesAsync();

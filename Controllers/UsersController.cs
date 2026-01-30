@@ -384,6 +384,39 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// Obtiene los permisos del usuario actual (basados en su rol)
+    /// Cualquier usuario autenticado puede obtener sus propios permisos
+    /// </summary>
+    [HttpGet("my-permissions")]
+    [Authorize]
+    public async Task<ActionResult<RolePermissions>> GetMyPermissions()
+    {
+        try
+        {
+            // Obtener el rol del usuario actual desde el token
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            
+            if (string.IsNullOrEmpty(userRole))
+            {
+                _logger.LogWarning("Usuario sin rol en el token");
+                return BadRequest(new { message = "Usuario sin rol asignado" });
+            }
+
+            _logger.LogInformation("Obteniendo permisos para usuario con rol: {Role}", userRole);
+
+            var permissionsService = HttpContext.RequestServices.GetRequiredService<IRolePermissionsService>();
+            var permissions = await permissionsService.GetRolePermissionsAsync(userRole);
+
+            return Ok(permissions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo permisos del usuario actual");
+            return StatusCode(500, new { message = "Error al obtener permisos" });
+        }
+    }
+
+    /// <summary>
     /// Obtiene los permisos de un rol específico
     /// SuperAdmin puede obtener permisos de cualquier rol
     /// Administrator no puede obtener permisos de SuperAdmin

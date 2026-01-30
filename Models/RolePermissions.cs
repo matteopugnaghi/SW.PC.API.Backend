@@ -34,12 +34,109 @@ public class RolePermissions
 }
 
 /// <summary>
-/// Permisos organizados por módulo/vista
+/// Permisos organizados por módulo/vista - 42 permisos granulares
 /// </summary>
 public class ModulePermissions
 {
-    /// <summary>Vista Principal 3D - Control SCADA</summary>
-    public ViewPermission MainView { get; set; } = new();
+    // ═══════════════════════════════════════════════════════════════════
+    // 🏠 PÁGINA PRINCIPAL - TOPBAR (10 elementos)
+    // ═══════════════════════════════════════════════════════════════════
+    
+    /// <summary>Tour Virtual / Calibración</summary>
+    public ViewPermission MainView_Tour { get; set; } = new();
+    
+    /// <summary>Etiquetas (Labels)</summary>
+    public ViewPermission MainView_Labels { get; set; } = new();
+    
+    /// <summary>Capas (Layers)</summary>
+    public ViewPermission MainView_Layers { get; set; } = new();
+    
+    /// <summary>Herramientas del Sistema</summary>
+    public ViewPermission MainView_SystemTools { get; set; } = new();
+    
+    /// <summary>Modo Semiautomático</summary>
+    public ViewPermission MainView_SemiAuto { get; set; } = new();
+    
+    /// <summary>Configuración Rápida</summary>
+    public ViewPermission MainView_FastConfig { get; set; } = new();
+    
+    /// <summary>Idiomas</summary>
+    public ViewPermission MainView_Language { get; set; } = new();
+    
+    /// <summary>Stats Modelo (DEV)</summary>
+    public ViewPermission MainView_ModelStats { get; set; } = new();
+    
+    /// <summary>Screen Display</summary>
+    public ViewPermission MainView_ScreenDisplay { get; set; } = new();
+    
+    /// <summary>Model Label</summary>
+    public ViewPermission MainView_ModelLabel { get; set; } = new();
+    
+    /// <summary>Display Model Label</summary>
+    public ViewPermission MainView_DisplayModelLabel { get; set; } = new();
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // 📊 INFO PANEL (17 elementos)
+    // ═══════════════════════════════════════════════════════════════════
+    
+    /// <summary>Botón Expandir/Compacto</summary>
+    public ViewPermission InfoPanel_Button { get; set; } = new();
+    
+    // --- Info Panel Compacto ---
+    
+    /// <summary>Info General Servicios</summary>
+    public ViewPermission InfoPanel_ServicesInfo { get; set; } = new();
+    
+    /// <summary>Info PLC</summary>
+    public ViewPermission InfoPanel_PLCInfo { get; set; } = new();
+    
+    /// <summary>Alarmas (Compacto)</summary>
+    public ViewPermission InfoPanel_AlarmsCompact { get; set; } = new();
+    
+    /// <summary>Integridad Software (Compacto)</summary>
+    public ViewPermission InfoPanel_IntegrityCompact { get; set; } = new();
+    
+    /// <summary>Cumplimiento y Seguridad (Compacto)</summary>
+    public ViewPermission InfoPanel_ComplianceCompact { get; set; } = new();
+    
+    // --- Info Panel Expandido ---
+    
+    /// <summary>Servicios Internos del Backend</summary>
+    public ViewPermission InfoPanel_InternalServices { get; set; } = new();
+    
+    /// <summary>Servicios Externos del Backend</summary>
+    public ViewPermission InfoPanel_ExternalServices { get; set; } = new();
+    
+    /// <summary>Alarmas (Expandido)</summary>
+    public ViewPermission InfoPanel_AlarmsExpanded { get; set; } = new();
+    
+    /// <summary>Integridad del Software (Expandido)</summary>
+    public ViewPermission InfoPanel_IntegrityExpanded { get; set; } = new();
+    
+    /// <summary>Info Hardware PC</summary>
+    public ViewPermission InfoPanel_HardwareInfo { get; set; } = new();
+    
+    /// <summary>SBOM</summary>
+    public ViewPermission InfoPanel_SBOM { get; set; } = new();
+    
+    /// <summary>Escáner de Vulnerabilidades</summary>
+    public ViewPermission InfoPanel_VulnScanner { get; set; } = new();
+    
+    /// <summary>Reporte de Vulnerabilidades</summary>
+    public ViewPermission InfoPanel_VulnReport { get; set; } = new();
+    
+    /// <summary>Registro de Auditoría</summary>
+    public ViewPermission InfoPanel_AuditLog { get; set; } = new();
+    
+    /// <summary>Registro de Operaciones</summary>
+    public ViewPermission InfoPanel_OperationLog { get; set; } = new();
+    
+    /// <summary>Registro de Eventos de Sesión</summary>
+    public ViewPermission InfoPanel_SessionLog { get; set; } = new();
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // 📱 SIDE MENU - VISTAS (7 elementos)
+    // ═══════════════════════════════════════════════════════════════════
     
     /// <summary>Vista de Alarmas</summary>
     public ViewPermission AlarmsView { get; set; } = new();
@@ -50,14 +147,11 @@ public class ModulePermissions
     /// <summary>Vista de Recetas</summary>
     public ViewPermission RecipesView { get; set; } = new();
     
-    /// <summary>Vista de Configuración General</summary>
+    /// <summary>Vista de Configuración</summary>
     public ViewPermission SettingsView { get; set; } = new();
     
     /// <summary>Vista de Gestión de Usuarios</summary>
     public ViewPermission UsersView { get; set; } = new();
-    
-    /// <summary>Vista de Logs de Operación</summary>
-    public ViewPermission OperationLogsView { get; set; } = new();
     
     /// <summary>Vista de Tipos de Tren</summary>
     public ViewPermission TrainTypesView { get; set; } = new();
@@ -65,17 +159,37 @@ public class ModulePermissions
     /// <summary>Vista de Tipos de Lavado</summary>
     public ViewPermission WashTypesView { get; set; } = new();
     
-    /// <summary>Vista de Topología EtherCAT</summary>
-    public ViewPermission EtherCATView { get; set; } = new();
+    // ═══════════════════════════════════════════════════════════════════
+    // 🚂 TIPOS DE TREN - ACCIONES (4 elementos)
+    // ═══════════════════════════════════════════════════════════════════
     
-    /// <summary>Vista de Auditoría (Logs de sistema)</summary>
-    public ViewPermission AuditView { get; set; } = new();
+    /// <summary>Editor de Tipos de Tren</summary>
+    public ViewPermission TrainTypes_Editor { get; set; } = new();
     
-    /// <summary>Vista de Backup y Restauración</summary>
-    public ViewPermission BackupView { get; set; } = new();
+    /// <summary>Guardar Tipos de Tren</summary>
+    public ViewPermission TrainTypes_Save { get; set; } = new();
     
-    /// <summary>Vista de Modo Manual</summary>
-    public ViewPermission ManualModeView { get; set; } = new();
+    /// <summary>Escribir PLC 1 (Tipos de Tren)</summary>
+    public ViewPermission TrainTypes_WritePLC1 { get; set; } = new();
+    
+    /// <summary>Escribir PLC 2 (Tipos de Tren)</summary>
+    public ViewPermission TrainTypes_WritePLC2 { get; set; } = new();
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // 🧼 TIPOS DE LAVADO - ACCIONES (4 elementos)
+    // ═══════════════════════════════════════════════════════════════════
+    
+    /// <summary>Editor de Tipos de Lavado</summary>
+    public ViewPermission WashTypes_Editor { get; set; } = new();
+    
+    /// <summary>Guardar Tipos de Lavado</summary>
+    public ViewPermission WashTypes_Save { get; set; } = new();
+    
+    /// <summary>Escribir PLC 1 (Tipos de Lavado)</summary>
+    public ViewPermission WashTypes_WritePLC1 { get; set; } = new();
+    
+    /// <summary>Escribir PLC 2 (Tipos de Lavado)</summary>
+    public ViewPermission WashTypes_WritePLC2 { get; set; } = new();
 }
 
 /// <summary>
@@ -136,19 +250,58 @@ public static class DefaultRolePermissions
             RoleName = "SuperAdmin",
             Modules = new ModulePermissions
             {
-                MainView = AllPermissions(),
+                // 🏠 Página Principal - TODO habilitado
+                MainView_Tour = AllPermissions(),
+                MainView_ModelStats = AllPermissions(),
+                MainView_Labels = AllPermissions(),
+                MainView_Layers = AllPermissions(),
+                MainView_SystemTools = AllPermissions(),
+                MainView_SemiAuto = AllPermissions(),
+                MainView_FastConfig = AllPermissions(),
+                MainView_Language = AllPermissions(),
+                MainView_ScreenDisplay = AllPermissions(),
+                MainView_ModelLabel = AllPermissions(),
+                MainView_DisplayModelLabel = AllPermissions(),
+                
+                // 📊 Info Panel - TODO habilitado
+                InfoPanel_Button = AllPermissions(),
+                InfoPanel_ServicesInfo = AllPermissions(),
+                InfoPanel_PLCInfo = AllPermissions(),
+                InfoPanel_AlarmsCompact = AllPermissions(),
+                InfoPanel_IntegrityCompact = AllPermissions(),
+                InfoPanel_ComplianceCompact = AllPermissions(),
+                InfoPanel_InternalServices = AllPermissions(),
+                InfoPanel_ExternalServices = AllPermissions(),
+                InfoPanel_AlarmsExpanded = AllPermissions(),
+                InfoPanel_IntegrityExpanded = AllPermissions(),
+                InfoPanel_HardwareInfo = AllPermissions(),
+                InfoPanel_SBOM = AllPermissions(),
+                InfoPanel_VulnScanner = AllPermissions(),
+                InfoPanel_VulnReport = AllPermissions(),
+                InfoPanel_AuditLog = AllPermissions(),
+                InfoPanel_OperationLog = AllPermissions(),
+                InfoPanel_SessionLog = AllPermissions(),
+                
+                // 📱 Side Menu - TODO habilitado
                 AlarmsView = AllPermissions(),
                 StatisticsView = AllPermissions(),
                 RecipesView = AllPermissions(),
                 SettingsView = AllPermissions(),
                 UsersView = AllPermissions(),
-                OperationLogsView = AllPermissions(),
                 TrainTypesView = AllPermissions(),
                 WashTypesView = AllPermissions(),
-                EtherCATView = AllPermissions(),
-                AuditView = AllPermissions(),
-                BackupView = AllPermissions(),
-                ManualModeView = AllPermissions()
+                
+                // 🚂 Tipos de Tren - TODO habilitado
+                TrainTypes_Editor = AllPermissions(),
+                TrainTypes_Save = AllPermissions(),
+                TrainTypes_WritePLC1 = AllPermissions(),
+                TrainTypes_WritePLC2 = AllPermissions(),
+                
+                // 🧼 Tipos de Lavado - TODO habilitado
+                WashTypes_Editor = AllPermissions(),
+                WashTypes_Save = AllPermissions(),
+                WashTypes_WritePLC1 = AllPermissions(),
+                WashTypes_WritePLC2 = AllPermissions()
             }
         };
     }
@@ -160,19 +313,58 @@ public static class DefaultRolePermissions
             RoleName = "Administrator",
             Modules = new ModulePermissions
             {
-                MainView = new ViewPermission { CanView = true, CanEdit = true, CanExecute = true },
-                AlarmsView = new ViewPermission { CanView = true, CanEdit = true, CanCreate = true, CanDelete = true },
-                StatisticsView = new ViewPermission { CanView = true, CanExport = true },
-                RecipesView = new ViewPermission { CanView = true, CanCreate = true, CanEdit = true, CanDelete = true },
-                SettingsView = new ViewPermission { CanView = true, CanEdit = true },
-                UsersView = AllPermissions(), // Gestión total de usuarios
-                OperationLogsView = new ViewPermission { CanView = true, CanExport = true },
-                TrainTypesView = new ViewPermission { CanView = true, CanCreate = true, CanEdit = true, CanDelete = true },
-                WashTypesView = new ViewPermission { CanView = true, CanCreate = true, CanEdit = true, CanDelete = true },
-                EtherCATView = new ViewPermission { CanView = true },
-                AuditView = new ViewPermission { CanView = true, CanExport = true },
-                BackupView = AllPermissions(),
-                ManualModeView = new ViewPermission { CanView = true, CanExecute = true }
+                // 🏠 Página Principal
+                MainView_Tour = AllPermissions(),
+                MainView_ModelStats = AllPermissions(),
+                MainView_Labels = AllPermissions(),
+                MainView_Layers = AllPermissions(),
+                MainView_SystemTools = AllPermissions(),
+                MainView_SemiAuto = AllPermissions(),
+                MainView_FastConfig = AllPermissions(),
+                MainView_Language = AllPermissions(),
+                MainView_ScreenDisplay = AllPermissions(),
+                MainView_ModelLabel = AllPermissions(),
+                MainView_DisplayModelLabel = AllPermissions(),
+                
+                // 📊 Info Panel
+                InfoPanel_Button = AllPermissions(),
+                InfoPanel_ServicesInfo = AllPermissions(),
+                InfoPanel_PLCInfo = AllPermissions(),
+                InfoPanel_AlarmsCompact = AllPermissions(),
+                InfoPanel_IntegrityCompact = AllPermissions(),
+                InfoPanel_ComplianceCompact = AllPermissions(),
+                InfoPanel_InternalServices = AllPermissions(),
+                InfoPanel_ExternalServices = AllPermissions(),
+                InfoPanel_AlarmsExpanded = AllPermissions(),
+                InfoPanel_IntegrityExpanded = AllPermissions(),
+                InfoPanel_HardwareInfo = AllPermissions(),
+                InfoPanel_SBOM = AllPermissions(),
+                InfoPanel_VulnScanner = AllPermissions(),
+                InfoPanel_VulnReport = AllPermissions(),
+                InfoPanel_AuditLog = AllPermissions(),
+                InfoPanel_OperationLog = AllPermissions(),
+                InfoPanel_SessionLog = AllPermissions(),
+                
+                // 📱 Side Menu
+                AlarmsView = AllPermissions(),
+                StatisticsView = AllPermissions(),
+                RecipesView = AllPermissions(),
+                SettingsView = AllPermissions(),
+                UsersView = AllPermissions(),
+                TrainTypesView = AllPermissions(),
+                WashTypesView = AllPermissions(),
+                
+                // 🚂 Tipos de Tren
+                TrainTypes_Editor = AllPermissions(),
+                TrainTypes_Save = AllPermissions(),
+                TrainTypes_WritePLC1 = AllPermissions(),
+                TrainTypes_WritePLC2 = AllPermissions(),
+                
+                // 🧼 Tipos de Lavado
+                WashTypes_Editor = AllPermissions(),
+                WashTypes_Save = AllPermissions(),
+                WashTypes_WritePLC1 = AllPermissions(),
+                WashTypes_WritePLC2 = AllPermissions()
             }
         };
     }
@@ -184,19 +376,58 @@ public static class DefaultRolePermissions
             RoleName = "Operator",
             Modules = new ModulePermissions
             {
-                MainView = new ViewPermission { CanView = true, CanExecute = true }, // Control de proceso
-                AlarmsView = new ViewPermission { CanView = true, CanEdit = true }, // Reconocer alarmas
-                StatisticsView = new ViewPermission { CanView = true },
-                RecipesView = new ViewPermission { CanView = true, CanExecute = true }, // Ejecutar recetas
-                SettingsView = ReadOnlyPermission(), // Solo lectura
-                UsersView = NoPermission(), // Sin gestión de usuarios
-                OperationLogsView = new ViewPermission { CanView = true },
-                TrainTypesView = new ViewPermission { CanView = true },
-                WashTypesView = new ViewPermission { CanView = true },
-                EtherCATView = ReadOnlyPermission(),
-                AuditView = NoPermission(),
-                BackupView = NoPermission(),
-                ManualModeView = new ViewPermission { CanView = true, CanExecute = true }
+                // 🏠 Página Principal - Operación básica
+                MainView_Tour = ReadOnlyPermission(),
+                MainView_ModelStats = NoPermission(),
+                MainView_Labels = ReadOnlyPermission(),
+                MainView_Layers = ReadOnlyPermission(),
+                MainView_SystemTools = NoPermission(),
+                MainView_SemiAuto = new ViewPermission { CanView = true, CanExecute = true },
+                MainView_FastConfig = NoPermission(),
+                MainView_Language = ReadOnlyPermission(),
+                MainView_ScreenDisplay = ReadOnlyPermission(),
+                MainView_ModelLabel = ReadOnlyPermission(),
+                MainView_DisplayModelLabel = ReadOnlyPermission(),
+                
+                // 📊 Info Panel - Solo lectura
+                InfoPanel_Button = ReadOnlyPermission(),
+                InfoPanel_ServicesInfo = ReadOnlyPermission(),
+                InfoPanel_PLCInfo = ReadOnlyPermission(),
+                InfoPanel_AlarmsCompact = ReadOnlyPermission(),
+                InfoPanel_IntegrityCompact = NoPermission(),
+                InfoPanel_ComplianceCompact = NoPermission(),
+                InfoPanel_InternalServices = NoPermission(),
+                InfoPanel_ExternalServices = NoPermission(),
+                InfoPanel_AlarmsExpanded = ReadOnlyPermission(),
+                InfoPanel_IntegrityExpanded = NoPermission(),
+                InfoPanel_HardwareInfo = NoPermission(),
+                InfoPanel_SBOM = NoPermission(),
+                InfoPanel_VulnScanner = NoPermission(),
+                InfoPanel_VulnReport = NoPermission(),
+                InfoPanel_AuditLog = NoPermission(),
+                InfoPanel_OperationLog = ReadOnlyPermission(),
+                InfoPanel_SessionLog = NoPermission(),
+                
+                // 📱 Side Menu
+                AlarmsView = new ViewPermission { CanView = true, CanEdit = true },
+                StatisticsView = ReadOnlyPermission(),
+                RecipesView = new ViewPermission { CanView = true, CanExecute = true },
+                SettingsView = NoPermission(),
+                UsersView = NoPermission(),
+                TrainTypesView = ReadOnlyPermission(),
+                WashTypesView = ReadOnlyPermission(),
+                
+                // 🚂 Tipos de Tren - Solo ver
+                TrainTypes_Editor = NoPermission(),
+                TrainTypes_Save = NoPermission(),
+                TrainTypes_WritePLC1 = NoPermission(),
+                TrainTypes_WritePLC2 = NoPermission(),
+                
+                // 🧼 Tipos de Lavado - Solo ver
+                WashTypes_Editor = NoPermission(),
+                WashTypes_Save = NoPermission(),
+                WashTypes_WritePLC1 = NoPermission(),
+                WashTypes_WritePLC2 = NoPermission()
             }
         };
     }
@@ -208,19 +439,58 @@ public static class DefaultRolePermissions
             RoleName = "Maintenance",
             Modules = new ModulePermissions
             {
-                MainView = new ViewPermission { CanView = true, CanEdit = true, CanExecute = true },
-                AlarmsView = new ViewPermission { CanView = true, CanEdit = true, CanCreate = true },
+                // 🏠 Página Principal - Acceso técnico
+                MainView_Tour = AllPermissions(),
+                MainView_ModelStats = AllPermissions(),
+                MainView_Labels = AllPermissions(),
+                MainView_Layers = AllPermissions(),
+                MainView_SystemTools = AllPermissions(),
+                MainView_SemiAuto = AllPermissions(),
+                MainView_FastConfig = AllPermissions(),
+                MainView_Language = AllPermissions(),
+                MainView_ScreenDisplay = AllPermissions(),
+                MainView_ModelLabel = AllPermissions(),
+                MainView_DisplayModelLabel = AllPermissions(),
+                
+                // 📊 Info Panel - Diagnóstico completo
+                InfoPanel_Button = AllPermissions(),
+                InfoPanel_ServicesInfo = AllPermissions(),
+                InfoPanel_PLCInfo = AllPermissions(),
+                InfoPanel_AlarmsCompact = AllPermissions(),
+                InfoPanel_IntegrityCompact = AllPermissions(),
+                InfoPanel_ComplianceCompact = ReadOnlyPermission(),
+                InfoPanel_InternalServices = AllPermissions(),
+                InfoPanel_ExternalServices = AllPermissions(),
+                InfoPanel_AlarmsExpanded = AllPermissions(),
+                InfoPanel_IntegrityExpanded = AllPermissions(),
+                InfoPanel_HardwareInfo = AllPermissions(),
+                InfoPanel_SBOM = ReadOnlyPermission(),
+                InfoPanel_VulnScanner = ReadOnlyPermission(),
+                InfoPanel_VulnReport = ReadOnlyPermission(),
+                InfoPanel_AuditLog = ReadOnlyPermission(),
+                InfoPanel_OperationLog = AllPermissions(),
+                InfoPanel_SessionLog = ReadOnlyPermission(),
+                
+                // 📱 Side Menu
+                AlarmsView = AllPermissions(),
                 StatisticsView = new ViewPermission { CanView = true, CanExport = true },
-                RecipesView = AllPermissions(), // Gestión completa de recetas
-                SettingsView = new ViewPermission { CanView = true, CanEdit = true }, // Configuración técnica
-                UsersView = NoPermission(), // Sin gestión de usuarios
-                OperationLogsView = new ViewPermission { CanView = true, CanExport = true },
+                RecipesView = AllPermissions(),
+                SettingsView = new ViewPermission { CanView = true, CanEdit = true },
+                UsersView = NoPermission(),
                 TrainTypesView = AllPermissions(),
                 WashTypesView = AllPermissions(),
-                EtherCATView = new ViewPermission { CanView = true, CanEdit = true }, // Diagnóstico
-                AuditView = ReadOnlyPermission(),
-                BackupView = new ViewPermission { CanView = true, CanCreate = true }, // Puede hacer backups
-                ManualModeView = AllPermissions() // Control manual completo
+                
+                // 🚂 Tipos de Tren - Control total
+                TrainTypes_Editor = AllPermissions(),
+                TrainTypes_Save = AllPermissions(),
+                TrainTypes_WritePLC1 = AllPermissions(),
+                TrainTypes_WritePLC2 = AllPermissions(),
+                
+                // 🧼 Tipos de Lavado - Control total
+                WashTypes_Editor = AllPermissions(),
+                WashTypes_Save = AllPermissions(),
+                WashTypes_WritePLC1 = AllPermissions(),
+                WashTypes_WritePLC2 = AllPermissions()
             }
         };
     }
@@ -232,19 +502,58 @@ public static class DefaultRolePermissions
             RoleName = "Viewer",
             Modules = new ModulePermissions
             {
-                MainView = ReadOnlyPermission(),
+                // 🏠 Página Principal - Solo ver
+                MainView_Tour = ReadOnlyPermission(),
+                MainView_ModelStats = NoPermission(),
+                MainView_Labels = ReadOnlyPermission(),
+                MainView_Layers = ReadOnlyPermission(),
+                MainView_SystemTools = NoPermission(),
+                MainView_SemiAuto = NoPermission(),
+                MainView_FastConfig = NoPermission(),
+                MainView_Language = ReadOnlyPermission(),
+                MainView_ScreenDisplay = ReadOnlyPermission(),
+                MainView_ModelLabel = ReadOnlyPermission(),
+                MainView_DisplayModelLabel = ReadOnlyPermission(),
+                
+                // 📊 Info Panel - Solo básico
+                InfoPanel_Button = ReadOnlyPermission(),
+                InfoPanel_ServicesInfo = ReadOnlyPermission(),
+                InfoPanel_PLCInfo = ReadOnlyPermission(),
+                InfoPanel_AlarmsCompact = ReadOnlyPermission(),
+                InfoPanel_IntegrityCompact = NoPermission(),
+                InfoPanel_ComplianceCompact = NoPermission(),
+                InfoPanel_InternalServices = NoPermission(),
+                InfoPanel_ExternalServices = NoPermission(),
+                InfoPanel_AlarmsExpanded = ReadOnlyPermission(),
+                InfoPanel_IntegrityExpanded = NoPermission(),
+                InfoPanel_HardwareInfo = NoPermission(),
+                InfoPanel_SBOM = NoPermission(),
+                InfoPanel_VulnScanner = NoPermission(),
+                InfoPanel_VulnReport = NoPermission(),
+                InfoPanel_AuditLog = NoPermission(),
+                InfoPanel_OperationLog = NoPermission(),
+                InfoPanel_SessionLog = NoPermission(),
+                
+                // 📱 Side Menu - Solo ver
                 AlarmsView = ReadOnlyPermission(),
                 StatisticsView = new ViewPermission { CanView = true, CanExport = true },
                 RecipesView = ReadOnlyPermission(),
-                SettingsView = ReadOnlyPermission(),
+                SettingsView = NoPermission(),
                 UsersView = NoPermission(),
-                OperationLogsView = ReadOnlyPermission(),
                 TrainTypesView = ReadOnlyPermission(),
                 WashTypesView = ReadOnlyPermission(),
-                EtherCATView = ReadOnlyPermission(),
-                AuditView = NoPermission(),
-                BackupView = NoPermission(),
-                ManualModeView = NoPermission() // Sin control manual
+                
+                // 🚂 Tipos de Tren - Sin acceso
+                TrainTypes_Editor = NoPermission(),
+                TrainTypes_Save = NoPermission(),
+                TrainTypes_WritePLC1 = NoPermission(),
+                TrainTypes_WritePLC2 = NoPermission(),
+                
+                // 🧼 Tipos de Lavado - Sin acceso
+                WashTypes_Editor = NoPermission(),
+                WashTypes_Save = NoPermission(),
+                WashTypes_WritePLC1 = NoPermission(),
+                WashTypes_WritePLC2 = NoPermission()
             }
         };
     }
@@ -256,19 +565,58 @@ public static class DefaultRolePermissions
             RoleName = "Auditor",
             Modules = new ModulePermissions
             {
-                MainView = ReadOnlyPermission(),
+                // 🏠 Página Principal - Solo ver
+                MainView_Tour = ReadOnlyPermission(),
+                MainView_ModelStats = NoPermission(),
+                MainView_Labels = ReadOnlyPermission(),
+                MainView_Layers = ReadOnlyPermission(),
+                MainView_SystemTools = NoPermission(),
+                MainView_SemiAuto = NoPermission(),
+                MainView_FastConfig = NoPermission(),
+                MainView_Language = ReadOnlyPermission(),
+                MainView_ScreenDisplay = ReadOnlyPermission(),
+                MainView_ModelLabel = ReadOnlyPermission(),
+                MainView_DisplayModelLabel = ReadOnlyPermission(),
+                
+                // 📊 Info Panel - Acceso auditoría
+                InfoPanel_Button = ReadOnlyPermission(),
+                InfoPanel_ServicesInfo = ReadOnlyPermission(),
+                InfoPanel_PLCInfo = ReadOnlyPermission(),
+                InfoPanel_AlarmsCompact = ReadOnlyPermission(),
+                InfoPanel_IntegrityCompact = ReadOnlyPermission(),
+                InfoPanel_ComplianceCompact = new ViewPermission { CanView = true, CanExport = true },
+                InfoPanel_InternalServices = ReadOnlyPermission(),
+                InfoPanel_ExternalServices = ReadOnlyPermission(),
+                InfoPanel_AlarmsExpanded = new ViewPermission { CanView = true, CanExport = true },
+                InfoPanel_IntegrityExpanded = new ViewPermission { CanView = true, CanExport = true },
+                InfoPanel_HardwareInfo = ReadOnlyPermission(),
+                InfoPanel_SBOM = new ViewPermission { CanView = true, CanExport = true },
+                InfoPanel_VulnScanner = new ViewPermission { CanView = true, CanExport = true },
+                InfoPanel_VulnReport = new ViewPermission { CanView = true, CanExport = true },
+                InfoPanel_AuditLog = new ViewPermission { CanView = true, CanExport = true },
+                InfoPanel_OperationLog = new ViewPermission { CanView = true, CanExport = true },
+                InfoPanel_SessionLog = new ViewPermission { CanView = true, CanExport = true },
+                
+                // 📱 Side Menu - Solo auditoría
                 AlarmsView = new ViewPermission { CanView = true, CanExport = true },
                 StatisticsView = new ViewPermission { CanView = true, CanExport = true },
                 RecipesView = ReadOnlyPermission(),
                 SettingsView = ReadOnlyPermission(),
-                UsersView = ReadOnlyPermission(), // Puede ver usuarios (auditoría)
-                OperationLogsView = new ViewPermission { CanView = true, CanExport = true },
+                UsersView = ReadOnlyPermission(),
                 TrainTypesView = ReadOnlyPermission(),
                 WashTypesView = ReadOnlyPermission(),
-                EtherCATView = ReadOnlyPermission(),
-                AuditView = new ViewPermission { CanView = true, CanExport = true }, // Acceso total a auditoría
-                BackupView = ReadOnlyPermission(),
-                ManualModeView = NoPermission()
+                
+                // 🚂 Tipos de Tren - Sin acceso
+                TrainTypes_Editor = NoPermission(),
+                TrainTypes_Save = NoPermission(),
+                TrainTypes_WritePLC1 = NoPermission(),
+                TrainTypes_WritePLC2 = NoPermission(),
+                
+                // 🧼 Tipos de Lavado - Sin acceso
+                WashTypes_Editor = NoPermission(),
+                WashTypes_Save = NoPermission(),
+                WashTypes_WritePLC1 = NoPermission(),
+                WashTypes_WritePLC2 = NoPermission()
             }
         };
     }
