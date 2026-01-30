@@ -2311,6 +2311,32 @@ namespace SW.PC.API.Backend.Services
                                     config.CurrentScreenPlcVariable = paramValue;
                                 break;
 
+                            case "userlogged":
+                            case "user_logged":
+                            case "userloggedvariable":
+                            case "user_logged_variable":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.UserLogged = paramValue;
+                                break;
+                            
+                            case "countercyclelive":
+                            case "counter_cycle_live":
+                            case "countercyclelivevariable":
+                            case "counter_cycle_live_variable":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.CounterCycleLive = paramValue;
+                                break;
+                            
+                            case "clientsidconnected":
+                            case "clients_id_connected":
+                            case "clientsidconnectedvariable":
+                            case "clients_id_connected_variable":
+                            case "connectedclientsvariable":
+                            case "connected_clients_variable":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.ClientsIdConnected = paramValue;
+                                break;
+
                             // BASE DE DATOS SQLite
                             case "enabledatabase":
                             case "enable_database":

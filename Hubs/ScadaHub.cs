@@ -15,32 +15,57 @@ namespace SW.PC.API.Backend.Hubs
         private readonly ITwinCATService _twinCATService;
         private readonly IMetricsService _metricsService;
         private readonly PlcPollingService _plcPollingService;
-        private static int _activeConnections = 0;
-        private static readonly object _lockObj = new object();
+        private readonly IServiceProvider _serviceProvider;
         
         public ScadaHub(
             ILogger<ScadaHub> logger, 
             ITwinCATService twinCATService,
             IMetricsService metricsService,
-            PlcPollingService plcPollingService)
+            PlcPollingService plcPollingService,
+            IServiceProvider serviceProvider)
         {
             _logger = logger;
             _twinCATService = twinCATService;
             _metricsService = metricsService;
             _plcPollingService = plcPollingService;
+            _serviceProvider = serviceProvider;
         }
         
         public override async Task OnConnectedAsync()
         {
-            lock (_lockObj)
+            // 👤 Obtener información del cliente
+            // JWT serializa ClaimTypes.Name como "unique_name" o la URI completa
+            string username = Context.User?.Identity?.Name 
+                ?? Context.User?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                ?? Context.User?.FindFirst("unique_name")?.Value
+                ?? Context.User?.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value
+                ?? Context.User?.FindFirst("sub")?.Value
+                ?? "Anonymous";
+            string ipAddress = Context.GetHttpContext()?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
+            
+            // 🔍 Debug: Ver todos los claims disponibles
+            if (Context.User?.Identity?.IsAuthenticated == true)
             {
-                _activeConnections++;
-                _metricsService.SetSignalRActiveConnections(_activeConnections);
-                _metricsService.SetSignalRStatus(true, true, $"OK - {_activeConnections} conexiones");
+                var claims = Context.User.Claims.Select(c => $"{c.Type}={c.Value}");
+                _logger.LogInformation("🔍 Claims del usuario: {Claims}", string.Join(", ", claims));
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ Usuario no autenticado - Identity.IsAuthenticated = false");
             }
             
-            _logger.LogInformation("Client connected: {ConnectionId} (Total: {Count})", 
-                Context.ConnectionId, _activeConnections);
+            lock (ClientConnectionTrackerService.LockObj)
+            {
+                ClientConnectionTrackerService.ActiveConnections++;
+                _metricsService.SetSignalRActiveConnections(ClientConnectionTrackerService.ActiveConnections);
+                _metricsService.SetSignalRStatus(true, true, $"OK - {ClientConnectionTrackerService.ActiveConnections} conexiones");
+                
+                // 👤 Registrar cliente conectado
+                ClientConnectionTrackerService.ConnectedClients[Context.ConnectionId] = (username, ipAddress);
+            }
+            
+            _logger.LogInformation("👤 Client connected: {ConnectionId} - User: {Username}, IP: {IPAddress} (Total: {Count})", 
+                Context.ConnectionId, username, ipAddress, ClientConnectionTrackerService.ActiveConnections);
             
             await base.OnConnectedAsync();
             
@@ -62,25 +87,40 @@ namespace SW.PC.API.Backend.Hubs
                     await Clients.Caller.SendAsync("SystemWarning", warning);
                 }
             }
+            
+            // 📤 Actualizar PLC con usuarios e IPs
+            await ClientConnectionTrackerService.UpdatePlcClientsAsync(_serviceProvider, _twinCATService, _logger);
         }
         
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             bool wasLastClient = false;
+            string username = "Unknown";
             
-            lock (_lockObj)
+            lock (ClientConnectionTrackerService.LockObj)
             {
-                _activeConnections--;
-                if (_activeConnections < 0) _activeConnections = 0; // Evitar negativos
-                _metricsService.SetSignalRActiveConnections(_activeConnections);
-                _metricsService.SetSignalRStatus(true, _activeConnections > 0, 
-                    _activeConnections > 0 ? $"OK - {_activeConnections} conexiones" : "Esperando conexiones...");
+                // 👤 Obtener info del cliente antes de eliminarlo
+                if (ClientConnectionTrackerService.ConnectedClients.TryGetValue(Context.ConnectionId, out var clientInfo))
+                {
+                    username = clientInfo.Username;
+                    ClientConnectionTrackerService.ConnectedClients.Remove(Context.ConnectionId);
+                }
                 
-                wasLastClient = _activeConnections == 0;
+                ClientConnectionTrackerService.ActiveConnections--;
+                if (ClientConnectionTrackerService.ActiveConnections < 0) 
+                    ClientConnectionTrackerService.ActiveConnections = 0;
+                
+                _metricsService.SetSignalRActiveConnections(ClientConnectionTrackerService.ActiveConnections);
+                _metricsService.SetSignalRStatus(true, ClientConnectionTrackerService.ActiveConnections > 0, 
+                    ClientConnectionTrackerService.ActiveConnections > 0 
+                        ? $"OK - {ClientConnectionTrackerService.ActiveConnections} conexiones" 
+                        : "Esperando conexiones...");
+                
+                wasLastClient = ClientConnectionTrackerService.ActiveConnections == 0;
             }
             
-            _logger.LogInformation("Client disconnected: {ConnectionId} (Total: {Count})", 
-                Context.ConnectionId, _activeConnections);
+            _logger.LogInformation("👤 Client disconnected: {ConnectionId} - User: {Username} (Total: {Count})", 
+                Context.ConnectionId, username, ClientConnectionTrackerService.ActiveConnections);
             
             // 📺 Si era el último cliente, notificar al PLC que no hay pantalla activa
             if (wasLastClient)
@@ -88,6 +128,9 @@ namespace SW.PC.API.Backend.Hubs
                 _logger.LogInformation("📺 Último cliente desconectado - notificando al PLC que HMI está offline");
                 _plcPollingService.SetActiveView("");  // Vista vacía = HMI offline
             }
+            
+            // 📤 Actualizar PLC con usuarios e IPs
+            await ClientConnectionTrackerService.UpdatePlcClientsAsync(_serviceProvider, _twinCATService, _logger);
             
             await base.OnDisconnectedAsync(exception);
         }

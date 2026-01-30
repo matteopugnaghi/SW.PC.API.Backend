@@ -198,6 +198,7 @@ builder.Services.AddHostedService<IntegrityVerificationService>(); // 🔐 Verif
 builder.Services.AddHostedService<BackupSchedulerService>(); // 💾 Backup automático programado (DATA MANAGEMENT)
 builder.Services.AddHostedService<WashRecipeAutoLoadService>(); // 🚿 Auto-carga de recetas de lavado desde PLC
 builder.Services.AddHostedService<TrainRecipeAutoLoadService>(); // 🚆 Auto-carga de tipos de tren desde PLC
+builder.Services.AddHostedService<ClientConnectionTrackerService>(); // ⏱️ Tracker de clientes conectados + contador al PLC
 
 // Add logging
 builder.Services.AddLogging(logging =>

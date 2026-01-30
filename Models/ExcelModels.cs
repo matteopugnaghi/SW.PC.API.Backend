@@ -342,6 +342,31 @@ namespace SW.PC.API.Backend.Models.Excel
         /// </summary>
         public string CurrentScreenPlcVariable { get; set; } = "";
 
+        /// <summary>
+        /// Variable PLC (ARRAY[0..5] OF WSTRING) donde escribir los nombres de usuarios conectados.
+        /// Array paralelo a ClientsIdConnected - mismo índice relaciona usuario con su IP.
+        /// Si vacío, no se escribe al PLC.
+        /// Ejemplo: "GVL.asUserLogged" o "MAIN.fbHmi.asConnectedUsers"
+        /// </summary>
+        public string UserLogged { get; set; } = "";
+
+        /// <summary>
+        /// Variable PLC (INT) que incrementa mientras hay clientes conectados.
+        /// Actúa como contador de ciclos de vida de la aplicación.
+        /// Si vacío, no se escribe al PLC.
+        /// Ejemplo: "GVL.iCounterCycleLive" o "MAIN.fbHmi.iConnectionCounter"
+        /// </summary>
+        public string CounterCycleLive { get; set; } = "";
+
+        /// <summary>
+        /// Variable PLC (ARRAY[0..5] OF WSTRING) donde escribir las IPs de clientes conectados.
+        /// Array paralelo a UserLogged - mismo índice relaciona IP con su usuario.
+        /// Se escriben hasta 6 clientes simultáneos (índices 0 a 5).
+        /// Si vacío, no se escribe al PLC.
+        /// Ejemplo: "GVL.asClientsIdConnected" o "MAIN.fbHmi.asConnectedIPs"
+        /// </summary>
+        public string ClientsIdConnected { get; set; } = "";
+
         // ===== BASE DE DATOS SQLite =====
         /// <summary>
         /// Habilitar/deshabilitar base de datos SQLite (autenticación, audit logs, etc.)
