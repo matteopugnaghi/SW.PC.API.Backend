@@ -1408,6 +1408,12 @@ namespace SW.PC.API.Backend.Services
                     if (string.IsNullOrWhiteSpace(slave.ImageUrl) && !string.IsNullOrWhiteSpace(esiInfo.ImageFile))
                         slave.ImageUrl = esiInfo.ImageFile;
                     
+                    // ⭐ NUEVO: Copiar propiedades calculadas para sistema modular
+                    slave.DeviceCategory = esiInfo.DeviceCategory;
+                    slave.ConnectionType = esiInfo.ConnectionType;
+                    slave.IsJunction = esiInfo.IsJunction;
+                    slave.ESIPortCount = esiInfo.PortCount;
+                    
                     // ⭐ NUEVO: Aplicar información de puertos del ESI
                     if (esiInfo.PortPhysics != null && esiInfo.PortPhysics.Count > 0)
                     {
@@ -1415,6 +1421,15 @@ namespace SW.PC.API.Backend.Services
                         _logger.LogDebug("  🔌 Puertos ESI para '{Name}': {Physics} ({Count} puertos definidos)", 
                             slave.Name, esiInfo.PhysicsRaw, esiInfo.PortPhysics.Count(p => p.PhysicsType != "NotImplemented"));
                     }
+                    
+                    _logger.LogDebug("  ✅ ESI MODULAR para '{Name}': category={Category}, connection={Connection}, isJunction={IsJunction}", 
+                        slave.Name, slave.DeviceCategory, slave.ConnectionType, slave.IsJunction);
+                }
+                else
+                {
+                    // ⭐ LOG: ESI NO encontrado - frontend usará fallback
+                    _logger.LogWarning("  ⚠️ SIN ESI para '{Name}' (type:{Type}, esiFile:{ESI}) → DeviceCategory=unknown, frontend usará fallback", 
+                        slave.Name, slave.DeviceType ?? "null", slave.ESIFileName ?? "null");
                 }
             }
             catch (Exception ex)
@@ -1461,6 +1476,8 @@ namespace SW.PC.API.Backend.Services
                             "LVDS" => PortPhysics.LVDS,
                             _ => PortPhysics.Unknown
                         },
+                        // ⭐ NUEVO: Nombre del conector desde ESI (X1, X2, E-Bus IN, etc.)
+                        ConnectorName = portPhysics.ConnectorName,
                         HasCommunication = false,
                         LinkUp = false,
                         IsOpen = false,
@@ -1488,6 +1505,10 @@ namespace SW.PC.API.Backend.Services
                             _ => port.Physics  // Mantener el valor actual si no se reconoce
                         };
                         port.Type = effectiveType == "MII" ? PortType.MII : PortType.EBUS;
+                        
+                        // ⭐ NUEVO: Nombre del conector desde ESI (X1, X2, E-Bus IN, etc.)
+                        if (!string.IsNullOrEmpty(esiPort.ConnectorName))
+                            port.ConnectorName = esiPort.ConnectorName;
                     }
                 }
             }

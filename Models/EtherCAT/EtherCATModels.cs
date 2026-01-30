@@ -623,6 +623,34 @@ namespace SW.PC.API.Backend.Models.EtherCAT
         /// <summary>Nombre del archivo ESI especificado en el PLC (sESIfile). Para dispositivos no-Beckhoff.</summary>
         public string ESIFileName { get; set; } = "";
 
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ⭐ NUEVAS PROPIEDADES PARA SISTEMA MODULAR (sin hardcoding frontend)
+        // ═══════════════════════════════════════════════════════════════════════════
+        
+        /// <summary>
+        /// Categoría del dispositivo: coupler, junction, terminal, drive, encoder, gateway, power, unknown
+        /// Calculada desde ESI (GroupType + Physics)
+        /// </summary>
+        public string DeviceCategory { get; set; } = "unknown";
+        
+        /// <summary>
+        /// Tipo de conexión: ebus-only, ethernet-only, mixed, unknown
+        /// Calculado desde ESI (Physics)
+        /// </summary>
+        public string ConnectionType { get; set; } = "unknown";
+        
+        /// <summary>
+        /// Es un junction (dispositivo con 2+ salidas Ethernet como EK1122)
+        /// Calculado desde ESI
+        /// </summary>
+        public bool IsJunction { get; set; } = false;
+        
+        /// <summary>
+        /// Número de puertos implementados (no NotImplemented)
+        /// Calculado desde ESI
+        /// </summary>
+        public int ESIPortCount { get; set; } = 0;
+
         // === Para visualización ===
         /// <summary>Posición X en el layout (calculada)</summary>
         public int LayoutX { get; set; }
@@ -647,6 +675,17 @@ namespace SW.PC.API.Backend.Models.EtherCAT
 
         /// <summary>Física del puerto</summary>
         public PortPhysics Physics { get; set; } = PortPhysics.Unknown;
+
+        /// <summary>
+        /// ⭐ Nombre físico del conector del ESI (ej: "X1", "X2", "E-Bus IN", etc.)
+        /// NULL si no está definido en el ESI
+        /// </summary>
+        public string? ConnectorName { get; set; }
+
+        /// <summary>
+        /// ⭐ Es un puerto de cable (MII/Ethernet) según el ESI
+        /// </summary>
+        public bool IsCable => Physics == PortPhysics.Ethernet || Type == PortType.MII;
 
         /// <summary>¿Está físicamente conectado?</summary>
         public bool IsOpen { get; set; }

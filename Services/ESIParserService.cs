@@ -27,6 +27,11 @@ public interface IESIParserService
     ESIDeviceInfo? GetDeviceInfoByType(string sType);
     
     /// <summary>
+    /// Busca dispositivo por nombre de archivo ESI (para fabricantes no-Beckhoff que SÍ envían nombre)
+    /// </summary>
+    ESIDeviceInfo? GetDeviceInfoByFileName(string fileName);
+    
+    /// <summary>
     /// ⭐ NUEVO: Obtiene información buscando específicamente en un archivo ESI
     /// Usado para dispositivos no-Beckhoff donde el PLC especifica el nombre del archivo ESI (sESIfile)
     /// </summary>
@@ -71,12 +76,13 @@ public class ESIDeviceInfo
     public string ProductName { get; set; } = "";
     public string Description { get; set; } = "";
     public string Type { get; set; } = "";  // Ej: "EL2008"
-    public string GroupType { get; set; } = "";  // Ej: "DigOut"
+    public string GroupType { get; set; } = "";  // Ej: "DigOut", "Coupler"
     public string ImageFile { get; set; } = "";  // Ruta a imagen si existe
     public List<string> Capabilities { get; set; } = new();
     
     /// <summary>
     /// Nombre del archivo ESI de origen (para buscar dispositivos por sESIfile del PLC)
+    /// IMPORTANTE: Beckhoff/TwinCAT NO envía esto, otros fabricantes SÍ
     /// </summary>
     public string SourceFileName { get; set; } = "";
     
@@ -90,6 +96,33 @@ public class ESIDeviceInfo
     /// Cadena original de Physics del ESI (ej: "YY  ", "K  K", "YKYY")
     /// </summary>
     public string PhysicsRaw { get; set; } = "";
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ⭐ NUEVAS PROPIEDADES CALCULADAS PARA SISTEMA MODULAR (sin hardcoding frontend)
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /// <summary>
+    /// Categoría del dispositivo: coupler, junction, terminal, drive, encoder, gateway, power, unknown
+    /// Calculado desde GroupType + análisis de Physics
+    /// </summary>
+    public string DeviceCategory { get; set; } = "unknown";
+    
+    /// <summary>
+    /// Tipo de conexión: ebus-only, ethernet-only, mixed
+    /// Calculado desde Physics (todos Y = ebus-only, todos K = ethernet-only, mix = mixed)
+    /// </summary>
+    public string ConnectionType { get; set; } = "unknown";
+    
+    /// <summary>
+    /// Es un junction (dispositivo con 2+ salidas Ethernet como EK1122)
+    /// Calculado contando puertos MII de salida (port 1-3)
+    /// </summary>
+    public bool IsJunction { get; set; } = false;
+    
+    /// <summary>
+    /// Número de puertos implementados (no NotImplemented)
+    /// </summary>
+    public int PortCount { get; set; } = 0;
 }
 
 /// <summary>
@@ -147,6 +180,9 @@ public class ESIParserService : IESIParserService
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private bool _cacheLoaded = false;
     
+    // ⭐ NUEVO: Señal para indicar que el caché está listo
+    private readonly TaskCompletionSource<bool> _cacheReadySignal = new();
+    
     // Vendors conocidos (fallback si no hay ESI)
     private static readonly Dictionary<uint, string> KnownVendors = new()
     {
@@ -176,19 +212,60 @@ public class ESIParserService : IESIParserService
         {
             try
             {
-                await Task.Delay(2000); // Esperar a que el sistema arranque
+                await Task.Delay(1000); // Reducido de 2s a 1s - esperar a que el sistema arranque
                 await RefreshCacheAsync();
+                _cacheReadySignal.TrySetResult(true); // ⭐ Señalizar que el caché está listo
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "⚠️ Error en carga inicial de ESI files (continuando sin ESI)");
+                _cacheReadySignal.TrySetResult(false); // Señalizar aunque haya error para no bloquear indefinidamente
             }
         });
+    }
+    
+    /// <summary>
+    /// ⭐ Espera a que el caché ESI esté completamente cargado (máximo 10 segundos)
+    /// </summary>
+    public async Task EnsureCacheLoadedAsync(int timeoutMs = 10000)
+    {
+        if (_cacheLoaded)
+            return;
+            
+        try
+        {
+            using var cts = new CancellationTokenSource(timeoutMs);
+            await _cacheReadySignal.Task.WaitAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("⚠️ Timeout esperando carga de ESI cache ({TimeoutMs}ms)", timeoutMs);
+        }
+    }
+    
+    /// <summary>
+    /// ⭐ Versión síncrona para esperar el caché (usa con cuidado, puede bloquear)
+    /// </summary>
+    private void EnsureCacheLoaded(int timeoutMs = 5000)
+    {
+        if (_cacheLoaded)
+            return;
+            
+        try
+        {
+            _cacheReadySignal.Task.Wait(timeoutMs);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("⚠️ Error esperando carga de ESI cache: {Error}", ex.Message);
+        }
     }
 
     public ESIDeviceInfo? GetDeviceInfo(uint vendorId, uint productCode)
     {
-        // NO bloquear - usar lo que haya en cache o devolver básico
+        // ⭐ CRÍTICO: Esperar a que el caché esté cargado antes de buscar
+        EnsureCacheLoaded();
+        
         var key = $"{vendorId}_{productCode}";
         if (_deviceCache.TryGetValue(key, out var info))
         {
@@ -210,6 +287,9 @@ public class ESIParserService : IESIParserService
     {
         if (string.IsNullOrWhiteSpace(sType))
             return null;
+        
+        // ⭐ CRÍTICO: Esperar a que el caché esté cargado antes de buscar
+        EnsureCacheLoaded();
         
         // sType del PLC puede ser:
         // - "EK1122-0000-0018" (tipo-variante-revision)
@@ -236,6 +316,38 @@ public class ESIParserService : IESIParserService
         }
         
         // No encontrado - devolver null (el llamador decidirá qué hacer)
+        return null;
+    }
+    
+    /// <summary>
+    /// ⭐ Busca dispositivo por nombre de archivo ESI
+    /// IMPORTANTE: Beckhoff/TwinCAT NO envía nombre de fichero, otros fabricantes SÍ
+    /// </summary>
+    public ESIDeviceInfo? GetDeviceInfoByFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return null;
+        
+        // Buscar en todos los dispositivos cacheados
+        foreach (var kvp in _deviceCache.Values)
+        {
+            if (string.Equals(kvp.SourceFileName, fileName, StringComparison.OrdinalIgnoreCase))
+            {
+                return kvp;
+            }
+        }
+        
+        // Intentar búsqueda por nombre parcial
+        var fileNameLower = fileName.ToLowerInvariant();
+        foreach (var kvp in _deviceCache.Values)
+        {
+            if (kvp.SourceFileName.ToLowerInvariant().Contains(fileNameLower) ||
+                fileNameLower.Contains(kvp.SourceFileName.ToLowerInvariant()))
+            {
+                return kvp;
+            }
+        }
+        
         return null;
     }
     
@@ -268,6 +380,9 @@ public class ESIParserService : IESIParserService
     {
         if (string.IsNullOrWhiteSpace(esiFileName))
             return null;
+        
+        // ⭐ CRÍTICO: Esperar a que el caché esté cargado antes de buscar
+        EnsureCacheLoaded();
         
         // Normalizar nombre de archivo (quitar extensión si la tiene)
         var fileNameLower = esiFileName.ToLowerInvariant();
@@ -753,6 +868,11 @@ public class ESIParserService : IESIParserService
             SourceFileName = Path.GetFileName(filePath)  // ⭐ Guardar nombre del archivo ESI
         };
         
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ⭐ CALCULAR PROPIEDADES PARA SISTEMA MODULAR (sin hardcoding frontend)
+        // ═══════════════════════════════════════════════════════════════════════════
+        CalculateDeviceProperties(info);
+        
         var key = $"{defaultVendorId}_{productCode}";
         _deviceCache[key] = info;
         
@@ -776,6 +896,85 @@ public class ESIParserService : IESIParserService
         
         _logger.LogTrace("📦 ESI: {Type} ({ProductName}) - Physics: '{Physics}' - VendorId: 0x{VendorId:X4}, ProductCode: 0x{ProductCode:X8}",
             type, productName, physicsRaw, defaultVendorId, productCode);
+    }
+    
+    /// <summary>
+    /// ⭐ Calcula propiedades automáticas para el sistema modular (sin hardcoding en frontend)
+    /// </summary>
+    private void CalculateDeviceProperties(ESIDeviceInfo info)
+    {
+        // 1. Contar puertos implementados
+        info.PortCount = info.PortPhysics.Count(p => p.PhysicsType != "NotImplemented");
+        
+        // 2. Determinar ConnectionType (ebus-only, ethernet-only, mixed)
+        var ebusCount = info.PortPhysics.Count(p => p.IsEBus);
+        var miiCount = info.PortPhysics.Count(p => p.IsCable);
+        
+        if (ebusCount > 0 && miiCount > 0)
+            info.ConnectionType = "mixed";
+        else if (miiCount > 0 && ebusCount == 0)
+            info.ConnectionType = "ethernet-only";
+        else if (ebusCount > 0 && miiCount == 0)
+            info.ConnectionType = "ebus-only";
+        else
+            info.ConnectionType = "unknown";
+        
+        // 3. Detectar Junction: 2+ puertos MII de SALIDA (puertos 1-3, el 0 es entrada)
+        var miiOutputPorts = info.PortPhysics
+            .Where(p => p.PortNumber > 0 && p.IsCable)
+            .ToList();
+        info.IsJunction = miiOutputPorts.Count >= 2;
+        
+        // 4. Determinar DeviceCategory desde GroupType + análisis
+        info.DeviceCategory = DetermineDeviceCategory(info);
+    }
+    
+    /// <summary>
+    /// ⭐ Determina la categoría del dispositivo basándose en GroupType y Physics
+    /// </summary>
+    private string DetermineDeviceCategory(ESIDeviceInfo info)
+    {
+        var groupType = info.GroupType?.ToLowerInvariant() ?? "";
+        var type = info.Type?.ToUpperInvariant() ?? "";
+        
+        // 1. Junction: dispositivos con 2+ salidas Ethernet
+        if (info.IsJunction)
+            return "junction";
+        
+        // 2. Coupler: GroupType = "Coupler" o nombres conocidos
+        if (groupType.Contains("coupler") || 
+            type.StartsWith("EK1") || type.StartsWith("BK1") ||
+            type.StartsWith("CX") || type.StartsWith("CU"))
+            return "coupler";
+        
+        // 3. Drive: GroupType contiene "drive" o series AX, AL
+        if (groupType.Contains("drive") || groupType.Contains("servo") ||
+            type.StartsWith("EL7") || type.StartsWith("AX") || type.StartsWith("AL"))
+            return "drive";
+        
+        // 4. Encoder: GroupType contiene "encoder" o serie EL5
+        if (groupType.Contains("encoder") || groupType.Contains("positioning") ||
+            type.StartsWith("EL5"))
+            return "encoder";
+        
+        // 5. Gateway/Communication: GroupType contiene "gateway" o serie EL6
+        if (groupType.Contains("gateway") || groupType.Contains("communication") ||
+            type.StartsWith("EL6"))
+            return "gateway";
+        
+        // 6. Power/System: serie EL9
+        if (type.StartsWith("EL9"))
+            return "power";
+        
+        // 7. Terminal: todo lo demás (EL1xxx, EL2xxx, EL3xxx, EL4xxx, etc.)
+        if (type.StartsWith("EL") || type.StartsWith("EP") || type.StartsWith("EQ"))
+            return "terminal";
+        
+        // 8. Si es Ethernet-Only y no es ninguna categoría anterior, probablemente es Drive/Device externo
+        if (info.ConnectionType == "ethernet-only")
+            return "drive"; // Drives externos, YASKAWA, SICK, etc.
+        
+        return "terminal"; // Default
     }
 
     private static uint ParseHexOrDecimal(string value)
