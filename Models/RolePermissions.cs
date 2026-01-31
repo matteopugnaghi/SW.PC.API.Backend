@@ -159,6 +159,9 @@ public class ModulePermissions
     /// <summary>Vista de Tipos de Lavado</summary>
     public ViewPermission WashTypesView { get; set; } = new();
     
+    /// <summary>Vista de Modo Manual</summary>
+    public ViewPermission ManualModeView { get; set; } = new();
+    
     // ═══════════════════════════════════════════════════════════════════
     // 🚂 TIPOS DE TREN - ACCIONES (4 elementos)
     // ═══════════════════════════════════════════════════════════════════
@@ -290,6 +293,7 @@ public static class DefaultRolePermissions
                 UsersView = AllPermissions(),
                 TrainTypesView = AllPermissions(),
                 WashTypesView = AllPermissions(),
+                ManualModeView = AllPermissions(),
                 
                 // 🚂 Tipos de Tren - TODO habilitado
                 TrainTypes_Editor = AllPermissions(),
@@ -353,6 +357,7 @@ public static class DefaultRolePermissions
                 UsersView = AllPermissions(),
                 TrainTypesView = AllPermissions(),
                 WashTypesView = AllPermissions(),
+                ManualModeView = AllPermissions(),
                 
                 // 🚂 Tipos de Tren
                 TrainTypes_Editor = AllPermissions(),
@@ -416,6 +421,7 @@ public static class DefaultRolePermissions
                 UsersView = NoPermission(),
                 TrainTypesView = ReadOnlyPermission(),
                 WashTypesView = ReadOnlyPermission(),
+                ManualModeView = NoPermission(),
                 
                 // 🚂 Tipos de Tren - Solo ver
                 TrainTypes_Editor = NoPermission(),
@@ -479,6 +485,7 @@ public static class DefaultRolePermissions
                 UsersView = NoPermission(),
                 TrainTypesView = AllPermissions(),
                 WashTypesView = AllPermissions(),
+                ManualModeView = AllPermissions(),
                 
                 // 🚂 Tipos de Tren - Control total
                 TrainTypes_Editor = AllPermissions(),
@@ -542,6 +549,7 @@ public static class DefaultRolePermissions
                 UsersView = NoPermission(),
                 TrainTypesView = ReadOnlyPermission(),
                 WashTypesView = ReadOnlyPermission(),
+                ManualModeView = NoPermission(),
                 
                 // 🚂 Tipos de Tren - Sin acceso
                 TrainTypes_Editor = NoPermission(),
@@ -605,6 +613,7 @@ public static class DefaultRolePermissions
                 UsersView = ReadOnlyPermission(),
                 TrainTypesView = ReadOnlyPermission(),
                 WashTypesView = ReadOnlyPermission(),
+                ManualModeView = NoPermission(),
                 
                 // 🚂 Tipos de Tren - Sin acceso
                 TrainTypes_Editor = NoPermission(),
