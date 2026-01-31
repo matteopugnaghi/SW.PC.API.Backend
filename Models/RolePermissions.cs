@@ -134,6 +134,9 @@ public class ModulePermissions
     /// <summary>Registro de Eventos de Sesión</summary>
     public ViewPermission InfoPanel_SessionLog { get; set; } = new();
     
+    /// <summary>Info PLC Expandido - Variables WSTRING desde PLC</summary>
+    public ViewPermission InfoPanel_PlcInfoExpanded { get; set; } = new();
+    
     // ═══════════════════════════════════════════════════════════════════
     // 📱 SIDE MENU - VISTAS (7 elementos)
     // ═══════════════════════════════════════════════════════════════════
@@ -284,6 +287,7 @@ public static class DefaultRolePermissions
                 InfoPanel_AuditLog = AllPermissions(),
                 InfoPanel_OperationLog = AllPermissions(),
                 InfoPanel_SessionLog = AllPermissions(),
+                InfoPanel_PlcInfoExpanded = AllPermissions(),
                 
                 // 📱 Side Menu - TODO habilitado
                 AlarmsView = AllPermissions(),
@@ -348,6 +352,7 @@ public static class DefaultRolePermissions
                 InfoPanel_AuditLog = AllPermissions(),
                 InfoPanel_OperationLog = AllPermissions(),
                 InfoPanel_SessionLog = AllPermissions(),
+                InfoPanel_PlcInfoExpanded = AllPermissions(),
                 
                 // 📱 Side Menu
                 AlarmsView = AllPermissions(),
@@ -412,6 +417,7 @@ public static class DefaultRolePermissions
                 InfoPanel_AuditLog = NoPermission(),
                 InfoPanel_OperationLog = ReadOnlyPermission(),
                 InfoPanel_SessionLog = NoPermission(),
+                InfoPanel_PlcInfoExpanded = ReadOnlyPermission(),
                 
                 // 📱 Side Menu
                 AlarmsView = new ViewPermission { CanView = true, CanEdit = true },
@@ -476,6 +482,7 @@ public static class DefaultRolePermissions
                 InfoPanel_AuditLog = ReadOnlyPermission(),
                 InfoPanel_OperationLog = AllPermissions(),
                 InfoPanel_SessionLog = ReadOnlyPermission(),
+                InfoPanel_PlcInfoExpanded = AllPermissions(),
                 
                 // 📱 Side Menu
                 AlarmsView = AllPermissions(),
@@ -540,6 +547,7 @@ public static class DefaultRolePermissions
                 InfoPanel_AuditLog = NoPermission(),
                 InfoPanel_OperationLog = NoPermission(),
                 InfoPanel_SessionLog = NoPermission(),
+                InfoPanel_PlcInfoExpanded = NoPermission(),
                 
                 // 📱 Side Menu - Solo ver
                 AlarmsView = ReadOnlyPermission(),
@@ -604,6 +612,7 @@ public static class DefaultRolePermissions
                 InfoPanel_AuditLog = new ViewPermission { CanView = true, CanExport = true },
                 InfoPanel_OperationLog = new ViewPermission { CanView = true, CanExport = true },
                 InfoPanel_SessionLog = new ViewPermission { CanView = true, CanExport = true },
+                InfoPanel_PlcInfoExpanded = new ViewPermission { CanView = true, CanExport = true },
                 
                 // 📱 Side Menu - Solo auditoría
                 AlarmsView = new ViewPermission { CanView = true, CanExport = true },
