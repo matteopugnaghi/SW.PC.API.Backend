@@ -1,7 +1,7 @@
 {
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-02-01T13:00:00Z",
+    "lastModified": "2026-02-01T14:00:00Z",
     "languages": ["SPA", "ENG", "FRA", "ITA"],
     "defaultLanguage": "SPA",
     "description": "Archivo de traducciones del proyecto - ISO 639-2"
@@ -231,6 +231,19 @@
         "washTypes.noTypes",
         "washTypes.useEditor",
         "washTypes.editParameters"
+      ]
+    },
+    "TRAIN_TYPES_VIEW": {
+      "description": "Vista de gestión de tipos de tren",
+      "labels": [
+        "trainTypes.title",
+        "trainTypes.lineSelected",
+        "trainTypes.activeTrain",
+        "trainTypes.backButton",
+        "trainTypes.editorButton",
+        "trainTypes.saveButton",
+        "trainTypes.writePlcButton",
+        "trainTypes.availableTypes"
       ]
     },
     "COMMON": {
@@ -884,6 +897,55 @@
       "ENG": "Edit Parameters",
       "FRA": "Modifier les Paramètres",
       "ITA": "Modifica Parametri"
+    },
+
+    "trainTypes.title": {
+      "SPA": "Tipos de Tren",
+      "ENG": "Train Types",
+      "FRA": "Types de Train",
+      "ITA": "Tipi di Treno"
+    },
+    "trainTypes.lineSelected": {
+      "SPA": "LÍNEA SELECCIONADA",
+      "ENG": "SELECTED LINE",
+      "FRA": "LIGNE SÉLECTIONNÉE",
+      "ITA": "LINEA SELEZIONATA"
+    },
+    "trainTypes.activeTrain": {
+      "SPA": "Tren Activo",
+      "ENG": "Active Train",
+      "FRA": "Train Actif",
+      "ITA": "Treno Attivo"
+    },
+    "trainTypes.backButton": {
+      "SPA": "VOLVER",
+      "ENG": "BACK",
+      "FRA": "RETOUR",
+      "ITA": "INDIETRO"
+    },
+    "trainTypes.editorButton": {
+      "SPA": "EDITOR",
+      "ENG": "EDITOR",
+      "FRA": "ÉDITEUR",
+      "ITA": "EDITOR"
+    },
+    "trainTypes.saveButton": {
+      "SPA": "GUARDAR",
+      "ENG": "SAVE",
+      "FRA": "ENREGISTRER",
+      "ITA": "SALVA"
+    },
+    "trainTypes.writePlcButton": {
+      "SPA": "ESCRIBIR PLC",
+      "ENG": "WRITE PLC",
+      "FRA": "ÉCRIRE PLC",
+      "ITA": "SCRIVI PLC"
+    },
+    "trainTypes.availableTypes": {
+      "SPA": "Tipos de Tren Disponibles",
+      "ENG": "Available Train Types",
+      "FRA": "Types de Train Disponibles",
+      "ITA": "Tipi di Treno Disponibili"
     },
 
     "support.title": {
