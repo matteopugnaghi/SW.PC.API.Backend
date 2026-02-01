@@ -1,0 +1,3699 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "lastModified": "2026-02-01T12:00:00Z",
+    "languages": ["SPA", "ENG", "FRA", "ITA"],
+    "defaultLanguage": "SPA",
+    "description": "Archivo de traducciones del proyecto - ISO 639-2"
+  },
+
+  "pages": {
+    "LOGIN": {
+      "description": "Página de inicio de sesión",
+      "labels": [
+        "login.banner",
+        "login.status.online",
+        "login.status.offline",
+        "login.status.checking",
+        "login.form.user_label",
+        "login.form.user_placeholder",
+        "login.form.password_label",
+        "login.form.password_placeholder",
+        "login.form.show_password",
+        "login.form.hide_password",
+        "login.button.login",
+        "login.button.authenticating",
+        "login.links.forgot_password",
+        "login.links.system_help",
+        "login.footer",
+        "login.offline.title",
+        "login.offline.message",
+        "login.offline.installation_id",
+        "login.offline.last_connection",
+        "login.support.call_aquafrisch",
+        "login.password.forgot_contact_support",
+        "login.keyboard.editing",
+        "login.keyboard.new_password",
+        "login.keyboard.confirm_password",
+        "login.keyboard.uppercase",
+        "login.keyboard.lowercase",
+        "login.keyboard.space",
+        "login.keyboard.close",
+        "login.language.select",
+        "login.language.current",
+        "login.error.remaining_attempts"
+      ]
+    },
+    "SUPPORT_MODAL": {
+      "description": "Modal de soporte técnico y recuperación de contraseña",
+      "labels": [
+        "support.title",
+        "support.title_recovery",
+        "support.loading",
+        "support.contact.title",
+        "support.contact.phone",
+        "support.contact.email",
+        "support.contact.call",
+        "support.contact.send",
+        "support.offline.title",
+        "support.offline.message",
+        "support.data.title",
+        "support.data.title_recovery",
+        "support.data.note",
+        "support.data.installation_id",
+        "support.data.not_available",
+        "support.data.user",
+        "support.data.challenge",
+        "support.data.datetime",
+        "support.recovery.call_info",
+        "support.recovery.call_item_id",
+        "support.recovery.call_item_user",
+        "support.recovery.call_item_need",
+        "support.support.call_info",
+        "support.support.call_item_id",
+        "support.support.call_item_offline",
+        "support.support.call_item_problem",
+        "support.emergency.title",
+        "support.emergency.retry",
+        "support.emergency.persist_message",
+        "support.emergency.call_support",
+        "support.emergency.indicate",
+        "support.emergency.and_offline",
+        "support.emergency.last_resort",
+        "support.recovery.title",
+        "support.recovery.note",
+        "support.recovery.code_placeholder",
+        "support.recovery.new_password_placeholder",
+        "support.recovery.confirm_password_placeholder",
+        "support.recovery.button",
+        "support.recovery.button_loading",
+        "support.recovery.success_title",
+        "support.recovery.success_message",
+        "support.recovery.close_button",
+        "support.unlock.title",
+        "support.unlock.note",
+        "support.unlock.code_placeholder",
+        "support.unlock.button",
+        "support.unlock.button_loading",
+        "support.tools.title",
+        "support.tools.teamviewer",
+        "support.tools.restart_app",
+        "support.tools.logout_windows",
+        "support.tools.audit_note",
+        "support.footer",
+        "support.footer.reload",
+        "support.footer.reload_confirm",
+        "support.keyboard.editing",
+        "support.keyboard.recovery_code",
+        "support.keyboard.new_password",
+        "support.keyboard.confirm_password",
+        "support.keyboard.close",
+        "support.error.enter_code",
+        "support.error.enter_password",
+        "support.error.password_min_length",
+        "support.error.passwords_mismatch",
+        "support.error.connection",
+        "support.error.invalid_code",
+        "support.error.session_expired",
+        "support.error.tool_not_found",
+        "support.success.code_verified",
+        "support.success.copied",
+        "support.confirm.logout_windows"
+      ]
+    },
+    "DATA_MANAGEMENT": {
+      "description": "Modal de gestión de datos, backups y restauración",
+      "labels": [
+        "data.title",
+        "data.subtitle",
+        "data.creating_backup",
+        "data.restoring_backup",
+        "data.verifying_integrity",
+        "data.importing_backup",
+        "data.confirm_delete",
+        "data.error.download",
+        "data.error.invalid_backup",
+        "data.error.select_file",
+        "data.error.import",
+        "data.error.only_zip",
+        "data.success.backup_valid",
+        "data.success.import",
+        "data.loading_backup_data",
+        "data.system_status",
+        "data.total_backups",
+        "data.space_used",
+        "data.last_backup",
+        "data.next_scheduled",
+        "data.none",
+        "data.not_scheduled",
+        "data.create_backup",
+        "data.import",
+        "data.restore",
+        "data.refresh",
+        "data.import_external",
+        "data.drag_zip_here",
+        "data.drop_zip_here",
+        "data.remove",
+        "data.note",
+        "data.import_note",
+        "data.cancel",
+        "data.importing",
+        "data.import_backup",
+        "data.create_new_backup",
+        "data.name_optional",
+        "data.manual_backup_placeholder",
+        "data.description_optional",
+        "data.before_update_placeholder",
+        "data.configuration",
+        "data.models_3d",
+        "data.database",
+        "data.creating",
+        "data.restore_backup",
+        "data.restore_warning",
+        "data.restoring",
+        "data.confirm_restore",
+        "data.available_backups",
+        "data.no_backups",
+        "data.verify_integrity",
+        "data.download",
+        "data.delete"
+      ]
+    },
+    "EPIC_SIDE_MENU": {
+      "description": "Menú lateral de navegación principal",
+      "labels": [
+        "menu.principal",
+        "menu.alarmas",
+        "menu.estadisticas",
+        "menu.tipos_lavado",
+        "menu.tipos_tren",
+        "menu.configuracion",
+        "menu.usuarios",
+        "menu.manual_mode",
+        "menu.badge.admin",
+        "menu.status.on",
+        "menu.status.off",
+        "menu.footer.title"
+      ]
+    },
+    "ALARMS_VIEW": {
+      "description": "Vista del panel de alarmas",
+      "labels": [
+        "alarms.title",
+        "alarms.back_button",
+        "alarms.card.alarms",
+        "alarms.card.notifications",
+        "alarms.card.info",
+        "alarms.card.total",
+        "alarms.filter.showing",
+        "alarms.filter.of",
+        "alarms.loading",
+        "alarms.no_active"
+      ]
+    },
+    "COMMON": {
+      "description": "Textos comunes usados en múltiples páginas",
+      "labels": [
+        "common.save",
+        "common.cancel",
+        "common.back",
+        "common.loading",
+        "common.error",
+        "common.success",
+        "common.confirm",
+        "common.delete",
+        "common.edit",
+        "common.add",
+        "common.search",
+        "common.filter",
+        "common.refresh",
+        "common.close",
+        "common.yes",
+        "common.no",
+        "common.never"
+      ]
+    }
+  },
+
+  "translations": {
+    "login.banner": {
+      "SPA": "ACCESO RESTRINGIDO. Sistema de control industrial. Uso no autorizado prohibido.",
+      "ENG": "RESTRICTED ACCESS. Industrial control system. Unauthorized use prohibited.",
+      "FRA": "ACCÈS RESTREINT. Système de contrôle industriel. Utilisation non autorisée interdite.",
+      "ITA": "ACCESSO LIMITATO. Sistema di controllo industriale. Uso non autorizzato vietato."
+    },
+    "login.status.online": {
+      "SPA": "● Conectado",
+      "ENG": "● Connected",
+      "FRA": "● Connecté",
+      "ITA": "● Connesso"
+    },
+    "login.status.offline": {
+      "SPA": "● Desconectado",
+      "ENG": "● Disconnected",
+      "FRA": "● Déconnecté",
+      "ITA": "● Disconnesso"
+    },
+    "login.status.checking": {
+      "SPA": "🔄 Verificando...",
+      "ENG": "🔄 Checking...",
+      "FRA": "🔄 Vérification...",
+      "ITA": "🔄 Verifica..."
+    },
+    "login.form.user_label": {
+      "SPA": "Usuario",
+      "ENG": "Username",
+      "FRA": "Utilisateur",
+      "ITA": "Utente"
+    },
+    "login.form.user_placeholder": {
+      "SPA": "Escriba o seleccione usuario...",
+      "ENG": "Type or select user...",
+      "FRA": "Tapez ou sélectionnez un utilisateur...",
+      "ITA": "Digita o seleziona utente..."
+    },
+    "login.form.password_label": {
+      "SPA": "Contraseña",
+      "ENG": "Password",
+      "FRA": "Mot de passe",
+      "ITA": "Password"
+    },
+    "login.form.password_placeholder": {
+      "SPA": "Toque para escribir...",
+      "ENG": "Tap to type...",
+      "FRA": "Appuyez pour écrire...",
+      "ITA": "Tocca per scrivere..."
+    },
+    "login.form.show_password": {
+      "SPA": "Mostrar contraseña",
+      "ENG": "Show password",
+      "FRA": "Afficher le mot de passe",
+      "ITA": "Mostra password"
+    },
+    "login.form.hide_password": {
+      "SPA": "Ocultar contraseña",
+      "ENG": "Hide password",
+      "FRA": "Masquer le mot de passe",
+      "ITA": "Nascondi password"
+    },
+    "login.button.login": {
+      "SPA": "ENTRAR",
+      "ENG": "LOGIN",
+      "FRA": "CONNEXION",
+      "ITA": "ACCEDI"
+    },
+    "login.button.authenticating": {
+      "SPA": "AUTENTICANDO...",
+      "ENG": "AUTHENTICATING...",
+      "FRA": "AUTHENTIFICATION...",
+      "ITA": "AUTENTICAZIONE..."
+    },
+    "login.links.forgot_password": {
+      "SPA": "¿Olvidaste contraseña?",
+      "ENG": "Forgot password?",
+      "FRA": "Mot de passe oublié ?",
+      "ITA": "Password dimenticata?"
+    },
+    "login.links.system_help": {
+      "SPA": "Ayuda del Sistema",
+      "ENG": "System Help",
+      "FRA": "Aide du système",
+      "ITA": "Aiuto di sistema"
+    },
+    "login.footer": {
+      "SPA": "Aquafrisch Supervisor © {year} • EU CRA Compliant",
+      "ENG": "Aquafrisch Supervisor © {year} • EU CRA Compliant",
+      "FRA": "Aquafrisch Supervisor © {year} • Conforme EU CRA",
+      "ITA": "Aquafrisch Supervisor © {year} • Conforme EU CRA"
+    },
+    "login.offline.title": {
+      "SPA": "El servidor no responde",
+      "ENG": "Server not responding",
+      "FRA": "Le serveur ne répond pas",
+      "ITA": "Il server non risponde"
+    },
+    "login.offline.message": {
+      "SPA": "No es posible iniciar sesión sin conexión al servidor. Contacte al personal de mantenimiento.",
+      "ENG": "Cannot log in without server connection. Contact maintenance personnel.",
+      "FRA": "Impossible de se connecter sans connexion au serveur. Contactez le personnel de maintenance.",
+      "ITA": "Impossibile accedere senza connessione al server. Contattare il personale di manutenzione."
+    },
+    "login.offline.installation_id": {
+      "SPA": "ID Instalación",
+      "ENG": "Installation ID",
+      "FRA": "ID Installation",
+      "ITA": "ID Installazione"
+    },
+    "login.offline.last_connection": {
+      "SPA": "Última conexión",
+      "ENG": "Last connection",
+      "FRA": "Dernière connexion",
+      "ITA": "Ultima connessione"
+    },
+    "login.support.call_aquafrisch": {
+      "SPA": "Llamar a Aquafrisch",
+      "ENG": "Call Aquafrisch",
+      "FRA": "Appeler Aquafrisch",
+      "ITA": "Chiama Aquafrisch"
+    },
+    "login.password.forgot_contact_support": {
+      "SPA": "¿Olvidaste tu contraseña? Contactar soporte",
+      "ENG": "Forgot your password? Contact support",
+      "FRA": "Mot de passe oublié ? Contactez le support",
+      "ITA": "Password dimenticata? Contatta il supporto"
+    },
+    "login.keyboard.editing": {
+      "SPA": "Editando",
+      "ENG": "Editing",
+      "FRA": "Édition",
+      "ITA": "Modifica"
+    },
+    "login.keyboard.new_password": {
+      "SPA": "Nueva Contraseña",
+      "ENG": "New Password",
+      "FRA": "Nouveau mot de passe",
+      "ITA": "Nuova Password"
+    },
+    "login.keyboard.confirm_password": {
+      "SPA": "Confirmar Contraseña",
+      "ENG": "Confirm Password",
+      "FRA": "Confirmer le mot de passe",
+      "ITA": "Conferma Password"
+    },
+    "login.keyboard.uppercase": {
+      "SPA": "MAYÚS",
+      "ENG": "CAPS",
+      "FRA": "MAJ",
+      "ITA": "MAIUSC"
+    },
+    "login.keyboard.lowercase": {
+      "SPA": "minús",
+      "ENG": "lower",
+      "FRA": "minus",
+      "ITA": "minusc"
+    },
+    "login.keyboard.space": {
+      "SPA": "ESPACIO",
+      "ENG": "SPACE",
+      "FRA": "ESPACE",
+      "ITA": "SPAZIO"
+    },
+    "login.keyboard.close": {
+      "SPA": "Cerrar Teclado",
+      "ENG": "Close Keyboard",
+      "FRA": "Fermer le clavier",
+      "ITA": "Chiudi Tastiera"
+    },
+    "login.language.select": {
+      "SPA": "Seleccionar idioma",
+      "ENG": "Select language",
+      "FRA": "Sélectionner la langue",
+      "ITA": "Seleziona lingua"
+    },
+    "login.language.current": {
+      "SPA": "Idioma actual",
+      "ENG": "Current language",
+      "FRA": "Langue actuelle",
+      "ITA": "Lingua attuale"
+    },
+    "login.error.connection": {
+      "SPA": "Error de conexión con el servidor. Verifique que el backend esté corriendo.",
+      "ENG": "Server connection error. Please verify the backend is running.",
+      "FRA": "Erreur de connexion au serveur. Vérifiez que le backend fonctionne.",
+      "ITA": "Errore di connessione al server. Verificare che il backend sia in esecuzione."
+    },
+    "login.error.invalid_credentials": {
+      "SPA": "Usuario o contraseña incorrectos",
+      "ENG": "Invalid username or password",
+      "FRA": "Nom d'utilisateur ou mot de passe incorrect",
+      "ITA": "Nome utente o password non validi"
+    },
+    "login.error.passwords_mismatch": {
+      "SPA": "Las contraseñas no coinciden",
+      "ENG": "Passwords do not match",
+      "FRA": "Les mots de passe ne correspondent pas",
+      "ITA": "Le password non corrispondono"
+    },
+    "login.error.password_min_length": {
+      "SPA": "La contraseña debe tener al menos {minLength} caracteres",
+      "ENG": "Password must be at least {minLength} characters",
+      "FRA": "Le mot de passe doit contenir au moins {minLength} caractères",
+      "ITA": "La password deve avere almeno {minLength} caratteri"
+    },
+    "login.error.password_require_uppercase": {
+      "SPA": "La contraseña debe tener al menos una mayúscula",
+      "ENG": "Password must contain at least one uppercase letter",
+      "FRA": "Le mot de passe doit contenir au moins une majuscule",
+      "ITA": "La password deve contenere almeno una lettera maiuscola"
+    },
+    "login.error.password_require_lowercase": {
+      "SPA": "La contraseña debe tener al menos una minúscula",
+      "ENG": "Password must contain at least one lowercase letter",
+      "FRA": "Le mot de passe doit contenir au moins une minuscule",
+      "ITA": "La password deve contenere almeno una lettera minuscola"
+    },
+    "login.error.password_require_number": {
+      "SPA": "La contraseña debe tener al menos un número",
+      "ENG": "Password must contain at least one number",
+      "FRA": "Le mot de passe doit contenir au moins un chiffre",
+      "ITA": "La password deve contenere almeno un numero"
+    },
+    "login.error.password_require_special": {
+      "SPA": "La contraseña debe tener al menos un carácter especial (!@#$%^&*...)",
+      "ENG": "Password must contain at least one special character (!@#$%^&*...)",
+      "FRA": "Le mot de passe doit contenir au moins un caractère spécial (!@#$%^&*...)",
+      "ITA": "La password deve contenere almeno un carattere speciale (!@#$%^&*...)"
+    },
+    "login.error.password_same_as_current": {
+      "SPA": "La nueva contraseña debe ser diferente a la actual",
+      "ENG": "New password must be different from current password",
+      "FRA": "Le nouveau mot de passe doit être différent du mot de passe actuel",
+      "ITA": "La nuova password deve essere diversa da quella attuale"
+    },
+    "login.error.password_common_pattern": {
+      "SPA": "La contraseña contiene patrones comunes no permitidos (admin, password, 123456...)",
+      "ENG": "Password contains common patterns that are not allowed (admin, password, 123456...)",
+      "FRA": "Le mot de passe contient des modèles communs non autorisés (admin, password, 123456...)",
+      "ITA": "La password contiene pattern comuni non consentiti (admin, password, 123456...)"
+    },
+    "login.error.password_change_error": {
+      "SPA": "Error al cambiar la contraseña",
+      "ENG": "Error changing password",
+      "FRA": "Erreur lors du changement de mot de passe",
+      "ITA": "Errore durante il cambio della password"
+    },
+    "login.error.tech_no_permission": {
+      "SPA": "No tiene permisos para acceso técnico",
+      "ENG": "You do not have permission for technical access",
+      "FRA": "Vous n'avez pas les autorisations pour l'accès technique",
+      "ITA": "Non hai i permessi per l'accesso tecnico"
+    },
+    "login.error.tech_invalid_credentials": {
+      "SPA": "Credenciales inválidas",
+      "ENG": "Invalid credentials",
+      "FRA": "Identifiants invalides",
+      "ITA": "Credenziali non valide"
+    },
+    "login.error.tech_offline_verify": {
+      "SPA": "No se puede verificar credenciales offline",
+      "ENG": "Cannot verify credentials offline",
+      "FRA": "Impossible de vérifier les identifiants hors ligne",
+      "ITA": "Impossibile verificare le credenziali offline"
+    },
+    "login.error.system_offline": {
+      "SPA": "Sistema completamente offline. Contacte soporte.",
+      "ENG": "System completely offline. Contact support.",
+      "FRA": "Système complètement hors ligne. Contactez le support.",
+      "ITA": "Sistema completamente offline. Contattare il supporto."
+    },
+    "login.error.action_error": {
+      "SPA": "Error ejecutando acción",
+      "ENG": "Error executing action",
+      "FRA": "Erreur lors de l'exécution de l'action",
+      "ITA": "Errore durante l'esecuzione dell'azione"
+    },
+    "login.success.password_changed": {
+      "SPA": "Contraseña cambiada. Por favor inicie sesión con su nueva contraseña.",
+      "ENG": "Password changed. Please log in with your new password.",
+      "FRA": "Mot de passe modifié. Veuillez vous connecter avec votre nouveau mot de passe.",
+      "ITA": "Password cambiata. Effettuare il login con la nuova password."
+    },
+    "login.error.remaining_attempts": {
+      "SPA": "Intentos restantes: {count}",
+      "ENG": "Remaining attempts: {count}",
+      "FRA": "Tentatives restantes : {count}",
+      "ITA": "Tentativi rimanenti: {count}"
+    },
+    "common.save": {
+      "SPA": "Guardar",
+      "ENG": "Save",
+      "FRA": "Enregistrer",
+      "ITA": "Salva"
+    },
+    "common.cancel": {
+      "SPA": "Cancelar",
+      "ENG": "Cancel",
+      "FRA": "Annuler",
+      "ITA": "Annulla"
+    },
+    "common.back": {
+      "SPA": "Volver",
+      "ENG": "Back",
+      "FRA": "Retour",
+      "ITA": "Indietro"
+    },
+    "common.loading": {
+      "SPA": "Cargando...",
+      "ENG": "Loading...",
+      "FRA": "Chargement...",
+      "ITA": "Caricamento..."
+    },
+    "common.error": {
+      "SPA": "Error",
+      "ENG": "Error",
+      "FRA": "Erreur",
+      "ITA": "Errore"
+    },
+    "common.success": {
+      "SPA": "Éxito",
+      "ENG": "Success",
+      "FRA": "Succès",
+      "ITA": "Successo"
+    },
+    "common.confirm": {
+      "SPA": "Confirmar",
+      "ENG": "Confirm",
+      "FRA": "Confirmer",
+      "ITA": "Conferma"
+    },
+    "common.delete": {
+      "SPA": "Eliminar",
+      "ENG": "Delete",
+      "FRA": "Supprimer",
+      "ITA": "Elimina"
+    },
+    "common.edit": {
+      "SPA": "Editar",
+      "ENG": "Edit",
+      "FRA": "Modifier",
+      "ITA": "Modifica"
+    },
+    "common.add": {
+      "SPA": "Añadir",
+      "ENG": "Add",
+      "FRA": "Ajouter",
+      "ITA": "Aggiungi"
+    },
+    "common.search": {
+      "SPA": "Buscar",
+      "ENG": "Search",
+      "FRA": "Rechercher",
+      "ITA": "Cerca"
+    },
+    "common.filter": {
+      "SPA": "Filtrar",
+      "ENG": "Filter",
+      "FRA": "Filtrer",
+      "ITA": "Filtra"
+    },
+    "common.refresh": {
+      "SPA": "Actualizar",
+      "ENG": "Refresh",
+      "FRA": "Actualiser",
+      "ITA": "Aggiorna"
+    },
+    "common.close": {
+      "SPA": "Cerrar",
+      "ENG": "Close",
+      "FRA": "Fermer",
+      "ITA": "Chiudi"
+    },
+    "common.yes": {
+      "SPA": "Sí",
+      "ENG": "Yes",
+      "FRA": "Oui",
+      "ITA": "Sì"
+    },
+    "common.no": {
+      "SPA": "No",
+      "ENG": "No",
+      "FRA": "Non",
+      "ITA": "No"
+    },
+    "common.never": {
+      "SPA": "Nunca",
+      "ENG": "Never",
+      "FRA": "Jamais",
+      "ITA": "Mai"
+    },
+
+    "menu.principal": {
+      "SPA": "Vista Principal",
+      "ENG": "Main View",
+      "FRA": "Vue Principale",
+      "ITA": "Vista Principale"
+    },
+    "menu.alarmas": {
+      "SPA": "Panel de Alarmas",
+      "ENG": "Alarms Panel",
+      "FRA": "Panneau d'Alarmes",
+      "ITA": "Pannello Allarmi"
+    },
+    "menu.estadisticas": {
+      "SPA": "Estadísticas",
+      "ENG": "Statistics",
+      "FRA": "Statistiques",
+      "ITA": "Statistiche"
+    },
+    "menu.tipos_lavado": {
+      "SPA": "Tipos de Lavados",
+      "ENG": "Wash Types",
+      "FRA": "Types de Lavage",
+      "ITA": "Tipi di Lavaggio"
+    },
+    "menu.tipos_tren": {
+      "SPA": "Tipos de Trenes",
+      "ENG": "Train Types",
+      "FRA": "Types de Train",
+      "ITA": "Tipi di Treno"
+    },
+    "menu.configuracion": {
+      "SPA": "Configuración",
+      "ENG": "Configuration",
+      "FRA": "Configuration",
+      "ITA": "Configurazione"
+    },
+    "menu.usuarios": {
+      "SPA": "Gestión de Usuarios",
+      "ENG": "User Management",
+      "FRA": "Gestion des Utilisateurs",
+      "ITA": "Gestione Utenti"
+    },
+    "menu.manual_mode": {
+      "SPA": "Modo Manual",
+      "ENG": "Manual Mode",
+      "FRA": "Mode Manuel",
+      "ITA": "Modalità Manuale"
+    },
+    "menu.badge.admin": {
+      "SPA": "ADMIN",
+      "ENG": "ADMIN",
+      "FRA": "ADMIN",
+      "ITA": "ADMIN"
+    },
+    "menu.status.on": {
+      "SPA": "ON",
+      "ENG": "ON",
+      "FRA": "ON",
+      "ITA": "ON"
+    },
+    "menu.status.off": {
+      "SPA": "OFF",
+      "ENG": "OFF",
+      "FRA": "OFF",
+      "ITA": "OFF"
+    },
+    "menu.footer.title": {
+      "SPA": "⚡ Sistema SCADA ⚡",
+      "ENG": "⚡ SCADA System ⚡",
+      "FRA": "⚡ Système SCADA ⚡",
+      "ITA": "⚡ Sistema SCADA ⚡"
+    },
+
+    "alarms.title": {
+      "SPA": "Panel de Alarmas",
+      "ENG": "Alarms Panel",
+      "FRA": "Panneau d'Alarmes",
+      "ITA": "Pannello Allarmi"
+    },
+    "alarms.back_button": {
+      "SPA": "Volver a Principal",
+      "ENG": "Back to Main",
+      "FRA": "Retour à Principal",
+      "ITA": "Torna a Principale"
+    },
+    "alarms.card.alarms": {
+      "SPA": "Alarmas",
+      "ENG": "Alarms",
+      "FRA": "Alarmes",
+      "ITA": "Allarmi"
+    },
+    "alarms.card.notifications": {
+      "SPA": "Notificaciones",
+      "ENG": "Notifications",
+      "FRA": "Notifications",
+      "ITA": "Notifiche"
+    },
+    "alarms.card.info": {
+      "SPA": "Información",
+      "ENG": "Information",
+      "FRA": "Information",
+      "ITA": "Informazioni"
+    },
+    "alarms.card.total": {
+      "SPA": "Total",
+      "ENG": "Total",
+      "FRA": "Total",
+      "ITA": "Totale"
+    },
+    "alarms.filter.showing": {
+      "SPA": "Mostrando",
+      "ENG": "Showing",
+      "FRA": "Affichage",
+      "ITA": "Mostrando"
+    },
+    "alarms.filter.of": {
+      "SPA": "de",
+      "ENG": "of",
+      "FRA": "sur",
+      "ITA": "di"
+    },
+    "alarms.loading": {
+      "SPA": "Cargando alarmas...",
+      "ENG": "Loading alarms...",
+      "FRA": "Chargement des alarmes...",
+      "ITA": "Caricamento allarmi..."
+    },
+    "alarms.no_active": {
+      "SPA": "No hay alarmas activas",
+      "ENG": "No active alarms",
+      "FRA": "Aucune alarme active",
+      "ITA": "Nessun allarme attivo"
+    },
+
+    "support.title": {
+      "SPA": "Llamar a Aquafrisch",
+      "ENG": "Call Aquafrisch",
+      "FRA": "Appeler Aquafrisch",
+      "ITA": "Chiama Aquafrisch"
+    },
+    "support.title_recovery": {
+      "SPA": "Recuperar Contraseña",
+      "ENG": "Password Recovery",
+      "FRA": "Récupération du mot de passe",
+      "ITA": "Recupero Password"
+    },
+    "support.loading": {
+      "SPA": "Cargando información...",
+      "ENG": "Loading information...",
+      "FRA": "Chargement des informations...",
+      "ITA": "Caricamento informazioni..."
+    },
+    "support.contact.title": {
+      "SPA": "Contacto Soporte Técnico",
+      "ENG": "Technical Support Contact",
+      "FRA": "Contact Support Technique",
+      "ITA": "Contatto Supporto Tecnico"
+    },
+    "support.contact.phone": {
+      "SPA": "Teléfono",
+      "ENG": "Phone",
+      "FRA": "Téléphone",
+      "ITA": "Telefono"
+    },
+    "support.contact.email": {
+      "SPA": "Email",
+      "ENG": "Email",
+      "FRA": "Email",
+      "ITA": "Email"
+    },
+    "support.contact.call": {
+      "SPA": "Llamar",
+      "ENG": "Call",
+      "FRA": "Appeler",
+      "ITA": "Chiama"
+    },
+    "support.contact.send": {
+      "SPA": "Enviar",
+      "ENG": "Send",
+      "FRA": "Envoyer",
+      "ITA": "Invia"
+    },
+    "support.contact.not_configured": {
+      "SPA": "No configurado",
+      "ENG": "Not configured",
+      "FRA": "Non configuré",
+      "ITA": "Non configurato"
+    },
+    "support.contact.copy": {
+      "SPA": "Copiar",
+      "ENG": "Copy",
+      "FRA": "Copier",
+      "ITA": "Copia"
+    },
+    "support.offline.title": {
+      "SPA": "Sistema Sin Conexión",
+      "ENG": "System Offline",
+      "FRA": "Système hors ligne",
+      "ITA": "Sistema Offline"
+    },
+    "support.offline.message": {
+      "SPA": "El servidor no responde. Las herramientas remotas no están disponibles. Llame a soporte técnico para asistencia manual.",
+      "ENG": "Server not responding. Remote tools are not available. Call technical support for manual assistance.",
+      "FRA": "Le serveur ne répond pas. Les outils à distance ne sont pas disponibles. Appelez le support technique pour une assistance manuelle.",
+      "ITA": "Il server non risponde. Gli strumenti remoti non sono disponibili. Chiami il supporto tecnico per assistenza manuale."
+    },
+    "support.data.title": {
+      "SPA": "Datos de Instalación",
+      "ENG": "Installation Data",
+      "FRA": "Données d'installation",
+      "ITA": "Dati Installazione"
+    },
+    "support.data.title_recovery": {
+      "SPA": "Datos para Recuperación",
+      "ENG": "Recovery Data",
+      "FRA": "Données de récupération",
+      "ITA": "Dati per Recupero"
+    },
+    "support.data.note": {
+      "SPA": "Proporcione estos datos al técnico de soporte:",
+      "ENG": "Provide this data to the support technician:",
+      "FRA": "Fournissez ces données au technicien de support :",
+      "ITA": "Fornisca questi dati al tecnico di supporto:"
+    },
+    "support.data.installation_id": {
+      "SPA": "ID Instalación",
+      "ENG": "Installation ID",
+      "FRA": "ID Installation",
+      "ITA": "ID Installazione"
+    },
+    "support.data.not_available": {
+      "SPA": "NO DISPONIBLE",
+      "ENG": "NOT AVAILABLE",
+      "FRA": "NON DISPONIBLE",
+      "ITA": "NON DISPONIBILE"
+    },
+    "support.data.user": {
+      "SPA": "Usuario",
+      "ENG": "User",
+      "FRA": "Utilisateur",
+      "ITA": "Utente"
+    },
+    "support.data.challenge": {
+      "SPA": "Código Challenge",
+      "ENG": "Challenge Code",
+      "FRA": "Code Challenge",
+      "ITA": "Codice Challenge"
+    },
+    "support.data.datetime": {
+      "SPA": "Fecha/Hora Local",
+      "ENG": "Local Date/Time",
+      "FRA": "Date/Heure locale",
+      "ITA": "Data/Ora Locale"
+    },
+    "support.recovery.call_info": {
+      "SPA": "Al llamar, indique:",
+      "ENG": "When calling, indicate:",
+      "FRA": "Lors de l'appel, indiquez :",
+      "ITA": "Quando chiama, indichi:"
+    },
+    "support.recovery.call_item_id": {
+      "SPA": "ID de Instalación",
+      "ENG": "Installation ID",
+      "FRA": "ID d'installation",
+      "ITA": "ID Installazione"
+    },
+    "support.recovery.call_item_user": {
+      "SPA": "Usuario",
+      "ENG": "User",
+      "FRA": "Utilisateur",
+      "ITA": "Utente"
+    },
+    "support.recovery.call_item_need": {
+      "SPA": "Que necesita recuperar la contraseña",
+      "ENG": "That you need to recover the password",
+      "FRA": "Que vous devez récupérer le mot de passe",
+      "ITA": "Che ha bisogno di recuperare la password"
+    },
+    "support.support.call_info": {
+      "SPA": "Al llamar, indique:",
+      "ENG": "When calling, indicate:",
+      "FRA": "Lors de l'appel, indiquez :",
+      "ITA": "Quando chiama, indichi:"
+    },
+    "support.support.call_item_id": {
+      "SPA": "ID de Instalación (arriba)",
+      "ENG": "Installation ID (above)",
+      "FRA": "ID d'installation (ci-dessus)",
+      "ITA": "ID Installazione (sopra)"
+    },
+    "support.support.call_item_offline": {
+      "SPA": "Que el sistema está sin conexión al servidor",
+      "ENG": "That the system is offline from the server",
+      "FRA": "Que le système est hors ligne du serveur",
+      "ITA": "Che il sistema è offline dal server"
+    },
+    "support.support.call_item_problem": {
+      "SPA": "El problema que está experimentando",
+      "ENG": "The problem you are experiencing",
+      "FRA": "Le problème que vous rencontrez",
+      "ITA": "Il problema che sta riscontrando"
+    },
+    "support.emergency.title": {
+      "SPA": "Sistema Sin Conexión - Modo Emergencia",
+      "ENG": "System Offline - Emergency Mode",
+      "FRA": "Système hors ligne - Mode d'urgence",
+      "ITA": "Sistema Offline - Modalità Emergenza"
+    },
+    "support.emergency.retry": {
+      "SPA": "REINTENTAR CONEXIÓN",
+      "ENG": "RETRY CONNECTION",
+      "FRA": "RÉESSAYER LA CONNEXION",
+      "ITA": "RIPROVA CONNESSIONE"
+    },
+    "support.emergency.persist_message": {
+      "SPA": "Si el problema persiste después de varios intentos:",
+      "ENG": "If the problem persists after several attempts:",
+      "FRA": "Si le problème persiste après plusieurs tentatives :",
+      "ITA": "Se il problema persiste dopo vari tentativi:"
+    },
+    "support.emergency.call_support": {
+      "SPA": "LLAME A SOPORTE TÉCNICO",
+      "ENG": "CALL TECHNICAL SUPPORT",
+      "FRA": "APPELEZ LE SUPPORT TECHNIQUE",
+      "ITA": "CHIAMI IL SUPPORTO TECNICO"
+    },
+    "support.emergency.indicate": {
+      "SPA": "Indique",
+      "ENG": "Indicate",
+      "FRA": "Indiquez",
+      "ITA": "Indichi"
+    },
+    "support.emergency.and_offline": {
+      "SPA": "y que el sistema está sin conexión",
+      "ENG": "and that the system is offline",
+      "FRA": "et que le système est hors ligne",
+      "ITA": "e che il sistema è offline"
+    },
+    "support.emergency.last_resort": {
+      "SPA": "Último recurso: Desconecte el cable de alimentación del equipo y espere 10 segundos antes de volver a conectar.",
+      "ENG": "Last resort: Disconnect the power cable from the equipment and wait 10 seconds before reconnecting.",
+      "FRA": "Dernier recours : Débranchez le câble d'alimentation de l'équipement et attendez 10 secondes avant de rebrancher.",
+      "ITA": "Ultima risorsa: Scolleghi il cavo di alimentazione dall'apparecchiatura e attenda 10 secondi prima di ricollegare."
+    },
+    "support.recovery.title": {
+      "SPA": "Cambiar Contraseña",
+      "ENG": "Change Password",
+      "FRA": "Changer le mot de passe",
+      "ITA": "Cambia Password"
+    },
+    "support.recovery.note": {
+      "SPA": "Introduzca el código de recuperación que le ha proporcionado el técnico de Aquafrisch, junto con su nueva contraseña.",
+      "ENG": "Enter the recovery code provided by the Aquafrisch technician, along with your new password.",
+      "FRA": "Entrez le code de récupération fourni par le technicien Aquafrisch, ainsi que votre nouveau mot de passe.",
+      "ITA": "Inserisca il codice di recupero fornito dal tecnico Aquafrisch, insieme alla sua nuova password."
+    },
+    "support.recovery.code_placeholder": {
+      "SPA": "CÓDIGO DE RECUPERACIÓN (AQFR-XXXX-XXXX-XXXX)",
+      "ENG": "RECOVERY CODE (AQFR-XXXX-XXXX-XXXX)",
+      "FRA": "CODE DE RÉCUPÉRATION (AQFR-XXXX-XXXX-XXXX)",
+      "ITA": "CODICE DI RECUPERO (AQFR-XXXX-XXXX-XXXX)"
+    },
+    "support.recovery.new_password_placeholder": {
+      "SPA": "NUEVA CONTRASEÑA",
+      "ENG": "NEW PASSWORD",
+      "FRA": "NOUVEAU MOT DE PASSE",
+      "ITA": "NUOVA PASSWORD"
+    },
+    "support.recovery.confirm_password_placeholder": {
+      "SPA": "CONFIRMAR NUEVA CONTRASEÑA",
+      "ENG": "CONFIRM NEW PASSWORD",
+      "FRA": "CONFIRMER LE NOUVEAU MOT DE PASSE",
+      "ITA": "CONFERMA NUOVA PASSWORD"
+    },
+    "support.recovery.button": {
+      "SPA": "Cambiar Contraseña",
+      "ENG": "Change Password",
+      "FRA": "Changer le mot de passe",
+      "ITA": "Cambia Password"
+    },
+    "support.recovery.button_loading": {
+      "SPA": "Cambiando contraseña...",
+      "ENG": "Changing password...",
+      "FRA": "Changement du mot de passe...",
+      "ITA": "Cambio password..."
+    },
+    "support.recovery.success_title": {
+      "SPA": "Contraseña Actualizada",
+      "ENG": "Password Updated",
+      "FRA": "Mot de passe mis à jour",
+      "ITA": "Password Aggiornata"
+    },
+    "support.recovery.success_message": {
+      "SPA": "Su contraseña ha sido cambiada correctamente. Ya puede cerrar esta ventana e iniciar sesión con su nueva contraseña.",
+      "ENG": "Your password has been changed successfully. You can now close this window and log in with your new password.",
+      "FRA": "Votre mot de passe a été changé avec succès. Vous pouvez maintenant fermer cette fenêtre et vous connecter avec votre nouveau mot de passe.",
+      "ITA": "La sua password è stata cambiata con successo. Può ora chiudere questa finestra e accedere con la sua nuova password."
+    },
+    "support.recovery.close_button": {
+      "SPA": "Cerrar y volver al Login",
+      "ENG": "Close and return to Login",
+      "FRA": "Fermer et retourner à la connexion",
+      "ITA": "Chiudi e torna al Login"
+    },
+    "support.unlock.title": {
+      "SPA": "Desbloqueo Remoto",
+      "ENG": "Remote Unlock",
+      "FRA": "Déverrouillage à distance",
+      "ITA": "Sblocco Remoto"
+    },
+    "support.unlock.note": {
+      "SPA": "Si el técnico le ha dado un código de respuesta, ingréselo aquí para desbloquear las herramientas del sistema temporalmente.",
+      "ENG": "If the technician has given you a response code, enter it here to temporarily unlock the system tools.",
+      "FRA": "Si le technicien vous a donné un code de réponse, entrez-le ici pour déverrouiller temporairement les outils du système.",
+      "ITA": "Se il tecnico le ha fornito un codice di risposta, lo inserisca qui per sbloccare temporaneamente gli strumenti del sistema."
+    },
+    "support.unlock.code_placeholder": {
+      "SPA": "INGRESE CÓDIGO DE RESPUESTA",
+      "ENG": "ENTER RESPONSE CODE",
+      "FRA": "ENTREZ LE CODE DE RÉPONSE",
+      "ITA": "INSERISCA CODICE DI RISPOSTA"
+    },
+    "support.unlock.button": {
+      "SPA": "Verificar Código",
+      "ENG": "Verify Code",
+      "FRA": "Vérifier le code",
+      "ITA": "Verifica Codice"
+    },
+    "support.unlock.button_loading": {
+      "SPA": "Verificando...",
+      "ENG": "Verifying...",
+      "FRA": "Vérification...",
+      "ITA": "Verifica..."
+    },
+    "support.tools.title": {
+      "SPA": "Herramientas Desbloqueadas",
+      "ENG": "Unlocked Tools",
+      "FRA": "Outils déverrouillés",
+      "ITA": "Strumenti Sbloccati"
+    },
+    "support.tools.teamviewer": {
+      "SPA": "TeamViewer",
+      "ENG": "TeamViewer",
+      "FRA": "TeamViewer",
+      "ITA": "TeamViewer"
+    },
+    "support.tools.restart_app": {
+      "SPA": "Reiniciar Aplicación",
+      "ENG": "Restart Application",
+      "FRA": "Redémarrer l'application",
+      "ITA": "Riavvia Applicazione"
+    },
+    "support.tools.logout_windows": {
+      "SPA": "Cerrar Sesión Windows",
+      "ENG": "Windows Logout",
+      "FRA": "Déconnexion Windows",
+      "ITA": "Disconnetti Windows"
+    },
+    "support.tools.audit_note": {
+      "SPA": "Todas las acciones quedan registradas en el log de auditoría",
+      "ENG": "All actions are recorded in the audit log",
+      "FRA": "Toutes les actions sont enregistrées dans le journal d'audit",
+      "ITA": "Tutte le azioni vengono registrate nel log di audit"
+    },
+    "support.footer": {
+      "SPA": "Aquafrisch Industrial Support",
+      "ENG": "Aquafrisch Industrial Support",
+      "FRA": "Aquafrisch Industrial Support",
+      "ITA": "Aquafrisch Industrial Support"
+    },
+    "support.footer.reload": {
+      "SPA": "Recargar Página",
+      "ENG": "Reload Page",
+      "FRA": "Recharger la page",
+      "ITA": "Ricarica Pagina"
+    },
+    "support.footer.reload_confirm": {
+      "SPA": "¿Recargar la página?\n\nEsto refrescará toda la aplicación.",
+      "ENG": "Reload the page?\n\nThis will refresh the entire application.",
+      "FRA": "Recharger la page ?\n\nCela actualisera toute l'application.",
+      "ITA": "Ricaricare la pagina?\n\nQuesto aggiornerà l'intera applicazione."
+    },
+    "support.keyboard.editing": {
+      "SPA": "Editando",
+      "ENG": "Editing",
+      "FRA": "Édition",
+      "ITA": "Modifica"
+    },
+    "support.keyboard.recovery_code": {
+      "SPA": "Código de Recuperación",
+      "ENG": "Recovery Code",
+      "FRA": "Code de récupération",
+      "ITA": "Codice di Recupero"
+    },
+    "support.keyboard.new_password": {
+      "SPA": "Nueva Contraseña",
+      "ENG": "New Password",
+      "FRA": "Nouveau mot de passe",
+      "ITA": "Nuova Password"
+    },
+    "support.keyboard.confirm_password": {
+      "SPA": "Confirmar Contraseña",
+      "ENG": "Confirm Password",
+      "FRA": "Confirmer le mot de passe",
+      "ITA": "Conferma Password"
+    },
+    "support.keyboard.close": {
+      "SPA": "Cerrar Teclado",
+      "ENG": "Close Keyboard",
+      "FRA": "Fermer le clavier",
+      "ITA": "Chiudi Tastiera"
+    },
+    "support.error.enter_code": {
+      "SPA": "Por favor ingrese el código",
+      "ENG": "Please enter the code",
+      "FRA": "Veuillez entrer le code",
+      "ITA": "Per favore inserisca il codice"
+    },
+    "support.error.enter_password": {
+      "SPA": "Por favor ingrese la nueva contraseña",
+      "ENG": "Please enter the new password",
+      "FRA": "Veuillez entrer le nouveau mot de passe",
+      "ITA": "Per favore inserisca la nuova password"
+    },
+    "support.error.password_min_length": {
+      "SPA": "La contraseña debe tener al menos 4 caracteres",
+      "ENG": "Password must be at least 4 characters",
+      "FRA": "Le mot de passe doit comporter au moins 4 caractères",
+      "ITA": "La password deve avere almeno 4 caratteri"
+    },
+    "support.error.passwords_mismatch": {
+      "SPA": "Las contraseñas no coinciden",
+      "ENG": "Passwords do not match",
+      "FRA": "Les mots de passe ne correspondent pas",
+      "ITA": "Le password non corrispondono"
+    },
+    "support.error.connection": {
+      "SPA": "Error de conexión. Intente nuevamente.",
+      "ENG": "Connection error. Please try again.",
+      "FRA": "Erreur de connexion. Veuillez réessayer.",
+      "ITA": "Errore di connessione. Riprovi."
+    },
+    "support.error.invalid_code": {
+      "SPA": "Código inválido o expirado",
+      "ENG": "Invalid or expired code",
+      "FRA": "Code invalide ou expiré",
+      "ITA": "Codice non valido o scaduto"
+    },
+    "support.error.session_expired": {
+      "SPA": "La sesión de soporte ha expirado",
+      "ENG": "Support session has expired",
+      "FRA": "La session de support a expiré",
+      "ITA": "La sessione di supporto è scaduta"
+    },
+    "support.error.tool_not_found": {
+      "SPA": "Herramienta no reconocida",
+      "ENG": "Tool not recognized",
+      "FRA": "Outil non reconnu",
+      "ITA": "Strumento non riconosciuto"
+    },
+    "support.error.tool_execution": {
+      "SPA": "Error ejecutando",
+      "ENG": "Error executing",
+      "FRA": "Erreur lors de l'exécution",
+      "ITA": "Errore durante l'esecuzione"
+    },
+    "support.success.code_verified": {
+      "SPA": "Código verificado! Sesión activa por {minutes} minutos.",
+      "ENG": "Code verified! Session active for {minutes} minutes.",
+      "FRA": "Code vérifié ! Session active pendant {minutes} minutes.",
+      "ITA": "Codice verificato! Sessione attiva per {minutes} minuti."
+    },
+    "support.success.copied": {
+      "SPA": "{label} copiado al portapapeles",
+      "ENG": "{label} copied to clipboard",
+      "FRA": "{label} copié dans le presse-papiers",
+      "ITA": "{label} copiato negli appunti"
+    },
+    "support.confirm.logout_windows": {
+      "SPA": "¿Está seguro que desea cerrar la sesión de Windows?",
+      "ENG": "Are you sure you want to log out of Windows?",
+      "FRA": "Êtes-vous sûr de vouloir vous déconnecter de Windows ?",
+      "ITA": "È sicuro di voler disconnettersi da Windows?"
+    },
+    "data.title": {
+      "SPA": "DATA MANAGEMENT",
+      "ENG": "DATA MANAGEMENT",
+      "FRA": "GESTION DES DONNÉES",
+      "ITA": "GESTIONE DATI"
+    },
+    "data.status.healthy": {
+      "SPA": "SALUDABLE",
+      "ENG": "HEALTHY",
+      "FRA": "SAIN",
+      "ITA": "SANO"
+    },
+    "data.status.warning": {
+      "SPA": "ADVERTENCIA",
+      "ENG": "WARNING",
+      "FRA": "AVERTISSEMENT",
+      "ITA": "ATTENZIONE"
+    },
+    "data.status.error": {
+      "SPA": "ERROR",
+      "ENG": "ERROR",
+      "FRA": "ERREUR",
+      "ITA": "ERRORE"
+    },
+    "data.status.disabled": {
+      "SPA": "DESHABILITADO",
+      "ENG": "DISABLED",
+      "FRA": "DÉSACTIVÉ",
+      "ITA": "DISABILITATO"
+    },
+    "data.status.unknown": {
+      "SPA": "DESCONOCIDO",
+      "ENG": "UNKNOWN",
+      "FRA": "INCONNU",
+      "ITA": "SCONOSCIUTO"
+    },
+    "data.creating_backup": {
+      "SPA": "Creando backup...",
+      "ENG": "Creating backup...",
+      "FRA": "Création de la sauvegarde...",
+      "ITA": "Creazione backup..."
+    },
+    "data.restoring_backup": {
+      "SPA": "Restaurando backup...",
+      "ENG": "Restoring backup...",
+      "FRA": "Restauration de la sauvegarde...",
+      "ITA": "Ripristino backup..."
+    },
+    "data.verifying_integrity": {
+      "SPA": "Verificando integridad...",
+      "ENG": "Verifying integrity...",
+      "FRA": "Vérification de l'intégrité...",
+      "ITA": "Verifica integrità..."
+    },
+    "data.importing_backup": {
+      "SPA": "Importando backup...",
+      "ENG": "Importing backup...",
+      "FRA": "Importation de la sauvegarde...",
+      "ITA": "Importazione backup..."
+    },
+    "data.confirm_delete": {
+      "SPA": "¿Está seguro de eliminar este backup?",
+      "ENG": "Are you sure you want to delete this backup?",
+      "FRA": "Êtes-vous sûr de vouloir supprimer cette sauvegarde ?",
+      "ITA": "È sicuro di voler eliminare questo backup?"
+    },
+    "data.error.download": {
+      "SPA": "Error al descargar",
+      "ENG": "Download error",
+      "FRA": "Erreur de téléchargement",
+      "ITA": "Errore di download"
+    },
+    "data.error.invalid_backup": {
+      "SPA": "Backup inválido",
+      "ENG": "Invalid backup",
+      "FRA": "Sauvegarde invalide",
+      "ITA": "Backup non valido"
+    },
+    "data.error.select_file": {
+      "SPA": "Seleccione un archivo ZIP para importar",
+      "ENG": "Select a ZIP file to import",
+      "FRA": "Sélectionnez un fichier ZIP à importer",
+      "ITA": "Seleziona un file ZIP da importare"
+    },
+    "data.error.import": {
+      "SPA": "Error al importar backup",
+      "ENG": "Error importing backup",
+      "FRA": "Erreur lors de l'importation de la sauvegarde",
+      "ITA": "Errore durante l'importazione del backup"
+    },
+    "data.error.only_zip": {
+      "SPA": "Solo se permiten archivos .zip",
+      "ENG": "Only .zip files are allowed",
+      "FRA": "Seuls les fichiers .zip sont autorisés",
+      "ITA": "Sono consentiti solo file .zip"
+    },
+    "data.success.backup_valid": {
+      "SPA": "Backup válido - Certificado: {certificateStatus}",
+      "ENG": "Valid backup - Certificate: {certificateStatus}",
+      "FRA": "Sauvegarde valide - Certificat : {certificateStatus}",
+      "ITA": "Backup valido - Certificato: {certificateStatus}"
+    },
+    "data.success.import": {
+      "SPA": "Backup importado correctamente",
+      "ENG": "Backup imported successfully",
+      "FRA": "Sauvegarde importée avec succès",
+      "ITA": "Backup importato correttamente"
+    },
+    "data.loading_backup_data": {
+      "SPA": "Cargando datos de backup...",
+      "ENG": "Loading backup data...",
+      "FRA": "Chargement des données de sauvegarde...",
+      "ITA": "Caricamento dati backup..."
+    },
+    "data.system_status": {
+      "SPA": "Estado del Sistema",
+      "ENG": "System Status",
+      "FRA": "État du Système",
+      "ITA": "Stato del Sistema"
+    },
+    "data.total_backups": {
+      "SPA": "Total Backups",
+      "ENG": "Total Backups",
+      "FRA": "Total Sauvegardes",
+      "ITA": "Totale Backup"
+    },
+    "data.space_used": {
+      "SPA": "Espacio Utilizado",
+      "ENG": "Space Used",
+      "FRA": "Espace Utilisé",
+      "ITA": "Spazio Utilizzato"
+    },
+    "data.last_backup": {
+      "SPA": "Último Backup",
+      "ENG": "Last Backup",
+      "FRA": "Dernière Sauvegarde",
+      "ITA": "Ultimo Backup"
+    },
+    "data.next_scheduled": {
+      "SPA": "Próximo Programado",
+      "ENG": "Next Scheduled",
+      "FRA": "Prochain Planifié",
+      "ITA": "Prossimo Programmato"
+    },
+    "data.none": {
+      "SPA": "Ninguno",
+      "ENG": "None",
+      "FRA": "Aucun",
+      "ITA": "Nessuno"
+    },
+    "data.not_scheduled": {
+      "SPA": "No programado",
+      "ENG": "Not scheduled",
+      "FRA": "Non planifié",
+      "ITA": "Non programmato"
+    },
+    "data.create_backup": {
+      "SPA": "Crear Backup",
+      "ENG": "Create Backup",
+      "FRA": "Créer Sauvegarde",
+      "ITA": "Crea Backup"
+    },
+    "data.import": {
+      "SPA": "Importar",
+      "ENG": "Import",
+      "FRA": "Importer",
+      "ITA": "Importa"
+    },
+    "data.restore": {
+      "SPA": "Restaurar",
+      "ENG": "Restore",
+      "FRA": "Restaurer",
+      "ITA": "Ripristina"
+    },
+    "data.refresh": {
+      "SPA": "Actualizar",
+      "ENG": "Refresh",
+      "FRA": "Actualiser",
+      "ITA": "Aggiorna"
+    },
+    "data.import_external": {
+      "SPA": "Importar Backup Externo",
+      "ENG": "Import External Backup",
+      "FRA": "Importer Sauvegarde Externe",
+      "ITA": "Importa Backup Esterno"
+    },
+    "data.drag_zip_here": {
+      "SPA": "Arrastra el archivo ZIP aquí",
+      "ENG": "Drag ZIP file here",
+      "FRA": "Glissez le fichier ZIP ici",
+      "ITA": "Trascina il file ZIP qui"
+    },
+    "data.drop_zip_here": {
+      "SPA": "Arrastra el archivo .zip aquí",
+      "ENG": "Drop .zip file here",
+      "FRA": "Déposez le fichier .zip ici",
+      "ITA": "Rilascia il file .zip qui"
+    },
+    "data.remove": {
+      "SPA": "Quitar",
+      "ENG": "Remove",
+      "FRA": "Retirer",
+      "ITA": "Rimuovi"
+    },
+    "data.note": {
+      "SPA": "Nota",
+      "ENG": "Note",
+      "FRA": "Note",
+      "ITA": "Nota"
+    },
+    "data.import_note": {
+      "SPA": "El backup importado se añadirá a la lista. Para aplicarlo, deberá usar la opción \"Restaurar\" después de importar.",
+      "ENG": "The imported backup will be added to the list. To apply it, you must use the \"Restore\" option after importing.",
+      "FRA": "La sauvegarde importée sera ajoutée à la liste. Pour l'appliquer, vous devrez utiliser l'option \"Restaurer\" après l'importation.",
+      "ITA": "Il backup importato verrà aggiunto alla lista. Per applicarlo, dovrà usare l'opzione \"Ripristina\" dopo l'importazione."
+    },
+    "data.cancel": {
+      "SPA": "Cancelar",
+      "ENG": "Cancel",
+      "FRA": "Annuler",
+      "ITA": "Annulla"
+    },
+    "data.importing": {
+      "SPA": "Importando...",
+      "ENG": "Importing...",
+      "FRA": "Importation...",
+      "ITA": "Importazione..."
+    },
+    "data.import_backup": {
+      "SPA": "Importar Backup",
+      "ENG": "Import Backup",
+      "FRA": "Importer Sauvegarde",
+      "ITA": "Importa Backup"
+    },
+    "data.create_new_backup": {
+      "SPA": "Crear Nuevo Backup",
+      "ENG": "Create New Backup",
+      "FRA": "Créer Nouvelle Sauvegarde",
+      "ITA": "Crea Nuovo Backup"
+    },
+    "data.name_optional": {
+      "SPA": "Nombre (opcional)",
+      "ENG": "Name (optional)",
+      "FRA": "Nom (optionnel)",
+      "ITA": "Nome (opzionale)"
+    },
+    "data.manual_backup_placeholder": {
+      "SPA": "Backup manual...",
+      "ENG": "Manual backup...",
+      "FRA": "Sauvegarde manuelle...",
+      "ITA": "Backup manuale..."
+    },
+    "data.description_optional": {
+      "SPA": "Descripción (opcional)",
+      "ENG": "Description (optional)",
+      "FRA": "Description (optionnelle)",
+      "ITA": "Descrizione (opzionale)"
+    },
+    "data.before_update_placeholder": {
+      "SPA": "Antes de actualización...",
+      "ENG": "Before update...",
+      "FRA": "Avant mise à jour...",
+      "ITA": "Prima dell'aggiornamento..."
+    },
+    "data.configuration": {
+      "SPA": "Configuración",
+      "ENG": "Configuration",
+      "FRA": "Configuration",
+      "ITA": "Configurazione"
+    },
+    "data.models_3d": {
+      "SPA": "Modelos 3D",
+      "ENG": "3D Models",
+      "FRA": "Modèles 3D",
+      "ITA": "Modelli 3D"
+    },
+    "data.database": {
+      "SPA": "Base de Datos",
+      "ENG": "Database",
+      "FRA": "Base de Données",
+      "ITA": "Database"
+    },
+    "data.creating": {
+      "SPA": "Creando...",
+      "ENG": "Creating...",
+      "FRA": "Création...",
+      "ITA": "Creazione..."
+    },
+    "data.restore_backup": {
+      "SPA": "Restaurar Backup",
+      "ENG": "Restore Backup",
+      "FRA": "Restaurer Sauvegarde",
+      "ITA": "Ripristina Backup"
+    },
+    "data.restore_warning": {
+      "SPA": "ADVERTENCIA: La restauración sobrescribirá los datos actuales. Se creará un backup automático antes de restaurar.",
+      "ENG": "WARNING: The restore will overwrite current data. An automatic backup will be created before restoring.",
+      "FRA": "AVERTISSEMENT : La restauration écrasera les données actuelles. Une sauvegarde automatique sera créée avant la restauration.",
+      "ITA": "ATTENZIONE: Il ripristino sovrascriverà i dati attuali. Verrà creato un backup automatico prima del ripristino."
+    },
+    "data.restoring": {
+      "SPA": "Restaurando...",
+      "ENG": "Restoring...",
+      "FRA": "Restauration...",
+      "ITA": "Ripristino..."
+    },
+    "data.confirm_restore": {
+      "SPA": "Confirmar Restauración",
+      "ENG": "Confirm Restore",
+      "FRA": "Confirmer Restauration",
+      "ITA": "Conferma Ripristino"
+    },
+    "data.available_backups": {
+      "SPA": "Backups Disponibles",
+      "ENG": "Available Backups",
+      "FRA": "Sauvegardes Disponibles",
+      "ITA": "Backup Disponibili"
+    },
+    "data.no_backups": {
+      "SPA": "No hay backups disponibles",
+      "ENG": "No backups available",
+      "FRA": "Aucune sauvegarde disponible",
+      "ITA": "Nessun backup disponibile"
+    },
+    "data.verify_integrity": {
+      "SPA": "Verificar integridad",
+      "ENG": "Verify integrity",
+      "FRA": "Vérifier l'intégrité",
+      "ITA": "Verifica integrità"
+    },
+    "data.download": {
+      "SPA": "Descargar",
+      "ENG": "Download",
+      "FRA": "Télécharger",
+      "ITA": "Scarica"
+    },
+    "data.delete": {
+      "SPA": "Eliminar",
+      "ENG": "Delete",
+      "FRA": "Supprimer",
+      "ITA": "Elimina"
+    },
+
+    "infoPanel.InfoPanel_Excel_Plc_InfoPanel_A1": {
+      "SPA": "Info PLC",
+      "ENG": "PLC Info",
+      "FRA": "Info PLC",
+      "ITA": "Info PLC"
+    },
+    "infoPanel.InfoPanel_Excel_Plc_InfoPanel_C1": {
+      "SPA": "Panel de información del PLC con datos en tiempo real del estado de la planta.",
+      "ENG": "PLC information panel with real-time data of the plant status.",
+      "FRA": "Panneau d'information du PLC avec données en temps réel de l'état de l'usine.",
+      "ITA": "Pannello informativo del PLC con dati in tempo reale dello stato dell'impianto."
+    },
+    "infoPanel.InfoPanel_Excel_Plc_InfoPanel_D1": {
+      "SPA": "Estado Planta",
+      "ENG": "Plant Status",
+      "FRA": "État Usine",
+      "ITA": "Stato Impianto"
+    },
+    "infoPanel.InfoPanel_Excel_Plc_InfoPanel_D2": {
+      "SPA": "Estado Sala Control",
+      "ENG": "Control Room Status",
+      "FRA": "État Salle de Contrôle",
+      "ITA": "Stato Sala Controllo"
+    },
+    "infoPanel.InfoPanel_Excel_Plc_InfoPanel_D3": {
+      "SPA": "Receta Lavado",
+      "ENG": "Wash Recipe",
+      "FRA": "Recette Lavage",
+      "ITA": "Ricetta Lavaggio"
+    },
+    "infoPanel.InfoPanel_Excel_Plc_InfoPanel_D4": {
+      "SPA": "Receta Tren",
+      "ENG": "Train Recipe",
+      "FRA": "Recette Train",
+      "ITA": "Ricetta Treno"
+    },
+    "infoPanel.InfoPanel_Excel_Plc_InfoPanel_D5": {
+      "SPA": "Secuencia PLC",
+      "ENG": "PLC Sequence",
+      "FRA": "Séquence PLC",
+      "ITA": "Sequenza PLC"
+    },
+    "infoPanel.InfoPanel_Excel_Plc_InfoPanel_D6": {
+      "SPA": "Secuencia Lavado",
+      "ENG": "Wash Sequence",
+      "FRA": "Séquence Lavage",
+      "ITA": "Sequenza Lavaggio"
+    },
+
+    "infoPanel.compact.services_title": {
+      "SPA": "⚙️ INFO GENERAL SERVICIOS",
+      "ENG": "⚙️ GENERAL SERVICES INFO",
+      "FRA": "⚙️ INFO SERVICES GÉNÉRAUX",
+      "ITA": "⚙️ INFO SERVIZI GENERALI"
+    },
+    "infoPanel.compact.poll": {
+      "SPA": "Poll",
+      "ENG": "Poll",
+      "FRA": "Poll",
+      "ITA": "Poll"
+    },
+    "infoPanel.compact.task": {
+      "SPA": "Task",
+      "ENG": "Task",
+      "FRA": "Task",
+      "ITA": "Task"
+    },
+    "infoPanel.compact.alarms_title": {
+      "SPA": "🔔 ALARMAS",
+      "ENG": "🔔 ALARMS",
+      "FRA": "🔔 ALARMES",
+      "ITA": "🔔 ALLARMI"
+    },
+    "infoPanel.compact.errors": {
+      "SPA": "❌ Errores",
+      "ENG": "❌ Errors",
+      "FRA": "❌ Erreurs",
+      "ITA": "❌ Errori"
+    },
+    "infoPanel.compact.warnings": {
+      "SPA": "⚠️ Advertencias",
+      "ENG": "⚠️ Warnings",
+      "FRA": "⚠️ Avertissements",
+      "ITA": "⚠️ Avvisi"
+    },
+    "infoPanel.compact.info": {
+      "SPA": "ℹ️ Info",
+      "ENG": "ℹ️ Info",
+      "FRA": "ℹ️ Info",
+      "ITA": "ℹ️ Info"
+    },
+    "infoPanel.compact.integrity_title": {
+      "SPA": "🔐 INTEGRIDAD SOFTWARE",
+      "ENG": "🔐 SOFTWARE INTEGRITY",
+      "FRA": "🔐 INTÉGRITÉ LOGICIEL",
+      "ITA": "🔐 INTEGRITÀ SOFTWARE"
+    },
+    "infoPanel.compact.all_verified": {
+      "SPA": "✓ TODO VERIFICADO",
+      "ENG": "✓ ALL VERIFIED",
+      "FRA": "✓ TOUT VÉRIFIÉ",
+      "ITA": "✓ TUTTO VERIFICATO"
+    },
+    "infoPanel.compact.modified": {
+      "SPA": "⚠ MODIFICADO",
+      "ENG": "⚠ MODIFIED",
+      "FRA": "⚠ MODIFIÉ",
+      "ITA": "⚠ MODIFICATO"
+    },
+    "infoPanel.compact.unknown": {
+      "SPA": "? DESCONOCIDO",
+      "ENG": "? UNKNOWN",
+      "FRA": "? INCONNU",
+      "ITA": "? SCONOSCIUTO"
+    },
+    "infoPanel.compact.compliance_title": {
+      "SPA": "🛡️ CUMPLIMIENTO Y SEGURIDAD",
+      "ENG": "🛡️ COMPLIANCE & SECURITY",
+      "FRA": "🛡️ CONFORMITÉ ET SÉCURITÉ",
+      "ITA": "🛡️ CONFORMITÀ E SICUREZZA"
+    },
+    "infoPanel.compact.sbom_not_generated": {
+      "SPA": "No generado",
+      "ENG": "Not generated",
+      "FRA": "Non généré",
+      "ITA": "Non generato"
+    },
+    "infoPanel.compact.pkgs": {
+      "SPA": "{count} paquetes",
+      "ENG": "{count} pkgs",
+      "FRA": "{count} paquets",
+      "ITA": "{count} pacchetti"
+    },
+    "infoPanel.compact.cve_disabled": {
+      "SPA": "Deshabilitado",
+      "ENG": "Disabled",
+      "FRA": "Désactivé",
+      "ITA": "Disabilitato"
+    },
+    "infoPanel.compact.cve_no_issues": {
+      "SPA": "Sin problemas",
+      "ENG": "No issues",
+      "FRA": "Aucun problème",
+      "ITA": "Nessun problema"
+    },
+    "infoPanel.compact.cve_found": {
+      "SPA": "{count} encontradas",
+      "ENG": "{count} found",
+      "FRA": "{count} trouvées",
+      "ITA": "{count} trovate"
+    },
+    "infoPanel.compact.cve_no_scan": {
+      "SPA": "Sin escaneo",
+      "ENG": "No scan",
+      "FRA": "Pas de scan",
+      "ITA": "Nessuna scansione"
+    },
+    "infoPanel.compact.support_period": {
+      "SPA": "PERÍODO DE SOPORTE",
+      "ENG": "SUPPORT PERIOD",
+      "FRA": "PÉRIODE DE SUPPORT",
+      "ITA": "PERIODO DI SUPPORTO"
+    },
+    "infoPanel.compact.until_year": {
+      "SPA": "Hasta {year} (EU CRA)",
+      "ENG": "Until {year} (EU CRA)",
+      "FRA": "Jusqu'en {year} (EU CRA)",
+      "ITA": "Fino al {year} (EU CRA)"
+    },
+    "infoPanel.compact.security_contact": {
+      "SPA": "CONTACTO SEGURIDAD",
+      "ENG": "SECURITY CONTACT",
+      "FRA": "CONTACT SÉCURITÉ",
+      "ITA": "CONTATTO SICUREZZA"
+    },
+    "infoPanel.compact.report_vulnerabilities": {
+      "SPA": "Reportar vulnerabilidades: {email}",
+      "ENG": "Report vulnerabilities: {email}",
+      "FRA": "Signaler les vulnérabilités: {email}",
+      "ITA": "Segnala vulnerabilità: {email}"
+    },
+
+    "infoPanel.title.status": {
+      "SPA": "ESTADO",
+      "ENG": "STATUS",
+      "FRA": "ÉTAT",
+      "ITA": "STATO"
+    },
+    "infoPanel.title.system_status": {
+      "SPA": "ESTADO DEL SISTEMA",
+      "ENG": "SYSTEM STATUS",
+      "FRA": "ÉTAT DU SYSTÈME",
+      "ITA": "STATO DEL SISTEMA"
+    },
+    "infoPanel.button.expand": {
+      "SPA": "EXPANDIR ◀",
+      "ENG": "EXPAND ◀",
+      "FRA": "DÉVELOPPER ◀",
+      "ITA": "ESPANDI ◀"
+    },
+    "infoPanel.button.compact": {
+      "SPA": "▶ COMPACTO",
+      "ENG": "▶ COMPACT",
+      "FRA": "▶ COMPACT",
+      "ITA": "▶ COMPATTO"
+    },
+
+    "infoPanel.help.sistemas.title": {
+      "SPA": "⚙️ SERVICIOS INTERNOS DEL BACKEND",
+      "ENG": "⚙️ BACKEND INTERNAL SERVICES",
+      "FRA": "⚙️ SERVICES INTERNES DU BACKEND",
+      "ITA": "⚙️ SERVIZI INTERNI DEL BACKEND"
+    },
+    "infoPanel.help.sistemas.description": {
+      "SPA": "Servicios que procesan datos LOCALMENTE o comunican con el FRONTEND. No abren conexiones de red hacia otros sistemas.",
+      "ENG": "Services that process data LOCALLY or communicate with the FRONTEND. They do not open network connections to other systems.",
+      "FRA": "Services qui traitent les données LOCALEMENT ou communiquent avec le FRONTEND. Ils n'ouvrent pas de connexions réseau vers d'autres systèmes.",
+      "ITA": "Servizi che elaborano dati LOCALMENTE o comunicano con il FRONTEND. Non aprono connessioni di rete verso altri sistemi."
+    },
+    "infoPanel.help.sistemas.backend_server": {
+      "SPA": "Servidor ASP.NET Core. Muestra tiempo de uptime del servidor. Gestiona todas las APIs y servicios. Es el servicio principal que orquesta todo.",
+      "ENG": "ASP.NET Core server. Shows server uptime. Manages all APIs and services. It is the main service that orchestrates everything.",
+      "FRA": "Serveur ASP.NET Core. Affiche le temps de fonctionnement du serveur. Gère toutes les APIs et services. C'est le service principal qui orchestre tout.",
+      "ITA": "Server ASP.NET Core. Mostra il tempo di uptime del server. Gestisce tutte le API e i servizi. È il servizio principale che orchestra tutto."
+    },
+    "infoPanel.help.sistemas.signalr_hub": {
+      "SPA": "Comunicación en tiempo real Backend ↔ Frontend. WebSocket bidireccional (push automático). Muestra número de conexiones activas.",
+      "ENG": "Real-time Backend ↔ Frontend communication. Bidirectional WebSocket (automatic push). Shows number of active connections.",
+      "FRA": "Communication en temps réel Backend ↔ Frontend. WebSocket bidirectionnel (push automatique). Affiche le nombre de connexions actives.",
+      "ITA": "Comunicazione in tempo reale Backend ↔ Frontend. WebSocket bidirezionale (push automatico). Mostra il numero di connessioni attive."
+    },
+    "infoPanel.help.sistemas.plc_polling": {
+      "SPA": "Servicio de sincronización con el PLC. Lee variables del TwinCAT periódicamente. Muestra: Variables | Scan time (ms). Color scan time: Verde <50ms, Amarillo <100ms, Rojo >100ms.",
+      "ENG": "PLC synchronization service. Reads TwinCAT variables periodically. Shows: Variables | Scan time (ms). Scan time color: Green <50ms, Yellow <100ms, Red >100ms.",
+      "FRA": "Service de synchronisation avec le PLC. Lit les variables TwinCAT périodiquement. Affiche: Variables | Temps de scan (ms). Couleur temps de scan: Vert <50ms, Jaune <100ms, Rouge >100ms.",
+      "ITA": "Servizio di sincronizzazione con il PLC. Legge le variabili TwinCAT periodicamente. Mostra: Variabili | Tempo di scan (ms). Colore tempo scan: Verde <50ms, Giallo <100ms, Rosso >100ms."
+    },
+    "infoPanel.help.sistemas.ipc_info": {
+      "SPA": "Recopila información del hardware del IPC LOCAL. Monitorea CPU, RAM, Disco, Red, Seguridad. Muestra: Quick poll (s) | Full poll (m).",
+      "ENG": "Collects LOCAL IPC hardware information. Monitors CPU, RAM, Disk, Network, Security. Shows: Quick poll (s) | Full poll (m).",
+      "FRA": "Collecte les informations matérielles de l'IPC LOCAL. Surveille CPU, RAM, Disque, Réseau, Sécurité. Affiche: Poll rapide (s) | Poll complet (m).",
+      "ITA": "Raccoglie informazioni sull'hardware dell'IPC LOCALE. Monitora CPU, RAM, Disco, Rete, Sicurezza. Mostra: Poll rapido (s) | Poll completo (m)."
+    },
+    "infoPanel.help.sistemas.babylon_renderer": {
+      "SPA": "Motor de renderizado 3D del frontend. Muestra FPS en tiempo real. Color: Verde >45, Amarillo >30, Rojo <30.",
+      "ENG": "Frontend 3D rendering engine. Shows real-time FPS. Color: Green >45, Yellow >30, Red <30.",
+      "FRA": "Moteur de rendu 3D du frontend. Affiche les FPS en temps réel. Couleur: Vert >45, Jaune >30, Rouge <30.",
+      "ITA": "Motore di rendering 3D del frontend. Mostra gli FPS in tempo reale. Colore: Verde >45, Giallo >30, Rosso <30."
+    },
+
+    "infoPanel.help.alarmas.title": {
+      "SPA": "🔔 ALARMAS ACTIVAS",
+      "ENG": "🔔 ACTIVE ALARMS",
+      "FRA": "🔔 ALARMES ACTIVES",
+      "ITA": "🔔 ALLARMI ATTIVI"
+    },
+    "infoPanel.help.alarmas.description": {
+      "SPA": "Muestra las alarmas actuales del sistema PLC (st_alarmHistPc).",
+      "ENG": "Shows current alarms from the PLC system (st_alarmHistPc).",
+      "FRA": "Affiche les alarmes actuelles du système PLC (st_alarmHistPc).",
+      "ITA": "Mostra gli allarmi attuali del sistema PLC (st_alarmHistPc)."
+    },
+    "infoPanel.help.alarmas.type_alarm": {
+      "SPA": "🚨 ALARM: Problema crítico que requiere atención inmediata.",
+      "ENG": "🚨 ALARM: Critical problem that requires immediate attention.",
+      "FRA": "🚨 ALARME: Problème critique nécessitant une attention immédiate.",
+      "ITA": "🚨 ALLARME: Problema critico che richiede attenzione immediata."
+    },
+    "infoPanel.help.alarmas.type_notification": {
+      "SPA": "🔔 NOTIFICATION: Advertencia que debe revisarse.",
+      "ENG": "🔔 NOTIFICATION: Warning that should be reviewed.",
+      "FRA": "🔔 NOTIFICATION: Avertissement à examiner.",
+      "ITA": "🔔 NOTIFICA: Avviso da esaminare."
+    },
+    "infoPanel.help.alarmas.type_info": {
+      "SPA": "ℹ️ INFO: Información relevante del sistema.",
+      "ENG": "ℹ️ INFO: Relevant system information.",
+      "FRA": "ℹ️ INFO: Informations pertinentes du système.",
+      "ITA": "ℹ️ INFO: Informazioni rilevanti del sistema."
+    },
+
+    "infoPanel.help.logs.title": {
+      "SPA": "📋 REGISTRO DE EVENTOS DE SESIÓN",
+      "ENG": "📋 SESSION EVENT LOG",
+      "FRA": "📋 JOURNAL D'ÉVÉNEMENTS DE SESSION",
+      "ITA": "📋 REGISTRO EVENTI DI SESSIONE"
+    },
+    "infoPanel.help.logs.description": {
+      "SPA": "Registro de eventos de la sesión actual del frontend.",
+      "ENG": "Event log for the current frontend session.",
+      "FRA": "Journal des événements de la session frontend actuelle.",
+      "ITA": "Registro eventi della sessione frontend corrente."
+    },
+    "infoPanel.help.logs.success": {
+      "SPA": "✓ Success: Operación completada correctamente.",
+      "ENG": "✓ Success: Operation completed successfully.",
+      "FRA": "✓ Succès: Opération terminée avec succès.",
+      "ITA": "✓ Successo: Operazione completata con successo."
+    },
+    "infoPanel.help.logs.info": {
+      "SPA": "ℹ Info: Información de conexión y estado.",
+      "ENG": "ℹ Info: Connection and status information.",
+      "FRA": "ℹ Info: Informations de connexion et d'état.",
+      "ITA": "ℹ Info: Informazioni di connessione e stato."
+    },
+    "infoPanel.help.logs.warning": {
+      "SPA": "⚠ Warning: Advertencia no crítica.",
+      "ENG": "⚠ Warning: Non-critical warning.",
+      "FRA": "⚠ Avertissement: Avertissement non critique.",
+      "ITA": "⚠ Avviso: Avviso non critico."
+    },
+    "infoPanel.help.logs.error": {
+      "SPA": "✕ Error: Error de comunicación o proceso.",
+      "ENG": "✕ Error: Communication or process error.",
+      "FRA": "✕ Erreur: Erreur de communication ou de processus.",
+      "ITA": "✕ Errore: Errore di comunicazione o di processo."
+    },
+
+    "infoPanel.help.versiones.title": {
+      "SPA": "🔐 INTEGRIDAD DE SOFTWARE (Cumplimiento CRA)",
+      "ENG": "🔐 SOFTWARE INTEGRITY (CRA Compliance)",
+      "FRA": "🔐 INTÉGRITÉ DU LOGICIEL (Conformité CRA)",
+      "ITA": "🔐 INTEGRITÀ DEL SOFTWARE (Conformità CRA)"
+    },
+    "infoPanel.help.versiones.description": {
+      "SPA": "Sistema de verificación de integridad de software para cumplimiento del EU Cyber Resilience Act (CRA) y normativas de ciberseguridad industrial.",
+      "ENG": "Software integrity verification system for EU Cyber Resilience Act (CRA) compliance and industrial cybersecurity regulations.",
+      "FRA": "Système de vérification de l'intégrité du logiciel pour la conformité au EU Cyber Resilience Act (CRA) et aux réglementations de cybersécurité industrielle.",
+      "ITA": "Sistema di verifica dell'integrità del software per la conformità all'EU Cyber Resilience Act (CRA) e alle normative di cybersicurezza industriale."
+    },
+    "infoPanel.help.versiones.indicators": {
+      "SPA": "🟢 CLEAN: Código verificado. 🟡 MODIFIED: Cambios detectados. 🔴 ERROR: No se pudo verificar. 🔵 DEPLOYED: Sistema desplegado. ⚪ UNKNOWN: Estado no determinado.",
+      "ENG": "🟢 CLEAN: Verified code. 🟡 MODIFIED: Changes detected. 🔴 ERROR: Could not verify. 🔵 DEPLOYED: System deployed. ⚪ UNKNOWN: State not determined.",
+      "FRA": "🟢 CLEAN: Code vérifié. 🟡 MODIFIED: Changements détectés. 🔴 ERROR: Impossible de vérifier. 🔵 DEPLOYED: Système déployé. ⚪ UNKNOWN: État non déterminé.",
+      "ITA": "🟢 CLEAN: Codice verificato. 🟡 MODIFIED: Modifiche rilevate. 🔴 ERROR: Impossibile verificare. 🔵 DEPLOYED: Sistema distribuito. ⚪ UNKNOWN: Stato non determinato."
+    },
+
+    "infoPanel.help.servicios.title": {
+      "SPA": "🌐 SERVICIOS EXTERNOS DEL BACKEND",
+      "ENG": "🌐 BACKEND EXTERNAL SERVICES",
+      "FRA": "🌐 SERVICES EXTERNES DU BACKEND",
+      "ITA": "🌐 SERVIZI ESTERNI DEL BACKEND"
+    },
+    "infoPanel.help.servicios.description": {
+      "SPA": "Servicios que abren CONEXIONES DE RED hacia OTROS sistemas externos. El backend se conecta a ellos pero NO los controla.",
+      "ENG": "Services that open NETWORK CONNECTIONS to OTHER external systems. The backend connects to them but does NOT control them.",
+      "FRA": "Services qui ouvrent des CONNEXIONS RÉSEAU vers d'AUTRES systèmes externes. Le backend s'y connecte mais NE les contrôle PAS.",
+      "ITA": "Servizi che aprono CONNESSIONI DI RETE verso ALTRI sistemi esterni. Il backend si connette ad essi ma NON li controlla."
+    },
+    "infoPanel.help.servicios.twincat": {
+      "SPA": "Firmware del controlador TwinCAT/Beckhoff. Muestra: Versión TC | Versión ADS | Task Cycle Time.",
+      "ENG": "TwinCAT/Beckhoff controller firmware. Shows: TC Version | ADS Version | Task Cycle Time.",
+      "FRA": "Firmware du contrôleur TwinCAT/Beckhoff. Affiche: Version TC | Version ADS | Temps de cycle de tâche.",
+      "ITA": "Firmware del controller TwinCAT/Beckhoff. Mostra: Versione TC | Versione ADS | Tempo ciclo task."
+    },
+    "infoPanel.help.servicios.database": {
+      "SPA": "Base de datos local SQLite. Almacena históricos, recetas, logs, usuarios.",
+      "ENG": "Local SQLite database. Stores historical data, recipes, logs, users.",
+      "FRA": "Base de données SQLite locale. Stocke les historiques, recettes, logs, utilisateurs.",
+      "ITA": "Database SQLite locale. Memorizza storici, ricette, log, utenti."
+    },
+    "infoPanel.help.servicios.cve_scanner": {
+      "SPA": "Escanea vulnerabilidades en dependencias (SBOM). APIs: OSV (Google), NVD, GitHub Advisory.",
+      "ENG": "Scans vulnerabilities in dependencies (SBOM). APIs: OSV (Google), NVD, GitHub Advisory.",
+      "FRA": "Scanne les vulnérabilités dans les dépendances (SBOM). APIs: OSV (Google), NVD, GitHub Advisory.",
+      "ITA": "Scansiona vulnerabilità nelle dipendenze (SBOM). API: OSV (Google), NVD, GitHub Advisory."
+    },
+    "infoPanel.help.servicios.vuln_reporter": {
+      "SPA": "Envía reportes de vulnerabilidades a SOC/SIEM/ENISA. EU CRA Art. 14: Notificación obligatoria.",
+      "ENG": "Sends vulnerability reports to SOC/SIEM/ENISA. EU CRA Art. 14: Mandatory notification.",
+      "FRA": "Envoie des rapports de vulnérabilités à SOC/SIEM/ENISA. EU CRA Art. 14: Notification obligatoire.",
+      "ITA": "Invia report di vulnerabilità a SOC/SIEM/ENISA. EU CRA Art. 14: Notifica obbligatoria."
+    },
+
+    "infoPanel.help.serviciosCompacto.title": {
+      "SPA": "⚙️ INFO SERVICIOS GENERALES (Modo Compacto)",
+      "ENG": "⚙️ GENERAL SERVICES INFO (Compact Mode)",
+      "FRA": "⚙️ INFO SERVICES GÉNÉRAUX (Mode Compact)",
+      "ITA": "⚙️ INFO SERVIZI GENERALI (Modo Compatto)"
+    },
+    "infoPanel.help.serviciosCompacto.description": {
+      "SPA": "Vista resumida de los servicios principales del sistema. Cada indicador combina múltiples servicios relacionados.",
+      "ENG": "Summary view of the main system services. Each indicator combines multiple related services.",
+      "FRA": "Vue résumée des services principaux du système. Chaque indicateur combine plusieurs services liés.",
+      "ITA": "Vista riassuntiva dei servizi principali del sistema. Ogni indicatore combina più servizi correlati."
+    },
+    "infoPanel.help.serviciosCompacto.twincat": {
+      "SPA": "🔷 TWINCAT: Combina PLC Polling Service + TwinCAT Runtime. Poll: Polling Scan Time. Task: Ciclo real del PLC.",
+      "ENG": "🔷 TWINCAT: Combines PLC Polling Service + TwinCAT Runtime. Poll: Polling Scan Time. Task: Real PLC cycle.",
+      "FRA": "🔷 TWINCAT: Combine PLC Polling Service + TwinCAT Runtime. Poll: Temps de scan polling. Task: Cycle réel du PLC.",
+      "ITA": "🔷 TWINCAT: Combina PLC Polling Service + TwinCAT Runtime. Poll: Tempo di scan polling. Task: Ciclo reale del PLC."
+    },
+    "infoPanel.help.serviciosCompacto.backend": {
+      "SPA": "🔶 BACKEND: Combina Backend Server (uptime) + SignalR Hub (comunicación en tiempo real).",
+      "ENG": "🔶 BACKEND: Combines Backend Server (uptime) + SignalR Hub (real-time communication).",
+      "FRA": "🔶 BACKEND: Combine Backend Server (uptime) + SignalR Hub (communication en temps réel).",
+      "ITA": "🔶 BACKEND: Combina Backend Server (uptime) + SignalR Hub (comunicazione in tempo reale)."
+    },
+    "infoPanel.help.serviciosCompacto.database": {
+      "SPA": "🔷 DATABASE: Base de datos local SQLite (autenticación, logs).",
+      "ENG": "🔷 DATABASE: Local SQLite database (authentication, logs).",
+      "FRA": "🔷 DATABASE: Base de données SQLite locale (authentification, logs).",
+      "ITA": "🔷 DATABASE: Database SQLite locale (autenticazione, log)."
+    },
+    "infoPanel.help.serviciosCompacto.tip": {
+      "SPA": "💡 TIP: Expande el panel (botón ↔) para ver el detalle completo de todos los servicios.",
+      "ENG": "💡 TIP: Expand the panel (↔ button) to see full details of all services.",
+      "FRA": "💡 CONSEIL: Développez le panneau (bouton ↔) pour voir tous les détails des services.",
+      "ITA": "💡 SUGGERIMENTO: Espandi il pannello (pulsante ↔) per vedere tutti i dettagli dei servizi."
+    },
+
+    "infoPanel.help.sbom.title": {
+      "SPA": "📋 SBOM - Lista de Materiales de Software",
+      "ENG": "📋 SBOM - Software Bill of Materials",
+      "FRA": "📋 SBOM - Nomenclature des Logiciels",
+      "ITA": "📋 SBOM - Distinta Base del Software"
+    },
+    "infoPanel.help.sbom.description": {
+      "SPA": "Lista completa de todas las dependencias y componentes de software utilizados. Requerido por EU CRA para transparencia y trazabilidad.",
+      "ENG": "Complete list of all software dependencies and components used. Required by EU CRA for transparency and traceability.",
+      "FRA": "Liste complète de toutes les dépendances et composants logiciels utilisés. Requis par EU CRA pour la transparence et la traçabilité.",
+      "ITA": "Elenco completo di tutte le dipendenze e componenti software utilizzati. Richiesto dall'EU CRA per trasparenza e tracciabilità."
+    },
+    "infoPanel.help.sbom.format": {
+      "SPA": "Formato CycloneDX 1.5 - Estándar industrial para SBOMs, compatible con herramientas de auditoría.",
+      "ENG": "CycloneDX 1.5 format - Industry standard for SBOMs, compatible with audit tools.",
+      "FRA": "Format CycloneDX 1.5 - Standard industriel pour les SBOMs, compatible avec les outils d'audit.",
+      "ITA": "Formato CycloneDX 1.5 - Standard industriale per gli SBOM, compatibile con strumenti di audit."
+    },
+
+    "infoPanel.help.vulnerabilities.title": {
+      "SPA": "🛡️ ESCÁNER DE VULNERABILIDADES - Detección CVE",
+      "ENG": "🛡️ VULNERABILITY SCANNER - CVE Detection",
+      "FRA": "🛡️ SCANNER DE VULNÉRABILITÉS - Détection CVE",
+      "ITA": "🛡️ SCANNER VULNERABILITÀ - Rilevamento CVE"
+    },
+    "infoPanel.help.vulnerabilities.description": {
+      "SPA": "Escanea las dependencias del SBOM contra bases de datos de vulnerabilidades conocidas. Requerido por EU CRA.",
+      "ENG": "Scans SBOM dependencies against known vulnerability databases. Required by EU CRA.",
+      "FRA": "Scanne les dépendances du SBOM contre les bases de données de vulnérabilités connues. Requis par EU CRA.",
+      "ITA": "Scansiona le dipendenze dell'SBOM contro database di vulnerabilità note. Richiesto dall'EU CRA."
+    },
+    "infoPanel.help.vulnerabilities.severity": {
+      "SPA": "🔴 CRITICAL (9.0-10.0), 🟠 HIGH (7.0-8.9), 🟡 MEDIUM (4.0-6.9), ⚪ LOW (0.1-3.9).",
+      "ENG": "🔴 CRITICAL (9.0-10.0), 🟠 HIGH (7.0-8.9), 🟡 MEDIUM (4.0-6.9), ⚪ LOW (0.1-3.9).",
+      "FRA": "🔴 CRITICAL (9.0-10.0), 🟠 HIGH (7.0-8.9), 🟡 MEDIUM (4.0-6.9), ⚪ LOW (0.1-3.9).",
+      "ITA": "🔴 CRITICAL (9.0-10.0), 🟠 HIGH (7.0-8.9), 🟡 MEDIUM (4.0-6.9), ⚪ LOW (0.1-3.9)."
+    },
+
+    "infoPanel.help.ipcHardware.title": {
+      "SPA": "💻 INFO HARDWARE IPC - Documentación del Sistema",
+      "ENG": "💻 IPC HARDWARE INFO - System Documentation",
+      "FRA": "💻 INFO MATÉRIEL IPC - Documentation Système",
+      "ITA": "💻 INFO HARDWARE IPC - Documentazione del Sistema"
+    },
+    "infoPanel.help.ipcHardware.description": {
+      "SPA": "Información del hardware IPC Industrial donde se ejecuta el sistema. Requerido por EU CRA para documentar el entorno operativo.",
+      "ENG": "Information about the Industrial IPC hardware where the system runs. Required by EU CRA to document the operating environment.",
+      "FRA": "Informations sur le matériel IPC industriel où le système s'exécute. Requis par EU CRA pour documenter l'environnement opérationnel.",
+      "ITA": "Informazioni sull'hardware IPC industriale dove gira il sistema. Richiesto dall'EU CRA per documentare l'ambiente operativo."
+    },
+
+    "infoPanel.help.craCompliance.title": {
+      "SPA": "🛡️ CUMPLIMIENTO CRA - EU Cyber Resilience Act",
+      "ENG": "🛡️ CRA COMPLIANCE - EU Cyber Resilience Act",
+      "FRA": "🛡️ CONFORMITÉ CRA - EU Cyber Resilience Act",
+      "ITA": "🛡️ CONFORMITÀ CRA - EU Cyber Resilience Act"
+    },
+    "infoPanel.help.craCompliance.description": {
+      "SPA": "Panel de cumplimiento normativo del Reglamento Europeo de Ciberresiliencia (UE) 2024/2847.",
+      "ENG": "Regulatory compliance panel for the European Cyber Resilience Regulation (EU) 2024/2847.",
+      "FRA": "Panneau de conformité réglementaire pour le Règlement Européen sur la Cyberrésilience (UE) 2024/2847.",
+      "ITA": "Pannello di conformità normativa per il Regolamento Europeo sulla Cyber-resilienza (UE) 2024/2847."
+    },
+    "infoPanel.help.craCompliance.components_title": {
+      "SPA": "COMPONENTES MOSTRADOS:",
+      "ENG": "COMPONENTS SHOWN:",
+      "FRA": "COMPOSANTS AFFICHÉS:",
+      "ITA": "COMPONENTI MOSTRATI:"
+    },
+    "infoPanel.help.craCompliance.sbom_desc": {
+      "SPA": "Lista completa de componentes del software. Referencia: Anexo I, Parte II, punto 1.",
+      "ENG": "Complete list of software components. Reference: Annex I, Part II, point 1.",
+      "FRA": "Liste complète des composants logiciels. Référence: Annexe I, Partie II, point 1.",
+      "ITA": "Elenco completo dei componenti software. Riferimento: Allegato I, Parte II, punto 1."
+    },
+    "infoPanel.help.craCompliance.cve_desc": {
+      "SPA": "Análisis automático de vulnerabilidades conocidas. API: OSV (Open Source Vulnerabilities).",
+      "ENG": "Automatic analysis of known vulnerabilities. API: OSV (Open Source Vulnerabilities).",
+      "FRA": "Analyse automatique des vulnérabilités connues. API: OSV (Open Source Vulnerabilities).",
+      "ITA": "Analisi automatica delle vulnerabilità note. API: OSV (Open Source Vulnerabilities)."
+    },
+    "infoPanel.help.craCompliance.support_desc": {
+      "SPA": "Período de soporte garantizado (mínimo 5 años). Referencia: Art. 13.8, Art. 13.19.",
+      "ENG": "Guaranteed support period (minimum 5 years). Reference: Art. 13.8, Art. 13.19.",
+      "FRA": "Période de support garantie (minimum 5 ans). Référence: Art. 13.8, Art. 13.19.",
+      "ITA": "Periodo di supporto garantito (minimo 5 anni). Riferimento: Art. 13.8, Art. 13.19."
+    },
+    "infoPanel.help.craCompliance.security_desc": {
+      "SPA": "Canal de reporte de vulnerabilidades. Referencia: Art. 13.6, Art. 13.17.",
+      "ENG": "Vulnerability reporting channel. Reference: Art. 13.6, Art. 13.17.",
+      "FRA": "Canal de signalement des vulnérabilités. Référence: Art. 13.6, Art. 13.17.",
+      "ITA": "Canale di segnalazione vulnerabilità. Riferimento: Art. 13.6, Art. 13.17."
+    },
+    "infoPanel.help.craCompliance.dates_title": {
+      "SPA": "FECHAS CLAVE:",
+      "ENG": "KEY DATES:",
+      "FRA": "DATES CLÉS:",
+      "ITA": "DATE CHIAVE:"
+    },
+    "infoPanel.help.craCompliance.date_sept": {
+      "SPA": "11 Sept 2026: Notificación obligatoria de vulnerabilidades",
+      "ENG": "11 Sept 2026: Mandatory vulnerability notification",
+      "FRA": "11 Sept 2026: Notification obligatoire des vulnérabilités",
+      "ITA": "11 Sett 2026: Notifica obbligatoria delle vulnerabilità"
+    },
+    "infoPanel.help.craCompliance.date_dec": {
+      "SPA": "11 Dic 2027: Aplicación TOTAL del Reglamento",
+      "ENG": "11 Dec 2027: FULL Regulation application",
+      "FRA": "11 Déc 2027: Application TOTALE du Règlement",
+      "ITA": "11 Dic 2027: Applicazione TOTALE del Regolamento"
+    },
+    "infoPanel.help.craCompliance.colors_title": {
+      "SPA": "CÓDIGO DE COLORES:",
+      "ENG": "COLOR CODE:",
+      "FRA": "CODE COULEUR:",
+      "ITA": "CODICE COLORI:"
+    },
+    "infoPanel.help.craCompliance.colors": {
+      "SPA": "🟢 Verde: Requisito cumplido. 🟡 Amarillo: Vulnerabilidades de severidad media. 🔴 Rojo: Vulnerabilidades críticas. ⚫ Gris: Deshabilitado.",
+      "ENG": "🟢 Green: Requirement met. 🟡 Yellow: Medium severity vulnerabilities. 🔴 Red: Critical vulnerabilities. ⚫ Gray: Disabled.",
+      "FRA": "🟢 Vert: Exigence satisfaite. 🟡 Jaune: Vulnérabilités de gravité moyenne. 🔴 Rouge: Vulnérabilités critiques. ⚫ Gris: Désactivé.",
+      "ITA": "🟢 Verde: Requisito soddisfatto. 🟡 Giallo: Vulnerabilità di gravità media. 🔴 Rosso: Vulnerabilità critiche. ⚫ Grigio: Disabilitato."
+    },
+
+    "infoPanel.help.vulnReport.title": {
+      "SPA": "📊 VULNERABILITY REPORT",
+      "ENG": "📊 VULNERABILITY REPORT",
+      "FRA": "📊 RAPPORT DE VULNÉRABILITÉS",
+      "ITA": "📊 RAPPORTO VULNERABILITÀ"
+    },
+    "infoPanel.help.vulnReport.description": {
+      "SPA": "Sistema de reporte automático de vulnerabilidades según EU CRA.",
+      "ENG": "Automatic vulnerability reporting system according to EU CRA.",
+      "FRA": "Système de rapport automatique de vulnérabilités selon EU CRA.",
+      "ITA": "Sistema di reporting automatico delle vulnerabilità secondo EU CRA."
+    },
+    "infoPanel.help.vulnReport.modes": {
+      "SPA": "🔄 AUTO: Reporte automático programado. ⚡ ON-CRITICAL: Reporte inmediato en vulnerabilidad crítica.",
+      "ENG": "🔄 AUTO: Scheduled automatic report. ⚡ ON-CRITICAL: Immediate report on critical vulnerability.",
+      "FRA": "🔄 AUTO: Rapport automatique programmé. ⚡ ON-CRITICAL: Rapport immédiat sur vulnérabilité critique.",
+      "ITA": "🔄 AUTO: Report automatico programmato. ⚡ ON-CRITICAL: Report immediato su vulnerabilità critica."
+    },
+
+    "infoPanel.help.vulnReport.title": {
+      "SPA": "📤 VULNERABILITY REPORT - CRA Art. 14",
+      "ENG": "📤 VULNERABILITY REPORT - CRA Art. 14",
+      "FRA": "📤 RAPPORT DE VULNÉRABILITÉS - CRA Art. 14",
+      "ITA": "📤 RAPPORTO VULNERABILITÀ - CRA Art. 14"
+    },
+    "infoPanel.help.vulnReport.description": {
+      "SPA": "Sistema de notificación de vulnerabilidades a entidades externas de seguridad. Requerido por EU CRA Artículo 14 para notificación proactiva.",
+      "ENG": "Vulnerability notification system to external security entities. Required by EU CRA Article 14 for proactive notification.",
+      "FRA": "Système de notification de vulnérabilités aux entités de sécurité externes. Requis par EU CRA Article 14 pour notification proactive.",
+      "ITA": "Sistema di notifica vulnerabilità a entità esterne di sicurezza. Richiesto da EU CRA Articolo 14 per notifica proattiva."
+    },
+    "infoPanel.help.vulnReport.cra_requirement": {
+      "SPA": "🇪🇺 REQUISITO EU CRA (Art. 14): El CRA exige notificar vulnerabilidades activamente explotadas a ENISA dentro de 24 horas y mantener informados a los usuarios.",
+      "ENG": "🇪🇺 EU CRA REQUIREMENT (Art. 14): CRA requires notifying actively exploited vulnerabilities to ENISA within 24 hours and keeping users informed.",
+      "FRA": "🇪🇺 EXIGENCE EU CRA (Art. 14): Le CRA exige de notifier les vulnérabilités activement exploitées à l'ENISA dans les 24 heures et de tenir les utilisateurs informés.",
+      "ITA": "🇪🇺 REQUISITO EU CRA (Art. 14): Il CRA richiede di notificare le vulnerabilità attivamente sfruttate all'ENISA entro 24 ore e mantenere gli utenti informati."
+    },
+    "infoPanel.help.vulnReport.offline_mode": {
+      "SPA": "📴 MODO OFFLINE: Para plantas aisladas (air-gapped), el cumplimiento CRA es responsabilidad del FABRICANTE: 1) Cliente exporta SBOM, 2) Envía archivo al fabricante, 3) Fabricante escanea vulnerabilidades, 4) Fabricante reporta a ENISA (24h críticas), 5) Fabricante notifica al cliente.",
+      "ENG": "📴 OFFLINE MODE: For air-gapped plants, CRA compliance is the MANUFACTURER responsibility: 1) Client exports SBOM, 2) Sends file to manufacturer, 3) Manufacturer scans vulnerabilities, 4) Manufacturer reports to ENISA (24h critical), 5) Manufacturer notifies client.",
+      "FRA": "📴 MODE HORS LIGNE: Pour les usines isolées (air-gapped), la conformité CRA est la responsabilité du FABRICANT: 1) Client exporte SBOM, 2) Envoie le fichier au fabricant, 3) Fabricant scanne les vulnérabilités, 4) Fabricant rapporte à ENISA (24h critiques), 5) Fabricant notifie le client.",
+      "ITA": "📴 MODALITÀ OFFLINE: Per impianti isolati (air-gapped), la conformità CRA è responsabilità del PRODUTTORE: 1) Cliente esporta SBOM, 2) Invia file al produttore, 3) Produttore scansiona vulnerabilità, 4) Produttore reporta a ENISA (24h critiche), 5) Produttore notifica al cliente."
+    },
+    "infoPanel.help.vulnReport.target_types": {
+      "SPA": "📡 TIPOS DE DESTINO: SOC_SIEM (Centro de Operaciones de Seguridad interno), ENISA (Agencia UE para Ciberseguridad), CSIRT (Equipo de Respuesta a Incidentes de Seguridad).",
+      "ENG": "📡 TARGET TYPES: SOC_SIEM (Internal Security Operations Center), ENISA (EU Agency for Cybersecurity), CSIRT (Computer Security Incident Response Team).",
+      "FRA": "📡 TYPES DE DESTINATION: SOC_SIEM (Centre d'Opérations de Sécurité interne), ENISA (Agence UE pour la Cybersécurité), CSIRT (Équipe de Réponse aux Incidents de Sécurité).",
+      "ITA": "📡 TIPI DI DESTINAZIONE: SOC_SIEM (Centro Operazioni Sicurezza interno), ENISA (Agenzia UE per la Cybersecurity), CSIRT (Team di Risposta agli Incidenti di Sicurezza)."
+    },
+    "infoPanel.help.vulnReport.operation_modes": {
+      "SPA": "⚙️ MODOS DE OPERACIÓN: ⚡ AUTO: Envío automático en vulnerabilidades CRÍTICAS. 📋 MANUAL: Requiere revisión antes de enviar.",
+      "ENG": "⚙️ OPERATION MODES: ⚡ AUTO: Automatic sending on CRITICAL vulnerabilities. 📋 MANUAL: Requires review before sending.",
+      "FRA": "⚙️ MODES D'OPÉRATION: ⚡ AUTO: Envoi automatique sur vulnérabilités CRITIQUES. 📋 MANUEL: Nécessite révision avant envoi.",
+      "ITA": "⚙️ MODALITÀ OPERAZIONE: ⚡ AUTO: Invio automatico su vulnerabilità CRITICHE. 📋 MANUALE: Richiede revisione prima dell'invio."
+    },
+    "infoPanel.help.auditLog.title": {
+      "SPA": "📝 AUDIT LOG - Eventos de Seguridad (CRA)",
+      "ENG": "📝 AUDIT LOG - Security Events (CRA)",
+      "FRA": "📝 JOURNAL D'AUDIT - Événements de Sécurité (CRA)",
+      "ITA": "📝 REGISTRO AUDIT - Eventi di Sicurezza (CRA)"
+    },
+    "infoPanel.help.auditLog.description": {
+      "SPA": "Registro de auditoría de seguridad (Nivel 1). Registra eventos de autenticación, autorización y cambios de configuración según CRA.",
+      "ENG": "Security audit log (Level 1). Records authentication, authorization, and configuration change events according to CRA.",
+      "FRA": "Journal d'audit de sécurité (Niveau 1). Enregistre les événements d'authentification, d'autorisation et de modification de configuration selon CRA.",
+      "ITA": "Registro di audit di sicurezza (Livello 1). Registra eventi di autenticazione, autorizzazione e modifiche configurazione secondo CRA."
+    },
+    "infoPanel.help.auditLog.integrity": {
+      "SPA": "🔐 INTEGRIDAD: Cada entrada está firmada con SHA256 y encadenada para garantizar integridad y no repudio.",
+      "ENG": "🔐 INTEGRITY: Each entry is signed with SHA256 and chained to ensure integrity and non-repudiation.",
+      "FRA": "🔐 INTÉGRITÉ: Chaque entrée est signée avec SHA256 et chaînée pour garantir l'intégrité et la non-répudiation.",
+      "ITA": "🔐 INTEGRITÀ: Ogni voce è firmata con SHA256 e concatenata per garantire integrità e non ripudio."
+    },
+    "infoPanel.help.auditLog.events": {
+      "SPA": "📋 EVENTOS REGISTRADOS: Login/Logout, Autenticación fallida, Cambios de permisos, Cambios de configuración, Inicio/Parada del sistema.",
+      "ENG": "📋 EVENTS LOGGED: Login/Logout, Failed authentication, Permission changes, Configuration changes, System startup/shutdown.",
+      "FRA": "📋 ÉVÉNEMENTS ENREGISTRÉS: Connexion/Déconnexion, Authentification échouée, Changements de permissions, Changements de configuration, Démarrage/Arrêt système.",
+      "ITA": "📋 EVENTI REGISTRATI: Login/Logout, Autenticazione fallita, Modifiche permessi, Modifiche configurazione, Avvio/Arresto sistema."
+    },
+    "infoPanel.help.auditLog.cra_compliance": {
+      "SPA": "🇪🇺 CONFORMIDAD CRA: El CRA de la UE, Anexo I, Parte I, punto 2l requiere mantener registros de eventos de seguridad.",
+      "ENG": "🇪🇺 CRA COMPLIANCE: EU CRA Annex I, Part I, point 2l requires maintaining security event logs.",
+      "FRA": "🇪🇺 CONFORMITÉ CRA: Le CRA de l'UE, Annexe I, Partie I, point 2l exige de maintenir des journaux d'événements de sécurité.",
+      "ITA": "🇪🇺 CONFORMITÀ CRA: Il CRA UE, Allegato I, Parte I, punto 2l richiede di mantenere registri di eventi di sicurezza."
+    },
+    "infoPanel.help.operationLog.title": {
+      "SPA": "📋 OPERATION LOG - Acciones de Operador (L2)",
+      "ENG": "📋 OPERATION LOG - Operator Actions (L2)",
+      "FRA": "📋 JOURNAL D'OPÉRATIONS - Actions Opérateur (L2)",
+      "ITA": "📋 REGISTRO OPERAZIONI - Azioni Operatore (L2)"
+    },
+    "infoPanel.help.operationLog.description": {
+      "SPA": "Registro de operaciones del operador (Nivel 2). Registra cambios de recetas, confirmaciones de alarmas, modificaciones de parámetros.",
+      "ENG": "Operator operations log (Level 2). Records recipe changes, alarm confirmations, parameter modifications.",
+      "FRA": "Journal des opérations de l'opérateur (Niveau 2). Enregistre les changements de recettes, confirmations d'alarmes, modifications de paramètres.",
+      "ITA": "Registro operazioni operatore (Livello 2). Registra modifiche ricette, conferme allarmi, modifiche parametri."
+    },
+    "infoPanel.help.operationLog.categories": {
+      "SPA": "📋 CATEGORÍAS: Alarmas PLC, Notificaciones PLC, Navegación, Recetas, Configuración, Comandos PLC, Procesos, Setpoints, Estadísticas, Exportación, Backup.",
+      "ENG": "📋 CATEGORIES: PLC Alarms, PLC Notifications, Navigation, Recipes, Configuration, PLC Commands, Processes, Setpoints, Statistics, Export, Backup.",
+      "FRA": "📋 CATÉGORIES: Alarmes PLC, Notifications PLC, Navigation, Recettes, Configuration, Commandes PLC, Processus, Setpoints, Statistiques, Exportation, Sauvegarde.",
+      "ITA": "📋 CATEGORIE: Allarmi PLC, Notifiche PLC, Navigazione, Ricette, Configurazione, Comandi PLC, Processi, Setpoint, Statistiche, Esportazione, Backup."
+    },
+    "infoPanel.help.operationLog.traceability": {
+      "SPA": "🔍 TRAZABILIDAD: Todas las acciones del operador se registran con marca de tiempo, usuario y detalles para trazabilidad completa.",
+      "ENG": "🔍 TRACEABILITY: All operator actions are logged with timestamp, user, and details for complete traceability.",
+      "FRA": "🔍 TRAÇABILITÉ: Toutes les actions de l'opérateur sont enregistrées avec horodatage, utilisateur et détails pour une traçabilité complète.",
+      "ITA": "🔍 TRACCIABILITÀ: Tutte le azioni dell'operatore sono registrate con timestamp, utente e dettagli per tracciabilità completa."
+    },
+
+    "infoPanel.expanded.backend_internal_services": {
+      "SPA": "SERVICIOS INTERNOS DEL BACKEND",
+      "ENG": "BACKEND INTERNAL SERVICES",
+      "FRA": "SERVICES INTERNES DU BACKEND",
+      "ITA": "SERVIZI INTERNI DEL BACKEND"
+    },
+    "infoPanel.expanded.backend_external_services": {
+      "SPA": "SERVICIOS EXTERNOS DEL BACKEND",
+      "ENG": "BACKEND EXTERNAL SERVICES",
+      "FRA": "SERVICES EXTERNES DU BACKEND",
+      "ITA": "SERVIZI ESTERNI DEL BACKEND"
+    },
+    "infoPanel.expanded.active_alarms": {
+      "SPA": "ALARMAS ACTIVAS",
+      "ENG": "ACTIVE ALARMS",
+      "FRA": "ALARMES ACTIVES",
+      "ITA": "ALLARMI ATTIVI"
+    },
+    "infoPanel.expanded.software_integrity": {
+      "SPA": "INTEGRIDAD DEL SOFTWARE",
+      "ENG": "SOFTWARE INTEGRITY",
+      "FRA": "INTÉGRITÉ DU LOGICIEL",
+      "ITA": "INTEGRITÀ DEL SOFTWARE"
+    },
+    "infoPanel.expanded.ipc_hardware_info": {
+      "SPA": "INFO HARDWARE IPC",
+      "ENG": "IPC HARDWARE INFO",
+      "FRA": "INFO MATÉRIEL IPC",
+      "ITA": "INFO HARDWARE IPC"
+    },
+    "infoPanel.expanded.local_integrity": {
+      "SPA": "💻 INTEGRIDAD LOCAL (Esta Máquina)",
+      "ENG": "💻 LOCAL INTEGRITY (This Machine)",
+      "FRA": "💻 INTÉGRITÉ LOCALE (Cette Machine)",
+      "ITA": "💻 INTEGRITÀ LOCALE (Questa Macchina)"
+    },
+    "infoPanel.expanded.remote_integrity": {
+      "SPA": "🌐 INTEGRIDAD REMOTA (Sincronización Repo)",
+      "ENG": "🌐 REMOTE INTEGRITY (Repository Sync)",
+      "FRA": "🌐 INTÉGRITÉ DISTANTE (Sync Repository)",
+      "ITA": "🌐 INTEGRITÀ REMOTA (Sync Repository)"
+    },
+    "infoPanel.expanded.system_status": {
+      "SPA": "ESTADO DEL SISTEMA:",
+      "ENG": "SYSTEM STATUS:",
+      "FRA": "ÉTAT DU SYSTÈME:",
+      "ITA": "STATO DEL SISTEMA:"
+    },
+    "infoPanel.expanded.last_verified": {
+      "SPA": "ÚLTIMA VERIFICACIÓN:",
+      "ENG": "LAST VERIFIED:",
+      "FRA": "DERNIÈRE VÉRIFICATION:",
+      "ITA": "ULTIMA VERIFICA:"
+    },
+    "infoPanel.expanded.verified_by": {
+      "SPA": "VERIFICADO POR:",
+      "ENG": "VERIFIED BY:",
+      "FRA": "VÉRIFIÉ PAR:",
+      "ITA": "VERIFICATO DA:"
+    },
+    "infoPanel.expanded.auto_verify": {
+      "SPA": "AUTO-VERIFICAR:",
+      "ENG": "AUTO-VERIFY:",
+      "FRA": "AUTO-VÉRIFIER:",
+      "ITA": "AUTO-VERIFICA:"
+    },
+    "infoPanel.expanded.enabled": {
+      "SPA": "ACTIVADO",
+      "ENG": "ENABLED",
+      "FRA": "ACTIVÉ",
+      "ITA": "ATTIVATO"
+    },
+    "infoPanel.expanded.next_check": {
+      "SPA": "PRÓXIMA VERIFICACIÓN:",
+      "ENG": "NEXT CHECK:",
+      "FRA": "PROCHAINE VÉRIF.:",
+      "ITA": "PROSSIMO CONTROLLO:"
+    },
+    "infoPanel.expanded.never": {
+      "SPA": "Nunca",
+      "ENG": "Never",
+      "FRA": "Jamais",
+      "ITA": "Mai"
+    },
+    "infoPanel.expanded.system": {
+      "SPA": "Sistema",
+      "ENG": "System",
+      "FRA": "Système",
+      "ITA": "Sistema"
+    },
+    "infoPanel.expanded.verify_now": {
+      "SPA": "🔍 VERIFICAR AHORA (Manual)",
+      "ENG": "🔍 VERIFY NOW (Manual)",
+      "FRA": "🔍 VÉRIFIER MAINTENANT (Manuel)",
+      "ITA": "🔍 VERIFICA ORA (Manuale)"
+    },
+    "infoPanel.expanded.check_network_sync": {
+      "SPA": "🔄 VERIFICAR RED Y SYNC",
+      "ENG": "🔄 CHECK NETWORK & SYNC",
+      "FRA": "🔄 VÉRIFIER RÉSEAU ET SYNC",
+      "ITA": "🔄 CONTROLLA RETE E SYNC"
+    },
+    "infoPanel.expanded.details": {
+      "SPA": "🔍 DETALLES",
+      "ENG": "🔍 DETAILS",
+      "FRA": "🔍 DÉTAILS",
+      "ITA": "🔍 DETTAGLI"
+    },
+    "infoPanel.expanded.data_button": {
+      "SPA": "DATOS",
+      "ENG": "DATA",
+      "FRA": "DONNÉES",
+      "ITA": "DATI"
+    },
+    "infoPanel.expanded.git_button": {
+      "SPA": "GIT",
+      "ENG": "GIT",
+      "FRA": "GIT",
+      "ITA": "GIT"
+    },
+    "infoPanel.expanded.badge_clean": {
+      "SPA": "LIMPIO",
+      "ENG": "CLEAN",
+      "FRA": "PROPRE",
+      "ITA": "PULITO"
+    },
+    "infoPanel.expanded.badge_modified": {
+      "SPA": "MODIFICADO",
+      "ENG": "MODIFIED",
+      "FRA": "MODIFIÉ",
+      "ITA": "MODIFICATO"
+    },
+    "infoPanel.expanded.badge_unknown": {
+      "SPA": "DESCONOCIDO",
+      "ENG": "UNKNOWN",
+      "FRA": "INCONNU",
+      "ITA": "SCONOSCIUTO"
+    },
+    "infoPanel.expanded.badge_deployed": {
+      "SPA": "DESPLEGADO",
+      "ENG": "DEPLOYED",
+      "FRA": "DÉPLOYÉ",
+      "ITA": "DISTRIBUITO"
+    },
+    "infoPanel.expanded.badge_verified": {
+      "SPA": "VERIFICADO",
+      "ENG": "VERIFIED",
+      "FRA": "VÉRIFIÉ",
+      "ITA": "VERIFICATO"
+    },
+    "infoPanel.expanded.badge_signed": {
+      "SPA": "FIRMADO",
+      "ENG": "SIGNED",
+      "FRA": "SIGNÉ",
+      "ITA": "FIRMATO"
+    },
+    "infoPanel.expanded.badge_unsigned": {
+      "SPA": "SIN FIRMAR",
+      "ENG": "UNSIGNED",
+      "FRA": "NON SIGNÉ",
+      "ITA": "NON FIRMATO"
+    },
+    "infoPanel.expanded.badge_na": {
+      "SPA": "N/D",
+      "ENG": "N/A",
+      "FRA": "N/D",
+      "ITA": "N/D"
+    },
+    "infoPanel.expanded.sync_synced": {
+      "SPA": "SINCRONIZADO",
+      "ENG": "SYNCED",
+      "FRA": "SYNCHRONISÉ",
+      "ITA": "SINCRONIZZATO"
+    },
+    "infoPanel.expanded.sync_ahead": {
+      "SPA": "ADELANTE",
+      "ENG": "AHEAD",
+      "FRA": "EN AVANCE",
+      "ITA": "AVANTI"
+    },
+    "infoPanel.expanded.sync_behind": {
+      "SPA": "ATRÁS",
+      "ENG": "BEHIND",
+      "FRA": "EN RETARD",
+      "ITA": "INDIETRO"
+    },
+    "infoPanel.expanded.sync_offline": {
+      "SPA": "SIN CONEXIÓN",
+      "ENG": "OFFLINE",
+      "FRA": "HORS LIGNE",
+      "ITA": "OFFLINE"
+    },
+    "infoPanel.expanded.sync_not_checked": {
+      "SPA": "NO VERIFICADO",
+      "ENG": "NOT CHECKED",
+      "FRA": "NON VÉRIFIÉ",
+      "ITA": "NON VERIFICATO"
+    },
+    "infoPanel.expanded.sync_online": {
+      "SPA": "EN LÍNEA",
+      "ENG": "ONLINE",
+      "FRA": "EN LIGNE",
+      "ITA": "ONLINE"
+    },
+    "infoPanel.expanded.network": {
+      "SPA": "RED:",
+      "ENG": "NETWORK:",
+      "FRA": "RÉSEAU:",
+      "ITA": "RETE:"
+    },
+    "infoPanel.expanded.last_check": {
+      "SPA": "ÚLTIMA VERIF.:",
+      "ENG": "LAST CHECK:",
+      "FRA": "DERNIÈRE VÉRIF.:",
+      "ITA": "ULTIMO CONTROLLO:"
+    },
+    "infoPanel.expanded.no_active_alarms": {
+      "SPA": "✓ Sin alarmas activas",
+      "ENG": "✓ No active alarms",
+      "FRA": "✓ Pas d'alarmes actives",
+      "ITA": "✓ Nessun allarme attivo"
+    },
+    "infoPanel.expanded.more_alarms": {
+      "SPA": "... y {count} alarmas más",
+      "ENG": "... and {count} more alarms",
+      "FRA": "... et {count} alarmes de plus",
+      "ITA": "... e altri {count} allarmi"
+    },
+    "infoPanel.expanded.operating_system": {
+      "SPA": "🖥️ SISTEMA OPERATIVO",
+      "ENG": "🖥️ OPERATING SYSTEM",
+      "FRA": "🖥️ SYSTÈME D'EXPLOITATION",
+      "ITA": "🖥️ SISTEMA OPERATIVO"
+    },
+    "infoPanel.expanded.cpu": {
+      "SPA": "⚙️ CPU",
+      "ENG": "⚙️ CPU",
+      "FRA": "⚙️ CPU",
+      "ITA": "⚙️ CPU"
+    },
+    "infoPanel.expanded.memory": {
+      "SPA": "🧠 MEMORIA",
+      "ENG": "🧠 MEMORY",
+      "FRA": "🧠 MÉMOIRE",
+      "ITA": "🧠 MEMORIA"
+    },
+    "infoPanel.expanded.ipc_disabled": {
+      "SPA": "Monitoreo IPC Deshabilitado",
+      "ENG": "IPC Monitoring Disabled",
+      "FRA": "Surveillance IPC Désactivée",
+      "ITA": "Monitoraggio IPC Disabilitato"
+    },
+    "infoPanel.expanded.ipc_disabled_message": {
+      "SPA": "El servicio de información IPC está deshabilitado",
+      "ENG": "IPC Info Service is currently disabled",
+      "FRA": "Le service d'informations IPC est actuellement désactivé",
+      "ITA": "Il servizio informazioni IPC è attualmente disabilitato"
+    },
+    "infoPanel.expanded.label_name": {
+      "SPA": "Nombre:",
+      "ENG": "Name:",
+      "FRA": "Nom:",
+      "ITA": "Nome:"
+    },
+    "infoPanel.expanded.label_version": {
+      "SPA": "Versión:",
+      "ENG": "Version:",
+      "FRA": "Version:",
+      "ITA": "Versione:"
+    },
+    "infoPanel.expanded.label_build": {
+      "SPA": "Build:",
+      "ENG": "Build:",
+      "FRA": "Build:",
+      "ITA": "Build:"
+    },
+    "infoPanel.expanded.label_architecture": {
+      "SPA": "Arquitectura:",
+      "ENG": "Architecture:",
+      "FRA": "Architecture:",
+      "ITA": "Architettura:"
+    },
+    "infoPanel.expanded.label_uptime": {
+      "SPA": "Tiempo activo:",
+      "ENG": "Uptime:",
+      "FRA": "Temps de fonct.:",
+      "ITA": "Tempo attivo:"
+    },
+    "infoPanel.expanded.label_model": {
+      "SPA": "Modelo:",
+      "ENG": "Model:",
+      "FRA": "Modèle:",
+      "ITA": "Modello:"
+    },
+    "infoPanel.expanded.label_cores": {
+      "SPA": "Núcleos:",
+      "ENG": "Cores:",
+      "FRA": "Cœurs:",
+      "ITA": "Core:"
+    },
+    "infoPanel.expanded.label_total_usage": {
+      "SPA": "Uso total:",
+      "ENG": "Total Usage:",
+      "FRA": "Utilisation totale:",
+      "ITA": "Uso totale:"
+    },
+    "infoPanel.expanded.label_per_core_usage": {
+      "SPA": "Uso por núcleo:",
+      "ENG": "Per-Core Usage:",
+      "FRA": "Utilisation par cœur:",
+      "ITA": "Uso per core:"
+    },
+    "infoPanel.expanded.label_total": {
+      "SPA": "Total:",
+      "ENG": "Total:",
+      "FRA": "Total:",
+      "ITA": "Totale:"
+    },
+    "infoPanel.expanded.label_used": {
+      "SPA": "Usado:",
+      "ENG": "Used:",
+      "FRA": "Utilisé:",
+      "ITA": "Usato:"
+    },
+    "infoPanel.expanded.label_usage": {
+      "SPA": "Uso:",
+      "ENG": "Usage:",
+      "FRA": "Utilisation:",
+      "ITA": "Uso:"
+    },
+    "infoPanel.expanded.loading": {
+      "SPA": "Cargando...",
+      "ENG": "Loading...",
+      "FRA": "Chargement...",
+      "ITA": "Caricamento..."
+    },
+    "infoPanel.expanded.threads": {
+      "SPA": "hilos",
+      "ENG": "threads",
+      "FRA": "threads",
+      "ITA": "thread"
+    },
+    "infoPanel.expanded.verification_prompt": {
+      "SPA": "Tu nombre para registrar la verificación:",
+      "ENG": "Your name to record the verification:",
+      "FRA": "Votre nom pour enregistrer la vérification:",
+      "ITA": "Il tuo nome per registrare la verifica:"
+    },
+    "infoPanel.expanded.verification_complete": {
+      "SPA": "✅ Verificación completada",
+      "ENG": "✅ Verification completed",
+      "FRA": "✅ Vérification terminée",
+      "ITA": "✅ Verifica completata"
+    },
+    "infoPanel.expanded.status": {
+      "SPA": "Estado:",
+      "ENG": "Status:",
+      "FRA": "État:",
+      "ITA": "Stato:"
+    },
+    "infoPanel.expanded.date": {
+      "SPA": "Fecha:",
+      "ENG": "Date:",
+      "FRA": "Date:",
+      "ITA": "Data:"
+    },
+    "infoPanel.expanded.storage": {
+      "SPA": "ALMACENAMIENTO",
+      "ENG": "STORAGE",
+      "FRA": "STOCKAGE",
+      "ITA": "ARCHIVIAZIONE"
+    },
+    "infoPanel.expanded.no_disk_info": {
+      "SPA": "Sin información de disco disponible",
+      "ENG": "No disk info available",
+      "FRA": "Aucune information de disque disponible",
+      "ITA": "Nessuna informazione disco disponibile"
+    },
+    "infoPanel.expanded.network_adapters": {
+      "SPA": "ADAPTADORES DE RED",
+      "ENG": "NETWORK ADAPTERS",
+      "FRA": "ADAPTATEURS RÉSEAU",
+      "ITA": "ADATTATORI DI RETE"
+    },
+    "infoPanel.expanded.no_network_adapters": {
+      "SPA": "No se encontraron adaptadores de red",
+      "ENG": "No network adapters found",
+      "FRA": "Aucun adaptateur réseau trouvé",
+      "ITA": "Nessun adattatore di rete trovato"
+    },
+    "infoPanel.expanded.yes": {
+      "SPA": "Sí",
+      "ENG": "Yes",
+      "FRA": "Oui",
+      "ITA": "Sì"
+    },
+    "infoPanel.expanded.static": {
+      "SPA": "Estático",
+      "ENG": "Static",
+      "FRA": "Statique",
+      "ITA": "Statico"
+    },
+    "infoPanel.expanded.open_ports": {
+      "SPA": "PUERTOS ABIERTOS",
+      "ENG": "OPEN PORTS",
+      "FRA": "PORTS OUVERTS",
+      "ITA": "PORTE APERTE"
+    },
+    "infoPanel.expanded.listening": {
+      "SPA": "escuchando",
+      "ENG": "listening",
+      "FRA": "à l'écoute",
+      "ITA": "in ascolto"
+    },
+    "infoPanel.expanded.established": {
+      "SPA": "establecidas",
+      "ENG": "established",
+      "FRA": "établies",
+      "ITA": "stabilite"
+    },
+    "infoPanel.expanded.ipc_enable_hint": {
+      "SPA": "Habilita IpcInfoEnabled en la configuración Excel",
+      "ENG": "Enable IpcInfoEnabled in Excel config",
+      "FRA": "Activer IpcInfoEnabled dans la configuration Excel",
+      "ITA": "Abilita IpcInfoEnabled nella configurazione Excel"
+    },
+    "infoPanel.expanded.more": {
+      "SPA": "más",
+      "ENG": "more",
+      "FRA": "plus",
+      "ITA": "altro"
+    },
+    "infoPanel.expanded.loading_ports": {
+      "SPA": "Cargando puertos...",
+      "ENG": "Loading ports...",
+      "FRA": "Chargement des ports...",
+      "ITA": "Caricamento porte..."
+    },
+    "infoPanel.expanded.security_status": {
+      "SPA": "ESTADO DE SEGURIDAD",
+      "ENG": "SECURITY STATUS",
+      "FRA": "ÉTAT DE SÉCURITÉ",
+      "ITA": "STATO DI SICUREZZA"
+    },
+    "infoPanel.expanded.antivirus": {
+      "SPA": "Antivirus",
+      "ENG": "Antivirus",
+      "FRA": "Antivirus",
+      "ITA": "Antivirus"
+    },
+    "infoPanel.expanded.active": {
+      "SPA": "Activo",
+      "ENG": "Active",
+      "FRA": "Actif",
+      "ITA": "Attivo"
+    },
+    "infoPanel.expanded.inactive": {
+      "SPA": "Inactivo",
+      "ENG": "Inactive",
+      "FRA": "Inactif",
+      "ITA": "Inattivo"
+    },
+    "infoPanel.expanded.no_antivirus": {
+      "SPA": "Sin antivirus",
+      "ENG": "No antivirus",
+      "FRA": "Aucun antivirus",
+      "ITA": "Nessun antivirus"
+    },
+    "infoPanel.expanded.system_security": {
+      "SPA": "Sistema",
+      "ENG": "System",
+      "FRA": "Système",
+      "ITA": "Sistema"
+    },
+    "infoPanel.expanded.runtime": {
+      "SPA": "Ejecución",
+      "ENG": "Runtime",
+      "FRA": "Exécution",
+      "ITA": "Runtime"
+    },
+    "infoPanel.expanded.updated": {
+      "SPA": "Actualizado",
+      "ENG": "Updated",
+      "FRA": "Mis à jour",
+      "ITA": "Aggiornato"
+    },
+    "infoPanel.expanded.edition": {
+      "SPA": "Edición",
+      "ENG": "Edition",
+      "FRA": "Édition",
+      "ITA": "Edizione"
+    },
+    "infoPanel.expanded.processor": {
+      "SPA": "PROCESADOR",
+      "ENG": "PROCESSOR",
+      "FRA": "PROCESSEUR",
+      "ITA": "PROCESSORE"
+    },
+    "infoPanel.expanded.free": {
+      "SPA": "Libre",
+      "ENG": "Free",
+      "FRA": "Libre",
+      "ITA": "Libero"
+    },
+    "infoPanel.expanded.sbom_valid": {
+      "SPA": "VÁLIDO",
+      "ENG": "VALID",
+      "FRA": "VALIDE",
+      "ITA": "VALIDO"
+    },
+    "infoPanel.expanded.sbom_not_generated": {
+      "SPA": "NO GENERADO",
+      "ENG": "NOT GENERATED",
+      "FRA": "NON GÉNÉRÉ",
+      "ITA": "NON GENERATO"
+    },
+    "infoPanel.expanded.sbom_generated": {
+      "SPA": "GENERADO",
+      "ENG": "GENERATED",
+      "FRA": "GÉNÉRÉ",
+      "ITA": "GENERATO"
+    },
+    "infoPanel.expanded.sbom_components": {
+      "SPA": "COMPONENTES",
+      "ENG": "COMPONENTS",
+      "FRA": "COMPOSANTS",
+      "ITA": "COMPONENTI"
+    },
+    "infoPanel.expanded.total": {
+      "SPA": "total",
+      "ENG": "total",
+      "FRA": "total",
+      "ITA": "totale"
+    },
+    "infoPanel.expanded.packages": {
+      "SPA": "paquetes",
+      "ENG": "packages",
+      "FRA": "paquets",
+      "ITA": "pacchetti"
+    },
+    "infoPanel.expanded.generating": {
+      "SPA": "GENERANDO...",
+      "ENG": "GENERATING...",
+      "FRA": "GÉNÉRATION...",
+      "ITA": "GENERAZIONE..."
+    },
+    "infoPanel.expanded.generate": {
+      "SPA": "GENERAR",
+      "ENG": "GENERATE",
+      "FRA": "GÉNÉRER",
+      "ITA": "GENERA"
+    },
+    "infoPanel.expanded.download": {
+      "SPA": "DESCARGAR",
+      "ENG": "DOWNLOAD",
+      "FRA": "TÉLÉCHARGER",
+      "ITA": "SCARICA"
+    },
+    "infoPanel.expanded.scanner_disabled": {
+      "SPA": "ESCÁNER DESHABILITADO",
+      "ENG": "SCANNER DISABLED",
+      "FRA": "SCANNER DÉSACTIVÉ",
+      "ITA": "SCANNER DISABILITATO"
+    },
+    "infoPanel.expanded.no_scan_yet": {
+      "SPA": "SIN ESCANEO AÚN",
+      "ENG": "NO SCAN YET",
+      "FRA": "AUCUNE ANALYSE",
+      "ITA": "NESSUNA SCANSIONE"
+    },
+    "infoPanel.expanded.status_label": {
+      "SPA": "ESTADO",
+      "ENG": "STATUS",
+      "FRA": "ÉTAT",
+      "ITA": "STATO"
+    },
+    "infoPanel.expanded.disabled_by_config": {
+      "SPA": "Deshabilitado por configuración",
+      "ENG": "Disabled by configuration",
+      "FRA": "Désactivé par configuration",
+      "ITA": "Disabilitato dalla configurazione"
+    },
+    "infoPanel.expanded.critical": {
+      "SPA": "CRÍTICO",
+      "ENG": "CRITICAL",
+      "FRA": "CRITIQUE",
+      "ITA": "CRITICO"
+    },
+    "infoPanel.expanded.high": {
+      "SPA": "ALTO",
+      "ENG": "HIGH",
+      "FRA": "ÉLEVÉ",
+      "ITA": "ALTO"
+    },
+    "infoPanel.expanded.medium": {
+      "SPA": "MEDIO",
+      "ENG": "MEDIUM",
+      "FRA": "MOYEN",
+      "ITA": "MEDIO"
+    },
+    "infoPanel.expanded.low": {
+      "SPA": "BAJO",
+      "ENG": "LOW",
+      "FRA": "FAIBLE",
+      "ITA": "BASSO"
+    },
+    "infoPanel.expanded.packages_label": {
+      "SPA": "Paquetes",
+      "ENG": "Packages",
+      "FRA": "Paquets",
+      "ITA": "Pacchetti"
+    },
+    "infoPanel.expanded.scanned": {
+      "SPA": "escaneados",
+      "ENG": "scanned",
+      "FRA": "analysés",
+      "ITA": "scansionati"
+    },
+    "infoPanel.expanded.last_scan": {
+      "SPA": "Último escaneo",
+      "ENG": "Last Scan",
+      "FRA": "Dernier scan",
+      "ITA": "Ultima scansione"
+    },
+    "infoPanel.expanded.disabled": {
+      "SPA": "Deshabilitado",
+      "ENG": "Disabled",
+      "FRA": "Désactivé",
+      "ITA": "Disabilitato"
+    },
+    "infoPanel.expanded.scanning": {
+      "SPA": "ESCANEANDO...",
+      "ENG": "SCANNING...",
+      "FRA": "ANALYSE...",
+      "ITA": "SCANSIONE..."
+    },
+    "infoPanel.expanded.scan": {
+      "SPA": "ESCANEAR",
+      "ENG": "SCAN",
+      "FRA": "ANALYSER",
+      "ITA": "SCANSIONA"
+    },
+    "infoPanel.expanded.target": {
+      "SPA": "Destino",
+      "ENG": "Target",
+      "FRA": "Cible",
+      "ITA": "Destinazione"
+    },
+    "infoPanel.expanded.auto": {
+      "SPA": "AUTO",
+      "ENG": "AUTO",
+      "FRA": "AUTO",
+      "ITA": "AUTO"
+    },
+    "infoPanel.expanded.manual": {
+      "SPA": "MANUAL",
+      "ENG": "MANUAL",
+      "FRA": "MANUEL",
+      "ITA": "MANUALE"
+    },
+    "infoPanel.expanded.endpoint_configuration": {
+      "SPA": "CONFIGURACIÓN DE ENDPOINT",
+      "ENG": "ENDPOINT CONFIGURATION",
+      "FRA": "CONFIGURATION DU POINT D'ACCÈS",
+      "ITA": "CONFIGURAZIONE ENDPOINT"
+    },
+    "infoPanel.expanded.type": {
+      "SPA": "Tipo",
+      "ENG": "Type",
+      "FRA": "Type",
+      "ITA": "Tipo"
+    },
+    "infoPanel.expanded.auto_send": {
+      "SPA": "Envío auto",
+      "ENG": "Auto-send",
+      "FRA": "Envoi auto",
+      "ITA": "Invio auto"
+    },
+    "infoPanel.expanded.on_critical": {
+      "SPA": "En crítico",
+      "ENG": "On Critical",
+      "FRA": "Sur critique",
+      "ITA": "Su critico"
+    },
+    "infoPanel.expanded.total_events": {
+      "SPA": "EVENTOS TOTALES",
+      "ENG": "TOTAL EVENTS",
+      "FRA": "ÉVÉNEMENTS TOTAUX",
+      "ITA": "EVENTI TOTALI"
+    },
+    "infoPanel.expanded.today": {
+      "SPA": "hoy",
+      "ENG": "today",
+      "FRA": "aujourd'hui",
+      "ITA": "oggi"
+    },
+    "infoPanel.expanded.storage_label": {
+      "SPA": "Almacenamiento",
+      "ENG": "Storage",
+      "FRA": "Stockage",
+      "ITA": "Archiviazione"
+    },
+    "infoPanel.expanded.no_audit_logs": {
+      "SPA": "Sin registros de auditoría aún",
+      "ENG": "No audit logs yet",
+      "FRA": "Aucun journal d'audit",
+      "ITA": "Nessun registro di audit"
+    },
+    "infoPanel.expanded.view_full": {
+      "SPA": "VER COMPLETO",
+      "ENG": "VIEW FULL",
+      "FRA": "VOIR COMPLET",
+      "ITA": "VEDI COMPLETO"
+    },
+    "infoPanel.expanded.export": {
+      "SPA": "EXPORTAR",
+      "ENG": "EXPORT",
+      "FRA": "EXPORTER",
+      "ITA": "ESPORTA"
+    },
+    "infoPanel.expanded.recent_operations": {
+      "SPA": "OPERACIONES RECIENTES",
+      "ENG": "RECENT OPERATIONS",
+      "FRA": "OPÉRATIONS RÉCENTES",
+      "ITA": "OPERAZIONI RECENTI"
+    },
+    "infoPanel.expanded.operator_actions": {
+      "SPA": "Acciones de operador (alarmas, recetas, setpoints...)",
+      "ENG": "Operator actions (alarms, recipes, setpoints...)",
+      "FRA": "Actions opérateur (alarmes, recettes, setpoints...)",
+      "ITA": "Azioni operatore (allarmi, ricette, setpoint...)"
+    },
+    "infoPanel.expanded.no_operation_logs": {
+      "SPA": "Sin registros de operación aún",
+      "ENG": "No operation logs yet",
+      "FRA": "Aucun journal d'opération",
+      "ITA": "Nessun registro di operazione"
+    },
+    "infoPanel.expanded.view_full_log": {
+      "SPA": "VER REGISTRO COMPLETO",
+      "ENG": "VIEW FULL LOG",
+      "FRA": "VOIR JOURNAL COMPLET",
+      "ITA": "VEDI REGISTRO COMPLETO"
+    },
+    "infoPanel.expanded.session_events": {
+      "SPA": "EVENTOS DE SESIÓN",
+      "ENG": "SESSION EVENTS",
+      "FRA": "ÉVÉNEMENTS DE SESSION",
+      "ITA": "EVENTI DI SESSIONE"
+    },
+    "infoPanel.expanded.current_session_events": {
+      "SPA": "Eventos de la sesión actual",
+      "ENG": "Current session events",
+      "FRA": "Événements de la session actuelle",
+      "ITA": "Eventi della sessione corrente"
+    },
+
+    "infoPanel.modal.operation_log_title": {
+      "SPA": "Operation Log Completo",
+      "ENG": "Complete Operation Log",
+      "FRA": "Journal d'Opération Complet",
+      "ITA": "Registro Operazioni Completo"
+    },
+    "infoPanel.modal.level_2_operator": {
+      "SPA": "Nivel 2 - Acciones de Operador",
+      "ENG": "Level 2 - Operator Actions",
+      "FRA": "Niveau 2 - Actions Opérateur",
+      "ITA": "Livello 2 - Azioni Operatore"
+    },
+    "infoPanel.modal.close": {
+      "SPA": "Cerrar",
+      "ENG": "Close",
+      "FRA": "Fermer",
+      "ITA": "Chiudi"
+    },
+    "infoPanel.modal.operation_log_name": {
+      "SPA": "Operation Log",
+      "ENG": "Operation Log",
+      "FRA": "Journal d'Opération",
+      "ITA": "Registro Operazioni"
+    },
+    "infoPanel.modal.level_2": {
+      "SPA": "Nivel 2",
+      "ENG": "Level 2",
+      "FRA": "Niveau 2",
+      "ITA": "Livello 2"
+    },
+    "infoPanel.modal.operation_log_desc": {
+      "SPA": "registra TODAS las acciones del operador",
+      "ENG": "records ALL operator actions",
+      "FRA": "enregistre TOUTES les actions de l'opérateur",
+      "ITA": "registra TUTTE le azioni dell'operatore"
+    },
+    "infoPanel.modal.operation_log_desc2": {
+      "SPA": "Incluye: cambios de recetas, confirmaciones de alarmas, modificaciones de parámetros, comandos manuales y ciclos de operación.",
+      "ENG": "Includes: recipe changes, alarm confirmations, parameter modifications, manual commands, and operation cycles.",
+      "FRA": "Comprend: changements de recettes, confirmations d'alarmes, modifications de paramètres, commandes manuelles et cycles d'opération.",
+      "ITA": "Include: modifiche ricette, conferme allarmi, modifiche parametri, comandi manuali e cicli di operazione."
+    },
+    "infoPanel.modal.filter_by_date": {
+      "SPA": "Filtrar por fecha",
+      "ENG": "Filter by date",
+      "FRA": "Filtrer par date",
+      "ITA": "Filtra per data"
+    },
+    "infoPanel.modal.today": {
+      "SPA": "Hoy",
+      "ENG": "Today",
+      "FRA": "Aujourd'hui",
+      "ITA": "Oggi"
+    },
+    "infoPanel.modal.week": {
+      "SPA": "Semana",
+      "ENG": "Week",
+      "FRA": "Semaine",
+      "ITA": "Settimana"
+    },
+    "infoPanel.modal.month": {
+      "SPA": "Mes",
+      "ENG": "Month",
+      "FRA": "Mois",
+      "ITA": "Mese"
+    },
+    "infoPanel.modal.custom": {
+      "SPA": "Personalizado",
+      "ENG": "Custom",
+      "FRA": "Personnalisé",
+      "ITA": "Personalizzato"
+    },
+    "infoPanel.modal.from": {
+      "SPA": "Desde",
+      "ENG": "From",
+      "FRA": "Du",
+      "ITA": "Da"
+    },
+    "infoPanel.modal.to": {
+      "SPA": "Hasta",
+      "ENG": "To",
+      "FRA": "Au",
+      "ITA": "A"
+    },
+    "infoPanel.modal.audit_log_title": {
+      "SPA": "Audit Log Completo",
+      "ENG": "Complete Audit Log",
+      "FRA": "Journal d'Audit Complet",
+      "ITA": "Registro Audit Completo"
+    },
+    "infoPanel.modal.level_1_security": {
+      "SPA": "Nivel 1 - Eventos de Seguridad",
+      "ENG": "Level 1 - Security Events",
+      "FRA": "Niveau 1 - Événements de Sécurité",
+      "ITA": "Livello 1 - Eventi di Sicurezza"
+    },
+    "infoPanel.modal.audit_log_name": {
+      "SPA": "Audit Log",
+      "ENG": "Audit Log",
+      "FRA": "Journal d'Audit",
+      "ITA": "Registro Audit"
+    },
+    "infoPanel.modal.level_1": {
+      "SPA": "Nivel 1",
+      "ENG": "Level 1",
+      "FRA": "Niveau 1",
+      "ITA": "Livello 1"
+    },
+    "infoPanel.modal.audit_log_desc": {
+      "SPA": "registra todos los eventos de seguridad obligatorios por el",
+      "ENG": "records all mandatory security events required by the",
+      "FRA": "enregistre tous les événements de sécurité obligatoires par le",
+      "ITA": "registra tutti gli eventi di sicurezza obbligatori dal"
+    },
+    "infoPanel.modal.audit_log_desc2": {
+      "SPA": "Cada entrada está firmada con SHA256 y encadenada para garantizar integridad y no repudio.",
+      "ENG": "Each entry is signed with SHA256 and chained to ensure integrity and non-repudiation.",
+      "FRA": "Chaque entrée est signée avec SHA256 et chaînée pour garantir l'intégrité et la non-répudiation.",
+      "ITA": "Ogni voce è firmata con SHA256 e concatenata per garantire integrità e non ripudio."
+    },
+    "infoPanel.modal.date_time": {
+      "SPA": "Fecha/Hora",
+      "ENG": "Date/Time",
+      "FRA": "Date/Heure",
+      "ITA": "Data/Ora"
+    },
+    "infoPanel.modal.category_action": {
+      "SPA": "Categoría/Acción",
+      "ENG": "Category/Action",
+      "FRA": "Catégorie/Action",
+      "ITA": "Categoria/Azione"
+    },
+    "infoPanel.modal.result": {
+      "SPA": "Resultado",
+      "ENG": "Result",
+      "FRA": "Résultat",
+      "ITA": "Risultato"
+    },
+    "infoPanel.modal.user": {
+      "SPA": "Usuario",
+      "ENG": "User",
+      "FRA": "Utilisateur",
+      "ITA": "Utente"
+    },
+    "infoPanel.modal.details": {
+      "SPA": "Detalles",
+      "ENG": "Details",
+      "FRA": "Détails",
+      "ITA": "Dettagli"
+    },
+    "infoPanel.modal.signature": {
+      "SPA": "Firma",
+      "ENG": "Signature",
+      "FRA": "Signature",
+      "ITA": "Firma"
+    },
+    "infoPanel.modal.loading_audit": {
+      "SPA": "Cargando registros de auditoría...",
+      "ENG": "Loading audit records...",
+      "FRA": "Chargement des enregistrements d'audit...",
+      "ITA": "Caricamento registri di audit..."
+    },
+    "infoPanel.modal.no_audit_records": {
+      "SPA": "No hay registros de auditoría",
+      "ENG": "No audit records",
+      "FRA": "Aucun enregistrement d'audit",
+      "ITA": "Nessun registro di audit"
+    },
+    "infoPanel.modal.showing": {
+      "SPA": "Mostrando",
+      "ENG": "Showing",
+      "FRA": "Affichage",
+      "ITA": "Mostrando"
+    },
+    "infoPanel.modal.of": {
+      "SPA": "de",
+      "ENG": "of",
+      "FRA": "sur",
+      "ITA": "di"
+    },
+    "infoPanel.modal.records": {
+      "SPA": "registros",
+      "ENG": "records",
+      "FRA": "enregistrements",
+      "ITA": "registri"
+    },
+    "infoPanel.modal.loading": {
+      "SPA": "Cargando...",
+      "ENG": "Loading...",
+      "FRA": "Chargement...",
+      "ITA": "Caricamento..."
+    },
+    "infoPanel.modal.last_n_events": {
+      "SPA": "Últimos 100 eventos",
+      "ENG": "Last 100 events",
+      "FRA": "Derniers 100 événements",
+      "ITA": "Ultimi 100 eventi"
+    },
+    "infoPanel.modal.category": {
+      "SPA": "Categoría",
+      "ENG": "Category",
+      "FRA": "Catégorie",
+      "ITA": "Categoria"
+    },
+    "infoPanel.modal.action": {
+      "SPA": "Acción",
+      "ENG": "Action",
+      "FRA": "Action",
+      "ITA": "Azione"
+    },
+    "infoPanel.modal.description": {
+      "SPA": "Descripción",
+      "ENG": "Description",
+      "FRA": "Description",
+      "ITA": "Descrizione"
+    },
+    "infoPanel.modal.loading_operation": {
+      "SPA": "Cargando registros de operación...",
+      "ENG": "Loading operation records...",
+      "FRA": "Chargement des enregistrements d'opération...",
+      "ITA": "Caricamento registri di operazione..."
+    },
+    "infoPanel.modal.remove_filter": {
+      "SPA": "Quitar filtro",
+      "ENG": "Remove filter",
+      "FRA": "Supprimer le filtre",
+      "ITA": "Rimuovi filtro"
+    },
+    "infoPanel.modal.filtered": {
+      "SPA": "filtrado",
+      "ENG": "filtered",
+      "FRA": "filtré",
+      "ITA": "filtrato"
+    },
+    "infoPanel.modal.last_week": {
+      "SPA": "Última semana",
+      "ENG": "Last week",
+      "FRA": "Dernière semaine",
+      "ITA": "Ultima settimana"
+    },
+    "infoPanel.modal.last_month": {
+      "SPA": "Último mes",
+      "ENG": "Last month",
+      "FRA": "Dernier mois",
+      "ITA": "Ultimo mese"
+    },
+    "infoPanel.modal.cat_plc_alarms": {
+      "SPA": "PLC Alarmas",
+      "ENG": "PLC Alarms",
+      "FRA": "Alarmes PLC",
+      "ITA": "Allarmi PLC"
+    },
+    "infoPanel.modal.cat_plc_notifications": {
+      "SPA": "PLC Avisos",
+      "ENG": "PLC Notifications",
+      "FRA": "Notifications PLC",
+      "ITA": "Notifiche PLC"
+    },
+    "infoPanel.modal.cat_plc_info": {
+      "SPA": "PLC Info",
+      "ENG": "PLC Info",
+      "FRA": "Info PLC",
+      "ITA": "Info PLC"
+    },
+    "infoPanel.modal.cat_navigation": {
+      "SPA": "Navegación",
+      "ENG": "Navigation",
+      "FRA": "Navigation",
+      "ITA": "Navigazione"
+    },
+    "infoPanel.modal.cat_recipes": {
+      "SPA": "Recetas",
+      "ENG": "Recipes",
+      "FRA": "Recettes",
+      "ITA": "Ricette"
+    },
+    "infoPanel.modal.cat_configuration": {
+      "SPA": "Configuración",
+      "ENG": "Configuration",
+      "FRA": "Configuration",
+      "ITA": "Configurazione"
+    },
+    "infoPanel.modal.cat_plc_commands": {
+      "SPA": "Órdenes PLC",
+      "ENG": "PLC Commands",
+      "FRA": "Commandes PLC",
+      "ITA": "Comandi PLC"
+    },
+    "infoPanel.modal.cat_processes": {
+      "SPA": "Procesos",
+      "ENG": "Processes",
+      "FRA": "Processus",
+      "ITA": "Processi"
+    },
+    "infoPanel.modal.cat_setpoints": {
+      "SPA": "Setpoints",
+      "ENG": "Setpoints",
+      "FRA": "Setpoints",
+      "ITA": "Setpoint"
+    },
+    "infoPanel.modal.cat_statistics": {
+      "SPA": "Estadísticas",
+      "ENG": "Statistics",
+      "FRA": "Statistiques",
+      "ITA": "Statistiche"
+    },
+    "infoPanel.modal.cat_export": {
+      "SPA": "Exportación",
+      "ENG": "Export",
+      "FRA": "Exportation",
+      "ITA": "Esportazione"
+    },
+    "infoPanel.modal.cat_backup": {
+      "SPA": "Backup",
+      "ENG": "Backup",
+      "FRA": "Sauvegarde",
+      "ITA": "Backup"
+    },
+    "infoPanel.expanded.security_status_title": {
+      "SPA": "ESTADO DE SEGURIDAD",
+      "ENG": "SECURITY STATUS",
+      "FRA": "ÉTAT DE SÉCURITÉ",
+      "ITA": "STATO DI SICUREZZA"
+    },
+    "infoPanel.expanded.antivirus_protection": {
+      "SPA": "Protección Antivirus",
+      "ENG": "Antivirus Protection",
+      "FRA": "Protection Antivirus",
+      "ITA": "Protezione Antivirus"
+    },
+    "infoPanel.expanded.vulnerability_scanner_title": {
+      "SPA": "ESCÁNER DE VULNERABILIDADES",
+      "ENG": "VULNERABILITY SCANNER",
+      "FRA": "ANALYSEUR DE VULNÉRABILITÉS",
+      "ITA": "SCANNER VULNERABILITÀ"
+    },
+    "infoPanel.expanded.vulnerability_report_title": {
+      "SPA": "REPORTE DE VULNERABILIDADES",
+      "ENG": "VULNERABILITY REPORT",
+      "FRA": "RAPPORT DE VULNÉRABILITÉS",
+      "ITA": "RAPPORTO VULNERABILITÀ"
+    },
+    "infoPanel.expanded.audit_log_title": {
+      "SPA": "REGISTRO DE AUDITORÍA",
+      "ENG": "AUDIT LOG",
+      "FRA": "JOURNAL D'AUDIT",
+      "ITA": "REGISTRO AUDIT"
+    },
+    "infoPanel.expanded.operation_log_title": {
+      "SPA": "REGISTRO DE OPERACIONES",
+      "ENG": "OPERATION LOG",
+      "FRA": "JOURNAL D'OPÉRATIONS",
+      "ITA": "REGISTRO OPERAZIONI"
+    },
+    "infoPanel.expanded.session_event_log_title": {
+      "SPA": "REGISTRO DE EVENTOS DE SESIÓN",
+      "ENG": "SESSION EVENT LOG",
+      "FRA": "JOURNAL D'ÉVÉNEMENTS DE SESSION",
+      "ITA": "REGISTRO EVENTI SESSIONE"
+    },
+    "infoPanel.modal.eu_cra_compliance": {
+      "SPA": "EU CRA Compliance",
+      "ENG": "EU CRA Compliance",
+      "FRA": "EU CRA Compliance",
+      "ITA": "EU CRA Compliance"
+    },
+    "infoPanel.modal.cra_logs_compliance": {
+      "SPA": "Estos logs cumplen con los requisitos del Anexo I, Parte I, punto 2l del Cyber Resilience Act (2024). Cada entrada está firmada criptográficamente y encadenada para garantizar integridad y trazabilidad.",
+      "ENG": "These logs comply with the requirements of Annex I, Part I, point 2l of the Cyber Resilience Act (2024). Each entry is cryptographically signed and chained to ensure integrity and traceability.",
+      "FRA": "Ces logs sont conformes aux exigences de l'Annexe I, Partie I, point 2l du Cyber Resilience Act (2024). Chaque entrée est signée cryptographiquement et chaînée pour garantir l'intégrité et la traçabilité.",
+      "ITA": "Questi log sono conformi ai requisiti dell'Allegato I, Parte I, punto 2l del Cyber Resilience Act (2024). Ogni voce è firmata crittograficamente e concatenata per garantire integrità e tracciabilità."
+    },
+    "infoPanel.modal.session_event_log_title": {
+      "SPA": "Session Event Log",
+      "ENG": "Session Event Log",
+      "FRA": "Journal d'Événements de Session",
+      "ITA": "Log Eventi Sessione"
+    },
+    "infoPanel.modal.session_events_desc": {
+      "SPA": "Eventos de la sesión actual del frontend",
+      "ENG": "Events from the current frontend session",
+      "FRA": "Événements de la session frontend actuelle",
+      "ITA": "Eventi della sessione frontend corrente"
+    },
+    "infoPanel.modal.session_event_log_name": {
+      "SPA": "Session Event Log",
+      "ENG": "Session Event Log",
+      "FRA": "Journal d'Événements de Session",
+      "ITA": "Log Eventi Sessione"
+    },
+    "infoPanel.modal.session_log_desc": {
+      "SPA": "registra los eventos de la sesión actual del frontend: conexiones, cambios de estado, errores de comunicación y actividad general. Se reinicia al recargar la página.",
+      "ENG": "records events from the current frontend session: connections, state changes, communication errors and general activity. It resets when the page is reloaded.",
+      "FRA": "enregistre les événements de la session frontend actuelle : connexions, changements d'état, erreurs de communication et activité générale. Se réinitialise au rechargement de la page.",
+      "ITA": "registra gli eventi della sessione frontend corrente: connessioni, cambi di stato, errori di comunicazione e attività generale. Si reimposta al ricaricamento della pagina."
+    },
+    "infoPanel.modal.session_events": {
+      "SPA": "eventos de sesión",
+      "ENG": "session events",
+      "FRA": "événements de session",
+      "ITA": "eventi di sessione"
+    },
+    "infoPanel.modal.max_in_memory": {
+      "SPA": "Máximo 100 en memoria",
+      "ENG": "Maximum 100 in memory",
+      "FRA": "Maximum 100 en mémoire",
+      "ITA": "Massimo 100 in memoria"
+    },
+    "infoPanel.modal.type": {
+      "SPA": "Tipo",
+      "ENG": "Type",
+      "FRA": "Type",
+      "ITA": "Tipo"
+    },
+    "infoPanel.modal.message": {
+      "SPA": "Mensaje",
+      "ENG": "Message",
+      "FRA": "Message",
+      "ITA": "Messaggio"
+    },
+    "infoPanel.modal.ipc_hardware_title": {
+      "SPA": "IPC Hardware Monitor",
+      "ENG": "IPC Hardware Monitor",
+      "FRA": "Moniteur Matériel IPC",
+      "ITA": "Monitor Hardware IPC"
+    },
+    "infoPanel.modal.realtime_status": {
+      "SPA": "Estado del Sistema en Tiempo Real",
+      "ENG": "Real-time System Status",
+      "FRA": "État du Système en Temps Réel",
+      "ITA": "Stato del Sistema in Tempo Reale"
+    },
+    "infoPanel.modal.close_upper": {
+      "SPA": "CERRAR",
+      "ENG": "CLOSE",
+      "FRA": "FERMER",
+      "ITA": "CHIUDI"
+    },
+    "infoPanel.modal.note": {
+      "SPA": "Nota",
+      "ENG": "Note",
+      "FRA": "Note",
+      "ITA": "Nota"
+    },
+    "infoPanel.modal.session_note": {
+      "SPA": "Estos eventos se almacenan en memoria durante la sesión (máximo 100). Al recargar la página se reinician. Para logs persistentes use el",
+      "ENG": "These events are stored in memory during the session (maximum 100). Reloading the page resets them. For persistent logs use the",
+      "FRA": "Ces événements sont stockés en mémoire pendant la session (maximum 100). Le rechargement de la page les réinitialise. Pour des logs persistants, utilisez le",
+      "ITA": "Questi eventi sono memorizzati in memoria durante la sessione (massimo 100). Il ricaricamento della pagina li resetta. Per log persistenti usare il"
+    },
+    "infoPanel.modal.or_the": {
+      "SPA": "o el",
+      "ENG": "or the",
+      "FRA": "ou le",
+      "ITA": "o il"
+    },
+    "infoPanel.modal.no_system_events": {
+      "SPA": "No hay eventos del sistema",
+      "ENG": "No system events",
+      "FRA": "Aucun événement système",
+      "ITA": "Nessun evento di sistema"
+    },
+
+    "git.title": {
+      "SPA": "Gestión Git",
+      "ENG": "Git Management",
+      "FRA": "Gestion Git",
+      "ITA": "Gestione Git"
+    },
+    "git.production": {
+      "SPA": "PRODUCCIÓN",
+      "ENG": "PRODUCTION",
+      "FRA": "PRODUCTION",
+      "ITA": "PRODUZIONE"
+    },
+    "git.development": {
+      "SPA": "DESARROLLO",
+      "ENG": "DEVELOPMENT",
+      "FRA": "DÉVELOPPEMENT",
+      "ITA": "SVILUPPO"
+    },
+    "git.help": {
+      "SPA": "Ayuda",
+      "ENG": "Help",
+      "FRA": "Aide",
+      "ITA": "Aiuto"
+    },
+    "git.help.how_it_works": {
+      "SPA": "¿Cómo funciona Git Management?",
+      "ENG": "How does Git Management work?",
+      "FRA": "Comment fonctionne Git Management?",
+      "ITA": "Come funziona Git Management?"
+    },
+    "git.help.repositories": {
+      "SPA": "Repositorios (Pestañas superiores)",
+      "ENG": "Repositories (Top tabs)",
+      "FRA": "Dépôts (Onglets supérieurs)",
+      "ITA": "Repository (Schede superiori)"
+    },
+    "git.help.backend_desc": {
+      "SPA": "Código del servidor (API, servicios)",
+      "ENG": "Server code (API, services)",
+      "FRA": "Code serveur (API, services)",
+      "ITA": "Codice server (API, servizi)"
+    },
+    "git.help.frontend_desc": {
+      "SPA": "Código de la interfaz (React, 3D)",
+      "ENG": "Interface code (React, 3D)",
+      "FRA": "Code d'interface (React, 3D)",
+      "ITA": "Codice interfaccia (React, 3D)"
+    },
+    "git.help.twincat_desc": {
+      "SPA": "Código del PLC (lógica de control)",
+      "ENG": "PLC code (control logic)",
+      "FRA": "Code PLC (logique de contrôle)",
+      "ITA": "Codice PLC (logica di controllo)"
+    },
+    "git.help.has_changes": {
+      "SPA": "Tiene cambios sin guardar",
+      "ENG": "Has unsaved changes",
+      "FRA": "A des modifications non sauvegardées",
+      "ITA": "Ha modifiche non salvate"
+    },
+    "git.help.pending_commits": {
+      "SPA": "Tiene N commits pendientes de subir",
+      "ENG": "Has N pending commits to push",
+      "FRA": "A N commits en attente de push",
+      "ITA": "Ha N commit in attesa di push"
+    },
+    "git.help.workflow": {
+      "SPA": "Flujo de trabajo",
+      "ENG": "Workflow",
+      "FRA": "Flux de travail",
+      "ITA": "Flusso di lavoro"
+    },
+    "git.help.step1": {
+      "SPA": "Modificas archivos",
+      "ENG": "Modify files",
+      "FRA": "Modifiez des fichiers",
+      "ITA": "Modifica file"
+    },
+    "git.help.step1_desc": {
+      "SPA": "aparece * en la pestaña",
+      "ENG": "* appears in the tab",
+      "FRA": "* apparaît dans l'onglet",
+      "ITA": "appare * nella scheda"
+    },
+    "git.help.step2": {
+      "SPA": "Escribe tu nombre",
+      "ENG": "Write your name",
+      "FRA": "Écrivez votre nom",
+      "ITA": "Scrivi il tuo nome"
+    },
+    "git.help.step2_desc": {
+      "SPA": "Campo obligatorio (trazabilidad)",
+      "ENG": "Required field (traceability)",
+      "FRA": "Champ obligatoire (traçabilité)",
+      "ITA": "Campo obbligatorio (tracciabilità)"
+    },
+    "git.help.step3": {
+      "SPA": "Escribe descripción",
+      "ENG": "Write description",
+      "FRA": "Écrivez la description",
+      "ITA": "Scrivi descrizione"
+    },
+    "git.help.step3_desc": {
+      "SPA": "Qué cambios hiciste",
+      "ENG": "What changes you made",
+      "FRA": "Quels changements vous avez faits",
+      "ITA": "Quali modifiche hai fatto"
+    },
+    "git.help.step4_desc": {
+      "SPA": "Guarda localmente",
+      "ENG": "Save locally",
+      "FRA": "Enregistrer localement",
+      "ITA": "Salva localmente"
+    },
+    "git.help.step5_desc": {
+      "SPA": "Sube al servidor + genera certificado automático",
+      "ENG": "Upload to server + generate automatic certificate",
+      "FRA": "Télécharger vers le serveur + générer certificat automatique",
+      "ITA": "Carica sul server + genera certificato automatico"
+    },
+    "git.help.traceability": {
+      "SPA": "Trazabilidad (EU CRA)",
+      "ENG": "Traceability (EU CRA)",
+      "FRA": "Traçabilité (EU CRA)",
+      "ITA": "Tracciabilità (EU CRA)"
+    },
+    "git.help.trace_desc1": {
+      "SPA": "El nombre del administrador es obligatorio para cada commit.",
+      "ENG": "The administrator name is required for each commit.",
+      "FRA": "Le nom de l'administrateur est obligatoire pour chaque commit.",
+      "ITA": "Il nome dell'amministratore è obbligatorio per ogni commit."
+    },
+    "git.help.trace_desc2": {
+      "SPA": "Se añade automáticamente al mensaje para saber quién hizo cada cambio.",
+      "ENG": "It is automatically added to the message to know who made each change.",
+      "FRA": "Il est ajouté automatiquement au message pour savoir qui a fait chaque modification.",
+      "ITA": "Viene aggiunto automaticamente al messaggio per sapere chi ha fatto ogni modifica."
+    },
+    "git.help.trace_desc3": {
+      "SPA": "El campo se borra después de cada commit por seguridad.",
+      "ENG": "The field is cleared after each commit for security.",
+      "FRA": "Le champ est effacé après chaque commit pour la sécurité.",
+      "ITA": "Il campo viene cancellato dopo ogni commit per sicurezza."
+    },
+    "git.help.mode_title": {
+      "SPA": "Modo Producción vs Desarrollo",
+      "ENG": "Production vs Development Mode",
+      "FRA": "Mode Production vs Développement",
+      "ITA": "Modalità Produzione vs Sviluppo"
+    },
+    "git.help.green": {
+      "SPA": "verde",
+      "ENG": "green",
+      "FRA": "vert",
+      "ITA": "verde"
+    },
+    "git.help.red": {
+      "SPA": "rojo",
+      "ENG": "red",
+      "FRA": "rouge",
+      "ITA": "rosso"
+    },
+    "git.help.dev_desc": {
+      "SPA": "Todos los repositorios son editables.",
+      "ENG": "All repositories are editable.",
+      "FRA": "Tous les dépôts sont modifiables.",
+      "ITA": "Tutti i repository sono modificabili."
+    },
+    "git.help.prod_desc": {
+      "SPA": "Solo TwinCAT es editable, Backend y Frontend son solo lectura.",
+      "ENG": "Only TwinCAT is editable, Backend and Frontend are read-only.",
+      "FRA": "Seul TwinCAT est modifiable, Backend et Frontend sont en lecture seule.",
+      "ITA": "Solo TwinCAT è modificabile, Backend e Frontend sono in sola lettura."
+    },
+    "git.help.mode_config": {
+      "SPA": "El modo se configura en Excel",
+      "ENG": "The mode is configured in Excel",
+      "FRA": "Le mode est configuré dans Excel",
+      "ITA": "La modalità è configurata in Excel"
+    },
+    "git.help.sheet": {
+      "SPA": "hoja",
+      "ENG": "sheet",
+      "FRA": "feuille",
+      "ITA": "foglio"
+    },
+    "git.help.or": {
+      "SPA": "o",
+      "ENG": "or",
+      "FRA": "ou",
+      "ITA": "o"
+    },
+    "git.help.badge_info": {
+      "SPA": "El badge en la esquina superior derecha indica el modo actual.",
+      "ENG": "The badge in the upper right corner indicates the current mode.",
+      "FRA": "Le badge dans le coin supérieur droit indique le mode actuel.",
+      "ITA": "Il badge nell'angolo in alto a destra indica la modalità corrente."
+    },
+    "git.help.readonly_info": {
+      "SPA": "Los repos de solo lectura muestran 🔒 en la pestaña.",
+      "ENG": "Read-only repos show 🔒 in the tab.",
+      "FRA": "Les dépôts en lecture seule affichent 🔒 dans l'onglet.",
+      "ITA": "I repo in sola lettura mostrano 🔒 nella scheda."
+    },
+    "git.help.deploy_certs": {
+      "SPA": "Deployment Certificates (EU CRA)",
+      "ENG": "Deployment Certificates (EU CRA)",
+      "FRA": "Certificats de Déploiement (EU CRA)",
+      "ITA": "Certificati di Deployment (EU CRA)"
+    },
+    "git.help.each_push": {
+      "SPA": "Cada vez que haces Push",
+      "ENG": "Each time you Push",
+      "FRA": "Chaque fois que vous faites un Push",
+      "ITA": "Ogni volta che fai Push"
+    },
+    "git.help.cert_generated": {
+      "SPA": "se genera automáticamente un certificado de deployment.",
+      "ENG": "a deployment certificate is automatically generated.",
+      "FRA": "un certificat de déploiement est généré automatiquement.",
+      "ITA": "viene generato automaticamente un certificato di deployment."
+    },
+    "git.help.cert_includes": {
+      "SPA": "Incluye: ID único, fecha, operador, máquina, commit, branch, hash de integridad.",
+      "ENG": "Includes: unique ID, date, operator, machine, commit, branch, integrity hash.",
+      "FRA": "Inclut : ID unique, date, opérateur, machine, commit, branche, hash d'intégrité.",
+      "ITA": "Include: ID unico, data, operatore, macchina, commit, branch, hash di integrità."
+    },
+    "git.help.audit_required": {
+      "SPA": "Requerido para auditoría",
+      "ENG": "Required for audit",
+      "FRA": "Requis pour l'audit",
+      "ITA": "Richiesto per l'audit"
+    },
+    "git.help.cra_reference": {
+      "SPA": "según EU Cyber Resilience Act.",
+      "ENG": "per EU Cyber Resilience Act.",
+      "FRA": "selon l'EU Cyber Resilience Act.",
+      "ITA": "secondo l'EU Cyber Resilience Act."
+    },
+    "git.help.download_certs": {
+      "SPA": "Descarga JSON con todos los certificados para archivo externo.",
+      "ENG": "Download JSON with all certificates for external archive.",
+      "FRA": "Télécharger JSON avec tous les certificats pour archive externe.",
+      "ITA": "Scarica JSON con tutti i certificati per archivio esterno."
+    },
+    "git.help.backup_export": {
+      "SPA": "Backup & Export",
+      "ENG": "Backup & Export",
+      "FRA": "Sauvegarde & Export",
+      "ITA": "Backup & Export"
+    },
+    "git.help.backup_desc": {
+      "SPA": "Descarga ZIP con:",
+      "ENG": "Download ZIP with:",
+      "FRA": "Télécharger ZIP avec :",
+      "ITA": "Scarica ZIP con:"
+    },
+    "git.help.backup_item1": {
+      "SPA": "Certificado de integridad del repositorio",
+      "ENG": "Repository integrity certificate",
+      "FRA": "Certificat d'intégrité du dépôt",
+      "ITA": "Certificato di integrità del repository"
+    },
+    "git.help.backup_item2": {
+      "SPA": "Código fuente completo (sin node_modules, bin, etc.)",
+      "ENG": "Complete source code (without node_modules, bin, etc.)",
+      "FRA": "Code source complet (sans node_modules, bin, etc.)",
+      "ITA": "Codice sorgente completo (senza node_modules, bin, ecc.)"
+    },
+    "git.help.backup_item3": {
+      "SPA": "Nombre",
+      "ENG": "Name",
+      "FRA": "Nom",
+      "ITA": "Nome"
+    }
+  }
+}
