@@ -1,7 +1,7 @@
 {
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-02-01T14:30:00Z",
+    "lastModified": "2026-02-01T16:15:00Z",
     "languages": ["SPA", "ENG", "FRA", "ITA"],
     "defaultLanguage": "SPA",
     "description": "Archivo de traducciones del proyecto - ISO 639-2"
@@ -258,6 +258,228 @@
         "trainTypes.errorWritingPlc",
         "trainTypes.saveSuccess",
         "trainTypes.writePlcSuccess"
+      ]
+    },
+    "USERS_VIEW": {
+      "description": "Vista de gestión de usuarios y permisos",
+      "labels": [
+        "users.title",
+        "users.btnShowHelp",
+        "users.btnHideHelp",
+        "users.btnNewUser",
+        "users.btnBack",
+        "users.btnLogout",
+        "users.tabUsers",
+        "users.tabPermissions",
+        "users.table.username",
+        "users.table.fullName",
+        "users.table.email",
+        "users.table.roles",
+        "users.table.status",
+        "users.table.lastLogin",
+        "users.table.actions",
+        "users.table.never",
+        "users.table.btnEdit",
+        "users.table.btnReset",
+        "users.table.btnUnlock",
+        "users.table.btnDelete",
+        "users.noUsers",
+        "users.modal.createTitle",
+        "users.modal.editTitle",
+        "users.modal.resetPasswordTitle",
+        "users.modal.resetPasswordUser",
+        "users.modal.fieldUsername",
+        "users.modal.fieldPassword",
+        "users.modal.fieldNewPassword",
+        "users.modal.fieldFullName",
+        "users.modal.fieldEmail",
+        "users.modal.fieldRoles",
+        "users.modal.fieldNotes",
+        "users.modal.passwordRequirements",
+        "users.modal.requireUppercase",
+        "users.modal.requireLowercase",
+        "users.modal.requireNumbers",
+        "users.modal.requireSpecialChars",
+        "users.modal.resetPasswordWarning",
+        "users.modal.btnCancel",
+        "users.modal.btnCreate",
+        "users.modal.btnSaveChanges",
+        "users.modal.btnReset",
+        "users.errorNoPermission",
+        "users.errorLoadingUsers",
+        "users.errorConnection",
+        "users.errorCreatingUser",
+        "users.errorUpdatingUser",
+        "users.errorDeletingUser",
+        "users.errorUnlockingUser",
+        "users.errorResettingPassword",
+        "users.successUserCreated",
+        "users.successUserUpdated",
+        "users.successUserDeleted",
+        "users.successUserUnlocked",
+        "users.successPasswordReset",
+        "users.confirmDelete",
+        "users.status.active",
+        "users.status.locked",
+        "users.status.disabled",
+        "users.status.pending",
+        "users.status.expired",
+        "users.roles.SuperAdmin",
+        "users.roles.Administrator",
+        "users.roles.Operator",
+        "users.roles.Maintenance",
+        "users.roles.Viewer",
+        "users.roles.Auditor",
+        "users.help.title",
+        "users.help.description",
+        "users.help.roleHierarchy",
+        "users.help.level",
+        "users.help.capabilities",
+        "users.help.restrictions",
+        "users.help.securityNotes",
+        "users.help.euCraCompliance",
+        "users.help.roleDesc.SuperAdmin",
+        "users.help.roleDesc.Administrator",
+        "users.help.roleDesc.Operator",
+        "users.help.roleDesc.Maintenance",
+        "users.help.roleDesc.Viewer",
+        "users.help.roleDesc.Auditor",
+        "users.help.cap.superadmin.1",
+        "users.help.cap.superadmin.2",
+        "users.help.cap.superadmin.3",
+        "users.help.cap.superadmin.4",
+        "users.help.cap.superadmin.5",
+        "users.help.cap.superadmin.6",
+        "users.help.cap.administrator.1",
+        "users.help.cap.administrator.2",
+        "users.help.cap.administrator.3",
+        "users.help.cap.administrator.4",
+        "users.help.cap.operator.1",
+        "users.help.cap.operator.2",
+        "users.help.cap.operator.3",
+        "users.help.cap.operator.4",
+        "users.help.cap.maintenance.1",
+        "users.help.cap.maintenance.2",
+        "users.help.cap.maintenance.3",
+        "users.help.cap.maintenance.4",
+        "users.help.cap.viewer.1",
+        "users.help.cap.viewer.2",
+        "users.help.cap.viewer.3",
+        "users.help.cap.auditor.1",
+        "users.help.cap.auditor.2",
+        "users.help.res.superadmin.1",
+        "users.help.res.superadmin.2",
+        "users.help.res.administrator.1",
+        "users.help.res.administrator.2",
+        "users.help.res.administrator.3",
+        "users.help.res.administrator.4",
+        "users.help.res.operator.1",
+        "users.help.res.operator.2",
+        "users.help.res.maintenance.1",
+        "users.help.res.maintenance.2",
+        "users.help.res.viewer.1",
+        "users.help.res.viewer.2",
+        "users.help.res.auditor.1",
+        "users.help.res.auditor.2",
+        "users.help.security.1",
+        "users.help.security.2",
+        "users.help.security.3",
+        "users.help.security.4",
+        "users.help.security.5",
+        "users.help.cra.1",
+        "users.help.cra.2",
+        "users.help.cra.3",
+        "users.help.cra.4"
+      ]
+    },
+    "ROLE_PERMISSIONS": {
+      "description": "Configuración de permisos por rol",
+      "labels": [
+        "rolePermissions.title",
+        "rolePermissions.description",
+        "rolePermissions.yourRole",
+        "rolePermissions.canConfigure",
+        "rolePermissions.selectRole",
+        "rolePermissions.loading",
+        "rolePermissions.selectRolePrompt",
+        "rolePermissions.permissionsFor",
+        "rolePermissions.btnResetDefaults",
+        "rolePermissions.btnSave",
+        "rolePermissions.btnSaving",
+        "rolePermissions.table.module",
+        "rolePermissions.table.canView",
+        "rolePermissions.table.canEdit",
+        "rolePermissions.legend.title",
+        "rolePermissions.legend.canView",
+        "rolePermissions.legend.canViewDesc",
+        "rolePermissions.legend.canEdit",
+        "rolePermissions.legend.canEditDesc",
+        "rolePermissions.legend.mainPage",
+        "rolePermissions.legend.mainPageDesc",
+        "rolePermissions.legend.infoPanel",
+        "rolePermissions.legend.infoPanelDesc",
+        "rolePermissions.legend.sideMenu",
+        "rolePermissions.legend.sideMenuDesc",
+        "rolePermissions.successSaved",
+        "rolePermissions.errorSaving",
+        "rolePermissions.confirmReset",
+        "rolePermissions.successReset",
+        "rolePermissions.errorResetting",
+        "rolePermissions.categories.mainPage",
+        "rolePermissions.categories.infoPanel",
+        "rolePermissions.categories.infoPanelCompact",
+        "rolePermissions.categories.infoPanelExpanded",
+        "rolePermissions.categories.sideMenu",
+        "rolePermissions.categories.trainTypes",
+        "rolePermissions.categories.washTypes",
+        "rolePermissions.modules.mainView_Tour",
+        "rolePermissions.modules.mainView_Labels",
+        "rolePermissions.modules.mainView_Layers",
+        "rolePermissions.modules.mainView_SystemTools",
+        "rolePermissions.modules.mainView_SemiAuto",
+        "rolePermissions.modules.mainView_FastConfig",
+        "rolePermissions.modules.mainView_Language",
+        "rolePermissions.modules.mainView_ScreenDisplay",
+        "rolePermissions.modules.mainView_ModelLabel",
+        "rolePermissions.modules.mainView_DisplayModelLabel",
+        "rolePermissions.modules.infoPanel_Button",
+        "rolePermissions.modules.infoPanel_ServicesInfo",
+        "rolePermissions.modules.infoPanel_PLCInfo",
+        "rolePermissions.modules.infoPanel_AlarmsCompact",
+        "rolePermissions.modules.infoPanel_IntegrityCompact",
+        "rolePermissions.modules.infoPanel_ComplianceCompact",
+        "rolePermissions.modules.infoPanel_InternalServices",
+        "rolePermissions.modules.infoPanel_ExternalServices",
+        "rolePermissions.modules.infoPanel_AlarmsExpanded",
+        "rolePermissions.modules.infoPanel_IntegrityExpanded",
+        "rolePermissions.modules.infoPanel_HardwareInfo",
+        "rolePermissions.modules.infoPanel_SBOM",
+        "rolePermissions.modules.infoPanel_VulnScanner",
+        "rolePermissions.modules.infoPanel_VulnReport",
+        "rolePermissions.modules.infoPanel_AuditLog",
+        "rolePermissions.modules.infoPanel_OperationLog",
+        "rolePermissions.modules.infoPanel_SessionLog",
+        "rolePermissions.modules.infoPanel_PlcInfoExpanded",
+        "rolePermissions.modules.alarmsView",
+        "rolePermissions.modules.statisticsView",
+        "rolePermissions.modules.settingsView",
+        "rolePermissions.modules.usersView",
+        "rolePermissions.modules.trainTypesView",
+        "rolePermissions.modules.washTypesView",
+        "rolePermissions.modules.manualModeView",
+        "rolePermissions.modules.trainTypes_Editor",
+        "rolePermissions.modules.trainTypes_Save",
+        "rolePermissions.modules.trainTypes_WritePLC1",
+        "rolePermissions.modules.trainTypes_WritePLC2",
+        "rolePermissions.modules.washTypes_Editor",
+        "rolePermissions.modules.washTypes_Save",
+        "rolePermissions.modules.washTypes_WritePLC1",
+        "rolePermissions.modules.washTypes_WritePLC2",
+        "rolePermissions.roleDesc.Administrator",
+        "rolePermissions.roleDesc.Operator",
+        "rolePermissions.roleDesc.Maintenance",
+        "rolePermissions.roleDesc.Viewer",
+        "rolePermissions.roleDesc.Auditor"
       ]
     },
     "COMMON": {
@@ -1044,6 +1266,1279 @@
       "ENG": "Successfully written to PLC",
       "FRA": "Écrit avec succès sur le PLC",
       "ITA": "Scritto con successo sul PLC"
+    },
+
+    "users.title": {
+      "SPA": "👥 Gestión de Usuarios",
+      "ENG": "👥 User Management",
+      "FRA": "👥 Gestion des Utilisateurs",
+      "ITA": "👥 Gestione Utenti"
+    },
+    "users.btnShowHelp": {
+      "SPA": "AYUDA",
+      "ENG": "HELP",
+      "FRA": "AIDE",
+      "ITA": "AIUTO"
+    },
+    "users.btnHideHelp": {
+      "SPA": "OCULTAR",
+      "ENG": "HIDE",
+      "FRA": "MASQUER",
+      "ITA": "NASCONDI"
+    },
+    "users.btnNewUser": {
+      "SPA": "NUEVO",
+      "ENG": "NEW",
+      "FRA": "NOUVEAU",
+      "ITA": "NUOVO"
+    },
+    "users.btnBack": {
+      "SPA": "VOLVER",
+      "ENG": "BACK",
+      "FRA": "RETOUR",
+      "ITA": "INDIETRO"
+    },
+    "users.btnLogout": {
+      "SPA": "LOGOUT",
+      "ENG": "LOGOUT",
+      "FRA": "DÉCONNEXION",
+      "ITA": "ESCI"
+    },
+    "users.tabUsers": {
+      "SPA": "👥 Gestión de Usuarios",
+      "ENG": "👥 User Management",
+      "FRA": "👥 Gestion des Utilisateurs",
+      "ITA": "👥 Gestione Utenti"
+    },
+    "users.tabPermissions": {
+      "SPA": "🔐 Configuración de Permisos",
+      "ENG": "🔐 Permissions Configuration",
+      "FRA": "🔐 Configuration des Permissions",
+      "ITA": "🔐 Configurazione Permessi"
+    },
+    "users.table.username": {
+      "SPA": "Usuario",
+      "ENG": "Username",
+      "FRA": "Utilisateur",
+      "ITA": "Utente"
+    },
+    "users.table.fullName": {
+      "SPA": "Nombre Completo",
+      "ENG": "Full Name",
+      "FRA": "Nom Complet",
+      "ITA": "Nome Completo"
+    },
+    "users.table.email": {
+      "SPA": "Email",
+      "ENG": "Email",
+      "FRA": "Email",
+      "ITA": "Email"
+    },
+    "users.table.roles": {
+      "SPA": "Roles",
+      "ENG": "Roles",
+      "FRA": "Rôles",
+      "ITA": "Ruoli"
+    },
+    "users.table.status": {
+      "SPA": "Estado",
+      "ENG": "Status",
+      "FRA": "État",
+      "ITA": "Stato"
+    },
+    "users.table.lastLogin": {
+      "SPA": "Último Login",
+      "ENG": "Last Login",
+      "FRA": "Dernière Connexion",
+      "ITA": "Ultimo Accesso"
+    },
+    "users.table.actions": {
+      "SPA": "Acciones",
+      "ENG": "Actions",
+      "FRA": "Actions",
+      "ITA": "Azioni"
+    },
+    "users.table.never": {
+      "SPA": "Nunca",
+      "ENG": "Never",
+      "FRA": "Jamais",
+      "ITA": "Mai"
+    },
+    "users.table.btnEdit": {
+      "SPA": "✏️ Editar",
+      "ENG": "✏️ Edit",
+      "FRA": "✏️ Modifier",
+      "ITA": "✏️ Modifica"
+    },
+    "users.table.btnReset": {
+      "SPA": "🔑 Reset",
+      "ENG": "🔑 Reset",
+      "FRA": "🔑 Réinitialiser",
+      "ITA": "🔑 Reimposta"
+    },
+    "users.table.btnUnlock": {
+      "SPA": "🔓 Desbloquear",
+      "ENG": "🔓 Unlock",
+      "FRA": "🔓 Débloquer",
+      "ITA": "🔓 Sblocca"
+    },
+    "users.table.btnDelete": {
+      "SPA": "🗑️ Eliminar",
+      "ENG": "🗑️ Delete",
+      "FRA": "🗑️ Supprimer",
+      "ITA": "🗑️ Elimina"
+    },
+    "users.noUsers": {
+      "SPA": "No hay usuarios registrados",
+      "ENG": "No registered users",
+      "FRA": "Aucun utilisateur enregistré",
+      "ITA": "Nessun utente registrato"
+    },
+    "users.modal.createTitle": {
+      "SPA": "➕ Crear Nuevo Usuario",
+      "ENG": "➕ Create New User",
+      "FRA": "➕ Créer un Nouvel Utilisateur",
+      "ITA": "➕ Crea Nuovo Utente"
+    },
+    "users.modal.editTitle": {
+      "SPA": "✏️ Editar Usuario: {{username}}",
+      "ENG": "✏️ Edit User: {{username}}",
+      "FRA": "✏️ Modifier l'Utilisateur: {{username}}",
+      "ITA": "✏️ Modifica Utente: {{username}}"
+    },
+    "users.modal.resetPasswordTitle": {
+      "SPA": "🔑 Resetear Contraseña",
+      "ENG": "🔑 Reset Password",
+      "FRA": "🔑 Réinitialiser le Mot de Passe",
+      "ITA": "🔑 Reimposta Password"
+    },
+    "users.modal.resetPasswordUser": {
+      "SPA": "Usuario: <strong style='color: #fff'>{{username}}</strong>",
+      "ENG": "User: <strong style='color: #fff'>{{username}}</strong>",
+      "FRA": "Utilisateur: <strong style='color: #fff'>{{username}}</strong>",
+      "ITA": "Utente: <strong style='color: #fff'>{{username}}</strong>"
+    },
+    "users.modal.fieldUsername": {
+      "SPA": "Usuario",
+      "ENG": "Username",
+      "FRA": "Utilisateur",
+      "ITA": "Utente"
+    },
+    "users.modal.fieldPassword": {
+      "SPA": "Contraseña",
+      "ENG": "Password",
+      "FRA": "Mot de Passe",
+      "ITA": "Password"
+    },
+    "users.modal.fieldNewPassword": {
+      "SPA": "Nueva Contraseña",
+      "ENG": "New Password",
+      "FRA": "Nouveau Mot de Passe",
+      "ITA": "Nuova Password"
+    },
+    "users.modal.fieldFullName": {
+      "SPA": "Nombre Completo",
+      "ENG": "Full Name",
+      "FRA": "Nom Complet",
+      "ITA": "Nome Completo"
+    },
+    "users.modal.fieldEmail": {
+      "SPA": "Email",
+      "ENG": "Email",
+      "FRA": "Email",
+      "ITA": "Email"
+    },
+    "users.modal.fieldRoles": {
+      "SPA": "Roles",
+      "ENG": "Roles",
+      "FRA": "Rôles",
+      "ITA": "Ruoli"
+    },
+    "users.modal.fieldNotes": {
+      "SPA": "Notas",
+      "ENG": "Notes",
+      "FRA": "Notes",
+      "ITA": "Note"
+    },
+    "users.modal.passwordRequirements": {
+      "SPA": "Requisitos: {{minLength}}+ caracteres{{upper}}{{lower}}{{number}}{{special}}",
+      "ENG": "Requirements: {{minLength}}+ characters{{upper}}{{lower}}{{number}}{{special}}",
+      "FRA": "Exigences: {{minLength}}+ caractères{{upper}}{{lower}}{{number}}{{special}}",
+      "ITA": "Requisiti: {{minLength}}+ caratteri{{upper}}{{lower}}{{number}}{{special}}"
+    },
+    "users.modal.requireUppercase": {
+      "SPA": "mayúscula",
+      "ENG": "uppercase",
+      "FRA": "majuscule",
+      "ITA": "maiuscola"
+    },
+    "users.modal.requireLowercase": {
+      "SPA": "minúscula",
+      "ENG": "lowercase",
+      "FRA": "minuscule",
+      "ITA": "minuscola"
+    },
+    "users.modal.requireNumbers": {
+      "SPA": "número",
+      "ENG": "number",
+      "FRA": "chiffre",
+      "ITA": "numero"
+    },
+    "users.modal.requireSpecialChars": {
+      "SPA": "especial",
+      "ENG": "special",
+      "FRA": "spécial",
+      "ITA": "speciale"
+    },
+    "users.modal.resetPasswordWarning": {
+      "SPA": "⚠️ El usuario deberá cambiar esta contraseña en su próximo inicio de sesión.",
+      "ENG": "⚠️ The user must change this password on their next login.",
+      "FRA": "⚠️ L'utilisateur devra changer ce mot de passe lors de sa prochaine connexion.",
+      "ITA": "⚠️ L'utente dovrà cambiare questa password al prossimo accesso."
+    },
+    "users.modal.btnCancel": {
+      "SPA": "Cancelar",
+      "ENG": "Cancel",
+      "FRA": "Annuler",
+      "ITA": "Annulla"
+    },
+    "users.modal.btnCreate": {
+      "SPA": "✅ Crear Usuario",
+      "ENG": "✅ Create User",
+      "FRA": "✅ Créer l'Utilisateur",
+      "ITA": "✅ Crea Utente"
+    },
+    "users.modal.btnSaveChanges": {
+      "SPA": "✅ Guardar Cambios",
+      "ENG": "✅ Save Changes",
+      "FRA": "✅ Enregistrer les Modifications",
+      "ITA": "✅ Salva Modifiche"
+    },
+    "users.modal.btnReset": {
+      "SPA": "🔑 Resetear",
+      "ENG": "🔑 Reset",
+      "FRA": "🔑 Réinitialiser",
+      "ITA": "🔑 Reimposta"
+    },
+    "users.errorNoPermission": {
+      "SPA": "No tiene permisos para ver esta sección",
+      "ENG": "You do not have permission to view this section",
+      "FRA": "Vous n'avez pas la permission de voir cette section",
+      "ITA": "Non hai il permesso di visualizzare questa sezione"
+    },
+    "users.errorLoadingUsers": {
+      "SPA": "Error al cargar usuarios",
+      "ENG": "Error loading users",
+      "FRA": "Erreur lors du chargement des utilisateurs",
+      "ITA": "Errore nel caricamento degli utenti"
+    },
+    "users.errorConnection": {
+      "SPA": "Error de conexión con el servidor",
+      "ENG": "Connection error with server",
+      "FRA": "Erreur de connexion avec le serveur",
+      "ITA": "Errore di connessione con il server"
+    },
+    "users.errorCreatingUser": {
+      "SPA": "Error al crear usuario",
+      "ENG": "Error creating user",
+      "FRA": "Erreur lors de la création de l'utilisateur",
+      "ITA": "Errore nella creazione dell'utente"
+    },
+    "users.errorUpdatingUser": {
+      "SPA": "Error al actualizar usuario",
+      "ENG": "Error updating user",
+      "FRA": "Erreur lors de la mise à jour de l'utilisateur",
+      "ITA": "Errore nell'aggiornamento dell'utente"
+    },
+    "users.errorDeletingUser": {
+      "SPA": "Error al eliminar usuario",
+      "ENG": "Error deleting user",
+      "FRA": "Erreur lors de la suppression de l'utilisateur",
+      "ITA": "Errore nell'eliminazione dell'utente"
+    },
+    "users.errorUnlockingUser": {
+      "SPA": "Error al desbloquear usuario",
+      "ENG": "Error unlocking user",
+      "FRA": "Erreur lors du déblocage de l'utilisateur",
+      "ITA": "Errore nello sblocco dell'utente"
+    },
+    "users.errorResettingPassword": {
+      "SPA": "Error al resetear contraseña",
+      "ENG": "Error resetting password",
+      "FRA": "Erreur lors de la réinitialisation du mot de passe",
+      "ITA": "Errore nel reset della password"
+    },
+    "users.successUserCreated": {
+      "SPA": "Usuario creado exitosamente",
+      "ENG": "User created successfully",
+      "FRA": "Utilisateur créé avec succès",
+      "ITA": "Utente creato con successo"
+    },
+    "users.successUserUpdated": {
+      "SPA": "Usuario actualizado exitosamente",
+      "ENG": "User updated successfully",
+      "FRA": "Utilisateur mis à jour avec succès",
+      "ITA": "Utente aggiornato con successo"
+    },
+    "users.successUserDeleted": {
+      "SPA": "Usuario eliminado exitosamente",
+      "ENG": "User deleted successfully",
+      "FRA": "Utilisateur supprimé avec succès",
+      "ITA": "Utente eliminato con successo"
+    },
+    "users.successUserUnlocked": {
+      "SPA": "Usuario desbloqueado exitosamente",
+      "ENG": "User unlocked successfully",
+      "FRA": "Utilisateur débloqué avec succès",
+      "ITA": "Utente sbloccato con successo"
+    },
+    "users.successPasswordReset": {
+      "SPA": "Contraseña reseteada exitosamente",
+      "ENG": "Password reset successfully",
+      "FRA": "Mot de passe réinitialisé avec succès",
+      "ITA": "Password reimpostata con successo"
+    },
+    "users.confirmDelete": {
+      "SPA": "¿Está seguro de eliminar al usuario \"{{username}}\"?",
+      "ENG": "Are you sure you want to delete user \"{{username}}\"?",
+      "FRA": "Êtes-vous sûr de vouloir supprimer l'utilisateur \"{{username}}\"?",
+      "ITA": "Sei sicuro di voler eliminare l'utente \"{{username}}\"?"
+    },
+    "users.status.active": {
+      "SPA": "Activo",
+      "ENG": "Active",
+      "FRA": "Actif",
+      "ITA": "Attivo"
+    },
+    "users.status.locked": {
+      "SPA": "Bloqueado",
+      "ENG": "Locked",
+      "FRA": "Bloqué",
+      "ITA": "Bloccato"
+    },
+    "users.status.disabled": {
+      "SPA": "Deshabilitado",
+      "ENG": "Disabled",
+      "FRA": "Désactivé",
+      "ITA": "Disabilitato"
+    },
+    "users.status.pending": {
+      "SPA": "Pendiente",
+      "ENG": "Pending",
+      "FRA": "En attente",
+      "ITA": "In attesa"
+    },
+    "users.status.expired": {
+      "SPA": "Expirado",
+      "ENG": "Expired",
+      "FRA": "Expiré",
+      "ITA": "Scaduto"
+    },
+    "users.roles.SuperAdmin": {
+      "SPA": "Superadministrador",
+      "ENG": "Super Administrator",
+      "FRA": "Super Administrateur",
+      "ITA": "Super Amministratore"
+    },
+    "users.roles.Administrator": {
+      "SPA": "Administrador",
+      "ENG": "Administrator",
+      "FRA": "Administrateur",
+      "ITA": "Amministratore"
+    },
+    "users.roles.Operator": {
+      "SPA": "Operador",
+      "ENG": "Operator",
+      "FRA": "Opérateur",
+      "ITA": "Operatore"
+    },
+    "users.roles.Maintenance": {
+      "SPA": "Mantenimiento",
+      "ENG": "Maintenance",
+      "FRA": "Maintenance",
+      "ITA": "Manutenzione"
+    },
+    "users.roles.Viewer": {
+      "SPA": "Visualizador",
+      "ENG": "Viewer",
+      "FRA": "Visualiseur",
+      "ITA": "Visualizzatore"
+    },
+    "users.roles.Auditor": {
+      "SPA": "Auditor",
+      "ENG": "Auditor",
+      "FRA": "Auditeur",
+      "ITA": "Revisore"
+    },
+    "users.help.title": {
+      "SPA": "Gestión de Usuarios - EU CRA Compliance",
+      "ENG": "User Management - EU CRA Compliance",
+      "FRA": "Gestion des Utilisateurs - Conformité EU CRA",
+      "ITA": "Gestione Utenti - Conformità EU CRA"
+    },
+    "users.help.description": {
+      "SPA": "Sistema de gestión de usuarios conforme al Reglamento Europeo de Ciberresiliencia (EU CRA)",
+      "ENG": "User management system compliant with the European Cyber Resilience Regulation (EU CRA)",
+      "FRA": "Système de gestion des utilisateurs conforme au Règlement Européen sur la Cyber-Résilience (EU CRA)",
+      "ITA": "Sistema di gestione utenti conforme al Regolamento Europeo sulla Cyber Resilienza (EU CRA)"
+    },
+    "users.help.roleHierarchy": {
+      "SPA": "🔐 Jerarquía de Roles",
+      "ENG": "🔐 Role Hierarchy",
+      "FRA": "🔐 Hiérarchie des Rôles",
+      "ITA": "🔐 Gerarchia dei Ruoli"
+    },
+    "users.help.level": {
+      "SPA": "Nivel",
+      "ENG": "Level",
+      "FRA": "Niveau",
+      "ITA": "Livello"
+    },
+    "users.help.capabilities": {
+      "SPA": "✅ Capacidades:",
+      "ENG": "✅ Capabilities:",
+      "FRA": "✅ Capacités :",
+      "ITA": "✅ Capacità:"
+    },
+    "users.help.restrictions": {
+      "SPA": "🚫 Restricciones:",
+      "ENG": "🚫 Restrictions:",
+      "FRA": "🚫 Restrictions :",
+      "ITA": "🚫 Restrizioni:"
+    },
+    "users.help.securityNotes": {
+      "SPA": "🛡️ Notas de Seguridad",
+      "ENG": "🛡️ Security Notes",
+      "FRA": "🛡️ Notes de Sécurité",
+      "ITA": "🛡️ Note di Sicurezza"
+    },
+    "users.help.euCraCompliance": {
+      "SPA": "📜 Cumplimiento EU CRA",
+      "ENG": "📜 EU CRA Compliance",
+      "FRA": "📜 Conformité EU CRA",
+      "ITA": "📜 Conformità EU CRA"
+    },
+    "users.help.roleDesc.SuperAdmin": {
+      "SPA": "Solo Fabricante (Aquafrisch)",
+      "ENG": "Manufacturer Only (Aquafrisch)",
+      "FRA": "Fabricant Uniquement (Aquafrisch)",
+      "ITA": "Solo Produttore (Aquafrisch)"
+    },
+    "users.help.roleDesc.Administrator": {
+      "SPA": "Responsable de Seguridad del Cliente",
+      "ENG": "Client Security Manager",
+      "FRA": "Responsable Sécurité Client",
+      "ITA": "Responsabile Sicurezza Cliente"
+    },
+    "users.help.roleDesc.Operator": {
+      "SPA": "Operador de Proceso",
+      "ENG": "Process Operator",
+      "FRA": "Opérateur de Processus",
+      "ITA": "Operatore di Processo"
+    },
+    "users.help.roleDesc.Maintenance": {
+      "SPA": "Personal de Mantenimiento",
+      "ENG": "Maintenance Staff",
+      "FRA": "Personnel de Maintenance",
+      "ITA": "Personale di Manutenzione"
+    },
+    "users.help.roleDesc.Viewer": {
+      "SPA": "Usuario de Solo Lectura",
+      "ENG": "Read-Only User",
+      "FRA": "Utilisateur en Lecture Seule",
+      "ITA": "Utente di Sola Lettura"
+    },
+    "users.help.roleDesc.Auditor": {
+      "SPA": "Auditor de Seguridad",
+      "ENG": "Security Auditor",
+      "FRA": "Auditeur de Sécurité",
+      "ITA": "Revisore di Sicurezza"
+    },
+    "users.help.cap.superadmin.1": {
+      "SPA": "Acceso TOTAL al sistema",
+      "ENG": "TOTAL system access",
+      "FRA": "Accès TOTAL au système",
+      "ITA": "Accesso TOTALE al sistema"
+    },
+    "users.help.cap.superadmin.2": {
+      "SPA": "Modificación de PLC/TwinCAT",
+      "ENG": "PLC/TwinCAT modification",
+      "FRA": "Modification PLC/TwinCAT",
+      "ITA": "Modifica PLC/TwinCAT"
+    },
+    "users.help.cap.superadmin.3": {
+      "SPA": "Actualización de firmware",
+      "ENG": "Firmware update",
+      "FRA": "Mise à jour du firmware",
+      "ITA": "Aggiornamento firmware"
+    },
+    "users.help.cap.superadmin.4": {
+      "SPA": "Gestión de TODOS los usuarios",
+      "ENG": "ALL users management",
+      "FRA": "Gestion de TOUS les utilisateurs",
+      "ITA": "Gestione di TUTTI gli utenti"
+    },
+    "users.help.cap.superadmin.5": {
+      "SPA": "Acceso al código fuente",
+      "ENG": "Source code access",
+      "FRA": "Accès au code source",
+      "ITA": "Accesso al codice sorgente"
+    },
+    "users.help.cap.superadmin.6": {
+      "SPA": "Configuración de sistema y licencias",
+      "ENG": "System and licenses configuration",
+      "FRA": "Configuration système et licences",
+      "ITA": "Configurazione sistema e licenze"
+    },
+    "users.help.cap.administrator.1": {
+      "SPA": "Gestión de usuarios de SU instalación",
+      "ENG": "Management of YOUR installation users",
+      "FRA": "Gestion des utilisateurs de VOTRE installation",
+      "ITA": "Gestione utenti della PROPRIA installazione"
+    },
+    "users.help.cap.administrator.2": {
+      "SPA": "Crear, modificar, eliminar usuarios (excepto SuperAdmin)",
+      "ENG": "Create, modify, delete users (except SuperAdmin)",
+      "FRA": "Créer, modifier, supprimer utilisateurs (sauf SuperAdmin)",
+      "ITA": "Creare, modificare, eliminare utenti (eccetto SuperAdmin)"
+    },
+    "users.help.cap.administrator.3": {
+      "SPA": "Asignar roles (excepto SuperAdmin)",
+      "ENG": "Assign roles (except SuperAdmin)",
+      "FRA": "Attribuer des rôles (sauf SuperAdmin)",
+      "ITA": "Assegnare ruoli (eccetto SuperAdmin)"
+    },
+    "users.help.cap.administrator.4": {
+      "SPA": "Ver logs de auditoría",
+      "ENG": "View audit logs",
+      "FRA": "Voir les journaux d'audit",
+      "ITA": "Visualizzare i log di audit"
+    },
+    "users.help.cap.operator.1": {
+      "SPA": "Control de operaciones de proceso",
+      "ENG": "Process operations control",
+      "FRA": "Contrôle des opérations de processus",
+      "ITA": "Controllo operazioni di processo"
+    },
+    "users.help.cap.operator.2": {
+      "SPA": "Reconocimiento de alarmas",
+      "ENG": "Alarm acknowledgment",
+      "FRA": "Acquittement des alarmes",
+      "ITA": "Riconoscimento allarmi"
+    },
+    "users.help.cap.operator.3": {
+      "SPA": "Ejecución de recetas",
+      "ENG": "Recipe execution",
+      "FRA": "Exécution des recettes",
+      "ITA": "Esecuzione ricette"
+    },
+    "users.help.cap.operator.4": {
+      "SPA": "Visualización de datos",
+      "ENG": "Data visualization",
+      "FRA": "Visualisation des données",
+      "ITA": "Visualizzazione dati"
+    },
+    "users.help.cap.maintenance.1": {
+      "SPA": "Configuración técnica",
+      "ENG": "Technical configuration",
+      "FRA": "Configuration technique",
+      "ITA": "Configurazione tecnica"
+    },
+    "users.help.cap.maintenance.2": {
+      "SPA": "Diagnósticos del sistema",
+      "ENG": "System diagnostics",
+      "FRA": "Diagnostics système",
+      "ITA": "Diagnostica del sistema"
+    },
+    "users.help.cap.maintenance.3": {
+      "SPA": "Gestión de recetas",
+      "ENG": "Recipe management",
+      "FRA": "Gestion des recettes",
+      "ITA": "Gestione ricette"
+    },
+    "users.help.cap.maintenance.4": {
+      "SPA": "Calibración de equipos",
+      "ENG": "Equipment calibration",
+      "FRA": "Calibration des équipements",
+      "ITA": "Calibrazione apparecchiature"
+    },
+    "users.help.cap.viewer.1": {
+      "SPA": "Visualización de datos de proceso",
+      "ENG": "Process data visualization",
+      "FRA": "Visualisation des données de processus",
+      "ITA": "Visualizzazione dati di processo"
+    },
+    "users.help.cap.viewer.2": {
+      "SPA": "Lectura de alarmas",
+      "ENG": "Alarm reading",
+      "FRA": "Lecture des alarmes",
+      "ITA": "Lettura allarmi"
+    },
+    "users.help.cap.viewer.3": {
+      "SPA": "Consulta de reportes",
+      "ENG": "Report consultation",
+      "FRA": "Consultation des rapports",
+      "ITA": "Consultazione rapporti"
+    },
+    "users.help.cap.auditor.1": {
+      "SPA": "Acceso a logs de auditoría",
+      "ENG": "Audit logs access",
+      "FRA": "Accès aux journaux d'audit",
+      "ITA": "Accesso ai log di audit"
+    },
+    "users.help.cap.auditor.2": {
+      "SPA": "Exportación de reportes de seguridad",
+      "ENG": "Security reports export",
+      "FRA": "Exportation des rapports de sécurité",
+      "ITA": "Esportazione rapporti di sicurezza"
+    },
+    "users.help.res.superadmin.1": {
+      "SPA": "Credenciales NO se entregan al cliente",
+      "ENG": "Credentials NOT given to client",
+      "FRA": "Identifiants NON fournis au client",
+      "ITA": "Credenziali NON consegnate al cliente"
+    },
+    "users.help.res.superadmin.2": {
+      "SPA": "Uso exclusivo del personal de Aquafrisch",
+      "ENG": "Exclusive use by Aquafrisch staff",
+      "FRA": "Usage exclusif du personnel Aquafrisch",
+      "ITA": "Uso esclusivo del personale Aquafrisch"
+    },
+    "users.help.res.administrator.1": {
+      "SPA": "NO puede ver usuarios SuperAdmin",
+      "ENG": "CANNOT view SuperAdmin users",
+      "FRA": "NE peut PAS voir les utilisateurs SuperAdmin",
+      "ITA": "NON può vedere utenti SuperAdmin"
+    },
+    "users.help.res.administrator.2": {
+      "SPA": "NO puede modificar PLC/TwinCAT",
+      "ENG": "CANNOT modify PLC/TwinCAT",
+      "FRA": "NE peut PAS modifier PLC/TwinCAT",
+      "ITA": "NON può modificare PLC/TwinCAT"
+    },
+    "users.help.res.administrator.3": {
+      "SPA": "NO puede actualizar firmware",
+      "ENG": "CANNOT update firmware",
+      "FRA": "NE peut PAS mettre à jour le firmware",
+      "ITA": "NON può aggiornare firmware"
+    },
+    "users.help.res.administrator.4": {
+      "SPA": "NO puede acceder al código fuente",
+      "ENG": "CANNOT access source code",
+      "FRA": "NE peut PAS accéder au code source",
+      "ITA": "NON può accedere al codice sorgente"
+    },
+    "users.help.res.operator.1": {
+      "SPA": "Sin acceso a configuración",
+      "ENG": "No access to configuration",
+      "FRA": "Pas d'accès à la configuration",
+      "ITA": "Nessun accesso alla configurazione"
+    },
+    "users.help.res.operator.2": {
+      "SPA": "Sin gestión de usuarios",
+      "ENG": "No user management",
+      "FRA": "Pas de gestion des utilisateurs",
+      "ITA": "Nessuna gestione utenti"
+    },
+    "users.help.res.maintenance.1": {
+      "SPA": "Sin acceso a seguridad",
+      "ENG": "No access to security",
+      "FRA": "Pas d'accès à la sécurité",
+      "ITA": "Nessun accesso alla sicurezza"
+    },
+    "users.help.res.maintenance.2": {
+      "SPA": "Sin gestión de usuarios",
+      "ENG": "No user management",
+      "FRA": "Pas de gestion des utilisateurs",
+      "ITA": "Nessuna gestione utenti"
+    },
+    "users.help.res.viewer.1": {
+      "SPA": "Sin capacidad de modificación",
+      "ENG": "No modification capability",
+      "FRA": "Aucune capacité de modification",
+      "ITA": "Nessuna capacità di modifica"
+    },
+    "users.help.res.viewer.2": {
+      "SPA": "Solo lectura",
+      "ENG": "Read-only",
+      "FRA": "Lecture seule",
+      "ITA": "Solo lettura"
+    },
+    "users.help.res.auditor.1": {
+      "SPA": "Sin capacidad de modificación",
+      "ENG": "No modification capability",
+      "FRA": "Aucune capacité de modification",
+      "ITA": "Nessuna capacità di modifica"
+    },
+    "users.help.res.auditor.2": {
+      "SPA": "Solo lectura de seguridad",
+      "ENG": "Security read-only",
+      "FRA": "Lecture seule sécurité",
+      "ITA": "Solo lettura sicurezza"
+    },
+    "users.help.security.1": {
+      "SPA": "🔐 Las contraseñas deben cumplir la política de seguridad (mín. 12 caracteres, mayúsculas, minúsculas, números y caracteres especiales)",
+      "ENG": "🔐 Passwords must comply with security policy (min. 12 characters, uppercase, lowercase, numbers and special characters)",
+      "FRA": "🔐 Les mots de passe doivent respecter la politique de sécurité (min. 12 caractères, majuscules, minuscules, chiffres et caractères spéciaux)",
+      "ITA": "🔐 Le password devono rispettare la politica di sicurezza (min. 12 caratteri, maiuscole, minuscole, numeri e caratteri speciali)"
+    },
+    "users.help.security.2": {
+      "SPA": "⏱️ Las cuentas se bloquean automáticamente tras 6 intentos fallidos durante 15 minutos",
+      "ENG": "⏱️ Accounts are automatically locked after 6 failed attempts for 15 minutes",
+      "FRA": "⏱️ Les comptes sont automatiquement verrouillés après 6 tentatives échouées pendant 15 minutes",
+      "ITA": "⏱️ Gli account vengono bloccati automaticamente dopo 6 tentativi falliti per 15 minuti"
+    },
+    "users.help.security.3": {
+      "SPA": "📋 Todas las acciones de usuario son registradas en el log de auditoría",
+      "ENG": "📋 All user actions are recorded in the audit log",
+      "FRA": "📋 Toutes les actions utilisateur sont enregistrées dans le journal d'audit",
+      "ITA": "📋 Tutte le azioni utente vengono registrate nel log di audit"
+    },
+    "users.help.security.4": {
+      "SPA": "🔄 Los usuarios nuevos deben cambiar su contraseña en el primer inicio de sesión",
+      "ENG": "🔄 New users must change their password on first login",
+      "FRA": "🔄 Les nouveaux utilisateurs doivent changer leur mot de passe lors de la première connexion",
+      "ITA": "🔄 I nuovi utenti devono cambiare la password al primo accesso"
+    },
+    "users.help.security.5": {
+      "SPA": "👁️ Los usuarios SuperAdmin son invisibles para los Administradores del cliente",
+      "ENG": "👁️ SuperAdmin users are invisible to client Administrators",
+      "FRA": "👁️ Les utilisateurs SuperAdmin sont invisibles pour les Administrateurs clients",
+      "ITA": "👁️ Gli utenti SuperAdmin sono invisibili per gli Amministratori cliente"
+    },
+    "users.help.cra.1": {
+      "SPA": "Artículo 10 - Separación de privilegios implementada",
+      "ENG": "Article 10 - Privilege separation implemented",
+      "FRA": "Article 10 - Séparation des privilèges implémentée",
+      "ITA": "Articolo 10 - Separazione dei privilegi implementata"
+    },
+    "users.help.cra.2": {
+      "SPA": "Anexo I - Control de acceso basado en roles (RBAC)",
+      "ENG": "Annex I - Role-based access control (RBAC)",
+      "FRA": "Annexe I - Contrôle d'accès basé sur les rôles (RBAC)",
+      "ITA": "Allegato I - Controllo accessi basato sui ruoli (RBAC)"
+    },
+    "users.help.cra.3": {
+      "SPA": "Trazabilidad completa de acciones de usuario",
+      "ENG": "Complete traceability of user actions",
+      "FRA": "Traçabilité complète des actions utilisateur",
+      "ITA": "Tracciabilità completa delle azioni utente"
+    },
+    "users.help.cra.4": {
+      "SPA": "Política de contraseñas conforme a mejores prácticas",
+      "ENG": "Password policy according to best practices",
+      "FRA": "Politique de mots de passe conforme aux meilleures pratiques",
+      "ITA": "Politica password conforme alle migliori pratiche"
+    },
+    "rolePermissions.title": {
+      "SPA": "⚙️ Configuración de Permisos por Rol",
+      "ENG": "⚙️ Role Permissions Configuration",
+      "FRA": "⚙️ Configuration des Permissions par Rôle",
+      "ITA": "⚙️ Configurazione Permessi per Ruolo"
+    },
+    "rolePermissions.description": {
+      "SPA": "Gestiona los permisos de acceso a vistas y funcionalidades para cada rol del sistema.",
+      "ENG": "Manage access permissions to views and functionalities for each system role.",
+      "FRA": "Gérez les autorisations d'accès aux vues et aux fonctionnalités pour chaque rôle du système.",
+      "ITA": "Gestisci i permessi di accesso a viste e funzionalità per ogni ruolo del sistema."
+    },
+    "rolePermissions.yourRole": {
+      "SPA": "Tu rol ({{role}})",
+      "ENG": "Your role ({{role}})",
+      "FRA": "Votre rôle ({{role}})",
+      "ITA": "Il tuo ruolo ({{role}})"
+    },
+    "rolePermissions.canConfigure": {
+      "SPA": "puede configurar",
+      "ENG": "can configure",
+      "FRA": "peut configurer",
+      "ITA": "può configurare"
+    },
+    "rolePermissions.selectRole": {
+      "SPA": "📋 Seleccionar Rol",
+      "ENG": "📋 Select Role",
+      "FRA": "📋 Sélectionner le Rôle",
+      "ITA": "📋 Seleziona Ruolo"
+    },
+    "rolePermissions.loading": {
+      "SPA": "⏳ Cargando permisos...",
+      "ENG": "⏳ Loading permissions...",
+      "FRA": "⏳ Chargement des permissions...",
+      "ITA": "⏳ Caricamento permessi..."
+    },
+    "rolePermissions.selectRolePrompt": {
+      "SPA": "👈 Selecciona un rol para configurar sus permisos",
+      "ENG": "👈 Select a role to configure its permissions",
+      "FRA": "👈 Sélectionnez un rôle pour configurer ses permissions",
+      "ITA": "👈 Seleziona un ruolo per configurarne i permessi"
+    },
+    "rolePermissions.permissionsFor": {
+      "SPA": "🔐 Permisos de: {{role}}",
+      "ENG": "🔐 Permissions for: {{role}}",
+      "FRA": "🔐 Permissions pour : {{role}}",
+      "ITA": "🔐 Permessi per: {{role}}"
+    },
+    "rolePermissions.btnResetDefaults": {
+      "SPA": "🔄 Restaurar Defaults",
+      "ENG": "🔄 Restore Defaults",
+      "FRA": "🔄 Restaurer les Valeurs par Défaut",
+      "ITA": "🔄 Ripristina Predefiniti"
+    },
+    "rolePermissions.btnSave": {
+      "SPA": "💾 Guardar Cambios",
+      "ENG": "💾 Save Changes",
+      "FRA": "💾 Enregistrer les Modifications",
+      "ITA": "💾 Salva Modifiche"
+    },
+    "rolePermissions.btnSaving": {
+      "SPA": "⏳ Guardando...",
+      "ENG": "⏳ Saving...",
+      "FRA": "⏳ Enregistrement...",
+      "ITA": "⏳ Salvataggio..."
+    },
+    "rolePermissions.table.module": {
+      "SPA": "Módulo / Funcionalidad",
+      "ENG": "Module / Functionality",
+      "FRA": "Module / Fonctionnalité",
+      "ITA": "Modulo / Funzionalità"
+    },
+    "rolePermissions.table.canView": {
+      "SPA": "👁️ Ver",
+      "ENG": "👁️ View",
+      "FRA": "👁️ Voir",
+      "ITA": "👁️ Visualizza"
+    },
+    "rolePermissions.table.canEdit": {
+      "SPA": "✏️ Modificar",
+      "ENG": "✏️ Edit",
+      "FRA": "✏️ Modifier",
+      "ITA": "✏️ Modifica"
+    },
+    "rolePermissions.legend.title": {
+      "SPA": "ℹ️ Información:",
+      "ENG": "ℹ️ Information:",
+      "FRA": "ℹ️ Information :",
+      "ITA": "ℹ️ Informazioni:"
+    },
+    "rolePermissions.legend.canView": {
+      "SPA": "👁️ Ver",
+      "ENG": "👁️ View",
+      "FRA": "👁️ Voir",
+      "ITA": "👁️ Visualizza"
+    },
+    "rolePermissions.legend.canViewDesc": {
+      "SPA": "Habilita el acceso a la funcionalidad o vista",
+      "ENG": "Enables access to the functionality or view",
+      "FRA": "Active l'accès à la fonctionnalité ou à la vue",
+      "ITA": "Abilita l'accesso alla funzionalità o vista"
+    },
+    "rolePermissions.legend.canEdit": {
+      "SPA": "✏️ Modificar",
+      "ENG": "✏️ Edit",
+      "FRA": "✏️ Modifier",
+      "ITA": "✏️ Modifica"
+    },
+    "rolePermissions.legend.canEditDesc": {
+      "SPA": "Permite modificar/configurar elementos (solo para Screen Display, Model Label, Display Model Label)",
+      "ENG": "Allows modifying/configuring elements (only for Screen Display, Model Label, Display Model Label)",
+      "FRA": "Permet de modifier/configurer les éléments (uniquement pour Screen Display, Model Label, Display Model Label)",
+      "ITA": "Permette di modificare/configurare elementi (solo per Screen Display, Model Label, Display Model Label)"
+    },
+    "rolePermissions.legend.mainPage": {
+      "SPA": "🏠 Página Principal",
+      "ENG": "🏠 Main Page",
+      "FRA": "🏠 Page Principale",
+      "ITA": "🏠 Pagina Principale"
+    },
+    "rolePermissions.legend.mainPageDesc": {
+      "SPA": "Permisos para controles de la barra superior",
+      "ENG": "Permissions for top bar controls",
+      "FRA": "Permissions pour les contrôles de la barre supérieure",
+      "ITA": "Permessi per i controlli della barra superiore"
+    },
+    "rolePermissions.legend.infoPanel": {
+      "SPA": "📊 Info Panel",
+      "ENG": "📊 Info Panel",
+      "FRA": "📊 Panneau d'Informations",
+      "ITA": "📊 Pannello Informazioni"
+    },
+    "rolePermissions.legend.infoPanelDesc": {
+      "SPA": "Permisos para elementos del panel de información",
+      "ENG": "Permissions for information panel elements",
+      "FRA": "Permissions pour les éléments du panneau d'informations",
+      "ITA": "Permessi per gli elementi del pannello informazioni"
+    },
+    "rolePermissions.legend.sideMenu": {
+      "SPA": "📱 Side Menu",
+      "ENG": "📱 Side Menu",
+      "FRA": "📱 Menu Latéral",
+      "ITA": "📱 Menu Laterale"
+    },
+    "rolePermissions.legend.sideMenuDesc": {
+      "SPA": "Permisos de acceso a vistas del menú lateral",
+      "ENG": "Access permissions for side menu views",
+      "FRA": "Permissions d'accès aux vues du menu latéral",
+      "ITA": "Permessi di accesso per le viste del menu laterale"
+    },
+    "rolePermissions.successSaved": {
+      "SPA": "✅ Permisos del rol {{role}} actualizados correctamente",
+      "ENG": "✅ Permissions for role {{role}} updated successfully",
+      "FRA": "✅ Permissions du rôle {{role}} mises à jour avec succès",
+      "ITA": "✅ Permessi per il ruolo {{role}} aggiornati con successo"
+    },
+    "rolePermissions.errorSaving": {
+      "SPA": "❌ Error al guardar permisos",
+      "ENG": "❌ Error saving permissions",
+      "FRA": "❌ Erreur lors de l'enregistrement des permissions",
+      "ITA": "❌ Errore nel salvataggio dei permessi"
+    },
+    "rolePermissions.confirmReset": {
+      "SPA": "¿Restaurar permisos por defecto del rol {{role}}?",
+      "ENG": "Restore default permissions for role {{role}}?",
+      "FRA": "Restaurer les permissions par défaut du rôle {{role}} ?",
+      "ITA": "Ripristinare i permessi predefiniti per il ruolo {{role}}?"
+    },
+    "rolePermissions.successReset": {
+      "SPA": "✅ Permisos del rol {{role}} restaurados",
+      "ENG": "✅ Permissions for role {{role}} restored",
+      "FRA": "✅ Permissions du rôle {{role}} restaurées",
+      "ITA": "✅ Permessi per il ruolo {{role}} ripristinati"
+    },
+    "rolePermissions.errorResetting": {
+      "SPA": "❌ Error al restaurar permisos",
+      "ENG": "❌ Error restoring permissions",
+      "FRA": "❌ Erreur lors de la restauration des permissions",
+      "ITA": "❌ Errore nel ripristino dei permessi"
+    },
+    "rolePermissions.categories.mainPage": {
+      "SPA": "🏠 Página Principal",
+      "ENG": "🏠 Main Page",
+      "FRA": "🏠 Page Principale",
+      "ITA": "🏠 Pagina Principale"
+    },
+    "rolePermissions.categories.infoPanel": {
+      "SPA": "📊 Info Panel",
+      "ENG": "📊 Info Panel",
+      "FRA": "📊 Panneau d'Informations",
+      "ITA": "📊 Pannello Informazioni"
+    },
+    "rolePermissions.categories.infoPanelCompact": {
+      "SPA": "📊 Info Panel → Compacto",
+      "ENG": "📊 Info Panel → Compact",
+      "FRA": "📊 Panneau d'Info → Compact",
+      "ITA": "📊 Pannello Info → Compatto"
+    },
+    "rolePermissions.categories.infoPanelExpanded": {
+      "SPA": "📊 Info Panel → Expandido",
+      "ENG": "📊 Info Panel → Expanded",
+      "FRA": "📊 Panneau d'Info → Étendu",
+      "ITA": "📊 Pannello Info → Espanso"
+    },
+    "rolePermissions.categories.sideMenu": {
+      "SPA": "📱 Side Menu",
+      "ENG": "📱 Side Menu",
+      "FRA": "📱 Menu Latéral",
+      "ITA": "📱 Menu Laterale"
+    },
+    "rolePermissions.categories.trainTypes": {
+      "SPA": "🚂 Tipos de Tren",
+      "ENG": "🚂 Train Types",
+      "FRA": "🚂 Types de Train",
+      "ITA": "🚂 Tipi di Treno"
+    },
+    "rolePermissions.categories.washTypes": {
+      "SPA": "🧼 Tipos de Lavado",
+      "ENG": "🧼 Wash Types",
+      "FRA": "🧼 Types de Lavage",
+      "ITA": "🧼 Tipi di Lavaggio"
+    },
+    "rolePermissions.modules.mainView_Tour": {
+      "SPA": "🎥 Tour / Calibración",
+      "ENG": "🎥 Tour / Calibration",
+      "FRA": "🎥 Tour / Calibrage",
+      "ITA": "🎥 Tour / Calibrazione"
+    },
+    "rolePermissions.modules.mainView_Labels": {
+      "SPA": "🏷️ Etiquetas (Labels)",
+      "ENG": "🏷️ Labels",
+      "FRA": "🏷️ Étiquettes",
+      "ITA": "🏷️ Etichette"
+    },
+    "rolePermissions.modules.mainView_Layers": {
+      "SPA": "📐 Capas (Layers)",
+      "ENG": "📐 Layers",
+      "FRA": "📐 Calques",
+      "ITA": "📐 Strati"
+    },
+    "rolePermissions.modules.mainView_SystemTools": {
+      "SPA": "🛠️ Herramientas del Sistema",
+      "ENG": "🛠️ System Tools",
+      "FRA": "🛠️ Outils Système",
+      "ITA": "🛠️ Strumenti di Sistema"
+    },
+    "rolePermissions.modules.mainView_SemiAuto": {
+      "SPA": "🤖 Modo Semiautomático",
+      "ENG": "🤖 Semi-Automatic Mode",
+      "FRA": "🤖 Mode Semi-Automatique",
+      "ITA": "🤖 Modalità Semi-Automatica"
+    },
+    "rolePermissions.modules.mainView_FastConfig": {
+      "SPA": "⚡ Configuración Rápida",
+      "ENG": "⚡ Fast Configuration",
+      "FRA": "⚡ Configuration Rapide",
+      "ITA": "⚡ Configurazione Rapida"
+    },
+    "rolePermissions.modules.mainView_Language": {
+      "SPA": "🌐 Idiomas",
+      "ENG": "🌐 Languages",
+      "FRA": "🌐 Langues",
+      "ITA": "🌐 Lingue"
+    },
+    "rolePermissions.modules.mainView_ScreenDisplay": {
+      "SPA": "🖥️ Screen Display",
+      "ENG": "🖥️ Screen Display",
+      "FRA": "🖥️ Affichage Écran",
+      "ITA": "🖥️ Visualizzazione Schermo"
+    },
+    "rolePermissions.modules.mainView_ModelLabel": {
+      "SPA": "🏷️ Model Label",
+      "ENG": "🏷️ Model Label",
+      "FRA": "🏷️ Étiquette du Modèle",
+      "ITA": "🏷️ Etichetta Modello"
+    },
+    "rolePermissions.modules.mainView_DisplayModelLabel": {
+      "SPA": "📋 Display Model Label",
+      "ENG": "📋 Display Model Label",
+      "FRA": "📋 Affichage Étiquette Modèle",
+      "ITA": "📋 Visualizza Etichetta Modello"
+    },
+    "rolePermissions.modules.infoPanel_Button": {
+      "SPA": "🔲 Botón Expandir/Compacto",
+      "ENG": "🔲 Expand/Compact Button",
+      "FRA": "🔲 Bouton Agrandir/Compacter",
+      "ITA": "🔲 Pulsante Espandi/Compatto"
+    },
+    "rolePermissions.modules.infoPanel_ServicesInfo": {
+      "SPA": "📋 Info General Servicios",
+      "ENG": "📋 General Services Info",
+      "FRA": "📋 Info Générale Services",
+      "ITA": "📋 Info Generale Servizi"
+    },
+    "rolePermissions.modules.infoPanel_PLCInfo": {
+      "SPA": "🔌 Info PLC",
+      "ENG": "🔌 PLC Info",
+      "FRA": "🔌 Info PLC",
+      "ITA": "🔌 Info PLC"
+    },
+    "rolePermissions.modules.infoPanel_AlarmsCompact": {
+      "SPA": "⚠️ Alarmas",
+      "ENG": "⚠️ Alarms",
+      "FRA": "⚠️ Alarmes",
+      "ITA": "⚠️ Allarmi"
+    },
+    "rolePermissions.modules.infoPanel_IntegrityCompact": {
+      "SPA": "🛡️ Integridad Software",
+      "ENG": "🛡️ Software Integrity",
+      "FRA": "🛡️ Intégrité Logicielle",
+      "ITA": "🛡️ Integrità Software"
+    },
+    "rolePermissions.modules.infoPanel_ComplianceCompact": {
+      "SPA": "✅ Cumplimiento y Seguridad",
+      "ENG": "✅ Compliance and Security",
+      "FRA": "✅ Conformité et Sécurité",
+      "ITA": "✅ Conformità e Sicurezza"
+    },
+    "rolePermissions.modules.infoPanel_InternalServices": {
+      "SPA": "🔧 Servicios Internos del Backend",
+      "ENG": "🔧 Backend Internal Services",
+      "FRA": "🔧 Services Internes du Backend",
+      "ITA": "🔧 Servizi Interni del Backend"
+    },
+    "rolePermissions.modules.infoPanel_ExternalServices": {
+      "SPA": "🌐 Servicios Externos del Backend",
+      "ENG": "🌐 Backend External Services",
+      "FRA": "🌐 Services Externes du Backend",
+      "ITA": "🌐 Servizi Esterni del Backend"
+    },
+    "rolePermissions.modules.infoPanel_AlarmsExpanded": {
+      "SPA": "⚠️ Alarmas",
+      "ENG": "⚠️ Alarms",
+      "FRA": "⚠️ Alarmes",
+      "ITA": "⚠️ Allarmi"
+    },
+    "rolePermissions.modules.infoPanel_IntegrityExpanded": {
+      "SPA": "🛡️ Integridad del Software",
+      "ENG": "🛡️ Software Integrity",
+      "FRA": "🛡️ Intégrité du Logiciel",
+      "ITA": "🛡️ Integrità del Software"
+    },
+    "rolePermissions.modules.infoPanel_HardwareInfo": {
+      "SPA": "💻 Info Hardware PC",
+      "ENG": "💻 PC Hardware Info",
+      "FRA": "💻 Info Matériel PC",
+      "ITA": "💻 Info Hardware PC"
+    },
+    "rolePermissions.modules.infoPanel_SBOM": {
+      "SPA": "📦 SBOM",
+      "ENG": "📦 SBOM",
+      "FRA": "📦 SBOM",
+      "ITA": "📦 SBOM"
+    },
+    "rolePermissions.modules.infoPanel_VulnScanner": {
+      "SPA": "🔍 Escáner de Vulnerabilidades",
+      "ENG": "🔍 Vulnerability Scanner",
+      "FRA": "🔍 Scanner de Vulnérabilités",
+      "ITA": "🔍 Scanner Vulnerabilità"
+    },
+    "rolePermissions.modules.infoPanel_VulnReport": {
+      "SPA": "📄 Reporte de Vulnerabilidades",
+      "ENG": "📄 Vulnerability Report",
+      "FRA": "📄 Rapport de Vulnérabilités",
+      "ITA": "📄 Rapporto Vulnerabilità"
+    },
+    "rolePermissions.modules.infoPanel_AuditLog": {
+      "SPA": "📜 Registro de Auditoría",
+      "ENG": "📜 Audit Log",
+      "FRA": "📜 Journal d'Audit",
+      "ITA": "📜 Registro Audit"
+    },
+    "rolePermissions.modules.infoPanel_OperationLog": {
+      "SPA": "📊 Registro de Operaciones",
+      "ENG": "📊 Operation Log",
+      "FRA": "📊 Journal des Opérations",
+      "ITA": "📊 Registro Operazioni"
+    },
+    "rolePermissions.modules.infoPanel_SessionLog": {
+      "SPA": "🔑 Registro de Eventos de Sesión",
+      "ENG": "🔑 Session Events Log",
+      "FRA": "🔑 Journal des Événements de Session",
+      "ITA": "🔑 Registro Eventi Sessione"
+    },
+    "rolePermissions.modules.infoPanel_PlcInfoExpanded": {
+      "SPA": "📟 Info PLC",
+      "ENG": "📟 PLC Info",
+      "FRA": "📟 Info PLC",
+      "ITA": "📟 Info PLC"
+    },
+    "rolePermissions.modules.alarmsView": {
+      "SPA": "⚠️ Alarmas",
+      "ENG": "⚠️ Alarms",
+      "FRA": "⚠️ Alarmes",
+      "ITA": "⚠️ Allarmi"
+    },
+    "rolePermissions.modules.statisticsView": {
+      "SPA": "📊 Estadísticas",
+      "ENG": "📊 Statistics",
+      "FRA": "📊 Statistiques",
+      "ITA": "📊 Statistiche"
+    },
+    "rolePermissions.modules.settingsView": {
+      "SPA": "⚙️ Configuración",
+      "ENG": "⚙️ Settings",
+      "FRA": "⚙️ Configuration",
+      "ITA": "⚙️ Configurazione"
+    },
+    "rolePermissions.modules.usersView": {
+      "SPA": "👥 Gestión de Usuarios",
+      "ENG": "👥 User Management",
+      "FRA": "👥 Gestion des Utilisateurs",
+      "ITA": "👥 Gestione Utenti"
+    },
+    "rolePermissions.modules.trainTypesView": {
+      "SPA": "🚂 Tipos de Tren",
+      "ENG": "🚂 Train Types",
+      "FRA": "🚂 Types de Train",
+      "ITA": "🚂 Tipi di Treno"
+    },
+    "rolePermissions.modules.washTypesView": {
+      "SPA": "🧼 Tipos de Lavado",
+      "ENG": "🧼 Wash Types",
+      "FRA": "🧼 Types de Lavage",
+      "ITA": "🧼 Tipi di Lavaggio"
+    },
+    "rolePermissions.modules.manualModeView": {
+      "SPA": "🔧 Modo Manual",
+      "ENG": "🔧 Manual Mode",
+      "FRA": "🔧 Mode Manuel",
+      "ITA": "🔧 Modalità Manuale"
+    },
+    "rolePermissions.modules.trainTypes_Editor": {
+      "SPA": "✏️ Editor",
+      "ENG": "✏️ Editor",
+      "FRA": "✏️ Éditeur",
+      "ITA": "✏️ Editor"
+    },
+    "rolePermissions.modules.trainTypes_Save": {
+      "SPA": "💾 Guardar",
+      "ENG": "💾 Save",
+      "FRA": "💾 Enregistrer",
+      "ITA": "💾 Salva"
+    },
+    "rolePermissions.modules.trainTypes_WritePLC1": {
+      "SPA": "📡 Escribir PLC 1",
+      "ENG": "📡 Write PLC 1",
+      "FRA": "📡 Écrire PLC 1",
+      "ITA": "📡 Scrivi PLC 1"
+    },
+    "rolePermissions.modules.trainTypes_WritePLC2": {
+      "SPA": "📡 Escribir PLC 2",
+      "ENG": "📡 Write PLC 2",
+      "FRA": "📡 Écrire PLC 2",
+      "ITA": "📡 Scrivi PLC 2"
+    },
+    "rolePermissions.modules.washTypes_Editor": {
+      "SPA": "✏️ Editor",
+      "ENG": "✏️ Editor",
+      "FRA": "✏️ Éditeur",
+      "ITA": "✏️ Editor"
+    },
+    "rolePermissions.modules.washTypes_Save": {
+      "SPA": "💾 Guardar",
+      "ENG": "💾 Save",
+      "FRA": "💾 Enregistrer",
+      "ITA": "💾 Salva"
+    },
+    "rolePermissions.modules.washTypes_WritePLC1": {
+      "SPA": "📡 Escribir PLC 1",
+      "ENG": "📡 Write PLC 1",
+      "FRA": "📡 Écrire PLC 1",
+      "ITA": "📡 Scrivi PLC 1"
+    },
+    "rolePermissions.modules.washTypes_WritePLC2": {
+      "SPA": "📡 Escribir PLC 2",
+      "ENG": "📡 Write PLC 2",
+      "FRA": "📡 Écrire PLC 2",
+      "ITA": "📡 Scrivi PLC 2"
+    },
+    "rolePermissions.roleDesc.Administrator": {
+      "SPA": "Administrador del sistema - Control total",
+      "ENG": "System Administrator - Full control",
+      "FRA": "Administrateur système - Contrôle total",
+      "ITA": "Amministratore di sistema - Controllo totale"
+    },
+    "rolePermissions.roleDesc.Operator": {
+      "SPA": "Operador de proceso - Control de operaciones",
+      "ENG": "Process Operator - Operations control",
+      "FRA": "Opérateur de processus - Contrôle des opérations",
+      "ITA": "Operatore di processo - Controllo operazioni"
+    },
+    "rolePermissions.roleDesc.Maintenance": {
+      "SPA": "Personal de mantenimiento - Configuración técnica",
+      "ENG": "Maintenance staff - Technical configuration",
+      "FRA": "Personnel de maintenance - Configuration technique",
+      "ITA": "Personale di manutenzione - Configurazione tecnica"
+    },
+    "rolePermissions.roleDesc.Viewer": {
+      "SPA": "Solo visualización - Acceso de solo lectura",
+      "ENG": "View only - Read-only access",
+      "FRA": "Visualisation uniquement - Accès en lecture seule",
+      "ITA": "Solo visualizzazione - Accesso di sola lettura"
+    },
+    "rolePermissions.roleDesc.Auditor": {
+      "SPA": "Auditor de seguridad - Acceso a logs y reportes",
+      "ENG": "Security Auditor - Access to logs and reports",
+      "FRA": "Auditeur de sécurité - Accès aux journaux et rapports",
+      "ITA": "Revisore di sicurezza - Accesso a log e rapporti"
     },
 
     "support.title": {
