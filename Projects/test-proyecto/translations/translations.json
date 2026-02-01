@@ -1,7 +1,7 @@
 {
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-02-01T14:00:00Z",
+    "lastModified": "2026-02-01T14:30:00Z",
     "languages": ["SPA", "ENG", "FRA", "ITA"],
     "defaultLanguage": "SPA",
     "description": "Archivo de traducciones del proyecto - ISO 639-2"
@@ -230,7 +230,15 @@
         "washTypes.availableTypes",
         "washTypes.noTypes",
         "washTypes.useEditor",
-        "washTypes.editParameters"
+        "washTypes.editParameters",
+        "washTypes.errorNoSelection",
+        "washTypes.errorEmptySlot",
+        "washTypes.errorSaving",
+        "washTypes.errorWritingPlc",
+        "washTypes.errorWritingPlcAlternate",
+        "washTypes.saveSuccess",
+        "washTypes.writePlcSuccess",
+        "washTypes.writePlcAlternateSuccess"
       ]
     },
     "TRAIN_TYPES_VIEW": {
@@ -243,7 +251,13 @@
         "trainTypes.editorButton",
         "trainTypes.saveButton",
         "trainTypes.writePlcButton",
-        "trainTypes.availableTypes"
+        "trainTypes.availableTypes",
+        "trainTypes.errorNoSelection",
+        "trainTypes.errorEmptySlot",
+        "trainTypes.errorSaving",
+        "trainTypes.errorWritingPlc",
+        "trainTypes.saveSuccess",
+        "trainTypes.writePlcSuccess"
       ]
     },
     "COMMON": {
@@ -898,6 +912,54 @@
       "FRA": "Modifier les Paramètres",
       "ITA": "Modifica Parametri"
     },
+    "washTypes.errorNoSelection": {
+      "SPA": "Es necesario seleccionar una línea antes de continuar",
+      "ENG": "You must select a line before continuing",
+      "FRA": "Vous devez sélectionner une ligne avant de continuer",
+      "ITA": "È necessario selezionare una linea prima di continuare"
+    },
+    "washTypes.errorEmptySlot": {
+      "SPA": "No se puede escribir una línea vacía al PLC. Primero guarde datos desde el PLC.",
+      "ENG": "Cannot write an empty line to PLC. First save data from PLC.",
+      "FRA": "Impossible d'écrire une ligne vide sur le PLC. Enregistrez d'abord les données du PLC.",
+      "ITA": "Impossibile scrivere una linea vuota sul PLC. Salvare prima i dati dal PLC."
+    },
+    "washTypes.errorSaving": {
+      "SPA": "Error al guardar desde PLC",
+      "ENG": "Error saving from PLC",
+      "FRA": "Erreur lors de l'enregistrement depuis le PLC",
+      "ITA": "Errore durante il salvataggio dal PLC"
+    },
+    "washTypes.errorWritingPlc": {
+      "SPA": "Error al escribir al PLC",
+      "ENG": "Error writing to PLC",
+      "FRA": "Erreur lors de l'écriture sur le PLC",
+      "ITA": "Errore durante la scrittura sul PLC"
+    },
+    "washTypes.errorWritingPlcAlternate": {
+      "SPA": "Error al escribir al PLC (alternativo)",
+      "ENG": "Error writing to PLC (alternate)",
+      "FRA": "Erreur lors de l'écriture sur le PLC (alternatif)",
+      "ITA": "Errore durante la scrittura sul PLC (alternativo)"
+    },
+    "washTypes.saveSuccess": {
+      "SPA": "Guardado correctamente desde PLC",
+      "ENG": "Successfully saved from PLC",
+      "FRA": "Enregistré avec succès depuis le PLC",
+      "ITA": "Salvato con successo dal PLC"
+    },
+    "washTypes.writePlcSuccess": {
+      "SPA": "Escrito al PLC correctamente",
+      "ENG": "Successfully written to PLC",
+      "FRA": "Écrit avec succès sur le PLC",
+      "ITA": "Scritto con successo sul PLC"
+    },
+    "washTypes.writePlcAlternateSuccess": {
+      "SPA": "Escrito al PLC (alternativo) correctamente",
+      "ENG": "Successfully written to PLC (alternate)",
+      "FRA": "Écrit avec succès sur le PLC (alternatif)",
+      "ITA": "Scritto con successo sul PLC (alternativo)"
+    },
 
     "trainTypes.title": {
       "SPA": "Tipos de Tren",
@@ -946,6 +1008,42 @@
       "ENG": "Available Train Types",
       "FRA": "Types de Train Disponibles",
       "ITA": "Tipi di Treno Disponibili"
+    },
+    "trainTypes.errorNoSelection": {
+      "SPA": "Es necesario seleccionar una línea antes de continuar",
+      "ENG": "You must select a line before continuing",
+      "FRA": "Vous devez sélectionner une ligne avant de continuer",
+      "ITA": "È necessario selezionare una linea prima di continuare"
+    },
+    "trainTypes.errorEmptySlot": {
+      "SPA": "No se puede escribir una línea vacía al PLC",
+      "ENG": "Cannot write an empty line to PLC",
+      "FRA": "Impossible d'écrire une ligne vide sur le PLC",
+      "ITA": "Impossibile scrivere una linea vuota sul PLC"
+    },
+    "trainTypes.errorSaving": {
+      "SPA": "Error al guardar desde PLC",
+      "ENG": "Error saving from PLC",
+      "FRA": "Erreur lors de l'enregistrement depuis le PLC",
+      "ITA": "Errore durante il salvataggio dal PLC"
+    },
+    "trainTypes.errorWritingPlc": {
+      "SPA": "Error al escribir al PLC",
+      "ENG": "Error writing to PLC",
+      "FRA": "Erreur lors de l'écriture sur le PLC",
+      "ITA": "Errore durante la scrittura sul PLC"
+    },
+    "trainTypes.saveSuccess": {
+      "SPA": "Guardado correctamente desde PLC",
+      "ENG": "Successfully saved from PLC",
+      "FRA": "Enregistré avec succès depuis le PLC",
+      "ITA": "Salvato con successo dal PLC"
+    },
+    "trainTypes.writePlcSuccess": {
+      "SPA": "Escrito al PLC correctamente",
+      "ENG": "Successfully written to PLC",
+      "FRA": "Écrit avec succès sur le PLC",
+      "ITA": "Scritto con successo sul PLC"
     },
 
     "support.title": {
