@@ -652,7 +652,13 @@
         "common.close",
         "common.yes",
         "common.no",
-        "common.never"
+        "common.never",
+        "keypad.range",
+        "keypad.outOfRange",
+        "keypad.cancel",
+        "keyboard.space",
+        "keyboard.cancel",
+        "keyboard.placeholder"
       ]
     }
   },
@@ -1047,6 +1053,42 @@
       "ENG": "Never",
       "FRA": "Jamais",
       "ITA": "Mai"
+    },
+    "keypad.range": {
+      "SPA": "Rango",
+      "ENG": "Range",
+      "FRA": "Plage",
+      "ITA": "Gamma"
+    },
+    "keypad.outOfRange": {
+      "SPA": "Fuera de rango",
+      "ENG": "Out of range",
+      "FRA": "Hors plage",
+      "ITA": "Fuori gamma"
+    },
+    "keypad.cancel": {
+      "SPA": "Cancelar",
+      "ENG": "Cancel",
+      "FRA": "Annuler",
+      "ITA": "Annulla"
+    },
+    "keyboard.space": {
+      "SPA": "ESPACIO",
+      "ENG": "SPACE",
+      "FRA": "ESPACE",
+      "ITA": "SPAZIO"
+    },
+    "keyboard.cancel": {
+      "SPA": "Cancelar",
+      "ENG": "Cancel",
+      "FRA": "Annuler",
+      "ITA": "Annulla"
+    },
+    "keyboard.placeholder": {
+      "SPA": "Escriba aquí...",
+      "ENG": "Type here...",
+      "FRA": "Tapez ici...",
+      "ITA": "Digita qui..."
     },
 
     "menu.principal": {
