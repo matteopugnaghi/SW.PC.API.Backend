@@ -435,7 +435,47 @@
         "washEditor.noStations",
         "washEditor.boolParams",
         "washEditor.intParams",
-        "washEditor.noParams"
+        "washEditor.noParams",
+        "washEditor_excel_A_NOMBRE LAVADO",
+        "washEditor_excel_B_Estación 1",
+        "washEditor_excel_B_Estación 2",
+        "washEditor_excel_B_Estación 3",
+        "washEditor_excel_B_Estación 4",
+        "washEditor_excel_B_Estación 5",
+        "washEditor_excel_B_Estación 6",
+        "washEditor_excel_B_Estación 7",
+        "washEditor_excel_B_Estación 8",
+        "washEditor_excel_B_Estación 9",
+        "washEditor_excel_B_Estación 10",
+        "washEditor_excel_E_Enable station 1",
+        "washEditor_excel_E_Enable station 2",
+        "washEditor_excel_E_Enable station 3",
+        "washEditor_excel_E_Enable station 4",
+        "washEditor_excel_E_Enable station 5",
+        "washEditor_excel_E_Enable station 6",
+        "washEditor_excel_E_Enable station 7",
+        "washEditor_excel_E_Enable station 8",
+        "washEditor_excel_E_Enable station 9",
+        "washEditor_excel_E_Enable detergent",
+        "washEditor_excel_G_Enable wax",
+        "washEditor_excel_Y_Delay Start station 1",
+        "washEditor_excel_Y_Delay Start station 2",
+        "washEditor_excel_Y_Delay Start station 3",
+        "washEditor_excel_Y_Delay Start station 4",
+        "washEditor_excel_Y_Delay Start station 5",
+        "washEditor_excel_Y_Delay Start station 6",
+        "washEditor_excel_Y_Delay Start station 7",
+        "washEditor_excel_Y_Delay Start station 8",
+        "washEditor_excel_Y_Delay Start station 9",
+        "washEditor_excel_AD_Delay Stop station 1",
+        "washEditor_excel_AD_Delay Stop station 2",
+        "washEditor_excel_AD_Delay Stop station 3",
+        "washEditor_excel_AD_Delay Stop station 4",
+        "washEditor_excel_AD_Delay Stop station 5",
+        "washEditor_excel_AD_Delay Stop station 6",
+        "washEditor_excel_AD_Delay Stop station 7",
+        "washEditor_excel_AD_Delay Stop station 8",
+        "washEditor_excel_AD_Delay Stop station 9"
       ]
     },
     "ROLE_PERMISSIONS": {
@@ -2969,6 +3009,246 @@
       "ENG": "This station has no configured parameters",
       "FRA": "Cette station n'a pas de paramètres configurés",
       "ITA": "Questa stazione non ha parametri configurati"
+    },
+    "washEditor_excel_A_NOMBRE LAVADO": {
+      "SPA": "NOMBRE LAVADO",
+      "ENG": "WASH NAME",
+      "FRA": "NOM LAVAGE",
+      "ITA": "NOME LAVAGGIO"
+    },
+    "washEditor_excel_B_Estación 1": {
+      "SPA": "Estación 1",
+      "ENG": "Station 1",
+      "FRA": "Station 1",
+      "ITA": "Stazione 1"
+    },
+    "washEditor_excel_B_Estación 2": {
+      "SPA": "Estación 2",
+      "ENG": "Station 2",
+      "FRA": "Station 2",
+      "ITA": "Stazione 2"
+    },
+    "washEditor_excel_B_Estación 3": {
+      "SPA": "Estación 3",
+      "ENG": "Station 3",
+      "FRA": "Station 3",
+      "ITA": "Stazione 3"
+    },
+    "washEditor_excel_B_Estación 4": {
+      "SPA": "Estación 4",
+      "ENG": "Station 4",
+      "FRA": "Station 4",
+      "ITA": "Stazione 4"
+    },
+    "washEditor_excel_B_Estación 5": {
+      "SPA": "Estación 5",
+      "ENG": "Station 5",
+      "FRA": "Station 5",
+      "ITA": "Stazione 5"
+    },
+    "washEditor_excel_B_Estación 6": {
+      "SPA": "Estación 6",
+      "ENG": "Station 6",
+      "FRA": "Station 6",
+      "ITA": "Stazione 6"
+    },
+    "washEditor_excel_B_Estación 7": {
+      "SPA": "Estación 7",
+      "ENG": "Station 7",
+      "FRA": "Station 7",
+      "ITA": "Stazione 7"
+    },
+    "washEditor_excel_B_Estación 8": {
+      "SPA": "Estación 8",
+      "ENG": "Station 8",
+      "FRA": "Station 8",
+      "ITA": "Stazione 8"
+    },
+    "washEditor_excel_B_Estación 9": {
+      "SPA": "Estación 9",
+      "ENG": "Station 9",
+      "FRA": "Station 9",
+      "ITA": "Stazione 9"
+    },
+    "washEditor_excel_B_Estación 10": {
+      "SPA": "Estación 10",
+      "ENG": "Station 10",
+      "FRA": "Station 10",
+      "ITA": "Stazione 10"
+    },
+    "washEditor_excel_E_Enable station 1": {
+      "SPA": "Habilitar estación 1",
+      "ENG": "Enable station 1",
+      "FRA": "Activer station 1",
+      "ITA": "Abilita stazione 1"
+    },
+    "washEditor_excel_E_Enable station 2": {
+      "SPA": "Habilitar estación 2",
+      "ENG": "Enable station 2",
+      "FRA": "Activer station 2",
+      "ITA": "Abilita stazione 2"
+    },
+    "washEditor_excel_E_Enable station 3": {
+      "SPA": "Habilitar estación 3",
+      "ENG": "Enable station 3",
+      "FRA": "Activer station 3",
+      "ITA": "Abilita stazione 3"
+    },
+    "washEditor_excel_E_Enable station 4": {
+      "SPA": "Habilitar estación 4",
+      "ENG": "Enable station 4",
+      "FRA": "Activer station 4",
+      "ITA": "Abilita stazione 4"
+    },
+    "washEditor_excel_E_Enable station 5": {
+      "SPA": "Habilitar estación 5",
+      "ENG": "Enable station 5",
+      "FRA": "Activer station 5",
+      "ITA": "Abilita stazione 5"
+    },
+    "washEditor_excel_E_Enable station 6": {
+      "SPA": "Habilitar estación 6",
+      "ENG": "Enable station 6",
+      "FRA": "Activer station 6",
+      "ITA": "Abilita stazione 6"
+    },
+    "washEditor_excel_E_Enable station 7": {
+      "SPA": "Habilitar estación 7",
+      "ENG": "Enable station 7",
+      "FRA": "Activer station 7",
+      "ITA": "Abilita stazione 7"
+    },
+    "washEditor_excel_E_Enable station 8": {
+      "SPA": "Habilitar estación 8",
+      "ENG": "Enable station 8",
+      "FRA": "Activer station 8",
+      "ITA": "Abilita stazione 8"
+    },
+    "washEditor_excel_E_Enable station 9": {
+      "SPA": "Habilitar estación 9",
+      "ENG": "Enable station 9",
+      "FRA": "Activer station 9",
+      "ITA": "Abilita stazione 9"
+    },
+    "washEditor_excel_E_Enable detergent": {
+      "SPA": "Habilitar detergente",
+      "ENG": "Enable detergent",
+      "FRA": "Activer détergent",
+      "ITA": "Abilita detergente"
+    },
+    "washEditor_excel_G_Enable wax": {
+      "SPA": "Habilitar cera",
+      "ENG": "Enable wax",
+      "FRA": "Activer cire",
+      "ITA": "Abilita cera"
+    },
+    "washEditor_excel_Y_Delay Start station 1": {
+      "SPA": "Retardo inicio estación 1",
+      "ENG": "Delay Start station 1",
+      "FRA": "Délai démarrage station 1",
+      "ITA": "Ritardo avvio stazione 1"
+    },
+    "washEditor_excel_Y_Delay Start station 2": {
+      "SPA": "Retardo inicio estación 2",
+      "ENG": "Delay Start station 2",
+      "FRA": "Délai démarrage station 2",
+      "ITA": "Ritardo avvio stazione 2"
+    },
+    "washEditor_excel_Y_Delay Start station 3": {
+      "SPA": "Retardo inicio estación 3",
+      "ENG": "Delay Start station 3",
+      "FRA": "Délai démarrage station 3",
+      "ITA": "Ritardo avvio stazione 3"
+    },
+    "washEditor_excel_Y_Delay Start station 4": {
+      "SPA": "Retardo inicio estación 4",
+      "ENG": "Delay Start station 4",
+      "FRA": "Délai démarrage station 4",
+      "ITA": "Ritardo avvio stazione 4"
+    },
+    "washEditor_excel_Y_Delay Start station 5": {
+      "SPA": "Retardo inicio estación 5",
+      "ENG": "Delay Start station 5",
+      "FRA": "Délai démarrage station 5",
+      "ITA": "Ritardo avvio stazione 5"
+    },
+    "washEditor_excel_Y_Delay Start station 6": {
+      "SPA": "Retardo inicio estación 6",
+      "ENG": "Delay Start station 6",
+      "FRA": "Délai démarrage station 6",
+      "ITA": "Ritardo avvio stazione 6"
+    },
+    "washEditor_excel_Y_Delay Start station 7": {
+      "SPA": "Retardo inicio estación 7",
+      "ENG": "Delay Start station 7",
+      "FRA": "Délai démarrage station 7",
+      "ITA": "Ritardo avvio stazione 7"
+    },
+    "washEditor_excel_Y_Delay Start station 8": {
+      "SPA": "Retardo inicio estación 8",
+      "ENG": "Delay Start station 8",
+      "FRA": "Délai démarrage station 8",
+      "ITA": "Ritardo avvio stazione 8"
+    },
+    "washEditor_excel_Y_Delay Start station 9": {
+      "SPA": "Retardo inicio estación 9",
+      "ENG": "Delay Start station 9",
+      "FRA": "Délai démarrage station 9",
+      "ITA": "Ritardo avvio stazione 9"
+    },
+    "washEditor_excel_AD_Delay Stop station 1": {
+      "SPA": "Retardo parada estación 1",
+      "ENG": "Delay Stop station 1",
+      "FRA": "Délai arrêt station 1",
+      "ITA": "Ritardo arresto stazione 1"
+    },
+    "washEditor_excel_AD_Delay Stop station 2": {
+      "SPA": "Retardo parada estación 2",
+      "ENG": "Delay Stop station 2",
+      "FRA": "Délai arrêt station 2",
+      "ITA": "Ritardo arresto stazione 2"
+    },
+    "washEditor_excel_AD_Delay Stop station 3": {
+      "SPA": "Retardo parada estación 3",
+      "ENG": "Delay Stop station 3",
+      "FRA": "Délai arrêt station 3",
+      "ITA": "Ritardo arresto stazione 3"
+    },
+    "washEditor_excel_AD_Delay Stop station 4": {
+      "SPA": "Retardo parada estación 4",
+      "ENG": "Delay Stop station 4",
+      "FRA": "Délai arrêt station 4",
+      "ITA": "Ritardo arresto stazione 4"
+    },
+    "washEditor_excel_AD_Delay Stop station 5": {
+      "SPA": "Retardo parada estación 5",
+      "ENG": "Delay Stop station 5",
+      "FRA": "Délai arrêt station 5",
+      "ITA": "Ritardo arresto stazione 5"
+    },
+    "washEditor_excel_AD_Delay Stop station 6": {
+      "SPA": "Retardo parada estación 6",
+      "ENG": "Delay Stop station 6",
+      "FRA": "Délai arrêt station 6",
+      "ITA": "Ritardo arresto stazione 6"
+    },
+    "washEditor_excel_AD_Delay Stop station 7": {
+      "SPA": "Retardo parada estación 7",
+      "ENG": "Delay Stop station 7",
+      "FRA": "Délai arrêt station 7",
+      "ITA": "Ritardo arresto stazione 7"
+    },
+    "washEditor_excel_AD_Delay Stop station 8": {
+      "SPA": "Retardo parada estación 8",
+      "ENG": "Delay Stop station 8",
+      "FRA": "Délai arrêt station 8",
+      "ITA": "Ritardo arresto stazione 8"
+    },
+    "washEditor_excel_AD_Delay Stop station 9": {
+      "SPA": "Retardo parada estación 9",
+      "ENG": "Delay Stop station 9",
+      "FRA": "Délai arrêt station 9",
+      "ITA": "Ritardo arresto stazione 9"
     },
     "rolePermissions.title": {
       "SPA": "⚙️ Configuración de Permisos por Rol",
