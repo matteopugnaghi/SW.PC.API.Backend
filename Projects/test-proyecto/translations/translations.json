@@ -295,6 +295,11 @@
         "users.modal.fieldEmail",
         "users.modal.fieldRoles",
         "users.modal.fieldNotes",
+        "users.modal.placeholderUsername",
+        "users.modal.placeholderPassword",
+        "users.modal.placeholderFullName",
+        "users.modal.placeholderEmail",
+        "users.modal.placeholderNotes",
         "users.modal.passwordRequirements",
         "users.modal.requireUppercase",
         "users.modal.requireLowercase",
@@ -1652,6 +1657,36 @@
       "ENG": "Notes",
       "FRA": "Notes",
       "ITA": "Note"
+    },
+    "users.modal.placeholderUsername": {
+      "SPA": "nombre.usuario",
+      "ENG": "user.name",
+      "FRA": "nom.utilisateur",
+      "ITA": "nome.utente"
+    },
+    "users.modal.placeholderPassword": {
+      "SPA": "Mín. {{minLength}} caracteres",
+      "ENG": "Min. {{minLength}} characters",
+      "FRA": "Min. {{minLength}} caractères",
+      "ITA": "Min. {{minLength}} caratteri"
+    },
+    "users.modal.placeholderFullName": {
+      "SPA": "Nombre y Apellidos",
+      "ENG": "Full Name",
+      "FRA": "Nom et Prénom",
+      "ITA": "Nome e Cognome"
+    },
+    "users.modal.placeholderEmail": {
+      "SPA": "usuario@empresa.com",
+      "ENG": "user@company.com",
+      "FRA": "utilisateur@entreprise.com",
+      "ITA": "utente@azienda.com"
+    },
+    "users.modal.placeholderNotes": {
+      "SPA": "Notas adicionales sobre el usuario...",
+      "ENG": "Additional notes about the user...",
+      "FRA": "Notes supplémentaires sur l'utilisateur...",
+      "ITA": "Note aggiuntive sull'utente..."
     },
     "users.modal.passwordRequirements": {
       "SPA": "Requisitos: {{minLength}}+ caracteres{{upper}}{{lower}}{{number}}{{special}}",
