@@ -2099,6 +2099,60 @@
       "FRA": "SAUV. MEM",
       "ITA": "SALVA MEM"
     },
+    "settings.readFromPlcSuccess": {
+      "SPA": "✅ Valores leídos desde PLC",
+      "ENG": "✅ Values read from PLC",
+      "FRA": "✅ Valeurs lues depuis PLC",
+      "ITA": "✅ Valori letti dal PLC"
+    },
+    "settings.errorLoadingConfig": {
+      "SPA": "❌ Error al cargar la configuración",
+      "ENG": "❌ Error loading configuration",
+      "FRA": "❌ Erreur de chargement de la configuration",
+      "ITA": "❌ Errore caricamento configurazione"
+    },
+    "settings.writeToPlcSuccess": {
+      "SPA": "✅ Valores escritos al PLC: {count} parámetros",
+      "ENG": "✅ Values written to PLC: {count} parameters",
+      "FRA": "✅ Valeurs écrites au PLC: {count} paramètres",
+      "ITA": "✅ Valori scritti al PLC: {count} parametri"
+    },
+    "settings.readFromDbSuccess": {
+      "SPA": "✅ Valores leídos desde memoria",
+      "ENG": "✅ Values read from memory",
+      "FRA": "✅ Valeurs lues depuis mémoire",
+      "ITA": "✅ Valori letti dalla memoria"
+    },
+    "settings.writeToDbSuccess": {
+      "SPA": "✅ Valores guardados en memoria: {count} parámetros",
+      "ENG": "✅ Values saved to memory: {count} parameters",
+      "FRA": "✅ Valeurs sauvegardées en mémoire: {count} paramètres",
+      "ITA": "✅ Valori salvati in memoria: {count} parametri"
+    },
+    "settings.errorReadingPlc": {
+      "SPA": "❌ Error leyendo desde PLC",
+      "ENG": "❌ Error reading from PLC",
+      "FRA": "❌ Erreur de lecture depuis PLC",
+      "ITA": "❌ Errore lettura dal PLC"
+    },
+    "settings.errorWritingPlc": {
+      "SPA": "❌ Error escribiendo al PLC",
+      "ENG": "❌ Error writing to PLC",
+      "FRA": "❌ Erreur d'écriture au PLC",
+      "ITA": "❌ Errore scrittura al PLC"
+    },
+    "settings.errorReadingDb": {
+      "SPA": "❌ Error leyendo desde memoria",
+      "ENG": "❌ Error reading from memory",
+      "FRA": "❌ Erreur de lecture depuis mémoire",
+      "ITA": "❌ Errore lettura dalla memoria"
+    },
+    "settings.errorWritingDb": {
+      "SPA": "❌ Error guardando en memoria",
+      "ENG": "❌ Error saving to memory",
+      "FRA": "❌ Erreur de sauvegarde en mémoire",
+      "ITA": "❌ Errore salvataggio in memoria"
+    },
     "settings_excel_A_BOOL": {
       "SPA": "BOOLEANOS",
       "ENG": "BOOLEANS",
