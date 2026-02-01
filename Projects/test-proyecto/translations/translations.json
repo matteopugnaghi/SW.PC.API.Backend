@@ -413,6 +413,31 @@
         "Manual_excel_A_title"
       ]
     },
+    "WASH_EDITOR": {
+      "description": "Editor de Recetas de Lavado",
+      "labels": [
+        "washEditor.title",
+        "washEditor.recipeName",
+        "washEditor.recipeNamePlaceholder",
+        "washEditor.btnReadPlc",
+        "washEditor.btnWritePlc",
+        "washEditor.btnClose",
+        "washEditor.dataSource",
+        "washEditor.readTooltip",
+        "washEditor.writeTooltip",
+        "washEditor.readSuccess",
+        "washEditor.writeSuccess",
+        "washEditor.readError",
+        "washEditor.writeError",
+        "washEditor.errorLoading",
+        "washEditor.noConfig",
+        "washEditor.unsavedChanges",
+        "washEditor.noStations",
+        "washEditor.boolParams",
+        "washEditor.intParams",
+        "washEditor.noParams"
+      ]
+    },
     "ROLE_PERMISSIONS": {
       "description": "Configuración de permisos por rol",
       "labels": [
@@ -2824,6 +2849,126 @@
       "ENG": "Manual controls - Use with caution",
       "FRA": "Commandes manuelles - À utiliser avec précaution",
       "ITA": "Controlli manuali - Usare con cautela"
+    },
+    "washEditor.title": {
+      "SPA": "Editor de Recetas de Lavado",
+      "ENG": "Wash Recipe Editor",
+      "FRA": "Éditeur de Recettes de Lavage",
+      "ITA": "Editor Ricette di Lavaggio"
+    },
+    "washEditor.recipeName": {
+      "SPA": "NOMBRE LAVADO",
+      "ENG": "WASH NAME",
+      "FRA": "NOM LAVAGE",
+      "ITA": "NOME LAVAGGIO"
+    },
+    "washEditor.recipeNamePlaceholder": {
+      "SPA": "Toque para editar",
+      "ENG": "Tap to edit",
+      "FRA": "Appuyez pour modifier",
+      "ITA": "Tocca per modificare"
+    },
+    "washEditor.btnReadPlc": {
+      "SPA": "LEER PLC",
+      "ENG": "READ PLC",
+      "FRA": "LIRE PLC",
+      "ITA": "LEGGI PLC"
+    },
+    "washEditor.btnWritePlc": {
+      "SPA": "ESCRIBIR PLC",
+      "ENG": "WRITE PLC",
+      "FRA": "ÉCRIRE PLC",
+      "ITA": "SCRIVI PLC"
+    },
+    "washEditor.btnClose": {
+      "SPA": "CERRAR",
+      "ENG": "CLOSE",
+      "FRA": "FERMER",
+      "ITA": "CHIUDI"
+    },
+    "washEditor.dataSource": {
+      "SPA": "Fuente de datos",
+      "ENG": "Data source",
+      "FRA": "Source de données",
+      "ITA": "Fonte dati"
+    },
+    "washEditor.readTooltip": {
+      "SPA": "Leer valores actuales desde el PLC",
+      "ENG": "Read current values from PLC",
+      "FRA": "Lire les valeurs actuelles depuis le PLC",
+      "ITA": "Leggi valori attuali dal PLC"
+    },
+    "washEditor.writeTooltip": {
+      "SPA": "Escribir valores al PLC",
+      "ENG": "Write values to PLC",
+      "FRA": "Écrire les valeurs au PLC",
+      "ITA": "Scrivi valori al PLC"
+    },
+    "washEditor.readSuccess": {
+      "SPA": "✅ Valores leídos del PLC correctamente",
+      "ENG": "✅ Values read from PLC successfully",
+      "FRA": "✅ Valeurs lues depuis le PLC avec succès",
+      "ITA": "✅ Valori letti dal PLC con successo"
+    },
+    "washEditor.writeSuccess": {
+      "SPA": "✅ Valores escritos al PLC correctamente",
+      "ENG": "✅ Values written to PLC successfully",
+      "FRA": "✅ Valeurs écrites au PLC avec succès",
+      "ITA": "✅ Valori scritti al PLC con successo"
+    },
+    "washEditor.readError": {
+      "SPA": "❌ Error al leer del PLC",
+      "ENG": "❌ Error reading from PLC",
+      "FRA": "❌ Erreur de lecture depuis le PLC",
+      "ITA": "❌ Errore lettura dal PLC"
+    },
+    "washEditor.writeError": {
+      "SPA": "❌ Error al escribir al PLC",
+      "ENG": "❌ Error writing to PLC",
+      "FRA": "❌ Erreur d'écriture au PLC",
+      "ITA": "❌ Errore scrittura al PLC"
+    },
+    "washEditor.errorLoading": {
+      "SPA": "❌ Error al cargar la configuración de recetas",
+      "ENG": "❌ Error loading recipe configuration",
+      "FRA": "❌ Erreur de chargement de la configuration des recettes",
+      "ITA": "❌ Errore caricamento configurazione ricette"
+    },
+    "washEditor.noConfig": {
+      "SPA": "No se encontró configuración de recetas",
+      "ENG": "No recipe configuration found",
+      "FRA": "Aucune configuration de recettes trouvée",
+      "ITA": "Nessuna configurazione ricette trovata"
+    },
+    "washEditor.unsavedChanges": {
+      "SPA": "⚠️ CAMBIOS SIN GUARDAR EN PLC",
+      "ENG": "⚠️ UNSAVED CHANGES TO PLC",
+      "FRA": "⚠️ MODIFICATIONS NON ENREGISTRÉES AU PLC",
+      "ITA": "⚠️ MODIFICHE NON SALVATE AL PLC"
+    },
+    "washEditor.noStations": {
+      "SPA": "No hay estaciones configuradas",
+      "ENG": "No stations configured",
+      "FRA": "Aucune station configurée",
+      "ITA": "Nessuna stazione configurata"
+    },
+    "washEditor.boolParams": {
+      "SPA": "⚡ Parámetros BOOL",
+      "ENG": "⚡ BOOL Parameters",
+      "FRA": "⚡ Paramètres BOOL",
+      "ITA": "⚡ Parametri BOOL"
+    },
+    "washEditor.intParams": {
+      "SPA": "🔢 Parámetros INT",
+      "ENG": "🔢 INT Parameters",
+      "FRA": "🔢 Paramètres INT",
+      "ITA": "🔢 Parametri INT"
+    },
+    "washEditor.noParams": {
+      "SPA": "Esta estación no tiene parámetros configurados",
+      "ENG": "This station has no configured parameters",
+      "FRA": "Cette station n'a pas de paramètres configurés",
+      "ITA": "Questa stazione non ha parametri configurati"
     },
     "rolePermissions.title": {
       "SPA": "⚙️ Configuración de Permisos por Rol",
