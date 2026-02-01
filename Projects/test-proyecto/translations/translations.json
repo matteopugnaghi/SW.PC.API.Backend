@@ -2099,6 +2099,324 @@
       "FRA": "SAUV. MEM",
       "ITA": "SALVA MEM"
     },
+    "settings_excel_A_BOOL": {
+      "SPA": "BOOLEANOS",
+      "ENG": "BOOLEANS",
+      "FRA": "BOOLÉENS",
+      "ITA": "BOOLEANI"
+    },
+    "settings_excel_B_Enable EtherCAT communication": {
+      "SPA": "Habilitar comunicación EtherCAT",
+      "ENG": "Enable EtherCAT communication",
+      "FRA": "Activer communication EtherCAT",
+      "ITA": "Abilita comunicazione EtherCAT"
+    },
+    "settings_excel_B_Enable DEMINERALIZING system": {
+      "SPA": "Habilitar sistema DESMINERALIZACIÓN",
+      "ENG": "Enable DEMINERALIZING system",
+      "FRA": "Activer système DÉMINÉRALISATION",
+      "ITA": "Abilita sistema DEMINERALIZZAZIONE"
+    },
+    "settings_excel_B_Enable RECYCLING system": {
+      "SPA": "Habilitar sistema RECICLAJE",
+      "ENG": "Enable RECYCLING system",
+      "FRA": "Activer système RECYCLAGE",
+      "ITA": "Abilita sistema RICICLAGGIO"
+    },
+    "settings_excel_B_Enable speed control": {
+      "SPA": "Habilitar control de velocidad",
+      "ENG": "Enable speed control",
+      "FRA": "Activer contrôle de vitesse",
+      "ITA": "Abilita controllo velocità"
+    },
+    "settings_excel_B_Enable Antifroozen system": {
+      "SPA": "Habilitar sistema Anticongelamiento",
+      "ENG": "Enable Antifreeze system",
+      "FRA": "Activer système Antigel",
+      "ITA": "Abilita sistema Antigelo"
+    },
+    "settings_excel_B_Enable_P_01": {
+      "SPA": "Habilitar Bomba 01",
+      "ENG": "Enable Pump 01",
+      "FRA": "Activer Pompe 01",
+      "ITA": "Abilita Pompa 01"
+    },
+    "settings_excel_B_Enable_P_02": {
+      "SPA": "Habilitar Bomba 02",
+      "ENG": "Enable Pump 02",
+      "FRA": "Activer Pompe 02",
+      "ITA": "Abilita Pompa 02"
+    },
+    "settings_excel_B_Enable_P_03": {
+      "SPA": "Habilitar Bomba 03",
+      "ENG": "Enable Pump 03",
+      "FRA": "Activer Pompe 03",
+      "ITA": "Abilita Pompa 03"
+    },
+    "settings_excel_B_Enable_P_04": {
+      "SPA": "Habilitar Bomba 04",
+      "ENG": "Enable Pump 04",
+      "FRA": "Activer Pompe 04",
+      "ITA": "Abilita Pompa 04"
+    },
+    "settings_excel_B_Enable_P_05": {
+      "SPA": "Habilitar Bomba 05",
+      "ENG": "Enable Pump 05",
+      "FRA": "Activer Pompe 05",
+      "ITA": "Abilita Pompa 05"
+    },
+    "settings_excel_B_Enable_P_06": {
+      "SPA": "Habilitar Bomba 06",
+      "ENG": "Enable Pump 06",
+      "FRA": "Activer Pompe 06",
+      "ITA": "Abilita Pompa 06"
+    },
+    "settings_excel_B_Enable_Vertical_1": {
+      "SPA": "Habilitar Vertical 1",
+      "ENG": "Enable Vertical 1",
+      "FRA": "Activer Vertical 1",
+      "ITA": "Abilita Verticale 1"
+    },
+    "settings_excel_B_Enable_Vertical_2": {
+      "SPA": "Habilitar Vertical 2",
+      "ENG": "Enable Vertical 2",
+      "FRA": "Activer Vertical 2",
+      "ITA": "Abilita Verticale 2"
+    },
+    "settings_excel_B_Enable_Vertical_3": {
+      "SPA": "Habilitar Vertical 3",
+      "ENG": "Enable Vertical 3",
+      "FRA": "Activer Vertical 3",
+      "ITA": "Abilita Verticale 3"
+    },
+    "settings_excel_B_Enable_Vertical_4": {
+      "SPA": "Habilitar Vertical 4",
+      "ENG": "Enable Vertical 4",
+      "FRA": "Activer Vertical 4",
+      "ITA": "Abilita Verticale 4"
+    },
+    "settings_excel_B_Enable_Gantry_1": {
+      "SPA": "Habilitar Pórtico 1",
+      "ENG": "Enable Gantry 1",
+      "FRA": "Activer Portique 1",
+      "ITA": "Abilita Portale 1"
+    },
+    "settings_excel_B_Enable_Gantry_2": {
+      "SPA": "Habilitar Pórtico 2",
+      "ENG": "Enable Gantry 2",
+      "FRA": "Activer Portique 2",
+      "ITA": "Abilita Portale 2"
+    },
+    "settings_excel_B_Enable_WpValve_1": {
+      "SPA": "Habilitar Válvula WP 1",
+      "ENG": "Enable WP Valve 1",
+      "FRA": "Activer Vanne WP 1",
+      "ITA": "Abilita Valvola WP 1"
+    },
+    "settings_excel_B_Enable_WpValve_2": {
+      "SPA": "Habilitar Válvula WP 2",
+      "ENG": "Enable WP Valve 2",
+      "FRA": "Activer Vanne WP 2",
+      "ITA": "Abilita Valvola WP 2"
+    },
+    "settings_excel_B_Enable_WpValve_3": {
+      "SPA": "Habilitar Válvula WP 3",
+      "ENG": "Enable WP Valve 3",
+      "FRA": "Activer Vanne WP 3",
+      "ITA": "Abilita Valvola WP 3"
+    },
+    "settings_excel_B_Enable_WpValve_4": {
+      "SPA": "Habilitar Válvula WP 4",
+      "ENG": "Enable WP Valve 4",
+      "FRA": "Activer Vanne WP 4",
+      "ITA": "Abilita Valvola WP 4"
+    },
+    "settings_excel_B_Enable_WpValve_5": {
+      "SPA": "Habilitar Válvula WP 5",
+      "ENG": "Enable WP Valve 5",
+      "FRA": "Activer Vanne WP 5",
+      "ITA": "Abilita Valvola WP 5"
+    },
+    "settings_excel_B_Enable_WpValve_6": {
+      "SPA": "Habilitar Válvula WP 6",
+      "ENG": "Enable WP Valve 6",
+      "FRA": "Activer Vanne WP 6",
+      "ITA": "Abilita Valvola WP 6"
+    },
+    "settings_excel_B_Enable_WpValve_7": {
+      "SPA": "Habilitar Válvula WP 7",
+      "ENG": "Enable WP Valve 7",
+      "FRA": "Activer Vanne WP 7",
+      "ITA": "Abilita Valvola WP 7"
+    },
+    "settings_excel_B_Enable_WpValve_8": {
+      "SPA": "Habilitar Válvula WP 8",
+      "ENG": "Enable WP Valve 8",
+      "FRA": "Activer Vanne WP 8",
+      "ITA": "Abilita Valvola WP 8"
+    },
+    "settings_excel_B_Enable_WpValve_9": {
+      "SPA": "Habilitar Válvula WP 9",
+      "ENG": "Enable WP Valve 9",
+      "FRA": "Activer Vanne WP 9",
+      "ITA": "Abilita Valvola WP 9"
+    },
+    "settings_excel_B_Enable_Shoulder_1": {
+      "SPA": "Habilitar Lateral 1",
+      "ENG": "Enable Shoulder 1",
+      "FRA": "Activer Épaule 1",
+      "ITA": "Abilita Spalla 1"
+    },
+    "settings_excel_B_Enable_Shoulder_2": {
+      "SPA": "Habilitar Lateral 2",
+      "ENG": "Enable Shoulder 2",
+      "FRA": "Activer Épaule 2",
+      "ITA": "Abilita Spalla 2"
+    },
+    "settings_excel_E_int": {
+      "SPA": "ENTEROS",
+      "ENG": "INTEGERS",
+      "FRA": "ENTIERS",
+      "ITA": "INTERI"
+    },
+    "settings_excel_F_Torque alarm horizontal brushes (A)": {
+      "SPA": "Alarma par cepillos horizontales (A)",
+      "ENG": "Torque alarm horizontal brushes (A)",
+      "FRA": "Alarme couple brosses horizontales (A)",
+      "ITA": "Allarme coppia spazzole orizzontali (A)"
+    },
+    "settings_excel_F_Track lenght (mm)": {
+      "SPA": "Longitud pista (mm)",
+      "ENG": "Track length (mm)",
+      "FRA": "Longueur piste (mm)",
+      "ITA": "Lunghezza pista (mm)"
+    },
+    "settings_excel_F_Delay stop machine zero speed (s)": {
+      "SPA": "Retardo parada máquina velocidad cero (s)",
+      "ENG": "Delay stop machine zero speed (s)",
+      "FRA": "Délai arrêt machine vitesse zéro (s)",
+      "ITA": "Ritardo arresto macchina velocità zero (s)"
+    },
+    "settings_excel_L_DECIMAL": {
+      "SPA": "DECIMALES",
+      "ENG": "DECIMALS",
+      "FRA": "DÉCIMAUX",
+      "ITA": "DECIMALI"
+    },
+    "settings_excel_T_GANTRY": {
+      "SPA": "PÓRTICO",
+      "ENG": "GANTRY",
+      "FRA": "PORTIQUE",
+      "ITA": "PORTALE"
+    },
+    "settings_excel_U_GANTRY 1 - SPEED SLAVE MOV. NO WASH": {
+      "SPA": "Pórtico 1 - Vel. Esclavo Mov. Sin Lavado",
+      "ENG": "Gantry 1 - Speed Slave Mov. No Wash",
+      "FRA": "Portique 1 - Vit. Esclave Mouv. Sans Lavage",
+      "ITA": "Portale 1 - Vel. Slave Mov. No Wash"
+    },
+    "settings_excel_U_GANTRY 1 - ACC. SLAVE": {
+      "SPA": "Pórtico 1 - Aceleración Esclavo",
+      "ENG": "Gantry 1 - Acc. Slave",
+      "FRA": "Portique 1 - Acc. Esclave",
+      "ITA": "Portale 1 - Acc. Slave"
+    },
+    "settings_excel_U_GANTRY 1 - DEC. SLAVE": {
+      "SPA": "Pórtico 1 - Deceleración Esclavo",
+      "ENG": "Gantry 1 - Dec. Slave",
+      "FRA": "Portique 1 - Déc. Esclave",
+      "ITA": "Portale 1 - Dec. Slave"
+    },
+    "settings_excel_U_GANTRY 1 - JERK SLAVE": {
+      "SPA": "Pórtico 1 - Jerk Esclavo",
+      "ENG": "Gantry 1 - Jerk Slave",
+      "FRA": "Portique 1 - Jerk Esclave",
+      "ITA": "Portale 1 - Jerk Slave"
+    },
+    "settings_excel_U_GANTRY 1 - SPEED FIND CONS. SLAVE": {
+      "SPA": "Pórtico 1 - Vel. Buscar Cons. Esclavo",
+      "ENG": "Gantry 1 - Speed Find Cons. Slave",
+      "FRA": "Portique 1 - Vit. Recherche Cons. Esclave",
+      "ITA": "Portale 1 - Vel. Cerca Cons. Slave"
+    },
+    "settings_excel_U_GANTRY 1 - SPEED MASTER MOV. NO WASH": {
+      "SPA": "Pórtico 1 - Vel. Maestro Mov. Sin Lavado",
+      "ENG": "Gantry 1 - Speed Master Mov. No Wash",
+      "FRA": "Portique 1 - Vit. Maître Mouv. Sans Lavage",
+      "ITA": "Portale 1 - Vel. Master Mov. No Wash"
+    },
+    "settings_excel_U_GANTRY 1 - ACC. MASTER": {
+      "SPA": "Pórtico 1 - Aceleración Maestro",
+      "ENG": "Gantry 1 - Acc. Master",
+      "FRA": "Portique 1 - Acc. Maître",
+      "ITA": "Portale 1 - Acc. Master"
+    },
+    "settings_excel_U_GANTRY 1 - DEC. MASTER": {
+      "SPA": "Pórtico 1 - Deceleración Maestro",
+      "ENG": "Gantry 1 - Dec. Master",
+      "FRA": "Portique 1 - Déc. Maître",
+      "ITA": "Portale 1 - Dec. Master"
+    },
+    "settings_excel_U_GANTRY 1 - JERK MASTER": {
+      "SPA": "Pórtico 1 - Jerk Maestro",
+      "ENG": "Gantry 1 - Jerk Master",
+      "FRA": "Portique 1 - Jerk Maître",
+      "ITA": "Portale 1 - Jerk Master"
+    },
+    "settings_excel_U_GANTRY 2 - SPEED SLAVE MOV. NO WASH": {
+      "SPA": "Pórtico 2 - Vel. Esclavo Mov. Sin Lavado",
+      "ENG": "Gantry 2 - Speed Slave Mov. No Wash",
+      "FRA": "Portique 2 - Vit. Esclave Mouv. Sans Lavage",
+      "ITA": "Portale 2 - Vel. Slave Mov. No Wash"
+    },
+    "settings_excel_U_GANTRY 2 - ACC. SLAVE": {
+      "SPA": "Pórtico 2 - Aceleración Esclavo",
+      "ENG": "Gantry 2 - Acc. Slave",
+      "FRA": "Portique 2 - Acc. Esclave",
+      "ITA": "Portale 2 - Acc. Slave"
+    },
+    "settings_excel_U_GANTRY 2 - DEC. SLAVE": {
+      "SPA": "Pórtico 2 - Deceleración Esclavo",
+      "ENG": "Gantry 2 - Dec. Slave",
+      "FRA": "Portique 2 - Déc. Esclave",
+      "ITA": "Portale 2 - Dec. Slave"
+    },
+    "settings_excel_U_GANTRY 2 - JERK SLAVE": {
+      "SPA": "Pórtico 2 - Jerk Esclavo",
+      "ENG": "Gantry 2 - Jerk Slave",
+      "FRA": "Portique 2 - Jerk Esclave",
+      "ITA": "Portale 2 - Jerk Slave"
+    },
+    "settings_excel_U_GANTRY 2 - SPEED FIND CONS. SLAVE": {
+      "SPA": "Pórtico 2 - Vel. Buscar Cons. Esclavo",
+      "ENG": "Gantry 2 - Speed Find Cons. Slave",
+      "FRA": "Portique 2 - Vit. Recherche Cons. Esclave",
+      "ITA": "Portale 2 - Vel. Cerca Cons. Slave"
+    },
+    "settings_excel_U_GANTRY 2 - SPEED MASTER MOV. NO WASH": {
+      "SPA": "Pórtico 2 - Vel. Maestro Mov. Sin Lavado",
+      "ENG": "Gantry 2 - Speed Master Mov. No Wash",
+      "FRA": "Portique 2 - Vit. Maître Mouv. Sans Lavage",
+      "ITA": "Portale 2 - Vel. Master Mov. No Wash"
+    },
+    "settings_excel_U_GANTRY 2 - ACC. MASTER": {
+      "SPA": "Pórtico 2 - Aceleración Maestro",
+      "ENG": "Gantry 2 - Acc. Master",
+      "FRA": "Portique 2 - Acc. Maître",
+      "ITA": "Portale 2 - Acc. Master"
+    },
+    "settings_excel_U_GANTRY 2 - DEC. MASTER": {
+      "SPA": "Pórtico 2 - Deceleración Maestro",
+      "ENG": "Gantry 2 - Dec. Master",
+      "FRA": "Portique 2 - Déc. Maître",
+      "ITA": "Portale 2 - Dec. Master"
+    },
+    "settings_excel_U_GANTRY 2 - JERK MASTER": {
+      "SPA": "Pórtico 2 - Jerk Maestro",
+      "ENG": "Gantry 2 - Jerk Master",
+      "FRA": "Portique 2 - Jerk Maître",
+      "ITA": "Portale 2 - Jerk Master"
+    },
     "manual.title": {
       "SPA": "MANUALES",
       "ENG": "MANUAL",
