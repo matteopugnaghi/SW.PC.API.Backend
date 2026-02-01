@@ -497,7 +497,50 @@
         "trainEditor.unsavedChanges",
         "trainEditor.noBoolParameters",
         "trainEditor.noDecimalParameters",
-        "trainEditor.loading"
+        "trainEditor.loading",
+        "TRAINEDITOR_excel_B_BOOL",
+        "TRAINEDITOR_excel_F_DECIMAL",
+        "TRAINEDITOR_excel_N_GANTRY",
+        "TRAINEDITOR_excel_O_Speed master",
+        "TRAINEDITOR_excel_O_Brush pressure"
+      ]
+    },
+    "GANTRY_PROFILE": {
+      "description": "Editor de Perfil Gantry",
+      "labels": [
+        "gantry.title",
+        "gantry.subtitle",
+        "gantry.activeTables",
+        "gantry.configParams",
+        "gantry.noConfigParams",
+        "gantry.interpolationTable",
+        "gantry.enabledLines",
+        "gantry.copyTable",
+        "gantry.pasteTable",
+        "gantry.nothingCopied",
+        "gantry.pasteFrom",
+        "gantry.removeLine",
+        "gantry.addLine",
+        "gantry.disableLast",
+        "gantry.enableNext",
+        "gantry.lineActive",
+        "gantry.lineNext",
+        "gantry.profileVisualization",
+        "gantry.legend",
+        "gantry.legendStart",
+        "gantry.legendStop",
+        "gantry.legendTrajectory",
+        "gantry.translation",
+        "gantry.height",
+        "gantry.dynamicScale",
+        "gantry.axisTranslation",
+        "gantry.axisBrushHeight",
+        "gantry.line",
+        "gantry.start",
+        "gantry.stop",
+        "gantry.heightLabel",
+        "gantry.translationLabel",
+        "gantry.speedLabel"
       ]
     },
     "ROLE_PERMISSIONS": {
@@ -3373,6 +3416,234 @@
       "ENG": "Loading configuration...",
       "FRA": "Chargement de la configuration...",
       "ITA": "Caricamento configurazione..."
+    },
+    "TRAINEDITOR_excel_B_BOOL": {
+      "SPA": "BOOL",
+      "ENG": "BOOL",
+      "FRA": "BOOL",
+      "ITA": "BOOL"
+    },
+    "TRAINEDITOR_excel_F_DECIMAL": {
+      "SPA": "DECIMAL",
+      "ENG": "DECIMAL",
+      "FRA": "DÉCIMAL",
+      "ITA": "DECIMALE"
+    },
+    "TRAINEDITOR_excel_N_GANTRY": {
+      "SPA": "GANTRY",
+      "ENG": "GANTRY",
+      "FRA": "GANTRY",
+      "ITA": "GANTRY"
+    },
+    "TRAINEDITOR_excel_O_Speed master": {
+      "SPA": "Velocidad master",
+      "ENG": "Speed master",
+      "FRA": "Vitesse maître",
+      "ITA": "Velocità master"
+    },
+    "TRAINEDITOR_excel_O_Brush pressure": {
+      "SPA": "Presión cepillo",
+      "ENG": "Brush pressure",
+      "FRA": "Pression brosse",
+      "ITA": "Pressione spazzola"
+    },
+    "gantry.title": {
+      "SPA": "Perfil del Morro - Gantry",
+      "ENG": "Nose Profile - Gantry",
+      "FRA": "Profil du Nez - Gantry",
+      "ITA": "Profilo del Muso - Gantry"
+    },
+    "gantry.subtitle": {
+      "SPA": "Puntos de interpolación para control de movimiento",
+      "ENG": "Interpolation points for motion control",
+      "FRA": "Points d'interpolation pour le contrôle du mouvement",
+      "ITA": "Punti di interpolazione per il controllo del movimento"
+    },
+    "gantry.activeTables": {
+      "SPA": "Tablas activas",
+      "ENG": "Active tables",
+      "FRA": "Tables actives",
+      "ITA": "Tabelle attive"
+    },
+    "gantry.configParams": {
+      "SPA": "PARÁMETROS DE CONFIGURACIÓN",
+      "ENG": "CONFIGURATION PARAMETERS",
+      "FRA": "PARAMÈTRES DE CONFIGURATION",
+      "ITA": "PARAMETRI DI CONFIGURAZIONE"
+    },
+    "gantry.noConfigParams": {
+      "SPA": "No hay parámetros configurados para esta tabla",
+      "ENG": "No parameters configured for this table",
+      "FRA": "Aucun paramètre configuré pour cette table",
+      "ITA": "Nessun parametro configurato per questa tabella"
+    },
+    "gantry.interpolationTable": {
+      "SPA": "TABLA DE INTERPOLACIÓN - GANTRY",
+      "ENG": "INTERPOLATION TABLE - GANTRY",
+      "FRA": "TABLE D'INTERPOLATION - GANTRY",
+      "ITA": "TABELLA DI INTERPOLAZIONE - GANTRY"
+    },
+    "gantry.enabledLines": {
+      "SPA": "Líneas habilitadas",
+      "ENG": "Enabled lines",
+      "FRA": "Lignes activées",
+      "ITA": "Linee abilitate"
+    },
+    "gantry.copyTable": {
+      "SPA": "COPIAR TABLA",
+      "ENG": "COPY TABLE",
+      "FRA": "COPIER TABLE",
+      "ITA": "COPIA TABELLA"
+    },
+    "gantry.pasteTable": {
+      "SPA": "PEGAR TABLA",
+      "ENG": "PASTE TABLE",
+      "FRA": "COLLER TABLE",
+      "ITA": "INCOLLA TABELLA"
+    },
+    "gantry.nothingCopied": {
+      "SPA": "Nada copiado",
+      "ENG": "Nothing copied",
+      "FRA": "Rien de copié",
+      "ITA": "Niente copiato"
+    },
+    "gantry.pasteFrom": {
+      "SPA": "Pegar desde",
+      "ENG": "Paste from",
+      "FRA": "Coller depuis",
+      "ITA": "Incolla da"
+    },
+    "gantry.removeLine": {
+      "SPA": "QUITAR LÍNEA",
+      "ENG": "REMOVE LINE",
+      "FRA": "SUPPRIMER LIGNE",
+      "ITA": "RIMUOVI RIGA"
+    },
+    "gantry.addLine": {
+      "SPA": "AÑADIR LÍNEA",
+      "ENG": "ADD LINE",
+      "FRA": "AJOUTER LIGNE",
+      "ITA": "AGGIUNGI RIGA"
+    },
+    "gantry.disableLast": {
+      "SPA": "Deshabilitar última línea",
+      "ENG": "Disable last line",
+      "FRA": "Désactiver la dernière ligne",
+      "ITA": "Disabilita ultima riga"
+    },
+    "gantry.enableNext": {
+      "SPA": "Habilitar siguiente línea",
+      "ENG": "Enable next line",
+      "FRA": "Activer la ligne suivante",
+      "ITA": "Abilita riga successiva"
+    },
+    "gantry.lineActive": {
+      "SPA": "ACTIVA",
+      "ENG": "ACTIVE",
+      "FRA": "ACTIVE",
+      "ITA": "ATTIVA"
+    },
+    "gantry.lineNext": {
+      "SPA": "SIGUIENTE",
+      "ENG": "NEXT",
+      "FRA": "SUIVANTE",
+      "ITA": "SUCCESSIVA"
+    },
+    "gantry.profileVisualization": {
+      "SPA": "VISUALIZACIÓN DEL PERFIL",
+      "ENG": "PROFILE VISUALIZATION",
+      "FRA": "VISUALISATION DU PROFIL",
+      "ITA": "VISUALIZZAZIONE DEL PROFILO"
+    },
+    "gantry.legend": {
+      "SPA": "LEYENDA",
+      "ENG": "LEGEND",
+      "FRA": "LÉGENDE",
+      "ITA": "LEGENDA"
+    },
+    "gantry.legendStart": {
+      "SPA": "Start (Fila N)",
+      "ENG": "Start (Row N)",
+      "FRA": "Début (Ligne N)",
+      "ITA": "Inizio (Riga N)"
+    },
+    "gantry.legendStop": {
+      "SPA": "Stop (Fila N)",
+      "ENG": "Stop (Row N)",
+      "FRA": "Arrêt (Ligne N)",
+      "ITA": "Stop (Riga N)"
+    },
+    "gantry.legendTrajectory": {
+      "SPA": "Trayectoria",
+      "ENG": "Trajectory",
+      "FRA": "Trajectoire",
+      "ITA": "Traiettoria"
+    },
+    "gantry.translation": {
+      "SPA": "Traslación",
+      "ENG": "Translation",
+      "FRA": "Translation",
+      "ITA": "Traslazione"
+    },
+    "gantry.height": {
+      "SPA": "Altura",
+      "ENG": "Height",
+      "FRA": "Hauteur",
+      "ITA": "Altezza"
+    },
+    "gantry.dynamicScale": {
+      "SPA": "(escala dinámica)",
+      "ENG": "(dynamic scale)",
+      "FRA": "(échelle dynamique)",
+      "ITA": "(scala dinamica)"
+    },
+    "gantry.axisTranslation": {
+      "SPA": "Traslación",
+      "ENG": "Translation",
+      "FRA": "Translation",
+      "ITA": "Traslazione"
+    },
+    "gantry.axisBrushHeight": {
+      "SPA": "Altura Cepillo",
+      "ENG": "Brush Height",
+      "FRA": "Hauteur Brosse",
+      "ITA": "Altezza Spazzola"
+    },
+    "gantry.line": {
+      "SPA": "LÍNEA",
+      "ENG": "LINE",
+      "FRA": "LIGNE",
+      "ITA": "LINEA"
+    },
+    "gantry.start": {
+      "SPA": "START",
+      "ENG": "START",
+      "FRA": "DÉBUT",
+      "ITA": "INIZIO"
+    },
+    "gantry.stop": {
+      "SPA": "STOP",
+      "ENG": "STOP",
+      "FRA": "ARRÊT",
+      "ITA": "STOP"
+    },
+    "gantry.heightLabel": {
+      "SPA": "Altura",
+      "ENG": "Height",
+      "FRA": "Hauteur",
+      "ITA": "Altezza"
+    },
+    "gantry.translationLabel": {
+      "SPA": "Traslación",
+      "ENG": "Translation",
+      "FRA": "Translation",
+      "ITA": "Traslazione"
+    },
+    "gantry.speedLabel": {
+      "SPA": "Velocidad",
+      "ENG": "Speed",
+      "FRA": "Vitesse",
+      "ITA": "Velocità"
     },
     "rolePermissions.title": {
       "SPA": "⚙️ Configuración de Permisos por Rol",
