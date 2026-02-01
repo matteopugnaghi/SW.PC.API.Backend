@@ -392,6 +392,19 @@
         "users.help.cra.4"
       ]
     },
+    "SETTINGS_VIEW": {
+      "description": "Vista de configuración de máquina",
+      "labels": [
+        "settings.title",
+        "settings.subtitle",
+        "settings.btnBack",
+        "settings.dataSource",
+        "settings.btnReadPlc",
+        "settings.btnWritePlc",
+        "settings.btnReadMem",
+        "settings.btnSaveMem"
+      ]
+    },
     "ROLE_PERMISSIONS": {
       "description": "Configuración de permisos por rol",
       "labels": [
@@ -2029,6 +2042,54 @@
       "ENG": "Password policy according to best practices",
       "FRA": "Politique de mots de passe conforme aux meilleures pratiques",
       "ITA": "Politica password conforme alle migliori pratiche"
+    },
+    "settings.title": {
+      "SPA": "CONFIGURACIÓN DE MÁQUINA",
+      "ENG": "MACHINE CONFIGURATION",
+      "FRA": "CONFIGURATION MACHINE",
+      "ITA": "CONFIGURAZIONE MACCHINA"
+    },
+    "settings.subtitle": {
+      "SPA": "AJUSTES DE MÁQUINA",
+      "ENG": "MACHINE SETTINGS",
+      "FRA": "PARAMÈTRES MACHINE",
+      "ITA": "IMPOSTAZIONI MACCHINA"
+    },
+    "settings.btnBack": {
+      "SPA": "VOLVER",
+      "ENG": "BACK",
+      "FRA": "RETOUR",
+      "ITA": "INDIETRO"
+    },
+    "settings.dataSource": {
+      "SPA": "Fuente de datos",
+      "ENG": "Data source",
+      "FRA": "Source de données",
+      "ITA": "Fonte dati"
+    },
+    "settings.btnReadPlc": {
+      "SPA": "LEER PLC",
+      "ENG": "READ PLC",
+      "FRA": "LIRE PLC",
+      "ITA": "LEGGI PLC"
+    },
+    "settings.btnWritePlc": {
+      "SPA": "ESCRIBIR PLC",
+      "ENG": "WRITE PLC",
+      "FRA": "ÉCRIRE PLC",
+      "ITA": "SCRIVI PLC"
+    },
+    "settings.btnReadMem": {
+      "SPA": "LEER MEM",
+      "ENG": "READ MEM",
+      "FRA": "LIRE MEM",
+      "ITA": "LEGGI MEM"
+    },
+    "settings.btnSaveMem": {
+      "SPA": "GUARDAR MEM",
+      "ENG": "SAVE MEM",
+      "FRA": "SAUV. MEM",
+      "ITA": "SALVA MEM"
     },
     "rolePermissions.title": {
       "SPA": "⚙️ Configuración de Permisos por Rol",
