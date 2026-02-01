@@ -405,6 +405,14 @@
         "settings.btnSaveMem"
       ]
     },
+    "MANUAL_MODE": {
+      "description": "Panel de modo manual/mantenimiento",
+      "labels": [
+        "manual.title",
+        "manual.warning",
+        "Manual_excel_A_title"
+      ]
+    },
     "ROLE_PERMISSIONS": {
       "description": "Configuración de permisos por rol",
       "labels": [
@@ -2090,6 +2098,360 @@
       "ENG": "SAVE MEM",
       "FRA": "SAUV. MEM",
       "ITA": "SALVA MEM"
+    },
+    "manual.title": {
+      "SPA": "MANUALES",
+      "ENG": "MANUAL",
+      "FRA": "MANUELS",
+      "ITA": "MANUALI"
+    },
+    "Manual_excel_A_title": {
+      "SPA": "MANUALES",
+      "ENG": "MANUAL",
+      "FRA": "MANUELS",
+      "ITA": "MANUALI"
+    },
+    "Manual_excel_B_P_01": {
+      "SPA": "Bomba 01",
+      "ENG": "Pump 01",
+      "FRA": "Pompe 01",
+      "ITA": "Pompa 01"
+    },
+    "Manual_excel_B_P_02": {
+      "SPA": "Bomba 02",
+      "ENG": "Pump 02",
+      "FRA": "Pompe 02",
+      "ITA": "Pompa 02"
+    },
+    "Manual_excel_B_P_03": {
+      "SPA": "Bomba 03",
+      "ENG": "Pump 03",
+      "FRA": "Pompe 03",
+      "ITA": "Pompa 03"
+    },
+    "Manual_excel_B_P_04": {
+      "SPA": "Bomba 04",
+      "ENG": "Pump 04",
+      "FRA": "Pompe 04",
+      "ITA": "Pompa 04"
+    },
+    "Manual_excel_B_P_05": {
+      "SPA": "Bomba 05",
+      "ENG": "Pump 05",
+      "FRA": "Pompe 05",
+      "ITA": "Pompa 05"
+    },
+    "Manual_excel_B_P_06": {
+      "SPA": "Bomba 06",
+      "ENG": "Pump 06",
+      "FRA": "Pompe 06",
+      "ITA": "Pompa 06"
+    },
+    "Manual_excel_B_EV_01": {
+      "SPA": "Electroválvula 01",
+      "ENG": "Electrovalve 01",
+      "FRA": "Électrovanne 01",
+      "ITA": "Elettrovalvola 01"
+    },
+    "Manual_excel_B_EV_02": {
+      "SPA": "Electroválvula 02",
+      "ENG": "Electrovalve 02",
+      "FRA": "Électrovanne 02",
+      "ITA": "Elettrovalvola 02"
+    },
+    "Manual_excel_B_EV_03": {
+      "SPA": "Electroválvula 03",
+      "ENG": "Electrovalve 03",
+      "FRA": "Électrovanne 03",
+      "ITA": "Elettrovalvola 03"
+    },
+    "Manual_excel_B_EV_04": {
+      "SPA": "Electroválvula 04",
+      "ENG": "Electrovalve 04",
+      "FRA": "Électrovanne 04",
+      "ITA": "Elettrovalvola 04"
+    },
+    "Manual_excel_B_EV_05": {
+      "SPA": "Electroválvula 05",
+      "ENG": "Electrovalve 05",
+      "FRA": "Électrovanne 05",
+      "ITA": "Elettrovalvola 05"
+    },
+    "Manual_excel_B_EV_06": {
+      "SPA": "Electroválvula 06",
+      "ENG": "Electrovalve 06",
+      "FRA": "Électrovanne 06",
+      "ITA": "Elettrovalvola 06"
+    },
+    "Manual_excel_B_EV_07": {
+      "SPA": "Electroválvula 07",
+      "ENG": "Electrovalve 07",
+      "FRA": "Électrovanne 07",
+      "ITA": "Elettrovalvola 07"
+    },
+    "Manual_excel_B_EV_08": {
+      "SPA": "Electroválvula 08",
+      "ENG": "Electrovalve 08",
+      "FRA": "Électrovanne 08",
+      "ITA": "Elettrovalvola 08"
+    },
+    "Manual_excel_B_EV_09": {
+      "SPA": "Electroválvula 09",
+      "ENG": "Electrovalve 09",
+      "FRA": "Électrovanne 09",
+      "ITA": "Elettrovalvola 09"
+    },
+    "Manual_excel_B_EV_10": {
+      "SPA": "Electroválvula 10",
+      "ENG": "Electrovalve 10",
+      "FRA": "Électrovanne 10",
+      "ITA": "Elettrovalvola 10"
+    },
+    "Manual_excel_B_EV_11": {
+      "SPA": "Electroválvula 11",
+      "ENG": "Electrovalve 11",
+      "FRA": "Électrovanne 11",
+      "ITA": "Elettrovalvola 11"
+    },
+    "Manual_excel_B_EV_101": {
+      "SPA": "Electroválvula 101",
+      "ENG": "Electrovalve 101",
+      "FRA": "Électrovanne 101",
+      "ITA": "Elettrovalvola 101"
+    },
+    "Manual_excel_B_EV_102": {
+      "SPA": "Electroválvula 102",
+      "ENG": "Electrovalve 102",
+      "FRA": "Électrovanne 102",
+      "ITA": "Elettrovalvola 102"
+    },
+    "Manual_excel_B_EV_103": {
+      "SPA": "Electroválvula 103",
+      "ENG": "Electrovalve 103",
+      "FRA": "Électrovanne 103",
+      "ITA": "Elettrovalvola 103"
+    },
+    "Manual_excel_B_EV_104": {
+      "SPA": "Electroválvula 104",
+      "ENG": "Electrovalve 104",
+      "FRA": "Électrovanne 104",
+      "ITA": "Elettrovalvola 104"
+    },
+    "Manual_excel_B_EV_105": {
+      "SPA": "Electroválvula 105",
+      "ENG": "Electrovalve 105",
+      "FRA": "Électrovanne 105",
+      "ITA": "Elettrovalvola 105"
+    },
+    "Manual_excel_B_EV_106": {
+      "SPA": "Electroválvula 106",
+      "ENG": "Electrovalve 106",
+      "FRA": "Électrovanne 106",
+      "ITA": "Elettrovalvola 106"
+    },
+    "Manual_excel_B_EV_107": {
+      "SPA": "Electroválvula 107",
+      "ENG": "Electrovalve 107",
+      "FRA": "Électrovanne 107",
+      "ITA": "Elettrovalvola 107"
+    },
+    "Manual_excel_B_EV_108": {
+      "SPA": "Electroválvula 108",
+      "ENG": "Electrovalve 108",
+      "FRA": "Électrovanne 108",
+      "ITA": "Elettrovalvola 108"
+    },
+    "Manual_excel_B_EV_109": {
+      "SPA": "Electroválvula 109",
+      "ENG": "Electrovalve 109",
+      "FRA": "Électrovanne 109",
+      "ITA": "Elettrovalvola 109"
+    },
+    "Manual_excel_B_SHOULDER 1 ROTATION BRUSH": {
+      "SPA": "Lateral 1 Rotación Cepillo",
+      "ENG": "Shoulder 1 Rotation Brush",
+      "FRA": "Épaule 1 Rotation Brosse",
+      "ITA": "Spalla 1 Rotazione Spazzola"
+    },
+    "Manual_excel_B_SHOULDER 1 OPEN CLOSE": {
+      "SPA": "Lateral 1 Abrir/Cerrar",
+      "ENG": "Shoulder 1 Open/Close",
+      "FRA": "Épaule 1 Ouvrir/Fermer",
+      "ITA": "Spalla 1 Apri/Chiudi"
+    },
+    "Manual_excel_B_SHOULDER 2 ROTATION BRUSH": {
+      "SPA": "Lateral 2 Rotación Cepillo",
+      "ENG": "Shoulder 2 Rotation Brush",
+      "FRA": "Épaule 2 Rotation Brosse",
+      "ITA": "Spalla 2 Rotazione Spazzola"
+    },
+    "Manual_excel_B_SHOULDER 2 OPEN CLOSE": {
+      "SPA": "Lateral 2 Abrir/Cerrar",
+      "ENG": "Shoulder 2 Open/Close",
+      "FRA": "Épaule 2 Ouvrir/Fermer",
+      "ITA": "Spalla 2 Apri/Chiudi"
+    },
+    "Manual_excel_B_VERTICAL 1 ROTATION BRUSH": {
+      "SPA": "Vertical 1 Rotación Cepillo",
+      "ENG": "Vertical 1 Rotation Brush",
+      "FRA": "Vertical 1 Rotation Brosse",
+      "ITA": "Verticale 1 Rotazione Spazzola"
+    },
+    "Manual_excel_B_VERTICAL 1 OPEN CLOSE": {
+      "SPA": "Vertical 1 Abrir/Cerrar",
+      "ENG": "Vertical 1 Open/Close",
+      "FRA": "Vertical 1 Ouvrir/Fermer",
+      "ITA": "Verticale 1 Apri/Chiudi"
+    },
+    "Manual_excel_B_VERTICAL 2 ROTATION BRUSH": {
+      "SPA": "Vertical 2 Rotación Cepillo",
+      "ENG": "Vertical 2 Rotation Brush",
+      "FRA": "Vertical 2 Rotation Brosse",
+      "ITA": "Verticale 2 Rotazione Spazzola"
+    },
+    "Manual_excel_B_VERTICAL 2 OPEN CLOSE": {
+      "SPA": "Vertical 2 Abrir/Cerrar",
+      "ENG": "Vertical 2 Open/Close",
+      "FRA": "Vertical 2 Ouvrir/Fermer",
+      "ITA": "Verticale 2 Apri/Chiudi"
+    },
+    "Manual_excel_B_VERTICAL 3 ROTATION BRUSH": {
+      "SPA": "Vertical 3 Rotación Cepillo",
+      "ENG": "Vertical 3 Rotation Brush",
+      "FRA": "Vertical 3 Rotation Brosse",
+      "ITA": "Verticale 3 Rotazione Spazzola"
+    },
+    "Manual_excel_B_VERTICAL 3 OPEN CLOSE": {
+      "SPA": "Vertical 3 Abrir/Cerrar",
+      "ENG": "Vertical 3 Open/Close",
+      "FRA": "Vertical 3 Ouvrir/Fermer",
+      "ITA": "Verticale 3 Apri/Chiudi"
+    },
+    "Manual_excel_B_VERTICAL 4 ROTATION BRUSH": {
+      "SPA": "Vertical 4 Rotación Cepillo",
+      "ENG": "Vertical 4 Rotation Brush",
+      "FRA": "Vertical 4 Rotation Brosse",
+      "ITA": "Verticale 4 Rotazione Spazzola"
+    },
+    "Manual_excel_B_VERTICAL 4 OPEN CLOSE": {
+      "SPA": "Vertical 4 Abrir/Cerrar",
+      "ENG": "Vertical 4 Open/Close",
+      "FRA": "Vertical 4 Ouvrir/Fermer",
+      "ITA": "Verticale 4 Apri/Chiudi"
+    },
+    "Manual_excel_B_GANTRY 1 FW": {
+      "SPA": "Pórtico 1 Adelante",
+      "ENG": "Gantry 1 Forward",
+      "FRA": "Portique 1 Avant",
+      "ITA": "Portale 1 Avanti"
+    },
+    "Manual_excel_B_GANTRY 1 BW": {
+      "SPA": "Pórtico 1 Atrás",
+      "ENG": "Gantry 1 Backward",
+      "FRA": "Portique 1 Arrière",
+      "ITA": "Portale 1 Indietro"
+    },
+    "Manual_excel_B_GANTRY 1 UP": {
+      "SPA": "Pórtico 1 Subir",
+      "ENG": "Gantry 1 Up",
+      "FRA": "Portique 1 Monter",
+      "ITA": "Portale 1 Su"
+    },
+    "Manual_excel_B_GANTRY 1 DOWN": {
+      "SPA": "Pórtico 1 Bajar",
+      "ENG": "Gantry 1 Down",
+      "FRA": "Portique 1 Descendre",
+      "ITA": "Portale 1 Giù"
+    },
+    "Manual_excel_B_GANTRY 1 TO WORK BRUSH": {
+      "SPA": "Pórtico 1 A Posición Trabajo",
+      "ENG": "Gantry 1 To Work Position",
+      "FRA": "Portique 1 Position Travail",
+      "ITA": "Portale 1 Posizione Lavoro"
+    },
+    "Manual_excel_B_GANTRY 1 TO BASE BRUSH": {
+      "SPA": "Pórtico 1 A Posición Base",
+      "ENG": "Gantry 1 To Base Position",
+      "FRA": "Portique 1 Position Base",
+      "ITA": "Portale 1 Posizione Base"
+    },
+    "Manual_excel_B_GANTRY 1 ROTATION BRUSH FW": {
+      "SPA": "Pórtico 1 Rotación Cepillo Adelante",
+      "ENG": "Gantry 1 Brush Rotation Forward",
+      "FRA": "Portique 1 Rotation Brosse Avant",
+      "ITA": "Portale 1 Rotazione Spazzola Avanti"
+    },
+    "Manual_excel_B_GANTRY 1 ROTATION BRUSH BW": {
+      "SPA": "Pórtico 1 Rotación Cepillo Atrás",
+      "ENG": "Gantry 1 Brush Rotation Backward",
+      "FRA": "Portique 1 Rotation Brosse Arrière",
+      "ITA": "Portale 1 Rotazione Spazzola Indietro"
+    },
+    "Manual_excel_B_GANTRY 1 HOOK": {
+      "SPA": "Pórtico 1 Gancho",
+      "ENG": "Gantry 1 Hook",
+      "FRA": "Portique 1 Crochet",
+      "ITA": "Portale 1 Gancio"
+    },
+    "Manual_excel_B_GANTRY 2 FW": {
+      "SPA": "Pórtico 2 Adelante",
+      "ENG": "Gantry 2 Forward",
+      "FRA": "Portique 2 Avant",
+      "ITA": "Portale 2 Avanti"
+    },
+    "Manual_excel_B_GANTRY 2 BW": {
+      "SPA": "Pórtico 2 Atrás",
+      "ENG": "Gantry 2 Backward",
+      "FRA": "Portique 2 Arrière",
+      "ITA": "Portale 2 Indietro"
+    },
+    "Manual_excel_B_GANTRY 2 UP": {
+      "SPA": "Pórtico 2 Subir",
+      "ENG": "Gantry 2 Up",
+      "FRA": "Portique 2 Monter",
+      "ITA": "Portale 2 Su"
+    },
+    "Manual_excel_B_GANTRY 2 DOWN": {
+      "SPA": "Pórtico 2 Bajar",
+      "ENG": "Gantry 2 Down",
+      "FRA": "Portique 2 Descendre",
+      "ITA": "Portale 2 Giù"
+    },
+    "Manual_excel_B_GANTRY 2 TO WORK BRUSH": {
+      "SPA": "Pórtico 2 A Posición Trabajo",
+      "ENG": "Gantry 2 To Work Position",
+      "FRA": "Portique 2 Position Travail",
+      "ITA": "Portale 2 Posizione Lavoro"
+    },
+    "Manual_excel_B_GANTRY 2 TO BASE BRUSH": {
+      "SPA": "Pórtico 2 A Posición Base",
+      "ENG": "Gantry 2 To Base Position",
+      "FRA": "Portique 2 Position Base",
+      "ITA": "Portale 2 Posizione Base"
+    },
+    "Manual_excel_B_GANTRY 2 ROTATION BRUSH FW": {
+      "SPA": "Pórtico 2 Rotación Cepillo Adelante",
+      "ENG": "Gantry 2 Brush Rotation Forward",
+      "FRA": "Portique 2 Rotation Brosse Avant",
+      "ITA": "Portale 2 Rotazione Spazzola Avanti"
+    },
+    "Manual_excel_B_GANTRY 2 ROTATION BRUSH BW": {
+      "SPA": "Pórtico 2 Rotación Cepillo Atrás",
+      "ENG": "Gantry 2 Brush Rotation Backward",
+      "FRA": "Portique 2 Rotation Brosse Arrière",
+      "ITA": "Portale 2 Rotazione Spazzola Indietro"
+    },
+    "Manual_excel_B_GANTRY 2 HOOK": {
+      "SPA": "Pórtico 2 Gancho",
+      "ENG": "Gantry 2 Hook",
+      "FRA": "Portique 2 Crochet",
+      "ITA": "Portale 2 Gancio"
+    },
+    "manual.warning": {
+      "SPA": "Controles manuales - Usar con precaución",
+      "ENG": "Manual controls - Use with caution",
+      "FRA": "Commandes manuelles - À utiliser avec précaution",
+      "ITA": "Controlli manuali - Usare con cautela"
     },
     "rolePermissions.title": {
       "SPA": "⚙️ Configuración de Permisos por Rol",
