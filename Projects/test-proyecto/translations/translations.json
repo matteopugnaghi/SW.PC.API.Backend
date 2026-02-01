@@ -1,7 +1,7 @@
 {
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-02-01T12:00:00Z",
+    "lastModified": "2026-02-01T13:00:00Z",
     "languages": ["SPA", "ENG", "FRA", "ITA"],
     "defaultLanguage": "SPA",
     "description": "Archivo de traducciones del proyecto - ISO 639-2"
@@ -209,6 +209,28 @@
         "alarms.filter.of",
         "alarms.loading",
         "alarms.no_active"
+      ]
+    },
+    "WASH_TYPES_VIEW": {
+      "description": "Vista de gestión de tipos de lavado",
+      "labels": [
+        "washTypes.title",
+        "washTypes.lineSelected",
+        "washTypes.activeRecipe",
+        "washTypes.alternateRecipe",
+        "washTypes.backButton",
+        "washTypes.editorButton",
+        "washTypes.editTooltip",
+        "washTypes.saveButton",
+        "washTypes.saveTooltip",
+        "washTypes.writePlcButton",
+        "washTypes.writePlcTooltip",
+        "washTypes.writePlcAlternateButton",
+        "washTypes.writePlcAlternateTooltip",
+        "washTypes.availableTypes",
+        "washTypes.noTypes",
+        "washTypes.useEditor",
+        "washTypes.editParameters"
       ]
     },
     "COMMON": {
@@ -759,6 +781,109 @@
       "ENG": "No active alarms",
       "FRA": "Aucune alarme active",
       "ITA": "Nessun allarme attivo"
+    },
+
+    "washTypes.title": {
+      "SPA": "Tipos de Lavado",
+      "ENG": "Wash Types",
+      "FRA": "Types de Lavage",
+      "ITA": "Tipi di Lavaggio"
+    },
+    "washTypes.lineSelected": {
+      "SPA": "LÍNEA SELECCIONADA",
+      "ENG": "SELECTED LINE",
+      "FRA": "LIGNE SÉLECTIONNÉE",
+      "ITA": "LINEA SELEZIONATA"
+    },
+    "washTypes.activeRecipe": {
+      "SPA": "Receta Activa",
+      "ENG": "Active Recipe",
+      "FRA": "Recette Active",
+      "ITA": "Ricetta Attiva"
+    },
+    "washTypes.alternateRecipe": {
+      "SPA": "Receta 2",
+      "ENG": "Recipe 2",
+      "FRA": "Recette 2",
+      "ITA": "Ricetta 2"
+    },
+    "washTypes.backButton": {
+      "SPA": "VOLVER",
+      "ENG": "BACK",
+      "FRA": "RETOUR",
+      "ITA": "INDIETRO"
+    },
+    "washTypes.editorButton": {
+      "SPA": "EDITOR",
+      "ENG": "EDITOR",
+      "FRA": "ÉDITEUR",
+      "ITA": "EDITOR"
+    },
+    "washTypes.editTooltip": {
+      "SPA": "Abrir editor de recetas de lavado",
+      "ENG": "Open wash recipe editor",
+      "FRA": "Ouvrir l'éditeur de recettes de lavage",
+      "ITA": "Apri editor ricette di lavaggio"
+    },
+    "washTypes.saveButton": {
+      "SPA": "GUARDAR",
+      "ENG": "SAVE",
+      "FRA": "ENREGISTRER",
+      "ITA": "SALVA"
+    },
+    "washTypes.saveTooltip": {
+      "SPA": "Leer valores del PLC y guardar en la línea seleccionada",
+      "ENG": "Read PLC values and save to selected line",
+      "FRA": "Lire les valeurs PLC et enregistrer dans la ligne sélectionnée",
+      "ITA": "Leggi valori PLC e salva nella linea selezionata"
+    },
+    "washTypes.writePlcButton": {
+      "SPA": "ESCRIBIR PLC",
+      "ENG": "WRITE PLC",
+      "FRA": "ÉCRIRE PLC",
+      "ITA": "SCRIVI PLC"
+    },
+    "washTypes.writePlcTooltip": {
+      "SPA": "Escribir la línea seleccionada al PLC",
+      "ENG": "Write selected line to PLC",
+      "FRA": "Écrire la ligne sélectionnée sur PLC",
+      "ITA": "Scrivi linea selezionata su PLC"
+    },
+    "washTypes.writePlcAlternateButton": {
+      "SPA": "ESCRIBIR PLC 2",
+      "ENG": "WRITE PLC 2",
+      "FRA": "ÉCRIRE PLC 2",
+      "ITA": "SCRIVI PLC 2"
+    },
+    "washTypes.writePlcAlternateTooltip": {
+      "SPA": "Escribir al área alternativa del PLC",
+      "ENG": "Write to alternate PLC area",
+      "FRA": "Écrire dans la zone alternative du PLC",
+      "ITA": "Scrivi nell'area alternativa del PLC"
+    },
+    "washTypes.availableTypes": {
+      "SPA": "Tipos de Lavado Disponibles",
+      "ENG": "Available Wash Types",
+      "FRA": "Types de Lavage Disponibles",
+      "ITA": "Tipi di Lavaggio Disponibili"
+    },
+    "washTypes.noTypes": {
+      "SPA": "No hay tipos de lavado configurados",
+      "ENG": "No wash types configured",
+      "FRA": "Aucun type de lavage configuré",
+      "ITA": "Nessun tipo di lavaggio configurato"
+    },
+    "washTypes.useEditor": {
+      "SPA": "Use el Editor para crear tipos de lavado",
+      "ENG": "Use the Editor to create wash types",
+      "FRA": "Utilisez l'Éditeur pour créer des types de lavage",
+      "ITA": "Usa l'Editor per creare tipi di lavaggio"
+    },
+    "washTypes.editParameters": {
+      "SPA": "Editar Parámetros",
+      "ENG": "Edit Parameters",
+      "FRA": "Modifier les Paramètres",
+      "ITA": "Modifica Parametri"
     },
 
     "support.title": {
