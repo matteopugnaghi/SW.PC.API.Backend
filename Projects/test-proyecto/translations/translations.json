@@ -478,6 +478,28 @@
         "washEditor_excel_AD_Delay Stop station 9"
       ]
     },
+    "TRAIN_EDITOR": {
+      "description": "Editor de Recetas de Tren",
+      "labels": [
+        "trainEditor.title",
+        "trainEditor.trainName",
+        "trainEditor.namePlaceholder",
+        "trainEditor.dataSource",
+        "trainEditor.btnRead",
+        "trainEditor.btnWrite",
+        "trainEditor.btnClose",
+        "trainEditor.readTooltip",
+        "trainEditor.writeTooltip",
+        "trainEditor.readSuccess",
+        "trainEditor.writeSuccess",
+        "trainEditor.readError",
+        "trainEditor.writeError",
+        "trainEditor.unsavedChanges",
+        "trainEditor.noBoolParameters",
+        "trainEditor.noDecimalParameters",
+        "trainEditor.loading"
+      ]
+    },
     "ROLE_PERMISSIONS": {
       "description": "Configuración de permisos por rol",
       "labels": [
@@ -3249,6 +3271,108 @@
       "ENG": "Delay Stop station 9",
       "FRA": "Délai arrêt station 9",
       "ITA": "Ritardo arresto stazione 9"
+    },
+    "trainEditor.title": {
+      "SPA": "Editor de Recetas de Tren",
+      "ENG": "Train Recipe Editor",
+      "FRA": "Éditeur de Recettes de Train",
+      "ITA": "Editor Ricette Treno"
+    },
+    "trainEditor.trainName": {
+      "SPA": "NOMBRE TREN",
+      "ENG": "TRAIN NAME",
+      "FRA": "NOM TRAIN",
+      "ITA": "NOME TRENO"
+    },
+    "trainEditor.namePlaceholder": {
+      "SPA": "Toque para editar",
+      "ENG": "Tap to edit",
+      "FRA": "Appuyez pour modifier",
+      "ITA": "Tocca per modificare"
+    },
+    "trainEditor.dataSource": {
+      "SPA": "FUENTE",
+      "ENG": "SOURCE",
+      "FRA": "SOURCE",
+      "ITA": "FONTE"
+    },
+    "trainEditor.btnRead": {
+      "SPA": "LEER",
+      "ENG": "READ",
+      "FRA": "LIRE",
+      "ITA": "LEGGI"
+    },
+    "trainEditor.btnWrite": {
+      "SPA": "ESCRIBIR",
+      "ENG": "WRITE",
+      "FRA": "ÉCRIRE",
+      "ITA": "SCRIVI"
+    },
+    "trainEditor.btnClose": {
+      "SPA": "CERRAR",
+      "ENG": "CLOSE",
+      "FRA": "FERMER",
+      "ITA": "CHIUDI"
+    },
+    "trainEditor.readTooltip": {
+      "SPA": "Leer valores actuales desde el PLC",
+      "ENG": "Read current values from PLC",
+      "FRA": "Lire les valeurs actuelles du PLC",
+      "ITA": "Leggi i valori attuali dal PLC"
+    },
+    "trainEditor.writeTooltip": {
+      "SPA": "Escribir valores al PLC",
+      "ENG": "Write values to PLC",
+      "FRA": "Écrire les valeurs au PLC",
+      "ITA": "Scrivi i valori al PLC"
+    },
+    "trainEditor.readSuccess": {
+      "SPA": "Valores leídos del PLC correctamente",
+      "ENG": "Values read from PLC successfully",
+      "FRA": "Valeurs lues du PLC avec succès",
+      "ITA": "Valori letti dal PLC con successo"
+    },
+    "trainEditor.writeSuccess": {
+      "SPA": "Valores escritos al PLC correctamente",
+      "ENG": "Values written to PLC successfully",
+      "FRA": "Valeurs écrites au PLC avec succès",
+      "ITA": "Valori scritti al PLC con successo"
+    },
+    "trainEditor.readError": {
+      "SPA": "Error al leer del PLC",
+      "ENG": "Error reading from PLC",
+      "FRA": "Erreur de lecture du PLC",
+      "ITA": "Errore nella lettura dal PLC"
+    },
+    "trainEditor.writeError": {
+      "SPA": "Error al escribir al PLC",
+      "ENG": "Error writing to PLC",
+      "FRA": "Erreur d'écriture au PLC",
+      "ITA": "Errore nella scrittura al PLC"
+    },
+    "trainEditor.unsavedChanges": {
+      "SPA": "CAMBIOS SIN GUARDAR EN PLC",
+      "ENG": "UNSAVED CHANGES IN PLC",
+      "FRA": "MODIFICATIONS NON ENREGISTRÉES DANS PLC",
+      "ITA": "MODIFICHE NON SALVATE NEL PLC"
+    },
+    "trainEditor.noBoolParameters": {
+      "SPA": "No hay parámetros BOOL configurados",
+      "ENG": "No BOOL parameters configured",
+      "FRA": "Aucun paramètre BOOL configuré",
+      "ITA": "Nessun parametro BOOL configurato"
+    },
+    "trainEditor.noDecimalParameters": {
+      "SPA": "No hay parámetros numéricos configurados",
+      "ENG": "No numeric parameters configured",
+      "FRA": "Aucun paramètre numérique configuré",
+      "ITA": "Nessun parametro numerico configurato"
+    },
+    "trainEditor.loading": {
+      "SPA": "Cargando configuración...",
+      "ENG": "Loading configuration...",
+      "FRA": "Chargement de la configuration...",
+      "ITA": "Caricamento configurazione..."
     },
     "rolePermissions.title": {
       "SPA": "⚙️ Configuración de Permisos por Rol",
