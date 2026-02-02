@@ -638,6 +638,122 @@
         "rolePermissions.roleDesc.Auditor"
       ]
     },
+    "ETHERCAT_TOPOLOGY": {
+      "description": "Modal de topología de red EtherCAT",
+      "labels": [
+        "ethercat.title",
+        "ethercat.badge.simulated",
+        "ethercat.badge.realData",
+        "ethercat.btn.rescan",
+        "ethercat.btn.scanning",
+        "ethercat.btn.rescanTwincat",
+        "ethercat.btn.saveConfig",
+        "ethercat.btn.savingConfig",
+        "ethercat.btn.updateConfig",
+        "ethercat.btn.info",
+        "ethercat.btn.close",
+        "ethercat.btn.retry",
+        "ethercat.btn.clearDiag",
+        "ethercat.btn.clearCRC",
+        "ethercat.btn.clearFrames",
+        "ethercat.configBar.label",
+        "ethercat.configBar.slaves",
+        "ethercat.configBar.missing",
+        "ethercat.configBar.new",
+        "ethercat.configBar.ok",
+        "ethercat.configBar.actual",
+        "ethercat.configBar.noOp",
+        "ethercat.legend.states",
+        "ethercat.legend.OP",
+        "ethercat.legend.SAFEOP",
+        "ethercat.legend.PREOP",
+        "ethercat.legend.INIT",
+        "ethercat.legend.OP_desc",
+        "ethercat.legend.SAFEOP_desc",
+        "ethercat.legend.PREOP_desc",
+        "ethercat.legend.INIT_desc",
+        "ethercat.legend.cables",
+        "ethercat.legend.cableEtherCAT",
+        "ethercat.legend.cableEBus",
+        "ethercat.summary.title",
+        "ethercat.summary.slavesOP",
+        "ethercat.summary.lostFrames",
+        "ethercat.summary.queuedFrames",
+        "ethercat.details.title",
+        "ethercat.details.selectDevice",
+        "ethercat.devices.title",
+        "ethercat.devices.noName",
+        "ethercat.devices.unknown",
+        "ethercat.loading",
+        "ethercat.error",
+        "ethercat.simulation.title",
+        "ethercat.simulation.message",
+        "ethercat.ipc.title",
+        "ethercat.ipc.master",
+        "ethercat.ipc.operational",
+        "ethercat.tooltip.rescan",
+        "ethercat.tooltip.rescanTwincat",
+        "ethercat.tooltip.saveConfig",
+        "ethercat.tooltip.updateConfig",
+        "ethercat.tooltip.info",
+        "ethercat.tooltip.close",
+        "ethercat.tooltip.clearDiag",
+        "ethercat.alert.commandSent",
+        "ethercat.alert.diagSent",
+        "ethercat.legend.CRC",
+        "ethercat.legend.CRC_desc",
+        "ethercat.details.position",
+        "ethercat.details.address",
+        "ethercat.details.topoType",
+        "ethercat.details.comesFromPort",
+        "ethercat.details.parent",
+        "ethercat.details.vendor",
+        "ethercat.details.product",
+        "ethercat.details.portTopology",
+        "ethercat.footer.updated",
+        "ethercat.badge.offline",
+        "ethercat.status.warnings",
+        "ethercat.status.errors",
+        "ethercat.status.unknown",
+        "ethercat.help.title",
+        "ethercat.help.close",
+        "ethercat.help.statesTitle",
+        "ethercat.help.statesDesc",
+        "ethercat.help.stateOP",
+        "ethercat.help.stateSAFEOP",
+        "ethercat.help.statePREOP",
+        "ethercat.help.stateINIT",
+        "ethercat.help.stateSelected",
+        "ethercat.help.warningsTitle",
+        "ethercat.help.warningsGlow",
+        "ethercat.help.warningsNote",
+        "ethercat.help.terminalsTitle",
+        "ethercat.help.terminalsDesc",
+        "ethercat.help.termCoupler",
+        "ethercat.help.termDigitalIn",
+        "ethercat.help.termDigitalOut",
+        "ethercat.help.termAnalogIn",
+        "ethercat.help.termAnalogOut",
+        "ethercat.help.termComm",
+        "ethercat.help.termPower",
+        "ethercat.help.termSafety",
+        "ethercat.help.manufacturerTitle",
+        "ethercat.help.manufacturerDesc",
+        "ethercat.help.connectorsTitle",
+        "ethercat.help.connEbus",
+        "ethercat.help.connEthernet",
+        "ethercat.help.connEthernetDrive",
+        "ethercat.popup.saveSuccess",
+        "ethercat.popup.saveError",
+        "ethercat.popup.deleteConfirm",
+        "ethercat.popup.deleteSuccess",
+        "ethercat.popup.diagSuccess",
+        "ethercat.popup.commandSent",
+        "ethercat.popup.error",
+        "ethercat.tooltip.clearCRC",
+        "ethercat.tooltip.clearFrames"
+      ]
+    },
     "COMMON": {
       "description": "Textos comunes usados en múltiples páginas",
       "labels": [
@@ -7301,6 +7417,673 @@
       "ENG": "Name",
       "FRA": "Nom",
       "ITA": "Nome"
+    },
+
+    "ethercat.title": {
+      "SPA": "Topología de Red EtherCAT",
+      "ENG": "EtherCAT Network Topology",
+      "FRA": "Topologie du Réseau EtherCAT",
+      "ITA": "Topologia di Rete EtherCAT"
+    },
+    "ethercat.badge.simulated": {
+      "SPA": "SIMULADO",
+      "ENG": "SIMULATED",
+      "FRA": "SIMULÉ",
+      "ITA": "SIMULATO"
+    },
+    "ethercat.badge.realData": {
+      "SPA": "DATOS REALES",
+      "ENG": "REAL DATA",
+      "FRA": "DONNÉES RÉELLES",
+      "ITA": "DATI REALI"
+    },
+    "ethercat.btn.rescan": {
+      "SPA": "Reescanear",
+      "ENG": "Rescan",
+      "FRA": "Rescanner",
+      "ITA": "Riscansiona"
+    },
+    "ethercat.btn.scanning": {
+      "SPA": "Escaneando...",
+      "ENG": "Scanning...",
+      "FRA": "Scan en cours...",
+      "ITA": "Scansione..."
+    },
+    "ethercat.btn.rescanTwincat": {
+      "SPA": "Rescanear TwinCAT",
+      "ENG": "Rescan TwinCAT",
+      "FRA": "Rescanner TwinCAT",
+      "ITA": "Riscansiona TwinCAT"
+    },
+    "ethercat.btn.saveConfig": {
+      "SPA": "Guardar Config",
+      "ENG": "Save Config",
+      "FRA": "Sauver Config",
+      "ITA": "Salva Config"
+    },
+    "ethercat.btn.savingConfig": {
+      "SPA": "Guardando...",
+      "ENG": "Saving...",
+      "FRA": "Sauvegarde...",
+      "ITA": "Salvataggio..."
+    },
+    "ethercat.btn.updateConfig": {
+      "SPA": "Actualizar Config",
+      "ENG": "Update Config",
+      "FRA": "Mettre à jour Config",
+      "ITA": "Aggiorna Config"
+    },
+    "ethercat.btn.info": {
+      "SPA": "Info",
+      "ENG": "Info",
+      "FRA": "Info",
+      "ITA": "Info"
+    },
+    "ethercat.btn.close": {
+      "SPA": "Cerrar",
+      "ENG": "Close",
+      "FRA": "Fermer",
+      "ITA": "Chiudi"
+    },
+    "ethercat.btn.retry": {
+      "SPA": "Reintentar",
+      "ENG": "Retry",
+      "FRA": "Réessayer",
+      "ITA": "Riprova"
+    },
+    "ethercat.btn.clearDiag": {
+      "SPA": "Limpiar Diagnóstico",
+      "ENG": "Clear Diagnostics",
+      "FRA": "Effacer Diagnostics",
+      "ITA": "Cancella Diagnostica"
+    },
+    "ethercat.configBar.label": {
+      "SPA": "Configuración:",
+      "ENG": "Configuration:",
+      "FRA": "Configuration :",
+      "ITA": "Configurazione:"
+    },
+    "ethercat.configBar.slaves": {
+      "SPA": "esclavos",
+      "ENG": "slaves",
+      "FRA": "esclaves",
+      "ITA": "schiavi"
+    },
+    "ethercat.configBar.missing": {
+      "SPA": "desaparecidos",
+      "ENG": "missing",
+      "FRA": "manquants",
+      "ITA": "mancanti"
+    },
+    "ethercat.configBar.new": {
+      "SPA": "nuevos",
+      "ENG": "new",
+      "FRA": "nouveaux",
+      "ITA": "nuovi"
+    },
+    "ethercat.configBar.ok": {
+      "SPA": "OK",
+      "ENG": "OK",
+      "FRA": "OK",
+      "ITA": "OK"
+    },
+    "ethercat.configBar.actual": {
+      "SPA": "Actual:",
+      "ENG": "Actual:",
+      "FRA": "Actuel :",
+      "ITA": "Attuale:"
+    },
+    "ethercat.configBar.noOp": {
+      "SPA": "no OP",
+      "ENG": "not OP",
+      "FRA": "non OP",
+      "ITA": "non OP"
+    },
+    "ethercat.legend.states": {
+      "SPA": "Estados",
+      "ENG": "States",
+      "FRA": "États",
+      "ITA": "Stati"
+    },
+    "ethercat.legend.OP": {
+      "SPA": "OP",
+      "ENG": "OP",
+      "FRA": "OP",
+      "ITA": "OP"
+    },
+    "ethercat.legend.SAFEOP": {
+      "SPA": "SAFEOP",
+      "ENG": "SAFEOP",
+      "FRA": "SAFEOP",
+      "ITA": "SAFEOP"
+    },
+    "ethercat.legend.PREOP": {
+      "SPA": "PREOP",
+      "ENG": "PREOP",
+      "FRA": "PREOP",
+      "ITA": "PREOP"
+    },
+    "ethercat.legend.INIT": {
+      "SPA": "INIT/ERROR",
+      "ENG": "INIT/ERROR",
+      "FRA": "INIT/ERREUR",
+      "ITA": "INIT/ERRORE"
+    },
+    "ethercat.legend.OP_desc": {
+      "SPA": "Operacional",
+      "ENG": "Operational",
+      "FRA": "Opérationnel",
+      "ITA": "Operativo"
+    },
+    "ethercat.legend.SAFEOP_desc": {
+      "SPA": "Seguro",
+      "ENG": "Safe",
+      "FRA": "Sécurisé",
+      "ITA": "Sicuro"
+    },
+    "ethercat.legend.PREOP_desc": {
+      "SPA": "Pre-Operacional",
+      "ENG": "Pre-Operational",
+      "FRA": "Pré-Opérationnel",
+      "ITA": "Pre-Operativo"
+    },
+    "ethercat.legend.INIT_desc": {
+      "SPA": "Inicializando o Error",
+      "ENG": "Initializing or Error",
+      "FRA": "Initialisation ou Erreur",
+      "ITA": "Inizializzazione o Errore"
+    },
+    "ethercat.legend.cables": {
+      "SPA": "Cables",
+      "ENG": "Cables",
+      "FRA": "Câbles",
+      "ITA": "Cavi"
+    },
+    "ethercat.legend.cableEtherCAT": {
+      "SPA": "Cable EtherCAT",
+      "ENG": "EtherCAT Cable",
+      "FRA": "Câble EtherCAT",
+      "ITA": "Cavo EtherCAT"
+    },
+    "ethercat.legend.cableEBus": {
+      "SPA": "E-Bus (Interno)",
+      "ENG": "E-Bus (Internal)",
+      "FRA": "E-Bus (Interne)",
+      "ITA": "E-Bus (Interno)"
+    },
+    "ethercat.summary.title": {
+      "SPA": "RESUMEN",
+      "ENG": "SUMMARY",
+      "FRA": "RÉSUMÉ",
+      "ITA": "RIEPILOGO"
+    },
+    "ethercat.summary.slavesOP": {
+      "SPA": "Esclavos en OP",
+      "ENG": "Slaves in OP",
+      "FRA": "Esclaves en OP",
+      "ITA": "Schiavi in OP"
+    },
+    "ethercat.summary.lostFrames": {
+      "SPA": "Frames Perdidos",
+      "ENG": "Lost Frames",
+      "FRA": "Trames Perdues",
+      "ITA": "Frame Persi"
+    },
+    "ethercat.summary.queuedFrames": {
+      "SPA": "Frames en Cola",
+      "ENG": "Queued Frames",
+      "FRA": "Trames en File",
+      "ITA": "Frame in Coda"
+    },
+    "ethercat.details.title": {
+      "SPA": "DETALLES",
+      "ENG": "DETAILS",
+      "FRA": "DÉTAILS",
+      "ITA": "DETTAGLI"
+    },
+    "ethercat.details.selectDevice": {
+      "SPA": "Selecciona un dispositivo para ver detalles",
+      "ENG": "Select a device to view details",
+      "FRA": "Sélectionnez un appareil pour voir les détails",
+      "ITA": "Seleziona un dispositivo per vedere i dettagli"
+    },
+    "ethercat.devices.title": {
+      "SPA": "DISPOSITIVOS",
+      "ENG": "DEVICES",
+      "FRA": "APPAREILS",
+      "ITA": "DISPOSITIVI"
+    },
+    "ethercat.devices.noName": {
+      "SPA": "Sin nombre",
+      "ENG": "No name",
+      "FRA": "Sans nom",
+      "ITA": "Senza nome"
+    },
+    "ethercat.devices.unknown": {
+      "SPA": "Desconocido",
+      "ENG": "Unknown",
+      "FRA": "Inconnu",
+      "ITA": "Sconosciuto"
+    },
+    "ethercat.loading": {
+      "SPA": "Cargando topología EtherCAT...",
+      "ENG": "Loading EtherCAT topology...",
+      "FRA": "Chargement de la topologie EtherCAT...",
+      "ITA": "Caricamento topologia EtherCAT..."
+    },
+    "ethercat.error": {
+      "SPA": "Error cargando topología",
+      "ENG": "Error loading topology",
+      "FRA": "Erreur de chargement de la topologie",
+      "ITA": "Errore nel caricamento della topologia"
+    },
+    "ethercat.simulation.title": {
+      "SPA": "MODO SIMULACIÓN",
+      "ENG": "SIMULATION MODE",
+      "FRA": "MODE SIMULATION",
+      "ITA": "MODALITÀ SIMULAZIONE"
+    },
+    "ethercat.simulation.message": {
+      "SPA": "Esta vista muestra datos simulados. Conecte a TwinCAT para ver la topología real.",
+      "ENG": "This view shows simulated data. Connect to TwinCAT to see the real topology.",
+      "FRA": "Cette vue affiche des données simulées. Connectez-vous à TwinCAT pour voir la topologie réelle.",
+      "ITA": "Questa vista mostra dati simulati. Connettiti a TwinCAT per vedere la topologia reale."
+    },
+    "ethercat.ipc.title": {
+      "SPA": "PC INDUSTRIAL",
+      "ENG": "INDUSTRIAL PC",
+      "FRA": "PC INDUSTRIEL",
+      "ITA": "PC INDUSTRIALE"
+    },
+    "ethercat.ipc.master": {
+      "SPA": "EtherCAT Master",
+      "ENG": "EtherCAT Master",
+      "FRA": "Maître EtherCAT",
+      "ITA": "Master EtherCAT"
+    },
+    "ethercat.ipc.operational": {
+      "SPA": "Operacional",
+      "ENG": "Operational",
+      "FRA": "Opérationnel",
+      "ITA": "Operativo"
+    },
+    "ethercat.tooltip.rescan": {
+      "SPA": "Escanear red desde caché del backend",
+      "ENG": "Scan network from backend cache",
+      "FRA": "Scanner le réseau depuis le cache backend",
+      "ITA": "Scansiona rete dalla cache del backend"
+    },
+    "ethercat.tooltip.rescanTwincat": {
+      "SPA": "Forzar lectura directa desde TwinCAT ADS",
+      "ENG": "Force direct reading from TwinCAT ADS",
+      "FRA": "Forcer la lecture directe depuis TwinCAT ADS",
+      "ITA": "Forza lettura diretta da TwinCAT ADS"
+    },
+    "ethercat.tooltip.saveConfig": {
+      "SPA": "Guardar configuración de red actual",
+      "ENG": "Save current network configuration",
+      "FRA": "Sauvegarder la configuration réseau actuelle",
+      "ITA": "Salva configurazione di rete attuale"
+    },
+    "ethercat.tooltip.updateConfig": {
+      "SPA": "Actualizar configuración con estado actual",
+      "ENG": "Update configuration with current state",
+      "FRA": "Mettre à jour la configuration avec l'état actuel",
+      "ITA": "Aggiorna configurazione con stato attuale"
+    },
+    "ethercat.tooltip.info": {
+      "SPA": "Información del sistema EtherCAT",
+      "ENG": "EtherCAT system information",
+      "FRA": "Informations système EtherCAT",
+      "ITA": "Informazioni sistema EtherCAT"
+    },
+    "ethercat.tooltip.close": {
+      "SPA": "Cerrar panel de topología",
+      "ENG": "Close topology panel",
+      "FRA": "Fermer le panneau de topologie",
+      "ITA": "Chiudi pannello topologia"
+    },
+    "ethercat.tooltip.clearDiag": {
+      "SPA": "Limpiar contadores de diagnóstico",
+      "ENG": "Clear diagnostic counters",
+      "FRA": "Effacer les compteurs de diagnostic",
+      "ITA": "Cancella contatori diagnostica"
+    },
+    "ethercat.btn.clearCRC": {
+      "SPA": "Clear CRC",
+      "ENG": "Clear CRC",
+      "FRA": "Effacer CRC",
+      "ITA": "Cancella CRC"
+    },
+    "ethercat.btn.clearFrames": {
+      "SPA": "Clear Frames",
+      "ENG": "Clear Frames",
+      "FRA": "Effacer Frames",
+      "ITA": "Cancella Frame"
+    },
+    "ethercat.alert.commandSent": {
+      "SPA": "Comando enviado. Los valores se actualizarán en 3 segundos.",
+      "ENG": "Command sent. Values will update in 3 seconds.",
+      "FRA": "Commande envoyée. Les valeurs seront mises à jour dans 3 secondes.",
+      "ITA": "Comando inviato. I valori si aggiorneranno in 3 secondi."
+    },
+    "ethercat.alert.diagSent": {
+      "SPA": "Comando de diagnóstico completo enviado al PLC.",
+      "ENG": "Complete diagnostic command sent to PLC.",
+      "FRA": "Commande de diagnostic complète envoyée au PLC.",
+      "ITA": "Comando diagnostica completa inviato al PLC."
+    },
+    "ethercat.legend.CRC": {
+      "SPA": "CRC",
+      "ENG": "CRC",
+      "FRA": "CRC",
+      "ITA": "CRC"
+    },
+    "ethercat.legend.CRC_desc": {
+      "SPA": "Advertencia",
+      "ENG": "Warning",
+      "FRA": "Avertissement",
+      "ITA": "Avvertimento"
+    },
+    "ethercat.details.position": {
+      "SPA": "Posición",
+      "ENG": "Position",
+      "FRA": "Position",
+      "ITA": "Posizione"
+    },
+    "ethercat.details.address": {
+      "SPA": "Dirección EtherCAT",
+      "ENG": "EtherCAT Address",
+      "FRA": "Adresse EtherCAT",
+      "ITA": "Indirizzo EtherCAT"
+    },
+    "ethercat.details.topoType": {
+      "SPA": "Tipo (Topología)",
+      "ENG": "Type (Topology)",
+      "FRA": "Type (Topologie)",
+      "ITA": "Tipo (Topologia)"
+    },
+    "ethercat.details.comesFromPort": {
+      "SPA": "Viene de Puerto",
+      "ENG": "Comes from Port",
+      "FRA": "Vient du Port",
+      "ITA": "Viene dalla Porta"
+    },
+    "ethercat.details.parent": {
+      "SPA": "Padre",
+      "ENG": "Parent",
+      "FRA": "Parent",
+      "ITA": "Genitore"
+    },
+    "ethercat.details.vendor": {
+      "SPA": "Vendor",
+      "ENG": "Vendor",
+      "FRA": "Vendeur",
+      "ITA": "Fornitore"
+    },
+    "ethercat.details.product": {
+      "SPA": "Product",
+      "ENG": "Product",
+      "FRA": "Produit",
+      "ITA": "Prodotto"
+    },
+    "ethercat.details.portTopology": {
+      "SPA": "TOPOLOGÍA DE PUERTOS",
+      "ENG": "PORT TOPOLOGY",
+      "FRA": "TOPOLOGIE DES PORTS",
+      "ITA": "TOPOLOGIA DELLE PORTE"
+    },
+    "ethercat.footer.updated": {
+      "SPA": "Actualizado:",
+      "ENG": "Updated:",
+      "FRA": "Mis à jour :",
+      "ITA": "Aggiornato:"
+    },
+    "ethercat.badge.offline": {
+      "SPA": "Offline",
+      "ENG": "Offline",
+      "FRA": "Hors ligne",
+      "ITA": "Non in linea"
+    },
+    "ethercat.status.warnings": {
+      "SPA": "advertencias",
+      "ENG": "warnings",
+      "FRA": "avertissements",
+      "ITA": "avvertimenti"
+    },
+    "ethercat.status.errors": {
+      "SPA": "errores",
+      "ENG": "errors",
+      "FRA": "erreurs",
+      "ITA": "errori"
+    },
+    "ethercat.status.unknown": {
+      "SPA": "Desconocido",
+      "ENG": "Unknown",
+      "FRA": "Inconnu",
+      "ITA": "Sconosciuto"
+    },
+    "ethercat.help.title": {
+      "SPA": "Guía de Visualización EtherCAT",
+      "ENG": "EtherCAT Visualization Guide",
+      "FRA": "Guide de visualisation EtherCAT",
+      "ITA": "Guida alla visualizzazione EtherCAT"
+    },
+    "ethercat.help.close": {
+      "SPA": "Cerrar",
+      "ENG": "Close",
+      "FRA": "Fermer",
+      "ITA": "Chiudi"
+    },
+    "ethercat.help.statesTitle": {
+      "SPA": "Estados y Colores de Borde",
+      "ENG": "States and Border Colors",
+      "FRA": "États et couleurs de bordure",
+      "ITA": "Stati e colori del bordo"
+    },
+    "ethercat.help.statesDesc": {
+      "SPA": "El color del borde indica el estado de comunicación del dispositivo:",
+      "ENG": "The border color indicates the device communication state:",
+      "FRA": "La couleur de la bordure indique l'état de communication de l'appareil :",
+      "ITA": "Il colore del bordo indica lo stato di comunicazione del dispositivo:"
+    },
+    "ethercat.help.stateOP": {
+      "SPA": "Operacional - La máquina funciona correctamente ✅",
+      "ENG": "Operational - The machine works correctly ✅",
+      "FRA": "Opérationnel - La machine fonctionne correctement ✅",
+      "ITA": "Operativo - La macchina funziona correttamente ✅"
+    },
+    "ethercat.help.stateSAFEOP": {
+      "SPA": "Safe Operation - Modo seguro, comunicación OK pero salidas desactivadas",
+      "ENG": "Safe Operation - Safe mode, communication OK but outputs disabled",
+      "FRA": "Safe Operation - Mode sécurisé, communication OK mais sorties désactivées",
+      "ITA": "Safe Operation - Modalità sicura, comunicazione OK ma uscite disattivate"
+    },
+    "ethercat.help.statePREOP": {
+      "SPA": "Pre-Operational - Configurándose, aún no operativo",
+      "ENG": "Pre-Operational - Configuring, not yet operational",
+      "FRA": "Pré-opérationnel - En configuration, pas encore opérationnel",
+      "ITA": "Pre-Operativo - In configurazione, non ancora operativo"
+    },
+    "ethercat.help.stateINIT": {
+      "SPA": "⛔ Crítico - Máquina NO funciona (inicializando o error)",
+      "ENG": "⛔ Critical - Machine NOT working (initializing or error)",
+      "FRA": "⛔ Critique - Machine NE fonctionne PAS (initialisation ou erreur)",
+      "ITA": "⛔ Critico - Macchina NON funziona (inizializzazione o errore)"
+    },
+    "ethercat.help.stateSelected": {
+      "SPA": "Dispositivo seleccionado (click para ver detalles)",
+      "ENG": "Selected device (click to view details)",
+      "FRA": "Appareil sélectionné (cliquez pour voir les détails)",
+      "ITA": "Dispositivo selezionato (clicca per vedere i dettagli)"
+    },
+    "ethercat.help.warningsTitle": {
+      "SPA": "Indicadores de Advertencia",
+      "ENG": "Warning Indicators",
+      "FRA": "Indicateurs d'avertissement",
+      "ITA": "Indicatori di avvertimento"
+    },
+    "ethercat.help.warningsGlow": {
+      "SPA": "Glow naranja pulsante: Indica que el dispositivo está OP (funciona) pero tiene errores CRC acumulados.",
+      "ENG": "Pulsing orange glow: Indicates that the device is OP (working) but has accumulated CRC errors.",
+      "FRA": "Lueur orange pulsante : Indique que l'appareil est OP (fonctionne) mais a des erreurs CRC accumulées.",
+      "ITA": "Bagliore arancione pulsante: Indica che il dispositivo è OP (funziona) ma ha errori CRC accumulati."
+    },
+    "ethercat.help.warningsNote": {
+      "SPA": "💡 Esto significa que la comunicación funciona pero hay interferencias o problemas de cableado. No es crítico inmediatamente, pero debe revisarse para evitar futuros problemas.",
+      "ENG": "💡 This means communication works but there are interferences or cabling issues. It's not immediately critical, but should be checked to avoid future problems.",
+      "FRA": "💡 Cela signifie que la communication fonctionne mais il y a des interférences ou des problèmes de câblage. Ce n'est pas immédiatement critique, mais doit être vérifié pour éviter de futurs problèmes.",
+      "ITA": "💡 Questo significa che la comunicazione funziona ma ci sono interferenze o problemi di cablaggio. Non è immediatamente critico, ma dovrebbe essere controllato per evitare problemi futuri."
+    },
+    "ethercat.help.terminalsTitle": {
+      "SPA": "Tipos de Terminal (Color de Fondo)",
+      "ENG": "Terminal Types (Background Color)",
+      "FRA": "Types de terminal (couleur de fond)",
+      "ITA": "Tipi di terminale (colore di sfondo)"
+    },
+    "ethercat.help.terminalsDesc": {
+      "SPA": "El color de fondo indica el tipo de terminal Beckhoff:",
+      "ENG": "The background color indicates the Beckhoff terminal type:",
+      "FRA": "La couleur de fond indique le type de terminal Beckhoff :",
+      "ITA": "Il colore di sfondo indica il tipo di terminale Beckhoff:"
+    },
+    "ethercat.help.termCoupler": {
+      "SPA": "EK - Acoplador",
+      "ENG": "EK - Coupler",
+      "FRA": "EK - Coupleur",
+      "ITA": "EK - Accoppiatore"
+    },
+    "ethercat.help.termDigitalIn": {
+      "SPA": "EL1 - Entrada Digital",
+      "ENG": "EL1 - Digital Input",
+      "FRA": "EL1 - Entrée numérique",
+      "ITA": "EL1 - Ingresso digitale"
+    },
+    "ethercat.help.termDigitalOut": {
+      "SPA": "EL2 - Salida Digital",
+      "ENG": "EL2 - Digital Output",
+      "FRA": "EL2 - Sortie numérique",
+      "ITA": "EL2 - Uscita digitale"
+    },
+    "ethercat.help.termAnalogIn": {
+      "SPA": "EL3 - Entrada Analógica",
+      "ENG": "EL3 - Analog Input",
+      "FRA": "EL3 - Entrée analogique",
+      "ITA": "EL3 - Ingresso analogico"
+    },
+    "ethercat.help.termAnalogOut": {
+      "SPA": "EL4 - Salida Analógica",
+      "ENG": "EL4 - Analog Output",
+      "FRA": "EL4 - Sortie analogique",
+      "ITA": "EL4 - Uscita analogica"
+    },
+    "ethercat.help.termComm": {
+      "SPA": "EL6 - Comunicación",
+      "ENG": "EL6 - Communication",
+      "FRA": "EL6 - Communication",
+      "ITA": "EL6 - Comunicazione"
+    },
+    "ethercat.help.termPower": {
+      "SPA": "EL9 - Fuente de Alimentación",
+      "ENG": "EL9 - Power Supply",
+      "FRA": "EL9 - Alimentation",
+      "ITA": "EL9 - Alimentazione"
+    },
+    "ethercat.help.termSafety": {
+      "SPA": "Terminales de Seguridad",
+      "ENG": "Safety Terminals",
+      "FRA": "Terminaux de sécurité",
+      "ITA": "Terminali di sicurezza"
+    },
+    "ethercat.help.manufacturerTitle": {
+      "SPA": "Logos de Fabricante",
+      "ENG": "Manufacturer Logos",
+      "FRA": "Logos des fabricants",
+      "ITA": "Loghi dei produttori"
+    },
+    "ethercat.help.manufacturerDesc": {
+      "SPA": "En la esquina inferior derecha de cada tarjeta aparece el logo del fabricante (Beckhoff, YASKAWA, SICK, etc.) de forma sutil para identificar rápidamente el origen del dispositivo.",
+      "ENG": "In the lower right corner of each card appears the manufacturer logo (Beckhoff, YASKAWA, SICK, etc.) in a subtle way to quickly identify the device origin.",
+      "FRA": "Dans le coin inférieur droit de chaque carte apparaît le logo du fabricant (Beckhoff, YASKAWA, SICK, etc.) de manière subtile pour identifier rapidement l'origine de l'appareil.",
+      "ITA": "Nell'angolo in basso a destra di ogni scheda appare il logo del produttore (Beckhoff, YASKAWA, SICK, ecc.) in modo discreto per identificare rapidamente l'origine del dispositivo."
+    },
+    "ethercat.help.connectorsTitle": {
+      "SPA": "Conectores",
+      "ENG": "Connectors",
+      "FRA": "Connecteurs",
+      "ITA": "Connettori"
+    },
+    "ethercat.help.connEbus": {
+      "SPA": "Naranja - E-Bus (conexión interna entre terminales)",
+      "ENG": "Orange - E-Bus (internal connection between terminals)",
+      "FRA": "Orange - E-Bus (connexion interne entre les terminaux)",
+      "ITA": "Arancione - E-Bus (connessione interna tra terminali)"
+    },
+    "ethercat.help.connEthernet": {
+      "SPA": "Amarillo - Ethernet (RJ45) X1/X2/X3",
+      "ENG": "Yellow - Ethernet (RJ45) X1/X2/X3",
+      "FRA": "Jaune - Ethernet (RJ45) X1/X2/X3",
+      "ITA": "Giallo - Ethernet (RJ45) X1/X2/X3"
+    },
+    "ethercat.help.connEthernetDrive": {
+      "SPA": "Verde - Ethernet en drives (YASKAWA)",
+      "ENG": "Green - Ethernet on drives (YASKAWA)",
+      "FRA": "Vert - Ethernet sur variateurs (YASKAWA)",
+      "ITA": "Verde - Ethernet su drive (YASKAWA)"
+    },
+    "ethercat.popup.saveSuccess": {
+      "SPA": "Configuración guardada correctamente",
+      "ENG": "Configuration saved successfully",
+      "FRA": "Configuration sauvegardée avec succès",
+      "ITA": "Configurazione salvata con successo"
+    },
+    "ethercat.popup.saveError": {
+      "SPA": "Error al guardar:",
+      "ENG": "Error saving:",
+      "FRA": "Erreur lors de l'enregistrement :",
+      "ITA": "Errore durante il salvataggio:"
+    },
+    "ethercat.popup.deleteConfirm": {
+      "SPA": "¿Está seguro de eliminar la configuración guardada?",
+      "ENG": "Are you sure you want to delete the saved configuration?",
+      "FRA": "Êtes-vous sûr de vouloir supprimer la configuration sauvegardée ?",
+      "ITA": "Sei sicuro di voler eliminare la configurazione salvata?"
+    },
+    "ethercat.popup.deleteSuccess": {
+      "SPA": "Configuración eliminada",
+      "ENG": "Configuration deleted",
+      "FRA": "Configuration supprimée",
+      "ITA": "Configurazione eliminata"
+    },
+    "ethercat.popup.diagSuccess": {
+      "SPA": "Comando de diagnóstico completo enviado al PLC.",
+      "ENG": "Complete diagnostic command sent to PLC.",
+      "FRA": "Commande de diagnostic complète envoyée au PLC.",
+      "ITA": "Comando di diagnostica completa inviato al PLC."
+    },
+    "ethercat.popup.commandSent": {
+      "SPA": "Comando enviado. Los valores se actualizarán en 3 segundos.",
+      "ENG": "Command sent. Values will update in 3 seconds.",
+      "FRA": "Commande envoyée. Les valeurs seront mises à jour dans 3 secondes.",
+      "ITA": "Comando inviato. I valori si aggiorneranno tra 3 secondi."
+    },
+    "ethercat.popup.error": {
+      "SPA": "Error:",
+      "ENG": "Error:",
+      "FRA": "Erreur :",
+      "ITA": "Errore:"
+    },
+    "ethercat.tooltip.clearCRC": {
+      "SPA": "Limpia los contadores CRC de todas las tarjetas",
+      "ENG": "Clears CRC counters from all cards",
+      "FRA": "Efface les compteurs CRC de toutes les cartes",
+      "ITA": "Cancella i contatori CRC di tutte le schede"
+    },
+    "ethercat.tooltip.clearFrames": {
+      "SPA": "Limpia los contadores de Frames perdidos",
+      "ENG": "Clears lost frame counters",
+      "FRA": "Efface les compteurs de trames perdues",
+      "ITA": "Cancella i contatori dei frame persi"
     }
   }
 }
