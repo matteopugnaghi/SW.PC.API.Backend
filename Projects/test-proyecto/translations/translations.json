@@ -663,7 +663,26 @@
         "keypad.cancel",
         "keyboard.space",
         "keyboard.cancel",
-        "keyboard.placeholder"
+        "keyboard.placeholder",
+        "fastConfig.title",
+        "fastConfig.loading",
+        "fastConfig.boolSection",
+        "fastConfig.intSection",
+        "fastConfig.lrealSection",
+        "fastConfig.readFromPlc",
+        "fastConfig.writeToPlc",
+        "fastConfig.readSuccess",
+        "fastConfig.writeSuccess",
+        "fastConfig.errorLoading",
+        "fastConfig.errorReading",
+        "fastConfig.errorWriting",
+        "fastConfig_excel_A_Configuraciones rapidas",
+        "fastConfig_excel_B_bool",
+        "fastConfig_excel_C_Enable frontal wash",
+        "fastConfig_excel_F_int",
+        "fastConfig_excel_G_Delay stop ups when the brush are in position",
+        "fastConfig_excel_M_decimal",
+        "fastConfig_excel_N_Torque alarm axis X"
       ]
     }
   },
@@ -1094,6 +1113,122 @@
       "ENG": "Type here...",
       "FRA": "Tapez ici...",
       "ITA": "Digita qui..."
+    },
+
+    "fastConfig.title": {
+      "SPA": "Configuraciones Rápidas",
+      "ENG": "Fast Configuration",
+      "FRA": "Configuration Rapide",
+      "ITA": "Configurazione Rapida"
+    },
+    "fastConfig.loading": {
+      "SPA": "Cargando...",
+      "ENG": "Loading...",
+      "FRA": "Chargement...",
+      "ITA": "Caricamento..."
+    },
+    "fastConfig.boolSection": {
+      "SPA": "Booleanos",
+      "ENG": "Booleans",
+      "FRA": "Booléens",
+      "ITA": "Booleani"
+    },
+    "fastConfig.intSection": {
+      "SPA": "Enteros",
+      "ENG": "Integers",
+      "FRA": "Entiers",
+      "ITA": "Interi"
+    },
+    "fastConfig.lrealSection": {
+      "SPA": "Decimales",
+      "ENG": "Decimals",
+      "FRA": "Décimaux",
+      "ITA": "Decimali"
+    },
+    "fastConfig.readFromPlc": {
+      "SPA": "LEER PLC",
+      "ENG": "READ PLC",
+      "FRA": "LIRE PLC",
+      "ITA": "LEGGI PLC"
+    },
+    "fastConfig.writeToPlc": {
+      "SPA": "ESCRIBIR PLC",
+      "ENG": "WRITE PLC",
+      "FRA": "ÉCRIRE PLC",
+      "ITA": "SCRIVI PLC"
+    },
+    "fastConfig.readSuccess": {
+      "SPA": "Valores leídos desde PLC",
+      "ENG": "Values read from PLC",
+      "FRA": "Valeurs lues depuis PLC",
+      "ITA": "Valori letti dal PLC"
+    },
+    "fastConfig.writeSuccess": {
+      "SPA": "Valores escritos en PLC",
+      "ENG": "Values written to PLC",
+      "FRA": "Valeurs écrites dans PLC",
+      "ITA": "Valori scritti nel PLC"
+    },
+    "fastConfig.errorLoading": {
+      "SPA": "Error al cargar configuración",
+      "ENG": "Error loading configuration",
+      "FRA": "Erreur de chargement de la configuration",
+      "ITA": "Errore durante il caricamento della configurazione"
+    },
+    "fastConfig.errorReading": {
+      "SPA": "Error al leer del PLC",
+      "ENG": "Error reading from PLC",
+      "FRA": "Erreur de lecture depuis PLC",
+      "ITA": "Errore durante la lettura dal PLC"
+    },
+    "fastConfig.errorWriting": {
+      "SPA": "Error al escribir en el PLC",
+      "ENG": "Error writing to PLC",
+      "FRA": "Erreur d'écriture dans PLC",
+      "ITA": "Errore durante la scrittura nel PLC"
+    },
+
+    "fastConfig_excel_A_Configuraciones rapidas": {
+      "SPA": "Configuraciones Rápidas",
+      "ENG": "Fast Configuration",
+      "FRA": "Configuration Rapide",
+      "ITA": "Configurazione Rapida"
+    },
+    "fastConfig_excel_B_bool": {
+      "SPA": "Booleanos",
+      "ENG": "Booleans",
+      "FRA": "Booléens",
+      "ITA": "Booleani"
+    },
+    "fastConfig_excel_C_Enable frontal wash": {
+      "SPA": "Activar lavado frontal",
+      "ENG": "Enable frontal wash",
+      "FRA": "Activer lavage frontal",
+      "ITA": "Attiva lavaggio frontale"
+    },
+    "fastConfig_excel_F_int": {
+      "SPA": "Enteros",
+      "ENG": "Integers",
+      "FRA": "Entiers",
+      "ITA": "Interi"
+    },
+    "fastConfig_excel_G_Delay stop ups when the brush are in position": {
+      "SPA": "Retardo parada UPS cuando cepillos en posición",
+      "ENG": "Delay stop UPS when the brush are in position",
+      "FRA": "Délai arrêt UPS quand brosses en position",
+      "ITA": "Ritardo arresto UPS quando spazzole in posizione"
+    },
+    "fastConfig_excel_M_decimal": {
+      "SPA": "Decimales",
+      "ENG": "Decimals",
+      "FRA": "Décimaux",
+      "ITA": "Decimali"
+    },
+    "fastConfig_excel_N_Torque alarm axis X": {
+      "SPA": "Alarma torque eje X",
+      "ENG": "Torque alarm axis X",
+      "FRA": "Alarme couple axe X",
+      "ITA": "Allarme coppia asse X"
     },
 
     "menu.principal": {
