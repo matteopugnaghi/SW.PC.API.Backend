@@ -1257,6 +1257,21 @@ namespace SW.PC.API.Backend.Services
                 row++;
             }
 
+            // 🏷️ Cargar categorías desde hoja 3D_Models y asignar a cada config
+            var modelCategories = LoadModelCategoriesFromSheet(package);
+            foreach (var config in configs)
+            {
+                if (modelCategories.TryGetValue(config.ModelName, out var category))
+                {
+                    config.Category = category;
+                }
+                else
+                {
+                    // Si no se encuentra, asignar categoría por defecto
+                    config.Category = "Other";
+                }
+            }
+
             // Resumen
             _logger.LogInformation("════════════════════════════════════════════════════════════════════");
             _logger.LogInformation("📊 3D_Elements_Info_Setting: {Count} elementos configurados", configs.Count);
@@ -1266,6 +1281,14 @@ namespace SW.PC.API.Backend.Services
             foreach (var group in byDisplayType)
             {
                 _logger.LogInformation("   {DisplayType}: {Count} elementos", group.Key, group.Count());
+            }
+            
+            // Resumen por categoría
+            var byCategory = configs.GroupBy(c => c.Category ?? "Other");
+            _logger.LogInformation("   Por categoría:");
+            foreach (var group in byCategory.OrderBy(g => g.Key))
+            {
+                _logger.LogInformation("      {Category}: {Count} elementos", group.Key, group.Count());
             }
             
             var totalButtons = configs.Sum(c => c.Buttons.Count);
@@ -1278,6 +1301,46 @@ namespace SW.PC.API.Backend.Services
             _logger.LogInformation("════════════════════════════════════════════════════════════════════");
             
             return await Task.FromResult(configs);
+        }
+
+        /// <summary>
+        /// Carga un diccionario de ModelName -> Category desde la hoja 3D_Models o 3D Elements
+        /// </summary>
+        private Dictionary<string, string> LoadModelCategoriesFromSheet(ExcelPackage package)
+        {
+            var categories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            
+            // Buscar en hoja "3D Elements" - Columna B = ModelName, Columna Y = Category
+            var sheet = package.Workbook.Worksheets["3D Elements"];
+            if (sheet != null)
+            {
+                int row = 2;
+                int emptyCount = 0;
+                int maxRows = sheet.Dimension?.Rows ?? 500;
+                
+                while (row <= maxRows && emptyCount < 10)
+                {
+                    var modelName = sheet.Cells[$"B{row}"].Text?.Trim(); // Columna B = nombre del modelo
+                    var category = sheet.Cells[$"Y{row}"].Text?.Trim();  // Columna Y = categoría
+                    
+                    if (string.IsNullOrWhiteSpace(modelName))
+                    {
+                        emptyCount++;
+                        row++;
+                        continue;
+                    }
+                    
+                    emptyCount = 0;
+                    categories[modelName] = string.IsNullOrWhiteSpace(category) ? "Other" : category;
+                    _logger.LogDebug("🏷️ Modelo '{Model}' -> Categoría '{Category}'", modelName, categories[modelName]);
+                    row++;
+                }
+                _logger.LogInformation("🏷️ Cargadas {Count} categorías desde hoja '3D Elements' (columna Y)", categories.Count);
+                return categories;
+            }
+            
+            _logger.LogWarning("⚠️ Hoja '3D Elements' no encontrada. Las categorías no estarán disponibles.");
+            return categories;
         }
 
         // Helpers para lectura de celdas por índice de columna

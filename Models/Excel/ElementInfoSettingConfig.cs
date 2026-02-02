@@ -52,6 +52,9 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Número de slots a mostrar en modo compacto (extraído del sufijo :N del DisplayType). null = mostrar todos</summary>
         public int? CompactSlots { get; set; }
 
+        /// <summary>Categoría del modelo (desde hoja 3D_Models columna F). Usado para filtrar en el menú Label Visibility</summary>
+        public string? Category { get; set; }
+
         #endregion
 
         #region Botones de Escritura PLC (Columnas L-Z)
