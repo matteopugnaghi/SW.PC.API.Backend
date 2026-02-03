@@ -25,6 +25,33 @@ Este documento describe el sistema de logging de 3 niveles implementado para cum
 
 ---
 
+## 📝 Resumen Rápido: L1 / L2 / L3
+
+### L1 — Audit Log (CRA)
+- **Propósito**: Eventos de seguridad y cumplimiento normativo (CRA), con integridad garantizada.
+- **Ejemplos**: `Login`, `Logout`, `PasswordChange`, `UserCreate`, `IntegrityVerify`, `SbomGenerate`, `VulnerabilityScan`, `SystemStart/Stop`.
+- **Almacenamiento**: `wwwroot/audit/audit_YYYY-MM-DD.json` (un archivo por día).
+- **Retención**: Configurable por instalación (por defecto 30 días).
+- **Integridad**: Firma `SHA-256` por entrada y hash encadenado entre registros.
+- **Capacidad y mitigaciones**:
+  - Rotación diaria de ficheros para evitar crecimiento indefinido.
+  - Purga automática de ficheros fuera de la ventana de retención.
+  - Envío externo opcional a SOC (`AuditLog_ExternalEnabled/Url/ApiKey`).
+  - Endpoints de monitorización: `/api/audit/status`, `/api/audit/summary`, `/api/audit/export`.
+
+### L2 — Operation Log
+- **Propósito**: Acciones del operador en el HMI/SCADA.
+- **Ejemplos**: `Navigation/ViewChange`, `Alarm/Acknowledge`, `Recipe/Load|Run`, `Setpoint/Change`, `Process/Start|Stop`.
+- **Consulta**: API `/api/operationlogs` con filtros por fecha.
+- **Uso**: Trazabilidad operativa; complementa el Audit Log de seguridad.
+
+### L3 — Session Event Log
+- **Propósito**: Eventos de sesión del usuario en el frontend (UI/navegación/errores cliente).
+- **Almacenamiento**: Solo en memoria del frontend (no persiste en backend).
+- **Uso**: Diagnóstico de UX y comportamiento de cliente en tiempo real.
+
+---
+
 ## 📊 Nivel 1: AUDIT LOG (L1) - EU CRA Compliance
 
 ### Propósito
