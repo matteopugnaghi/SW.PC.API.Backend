@@ -168,5 +168,75 @@
     "filterAlarm": "Alarms Only",
     "filterNotification": "Notifications Only",
     "filterInfo": "Information Only"
+  },
+  "settings": {
+    "title": "Machine Settings",
+    "loading": "Loading configuration...",
+    "saving": "Saving...",
+    "dataSource": "Data source",
+    "readFromPlc": "Read PLC",
+    "writeToPlc": "Write PLC",
+    "readFromDb": "Read Memory",
+    "writeToDb": "Save Memory",
+    "readFromPlcTooltip": "Read current values from PLC",
+    "writeToPlcTooltip": "Write current values to PLC",
+    "readFromDbTooltip": "Read saved values from memory (database)",
+    "writeToDbTooltip": "Save current values to memory (database)",
+    "readFromPlcSuccess": "Values successfully read from PLC",
+    "writeToPlcSuccess": "Values successfully written to PLC",
+    "readFromDbSuccess": "Values successfully read from memory",
+    "writeToDbSuccess": "Values successfully saved to memory",
+    "errorLoadingConfig": "Error loading parameter configuration",
+    "errorReadingPlc": "Error reading values from PLC",
+    "errorWritingPlc": "Error writing values to PLC",
+    "errorReadingDb": "Error reading values from memory",
+    "errorWritingDb": "Error saving values to memory",
+    "boolParams": "Booleans",
+    "intParams": "Integers",
+    "longRealParams": "Decimals",
+    "noBoolParams": "No boolean parameters configured",
+    "noIntParams": "No integer parameters configured",
+    "noLongRealParams": "No decimal parameters configured",
+    "showImage": "Show help image",
+    "clickToEnlarge": "Click to enlarge",
+    "params": {
+      "_comment": "Add specific parameter translations here"
+    }
+  },
+  "common": {
+    "on": "ON",
+    "off": "OFF",
+    "backToMain": "Back to Main"
+  },
+  "infoPanel": {
+    "InfoPanel_Excel_Plc_InfoPanel_A1": "PLC Info",
+    "InfoPanel_Excel_Plc_InfoPanel_C1": "PLC information panel with real-time data of the plant status.",
+    "InfoPanel_Excel_Plc_InfoPanel_D1": "Plant Status",
+    "InfoPanel_Excel_Plc_InfoPanel_D2": "Control Room Status",
+    "InfoPanel_Excel_Plc_InfoPanel_D3": "Wash Recipe",
+    "InfoPanel_Excel_Plc_InfoPanel_D4": "Train Recipe",
+    "InfoPanel_Excel_Plc_InfoPanel_D5": "PLC Sequence",
+    "InfoPanel_Excel_Plc_InfoPanel_D6": "Wash Sequence"
+  },
+  "semiautomatic": {
+    "buttonTitle": "Semiautomatic Mode",
+    "barTitle": "Semiautomatic Controls",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "fastConfig": {
+    "buttonTitle": "Fast Configuration",
+    "title": "Fast Configuration",
+    "loading": "Loading...",
+    "boolSection": "Booleans",
+    "intSection": "Integers",
+    "lrealSection": "Decimals",
+    "readFromPlc": "READ PLC",
+    "writeToPlc": "WRITE PLC",
+    "readSuccess": "Values read from PLC",
+    "writeSuccess": "Values written to PLC",
+    "errorLoading": "Error loading configuration",
+    "errorReading": "Error reading from PLC",
+    "errorWriting": "Error writing to PLC"
   }
 }

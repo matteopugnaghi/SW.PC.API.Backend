@@ -42,8 +42,38 @@ A diciembre de 2025 el desarrollo cubre prácticamente la totalidad de las oblig
 | Declaración UE de conformidad | Documento final (Anexo V) | Programada (septiembre 2026) |
 
 ## 8. Compromisos de soporte
-- **Período garantizado**: soporte de 10 años (2025-2035), superior al mínimo CRA de 5 años.
-- **Respuesta a incidentes**: acuse de recibo en 24 h y primera evaluación en 72 h una vez se active la política de divulgación.
 
----
-**Conclusión**: Aquafrisch Supervisor ya dispone de los controles esenciales de ciberseguridad exigidos por el CRA. Solo quedan acciones complementarias de documentación y los mecanismos de notificación a ENISA/CSIRT, que se habilitarán en cuanto exista infraestructura oficial. Mientras tanto, el sistema se mantiene preparado y documentado para una activación inmediata.
+## 9. Resiliencia y continuidad operativa
+
+### 9.1 Zonas y particionamiento por criticidad
+- **Capacidad**: el sistema soporta la **segmentación de datos, aplicaciones y servicios** según su criticidad, facilitando la implementación de un **modelo de zonas** (alineado con IEC 62443).
+- **Cómo se aplica**:
+	- Aislamiento por proyecto (multi-tenant): cada proyecto tiene **configuración, modelos y base de datos** independientes (Projects/{id}/...).
+	- Separación de roles y superficies: `SuperAdmin`, `Admin`, `Operator`, `Viewer`, `Auditor` con **permisos diferenciados**.
+	- Segmentación de API y orígenes: **CORS** multi-puerto y rutas dedicadas para funciones críticas (p.ej., `/hubs/*`, `/api/audit/*`).
+- **Referencia**: ver [docs/compliance/SISTEMA_LOGS_CRA.md](docs/compliance/SISTEMA_LOGS_CRA.md) y arquitectura multi-proyecto en documentación principal.
+
+### 9.2 Modo degradado ante eventos DoS
+- **Capacidad**: la plataforma puede operar en **modo degradado** priorizando funciones esenciales del HMI/SCADA cuando se detecta indisponibilidad o presión anómala (p.ej., DoS sobre servicios externos).
+- **Medidas típicas**:
+	- Priorizar lectura/visualización de proceso y **pausar tareas no esenciales** (vulnerability scans, exportaciones pesadas).
+	- **Reintentos y backoff** en SignalR/HTTP; tolerancia temporal a desconexiones del backend/PLC.
+	- Desactivar integraciones externas y mantener **operación local** con datos cacheados.
+- **Gobernanza**: configurable por instalación; se documenta en el **plan de operación** del cliente.
+
+### 9.3 Límites de recursos en funciones de seguridad
+- **Objetivo**: evitar **agotamiento de recursos** por funciones de seguridad.
+- **Controles**:
+	- Auditoría (L1) con **rotación diaria** y **retención configurable** (por defecto 30 días), purga automática y envío opcional a SOC.
+	- **Flush por lotes** y frecuencia controlada en servicios de auditoría e integridad.
+	- Programación de integridad periódica (cada 2 min, configurable) y ventana de ejecución supervisada.
+- **Referencia**: ver [docs/compliance/SISTEMA_LOGS_CRA.md](docs/compliance/SISTEMA_LOGS_CRA.md) — secciones L1/L2/L3 y mitigaciones de capacidad.
+
+### 9.4 Recuperación a estado seguro conocido
+- **Capacidad**: tras una **disrupción o fallo**, el sistema puede **recuperarse y reconstituirse** a un **estado seguro conocido**.
+- **Cómo se garantiza**:
+	- **Backups automáticos por proyecto** (config, modelos y base de datos) y procedimientos de **restore** documentados.
+	- **Verificación de integridad** posterior al arranque (backend/frontend/PLC) y bloqueo de cambios no autorizados.
+	- Despliegues autocontenidos con mapeo de ficheros y **firma de versiones**.
+- **Referencia**: ver [docs/architecture/DATA_MANAGEMENT.md](docs/architecture/DATA_MANAGEMENT.md) y guía de despliegue en `Deploy-Manual-Remote.ps1`.
+

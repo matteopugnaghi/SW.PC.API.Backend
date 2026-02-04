@@ -51,7 +51,7 @@
       "category": "Categoría",
       "action": "Acción",
       "user": "Usuario",
-      "description": "Descripción",
+      "description": "Mensaje",
       "ip": "IP"
     },
     "filters": {
@@ -168,5 +168,75 @@
     "filterAlarm": "Solo Alarmas",
     "filterNotification": "Solo Notificaciones",
     "filterInfo": "Solo Información"
+  },
+  "settings": {
+    "title": "Configuración de Máquina",
+    "loading": "Cargando configuración...",
+    "saving": "Guardando...",
+    "dataSource": "Fuente de datos",
+    "readFromPlc": "Leer PLC",
+    "writeToPlc": "Escribir PLC",
+    "readFromDb": "Leer Memoria",
+    "writeToDb": "Guardar Memoria",
+    "readFromPlcTooltip": "Leer valores actuales desde el PLC",
+    "writeToPlcTooltip": "Escribir valores actuales al PLC",
+    "readFromDbTooltip": "Leer valores guardados en memoria (base de datos)",
+    "writeToDbTooltip": "Guardar valores actuales en memoria (base de datos)",
+    "readFromPlcSuccess": "Valores leídos correctamente desde PLC",
+    "writeToPlcSuccess": "Valores escritos correctamente al PLC",
+    "readFromDbSuccess": "Valores leídos correctamente desde memoria",
+    "writeToDbSuccess": "Valores guardados correctamente en memoria",
+    "errorLoadingConfig": "Error al cargar la configuración de parámetros",
+    "errorReadingPlc": "Error al leer valores desde el PLC",
+    "errorWritingPlc": "Error al escribir valores al PLC",
+    "errorReadingDb": "Error al leer valores desde memoria",
+    "errorWritingDb": "Error al guardar valores en memoria",
+    "boolParams": "Booleanos",
+    "intParams": "Enteros",
+    "longRealParams": "Decimales",
+    "noBoolParams": "No hay parámetros booleanos configurados",
+    "noIntParams": "No hay parámetros enteros configurados",
+    "noLongRealParams": "No hay parámetros decimales configurados",
+    "showImage": "Ver imagen de ayuda",
+    "clickToEnlarge": "Clic para ampliar",
+    "params": {
+      "_comment": "Aquí se añadirán las traducciones de cada parámetro específico"
+    }
+  },
+  "common": {
+    "on": "ON",
+    "off": "OFF",
+    "backToMain": "Volver a Principal"
+  },
+  "infoPanel": {
+    "InfoPanel_Excel_Plc_InfoPanel_A1": "Info PLC",
+    "InfoPanel_Excel_Plc_InfoPanel_C1": "Panel de información del PLC con datos en tiempo real del estado de la planta.",
+    "InfoPanel_Excel_Plc_InfoPanel_D1": "Estado Planta",
+    "InfoPanel_Excel_Plc_InfoPanel_D2": "Estado Sala Control",
+    "InfoPanel_Excel_Plc_InfoPanel_D3": "Receta Lavado",
+    "InfoPanel_Excel_Plc_InfoPanel_D4": "Receta Tren",
+    "InfoPanel_Excel_Plc_InfoPanel_D5": "Secuencia PLC",
+    "InfoPanel_Excel_Plc_InfoPanel_D6": "Secuencia Lavado"
+  },
+  "semiautomatic": {
+    "buttonTitle": "Modo Semiautomático",
+    "barTitle": "Controles Semiautomáticos",
+    "enabled": "Activado",
+    "disabled": "Desactivado"
+  },
+  "fastConfig": {
+    "buttonTitle": "Configuración Rápida",
+    "title": "Configuraciones Rápidas",
+    "loading": "Cargando...",
+    "boolSection": "Booleanos",
+    "intSection": "Enteros",
+    "lrealSection": "Decimales",
+    "readFromPlc": "LEER PLC",
+    "writeToPlc": "ESCRIBIR PLC",
+    "readSuccess": "Valores leídos desde PLC",
+    "writeSuccess": "Valores escritos en PLC",
+    "errorLoading": "Error al cargar configuración",
+    "errorReading": "Error al leer del PLC",
+    "errorWriting": "Error al escribir en el PLC"
   }
 }
