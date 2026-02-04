@@ -140,6 +140,18 @@ namespace SW.PC.API.Backend.Models.Excel
         
         public int DisplayOrder { get; set; }
         
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🔄 HOT-SWAP - Intercambio de modelos en caliente (columna T)
+        // ═══════════════════════════════════════════════════════════════════════════
+        
+        /// <summary>
+        /// Condición PLC para mostrar/ocultar este modelo (Hot-Swap).
+        /// Formato: "VARIABLE=VALOR" ej: "MAIN.fbMachine.st_ChgRecipe.i_numTrainRecipe=1"
+        /// Si vacío, el modelo siempre está visible (si IsEnabled=true).
+        /// Cuando la variable PLC tiene el valor especificado, el modelo se muestra.
+        /// </summary>
+        public string EnableSwap { get; set; } = string.Empty;
+        
         // Configuración de vista inicial
         public ViewConfiguration? InitialView { get; set; }
         
@@ -974,6 +986,49 @@ namespace SW.PC.API.Backend.Models.Excel
         /// - 2.0 = muy lejos (200%)
         /// </summary>
         public double CameraZoomFactor { get; set; } = 1.0;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🚂 RIDE CAMERA - Cámara montada en modelo móvil (tren)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Lista de ModelIds que permiten "Ride Camera" (cámara montada).
+        /// Formato: IDs separados por coma.
+        /// Ejemplo: "tren_lavado_1,tren_lavado_2,tren_lavado_3"
+        /// El índice en esta lista corresponde con los offsets.
+        /// </summary>
+        public string RideableModelIds { get; set; } = "";
+
+        /// <summary>
+        /// Offsets de cámara frontal para cada modelo rideable.
+        /// Formato: vectores (x,y,z) separados por coma.
+        /// Ejemplo: "(0,1.5,2),(0,1.5,2),(0,2,3)"
+        /// El índice corresponde con RideableModelIds.
+        /// </summary>
+        public string RideCameraFrontOffsets { get; set; } = "";
+
+        /// <summary>
+        /// Offsets de cámara trasera para cada modelo rideable.
+        /// Formato: vectores (x,y,z) separados por coma.
+        /// Ejemplo: "(0,1.5,-2),(0,1.5,-2),(0,2,-3)"
+        /// El índice corresponde con RideableModelIds.
+        /// </summary>
+        public string RideCameraRearOffsets { get; set; } = "";
+
+        /// <summary>
+        /// Variable PLC que contiene la posición del tren (eje de movimiento).
+        /// Ejemplo: "MAIN.fbMachine.rTrainPosition"
+        /// </summary>
+        public string RideCameraTrainPositionVar { get; set; } = "";
+
+        /// <summary>
+        /// Eje de movimiento de cada modelo rideable.
+        /// Formato: valores separados por coma (X, -X, Z, -Z).
+        /// Ejemplo: "Z,Z,Z" para 3 modelos que se mueven en eje Z.
+        /// La cámara frontal mira en esta dirección, la trasera en la opuesta.
+        /// El índice corresponde con RideableModelIds.
+        /// </summary>
+        public string RideCameraMovementAxes { get; set; } = "";
 
         // ═══════════════════════════════════════════════════════════════════════════
         // 🌐 ETHERCAT TOPOLOGY - Diagnóstico de Red Industrial
@@ -1856,5 +1911,56 @@ namespace SW.PC.API.Backend.Models.Excel
     }
 
     #endregion
-}
 
+    #region 🚂 Ride Camera - Cámara montada en tren
+
+    /// <summary>
+    /// Configuración completa de Ride Camera.
+    /// Cargada desde System Config del Excel.
+    /// </summary>
+    public class RideCameraConfig
+    {
+        /// <summary>Indica si hay modelos rideables configurados</summary>
+        public bool Enabled { get; set; } = false;
+
+        /// <summary>Variable PLC que contiene la posición del tren</summary>
+        public string TrainPositionVariable { get; set; } = string.Empty;
+
+        /// <summary>Lista de modelos con sus offsets de cámara</summary>
+        public List<RideableModelConfig> RideableModels { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Configuración de un modelo rideable con sus offsets de cámara.
+    /// </summary>
+    public class RideableModelConfig
+    {
+        /// <summary>ID del modelo (debe coincidir con ModelId en 3D_Models)</summary>
+        public string ModelId { get; set; } = string.Empty;
+
+        /// <summary>Offset de la cámara frontal desde el centro del modelo</summary>
+        public Vector3Dto FrontOffset { get; set; } = new();
+
+        /// <summary>Offset de la cámara trasera desde el centro del modelo</summary>
+        public Vector3Dto RearOffset { get; set; } = new();
+
+        /// <summary>
+        /// Eje de movimiento del tren (X, -X, Z, -Z).
+        /// La cámara frontal mira en esta dirección.
+        /// La cámara trasera mira en la dirección opuesta automáticamente.
+        /// </summary>
+        public string MovementAxis { get; set; } = "X";
+    }
+
+    /// <summary>
+    /// Vector 3D para transferencia de datos (DTO).
+    /// </summary>
+    public class Vector3Dto
+    {
+        public double X { get; set; } = 0;
+        public double Y { get; set; } = 0;
+        public double Z { get; set; } = 0;
+    }
+
+    #endregion
+}

@@ -481,6 +481,8 @@ namespace SW.PC.API.Backend.Services
                     AssociatedScreen = sheet.Cells[$"G{row}"].Text,
                     IsEnabled = sheet.Cells[$"H{row}"].Text.ToLower() != "false" && sheet.Cells[$"H{row}"].Text != "0",
                     DisplayOrder = int.TryParse(sheet.Cells[$"I{row}"].Text, out var order) ? order : 0,
+                    // Columna T: EnableSwap - Condición PLC para hot-swap (ej: "MAIN.var=1")
+                    EnableSwap = sheet.Cells[$"T{row}"].Text?.Trim() ?? string.Empty,
                     // Campos de animación del padre
                     AnimationType = sheet.Cells[$"U{row}"].Text,
                     AnimationSpeed = double.TryParse(sheet.Cells[$"V{row}"].Text, out var animSpeed) ? animSpeed : 1.0,
@@ -3072,6 +3074,50 @@ namespace SW.PC.API.Backend.Services
                                     config.CameraZoomFactor = zoomFactor;
                                 }
                                 _logger.LogDebug("📷 CameraZoomFactor raw value: '{RawValue}' -> {Parsed}", paramValue, config.CameraZoomFactor);
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
+                            // 🚂 RIDE CAMERA - Cámara montada en modelo móvil (tren)
+                            // ═══════════════════════════════════════════════════════════════
+                            case "rideablemodelids":
+                            case "rideable_model_ids":
+                            case "ride_model_ids":
+                            case "rideablemodelid":
+                                config.RideableModelIds = paramValue?.Trim() ?? "";
+                                _logger.LogDebug("🚂 RideableModelIds: '{Value}'", config.RideableModelIds);
+                                break;
+
+                            case "ridecamerafrontoffsets":
+                            case "ridecamera_front_offsets":
+                            case "ride_camera_front_offsets":
+                            case "ridecamerafrontoffset":
+                                config.RideCameraFrontOffsets = paramValue?.Trim() ?? "";
+                                _logger.LogDebug("🚂 RideCameraFrontOffsets: '{Value}'", config.RideCameraFrontOffsets);
+                                break;
+
+                            case "ridecamerarearoffsets":
+                            case "ridecamera_rear_offsets":
+                            case "ride_camera_rear_offsets":
+                            case "ridecamerarearoffset":
+                                config.RideCameraRearOffsets = paramValue?.Trim() ?? "";
+                                _logger.LogDebug("🚂 RideCameraRearOffsets: '{Value}'", config.RideCameraRearOffsets);
+                                break;
+
+                            case "ridecameratrainpositionvar":
+                            case "ridecamera_train_position_var":
+                            case "ride_train_position_var":
+                            case "ridetrainpositionvar":
+                                config.RideCameraTrainPositionVar = paramValue?.Trim() ?? "";
+                                _logger.LogDebug("🚂 RideCameraTrainPositionVar: '{Value}'", config.RideCameraTrainPositionVar);
+                                break;
+
+                            case "ridecameramovementaxes":
+                            case "ridecameramovementaxis":
+                            case "ridecamera_movement_axes":
+                            case "ride_camera_movement_axes":
+                            case "ridetrainmovementaxis":
+                                config.RideCameraMovementAxes = paramValue?.Trim()?.ToUpperInvariant() ?? "";
+                                _logger.LogDebug("🚂 RideCameraMovementAxes: '{Value}'", config.RideCameraMovementAxes);
                                 break;
 
                             // ═══════════════════════════════════════════════════════════════

@@ -622,6 +622,133 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         #endregion
+        
+        #region 🚂 Ride Camera - Cámara montada en tren
+
+        /// <summary>
+        /// Get Ride Camera configuration from System Config.
+        /// Returns parsed configuration for camera mounted on moving train models.
+        /// </summary>
+        /// <returns>Ride Camera configuration with model IDs and offsets</returns>
+        [HttpGet("ride-camera")]
+        [ProducesResponseType(typeof(RideCameraConfig), 200)]
+        public async Task<ActionResult<RideCameraConfig>> GetRideCameraConfig()
+        {
+            try
+            {
+                var excelPath = _projectContext.ExcelConfigPath;
+                _logger.LogInformation("🚂 Loading Ride Camera config from: {Path}", excelPath);
+                
+                var systemConfig = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
+                
+                var config = new RideCameraConfig
+                {
+                    Enabled = !string.IsNullOrWhiteSpace(systemConfig.RideableModelIds),
+                    TrainPositionVariable = systemConfig.RideCameraTrainPositionVar,
+                    RideableModels = ParseRideableModels(
+                        systemConfig.RideableModelIds,
+                        systemConfig.RideCameraFrontOffsets,
+                        systemConfig.RideCameraRearOffsets,
+                        systemConfig.RideCameraMovementAxes
+                    )
+                };
+                
+                _logger.LogInformation("🚂 Loaded {Count} rideable models", config.RideableModels.Count);
+                
+                return Ok(config);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🚂 Error loading Ride Camera configuration: {Message}", ex.Message);
+                return StatusCode(500, new { error = "Error loading Ride Camera configuration", detail = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Parsea la configuración de modelos rideables desde los strings del Excel
+        /// </summary>
+        private List<RideableModelConfig> ParseRideableModels(
+            string modelIds, 
+            string frontOffsets, 
+            string rearOffsets,
+            string movementAxes)
+        {
+            var result = new List<RideableModelConfig>();
+            
+            if (string.IsNullOrWhiteSpace(modelIds))
+                return result;
+            
+            // Parse model IDs: "tren_1,tren_2,tren_3" -> ["tren_1", "tren_2", "tren_3"]
+            var ids = modelIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                              .Select(s => s.Trim())
+                              .ToList();
+            
+            // Parse offsets: "(0,1.5,2),(0,1.5,2),(0,2,3)" -> [Vector3(0,1.5,2), ...]
+            var frontVectors = ParseVector3List(frontOffsets);
+            var rearVectors = ParseVector3List(rearOffsets);
+            
+            // Parse movement axes: "Z,Z,X" -> ["Z", "Z", "X"]
+            var axes = ParseAxisList(movementAxes);
+            
+            for (int i = 0; i < ids.Count; i++)
+            {
+                result.Add(new RideableModelConfig
+                {
+                    ModelId = ids[i],
+                    FrontOffset = i < frontVectors.Count ? frontVectors[i] : new Models.Excel.Vector3Dto(),
+                    RearOffset = i < rearVectors.Count ? rearVectors[i] : new Models.Excel.Vector3Dto(),
+                    MovementAxis = i < axes.Count ? axes[i] : "X"
+                });
+            }
+            
+            return result;
+        }
+
+        /// <summary>
+        /// Parsea una lista de ejes separados por coma: "Z,Z,-Z" -> ["Z", "Z", "-Z"]
+        /// </summary>
+        private List<string> ParseAxisList(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return new List<string>();
+            
+            return input.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => s.Trim().ToUpperInvariant())
+                        .Where(s => s == "X" || s == "-X" || s == "Z" || s == "-Z")
+                        .ToList();
+        }
+
+        /// <summary>
+        /// Parsea una lista de vectores en formato "(x,y,z),(x,y,z),(x,y,z)"
+        /// </summary>
+        private List<Models.Excel.Vector3Dto> ParseVector3List(string input)
+        {
+            var result = new List<Models.Excel.Vector3Dto>();
+            
+            if (string.IsNullOrWhiteSpace(input))
+                return result;
+            
+            // Regex para extraer contenido entre paréntesis: (x,y,z)
+            var matches = System.Text.RegularExpressions.Regex.Matches(input, @"\(([^)]+)\)");
+            
+            foreach (System.Text.RegularExpressions.Match match in matches)
+            {
+                var parts = match.Groups[1].Value.Split(',');
+                if (parts.Length >= 3)
+                {
+                    var culture = System.Globalization.CultureInfo.InvariantCulture;
+                    if (double.TryParse(parts[0].Trim().Replace(",", "."), System.Globalization.NumberStyles.Float, culture, out double x) &&
+                        double.TryParse(parts[1].Trim().Replace(",", "."), System.Globalization.NumberStyles.Float, culture, out double y) &&
+                        double.TryParse(parts[2].Trim().Replace(",", "."), System.Globalization.NumberStyles.Float, culture, out double z))
+                    {
+                        result.Add(new Models.Excel.Vector3Dto { X = x, Y = y, Z = z });
+                    }
+                }
+            }
+            
+            return result;
+        }
+
+        #endregion
     }
 }
-

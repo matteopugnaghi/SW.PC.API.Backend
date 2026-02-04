@@ -216,11 +216,11 @@ namespace SW.PC.API.Backend.Controllers
         public double Alpha { get; set; }
         public double Beta { get; set; }
         public double Radius { get; set; }
-        public Vector3Dto Target { get; set; } = new();
-        public Vector3Dto? Position { get; set; } // Only for "free" type
+        public TourVector3 Target { get; set; } = new();
+        public TourVector3? Position { get; set; } // Only for "free" type
     }
 
-    public class Vector3Dto
+    public class TourVector3
     {
         public double X { get; set; }
         public double Y { get; set; }
