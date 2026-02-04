@@ -147,6 +147,15 @@ namespace SW.PC.API.Backend.Models
         /// </summary>
         public string PivotOffset { get; set; } = string.Empty;
         
+        // ===== T: HOT-SWAP - Intercambio de modelos en caliente =====
+        /// <summary>
+        /// Condición PLC para mostrar/ocultar este modelo (Hot-Swap).
+        /// Formato: "VARIABLE=VALOR" ej: "MAIN.fbMachine.st_TrainRecipe[1].i_lineRecipeNumber=1"
+        /// Si vacío, el modelo siempre está visible.
+        /// Cuando la variable PLC tiene el valor especificado, el modelo se muestra.
+        /// </summary>
+        public string EnableSwap { get; set; } = string.Empty;
+        
         /// <summary>Pantalla a la que navegar al hacer click (manual/config/null)</summary>
         public string? NavigateToScreen { get; set; }
 

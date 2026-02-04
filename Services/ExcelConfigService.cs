@@ -764,24 +764,87 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Determina a qué vistas pertenece una variable según los mappings.
         /// Si no hay match, devuelve GLOBAL (comportamiento seguro por defecto).
+        /// 
+        /// LÓGICA DE MATCHING:
+        /// 1. Busca TODOS los patrones que coinciden (exactos y wildcards)
+        /// 2. Prioriza patrones EXACTOS sobre wildcards
+        /// 3. Si hay un patrón exacto, usa sus vistas
+        /// 4. Si solo hay wildcards, usa el más específico (más caracteres antes del *)
+        /// 5. Importante: patrones exactos con GLOBAL tienen prioridad absoluta
         /// </summary>
         private List<string> GetViewsForVariable(string variableName, List<VariableViewMapping> mappings, out bool hadMatch, out string matchedPattern)
         {
             hadMatch = false;
             matchedPattern = string.Empty;
             
-            // Buscar primer match (ya están ordenados por especificidad)
+            if (mappings == null || mappings.Count == 0)
+            {
+                return new List<string> { PlcViewIds.GLOBAL };
+            }
+            
+            // Recopilar TODOS los matches
+            var allMatches = new List<(VariableViewMapping Mapping, bool IsExact)>();
+            
             foreach (var mapping in mappings)
             {
                 if (mapping.CompiledPattern?.IsMatch(variableName) == true)
                 {
-                    hadMatch = true;
-                    matchedPattern = mapping.VariablePattern;
-                    return mapping.Views;
+                    var isExact = mapping.IsExactMatch;
+                    allMatches.Add((mapping, isExact));
                 }
             }
-
-            // Sin match = GLOBAL (siempre se lee)
+            
+            if (allMatches.Count == 0)
+            {
+                // Sin match = GLOBAL (siempre se lee)
+                return new List<string> { PlcViewIds.GLOBAL };
+            }
+            
+            hadMatch = true;
+            
+            // Buscar si hay un patrón EXACTO que coincida
+            var exactMatches = allMatches.Where(m => m.IsExact).ToList();
+            if (exactMatches.Count > 0)
+            {
+                // Usar el patrón exacto (debería haber solo uno)
+                var exactMatch = exactMatches.First();
+                matchedPattern = exactMatch.Mapping.VariablePattern;
+                return exactMatch.Mapping.Views;
+            }
+            
+            // Solo tenemos wildcards - usar el más específico
+            // (el primero ya que están ordenados por especificidad)
+            var wildcardMatches = allMatches.Where(m => !m.IsExact)
+                .OrderByDescending(m => m.Mapping.Specificity)
+                .ToList();
+            
+            if (wildcardMatches.Count > 0)
+            {
+                var bestMatch = wildcardMatches.First();
+                matchedPattern = bestMatch.Mapping.VariablePattern;
+                
+                // Si el mejor wildcard no incluye GLOBAL, verificar si algún otro wildcard más general sí lo tiene
+                // Esto permite: st_TrainRecipe[1].i_lineRecipeNumber=GLOBAL,TRAIN (exacto) + st_TrainRecipe*=TRAIN (wildcard)
+                // Donde el exacto añade GLOBAL pero el wildcard general lo quita
+                
+                // Combinar vistas de todos los wildcards que coinciden (union)
+                var combinedViews = new HashSet<string>(bestMatch.Mapping.Views);
+                
+                // Buscar si hay algún wildcard más específico que incluya GLOBAL
+                foreach (var wm in wildcardMatches.Skip(1))
+                {
+                    if (wm.Mapping.Views.Contains(PlcViewIds.GLOBAL))
+                    {
+                        combinedViews.Add(PlcViewIds.GLOBAL);
+                        _logger.LogDebug("🔀 '{Variable}': wildcard '{Pattern}' añade GLOBAL desde '{OtherPattern}'",
+                            variableName, bestMatch.Mapping.VariablePattern, wm.Mapping.VariablePattern);
+                    }
+                }
+                
+                return combinedViews.ToList();
+            }
+            
+            // Fallback
             return new List<string> { PlcViewIds.GLOBAL };
         }
         

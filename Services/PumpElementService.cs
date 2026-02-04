@@ -114,7 +114,8 @@ namespace SW.PC.API.Backend.Services
                             // S: Pivot Offset para rotaciones (formato: "X,Y,Z")
                             PivotOffset = ParseString(sheet.Cells[$"S{row}"].Text, string.Empty),
                             
-                            // T: (Reservado - sin uso actual)
+                            // T: EnableSwap - Hot-Swap condition (ej: "MAIN.var=1")
+                            EnableSwap = ParseString(sheet.Cells[$"T{row}"].Text, string.Empty),
                             
                             // U: Animation Type
                             AnimationType = ParseString(sheet.Cells[$"U{row}"].Text, "none"),
