@@ -8687,6 +8687,97 @@
       "ENG": "Clears lost frame counters",
       "FRA": "Efface les compteurs de trames perdues",
       "ITA": "Cancella i contatori dei frame persi"
+    },
+    
+    "tour.title": {
+      "SPA": "Configuración de Tour",
+      "ENG": "Tour Configuration",
+      "FRA": "Configuration du Tour",
+      "ITA": "Configurazione Tour"
+    },
+    "tour.calibration.title": {
+      "SPA": "Calibración (Solo Admin)",
+      "ENG": "Calibration (Admin Only)",
+      "FRA": "Calibration (Admin uniquement)",
+      "ITA": "Calibrazione (Solo Admin)"
+    },
+    "tour.calibration.start": {
+      "SPA": "Iniciar Calibración",
+      "ENG": "Start Calibration",
+      "FRA": "Démarrer Calibration",
+      "ITA": "Avvia Calibrazione"
+    },
+    "tour.calibration.finish": {
+      "SPA": "Finalizar",
+      "ENG": "Finish",
+      "FRA": "Terminer",
+      "ITA": "Termina"
+    },
+    "tour.calibration.capture": {
+      "SPA": "Capturar Punto",
+      "ENG": "Capture Point",
+      "FRA": "Capturer Point",
+      "ITA": "Cattura Punto"
+    },
+    "tour.calibration.savedPoints": {
+      "SPA": "Puntos guardados",
+      "ENG": "Saved points",
+      "FRA": "Points sauvegardés",
+      "ITA": "Punti salvati"
+    },
+    "tour.playback.title": {
+      "SPA": "Reproducción",
+      "ENG": "Playback",
+      "FRA": "Lecture",
+      "ITA": "Riproduzione"
+    },
+    "tour.playback.start": {
+      "SPA": "Iniciar Tour",
+      "ENG": "Start Tour",
+      "FRA": "Démarrer Tour",
+      "ITA": "Avvia Tour"
+    },
+    "tour.playback.stop": {
+      "SPA": "Detener Tour",
+      "ENG": "Stop Tour",
+      "FRA": "Arrêter Tour",
+      "ITA": "Ferma Tour"
+    },
+    "tour.playback.noPointsAdmin": {
+      "SPA": "Calibra puntos primero",
+      "ENG": "Calibrate points first",
+      "FRA": "Calibrez d'abord les points",
+      "ITA": "Prima calibra i punti"
+    },
+    "tour.playback.noPoints": {
+      "SPA": "No hay puntos configurados",
+      "ENG": "No points configured",
+      "FRA": "Aucun point configuré",
+      "ITA": "Nessun punto configurato"
+    },
+    "tour.rideCamera.title": {
+      "SPA": "Cámara a Bordo",
+      "ENG": "Ride Camera",
+      "FRA": "Caméra Embarquée",
+      "ITA": "Telecamera a Bordo"
+    },
+    "tour.rideCamera.frontView": {
+      "SPA": "Vista Frontal",
+      "ENG": "Front View",
+      "FRA": "Vue Frontale",
+      "ITA": "Vista Frontale"
+    },
+    "tour.rideCamera.rearView": {
+      "SPA": "Vista Trasera",
+      "ENG": "Rear View",
+      "FRA": "Vue Arrière",
+      "ITA": "Vista Posteriore"
+    },
+    "tour.rideCamera.exit": {
+      "SPA": "Salir",
+      "ENG": "Exit",
+      "FRA": "Quitter",
+      "ITA": "Esci"
     }
   }
 }
