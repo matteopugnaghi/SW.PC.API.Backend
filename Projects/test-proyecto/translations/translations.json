@@ -800,6 +800,81 @@
         "fastConfig_excel_M_decimal",
         "fastConfig_excel_N_Torque alarm axis X"
       ]
+    },
+    "TOPBAR": {
+      "description": "Barra superior - menús y controles de la vista principal",
+      "labels": [
+        "labelVisibility.title",
+        "labelVisibility.all",
+        "labelVisibility.none",
+        "labelVisibility_excel_3D Elements_Y_General",
+        "labelVisibility_excel_3D Elements_Y_TANK",
+        "labelVisibility_excel_3D Elements_Y_Valve CR",
+        "labelVisibility_excel_3D Elements_Y_PUMP",
+        "labelVisibility_excel_3D Elements_Y_Valve WP",
+        "labelVisibility_excel_3D Elements_Y_FC",
+        "labelVisibility_excel_3D Elements_Y_TRAFIC_LIGHT",
+        "labelVisibility_excel_3D Elements_Y_COMPRESOR",
+        "labelVisibility_excel_3D Elements_Y_FILTER",
+        "labelVisibility_excel_3D Elements_Y_SOFTENER",
+        "labelVisibility_excel_3D Elements_Y_STATIONS",
+        "labelVisibility_excel_3D Elements_Y_SHOULDER",
+        "labelVisibility_excel_3D Elements_Y_Vertical brush",
+        "labelVisibility_excel_3D Elements_Y_TRAIN",
+        "labelVisibility_excel_3D Elements_Y_Gantry",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_T 01 (Elevación)",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_T 02 (Agua desmineralizada)",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_T 03 (Agua reciclada)",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_T 04 (Tanque de detergente)",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_T 05 (Tanque de cera)",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_01",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_02",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_03",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_04",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_05",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_06",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_07",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_08",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_09",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_10",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_11",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_P_01",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_P_02",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_P_03",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_P_04",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_P_05",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_P_06",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_101",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_102",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_103",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_104",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_105",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_106",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_107",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_108",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_109",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_COMPRESOR",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_FILTER",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_SOFTENER",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_01",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_02",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_03",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_04",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_05",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_06",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_07",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_08",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_09",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_FC_01",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_FC_02",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_FC_03",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_FC_04",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_TL_01",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_TL_02",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_TL_03",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_GANTRY 1",
+        "labelVisibility_excel_3D_Elements_Info_Setting_L_GANTRY 2"
+      ]
     }
   },
 
@@ -1303,7 +1378,535 @@
       "FRA": "Erreur d'écriture dans PLC",
       "ITA": "Errore durante la scrittura nel PLC"
     },
+    "labelVisibility.title": {
+      "SPA": "Visibilidad Etiquetas",
+      "ENG": "Label Visibility",
+      "FRA": "Visibilité Étiquettes",
+      "ITA": "Visibilità Etichette"
+    },
+    "labelVisibility.all": {
+      "SPA": "TODOS",
+      "ENG": "ALL",
+      "FRA": "TOUS",
+      "ITA": "TUTTI"
+    },
+    "labelVisibility.none": {
+      "SPA": "NINGUNO",
+      "ENG": "NONE",
+      "FRA": "AUCUN",
+      "ITA": "NESSUNO"
+    },
+    "labelVisibility_excel_3D Elements_Y_General": {
+      "SPA": "General",
+      "ENG": "General",
+      "FRA": "Général",
+      "ITA": "Generale"
+    },
+    "labelVisibility_excel_3D Elements_Y_TANK": {
+      "SPA": "Tanque",
+      "ENG": "Tank",
+      "FRA": "Réservoir",
+      "ITA": "Serbatoio"
+    },
+    "labelVisibility_excel_3D Elements_Y_Valve CR": {
+      "SPA": "Válvula CR",
+      "ENG": "Valve CR",
+      "FRA": "Vanne CR",
+      "ITA": "Valvola CR"
+    },
+    "labelVisibility_excel_3D Elements_Y_PUMP": {
+      "SPA": "Bomba",
+      "ENG": "Pump",
+      "FRA": "Pompe",
+      "ITA": "Pompa"
+    },
+    "labelVisibility_excel_3D Elements_Y_Valve WP": {
+      "SPA": "Válvula WP",
+      "ENG": "Valve WP",
+      "FRA": "Vanne WP",
+      "ITA": "Valvola WP"
+    },
+    "labelVisibility_excel_3D Elements_Y_FC": {
+      "SPA": "Fotocélula",
+      "ENG": "Photocell",
+      "FRA": "Photocellule",
+      "ITA": "Fotocellula"
+    },
+    "labelVisibility_excel_3D Elements_Y_TRAFIC_LIGHT": {
+      "SPA": "Semáforo",
+      "ENG": "Traffic Light",
+      "FRA": "Feu de Signalisation",
+      "ITA": "Semaforo"
+    },
+    "labelVisibility_excel_3D Elements_Y_COMPRESOR": {
+      "SPA": "Compresor",
+      "ENG": "Compressor",
+      "FRA": "Compresseur",
+      "ITA": "Compressore"
+    },
+    "labelVisibility_excel_3D Elements_Y_FILTER": {
+      "SPA": "Filtro",
+      "ENG": "Filter",
+      "FRA": "Filtre",
+      "ITA": "Filtro"
+    },
+    "labelVisibility_excel_3D Elements_Y_SOFTENER": {
+      "SPA": "Descalcificador",
+      "ENG": "Softener",
+      "FRA": "Adoucisseur",
+      "ITA": "Addolcitore"
+    },
+    "labelVisibility_excel_3D Elements_Y_STATIONS": {
+      "SPA": "Estaciones",
+      "ENG": "Stations",
+      "FRA": "Stations",
+      "ITA": "Stazioni"
+    },
+    "labelVisibility_excel_3D Elements_Y_SHOULDER": {
+      "SPA": "Hombrera",
+      "ENG": "Shoulder",
+      "FRA": "Épaulière",
+      "ITA": "Spalliera"
+    },
+    "labelVisibility_excel_3D Elements_Y_Vertical brush": {
+      "SPA": "Cepillo Vertical",
+      "ENG": "Vertical Brush",
+      "FRA": "Brosse Verticale",
+      "ITA": "Spazzola Verticale"
+    },
+    "labelVisibility_excel_3D Elements_Y_TRAIN": {
+      "SPA": "Tren",
+      "ENG": "Train",
+      "FRA": "Train",
+      "ITA": "Treno"
+    },
+    "labelVisibility_excel_3D Elements_Y_Gantry": {
+      "SPA": "Pórtico",
+      "ENG": "Gantry",
+      "FRA": "Portique",
+      "ITA": "Portale"
+    },
 
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_T 01 (Elevación)": {
+      "SPA": "T 01 (Elevación)",
+      "ENG": "T 01 (Elevation)",
+      "FRA": "T 01 (Élévation)",
+      "ITA": "T 01 (Elevazione)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_T 02 (Agua desmineralizada)": {
+      "SPA": "T 02 (Agua desmineralizada)",
+      "ENG": "T 02 (Demineralized water)",
+      "FRA": "T 02 (Eau déminéralisée)",
+      "ITA": "T 02 (Acqua demineralizzata)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_T 03 (Agua reciclada)": {
+      "SPA": "T 03 (Agua reciclada)",
+      "ENG": "T 03 (Recycled water)",
+      "FRA": "T 03 (Eau recyclée)",
+      "ITA": "T 03 (Acqua riciclata)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_T 04 (Tanque de detergente)": {
+      "SPA": "T 04 (Tanque de detergente)",
+      "ENG": "T 04 (Detergent tank)",
+      "FRA": "T 04 (Réservoir de détergent)",
+      "ITA": "T 04 (Serbatoio detergente)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_T 05 (Tanque de cera)": {
+      "SPA": "T 05 (Tanque de cera)",
+      "ENG": "T 05 (Wax tank)",
+      "FRA": "T 05 (Réservoir de cire)",
+      "ITA": "T 05 (Serbatoio cera)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_01": {
+      "SPA": "EV 01 (Electroválvula)",
+      "ENG": "EV 01 (Solenoid valve)",
+      "FRA": "EV 01 (Électrovanne)",
+      "ITA": "EV 01 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_02": {
+      "SPA": "EV 02 (Electroválvula)",
+      "ENG": "EV 02 (Solenoid valve)",
+      "FRA": "EV 02 (Électrovanne)",
+      "ITA": "EV 02 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_03": {
+      "SPA": "EV 03 (Electroválvula)",
+      "ENG": "EV 03 (Solenoid valve)",
+      "FRA": "EV 03 (Électrovanne)",
+      "ITA": "EV 03 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_04": {
+      "SPA": "EV 04 (Electroválvula)",
+      "ENG": "EV 04 (Solenoid valve)",
+      "FRA": "EV 04 (Électrovanne)",
+      "ITA": "EV 04 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_05": {
+      "SPA": "EV 05 (Electroválvula)",
+      "ENG": "EV 05 (Solenoid valve)",
+      "FRA": "EV 05 (Électrovanne)",
+      "ITA": "EV 05 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_06": {
+      "SPA": "EV 06 (Electroválvula)",
+      "ENG": "EV 06 (Solenoid valve)",
+      "FRA": "EV 06 (Électrovanne)",
+      "ITA": "EV 06 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_07": {
+      "SPA": "EV 07 (Electroválvula)",
+      "ENG": "EV 07 (Solenoid valve)",
+      "FRA": "EV 07 (Électrovanne)",
+      "ITA": "EV 07 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_08": {
+      "SPA": "EV 08 (Electroválvula)",
+      "ENG": "EV 08 (Solenoid valve)",
+      "FRA": "EV 08 (Électrovanne)",
+      "ITA": "EV 08 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_09": {
+      "SPA": "EV 09 (Electroválvula)",
+      "ENG": "EV 09 (Solenoid valve)",
+      "FRA": "EV 09 (Électrovanne)",
+      "ITA": "EV 09 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_10": {
+      "SPA": "EV 10 (Electroválvula)",
+      "ENG": "EV 10 (Solenoid valve)",
+      "FRA": "EV 10 (Électrovanne)",
+      "ITA": "EV 10 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_11": {
+      "SPA": "EV 11 (Electroválvula)",
+      "ENG": "EV 11 (Solenoid valve)",
+      "FRA": "EV 11 (Électrovanne)",
+      "ITA": "EV 11 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_P_01": {
+      "SPA": "P 01 (Bomba)",
+      "ENG": "P 01 (Pump)",
+      "FRA": "P 01 (Pompe)",
+      "ITA": "P 01 (Pompa)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_P_02": {
+      "SPA": "P 02 (Bomba)",
+      "ENG": "P 02 (Pump)",
+      "FRA": "P 02 (Pompe)",
+      "ITA": "P 02 (Pompa)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_P_03": {
+      "SPA": "P 03 (Bomba)",
+      "ENG": "P 03 (Pump)",
+      "FRA": "P 03 (Pompe)",
+      "ITA": "P 03 (Pompa)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_P_04": {
+      "SPA": "P 04 (Bomba)",
+      "ENG": "P 04 (Pump)",
+      "FRA": "P 04 (Pompe)",
+      "ITA": "P 04 (Pompa)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_P_05": {
+      "SPA": "P 05 (Bomba)",
+      "ENG": "P 05 (Pump)",
+      "FRA": "P 05 (Pompe)",
+      "ITA": "P 05 (Pompa)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_P_06": {
+      "SPA": "P 06 (Bomba)",
+      "ENG": "P 06 (Pump)",
+      "FRA": "P 06 (Pompe)",
+      "ITA": "P 06 (Pompa)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_101": {
+      "SPA": "EV 101 (Electroválvula)",
+      "ENG": "EV 101 (Solenoid valve)",
+      "FRA": "EV 101 (Électrovanne)",
+      "ITA": "EV 101 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_102": {
+      "SPA": "EV 102 (Electroválvula)",
+      "ENG": "EV 102 (Solenoid valve)",
+      "FRA": "EV 102 (Électrovanne)",
+      "ITA": "EV 102 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_103": {
+      "SPA": "EV 103 (Electroválvula)",
+      "ENG": "EV 103 (Solenoid valve)",
+      "FRA": "EV 103 (Électrovanne)",
+      "ITA": "EV 103 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_104": {
+      "SPA": "EV 104 (Electroválvula)",
+      "ENG": "EV 104 (Solenoid valve)",
+      "FRA": "EV 104 (Électrovanne)",
+      "ITA": "EV 104 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_105": {
+      "SPA": "EV 105 (Electroválvula)",
+      "ENG": "EV 105 (Solenoid valve)",
+      "FRA": "EV 105 (Électrovanne)",
+      "ITA": "EV 105 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_106": {
+      "SPA": "EV 106 (Electroválvula)",
+      "ENG": "EV 106 (Solenoid valve)",
+      "FRA": "EV 106 (Électrovanne)",
+      "ITA": "EV 106 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_107": {
+      "SPA": "EV 107 (Electroválvula)",
+      "ENG": "EV 107 (Solenoid valve)",
+      "FRA": "EV 107 (Électrovanne)",
+      "ITA": "EV 107 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_108": {
+      "SPA": "EV 108 (Electroválvula)",
+      "ENG": "EV 108 (Solenoid valve)",
+      "FRA": "EV 108 (Électrovanne)",
+      "ITA": "EV 108 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_EV_109": {
+      "SPA": "EV 109 (Electroválvula)",
+      "ENG": "EV 109 (Solenoid valve)",
+      "FRA": "EV 109 (Électrovanne)",
+      "ITA": "EV 109 (Elettrovalvola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_COMPRESOR": {
+      "SPA": "Compresor",
+      "ENG": "Compressor",
+      "FRA": "Compresseur",
+      "ITA": "Compressore"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_FILTER": {
+      "SPA": "Filtro",
+      "ENG": "Filter",
+      "FRA": "Filtre",
+      "ITA": "Filtro"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_SOFTENER": {
+      "SPA": "Ablandador",
+      "ENG": "Softener",
+      "FRA": "Adoucisseur",
+      "ITA": "Addolcitore"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_01": {
+      "SPA": "ST 01 (Estación)",
+      "ENG": "ST 01 (Station)",
+      "FRA": "ST 01 (Station)",
+      "ITA": "ST 01 (Stazione)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_02": {
+      "SPA": "ST 02 (Estación)",
+      "ENG": "ST 02 (Station)",
+      "FRA": "ST 02 (Station)",
+      "ITA": "ST 02 (Stazione)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_03": {
+      "SPA": "ST 03 (Estación)",
+      "ENG": "ST 03 (Station)",
+      "FRA": "ST 03 (Station)",
+      "ITA": "ST 03 (Stazione)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_04": {
+      "SPA": "ST 04 (Estación)",
+      "ENG": "ST 04 (Station)",
+      "FRA": "ST 04 (Station)",
+      "ITA": "ST 04 (Stazione)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_05": {
+      "SPA": "ST 05 (Estación)",
+      "ENG": "ST 05 (Station)",
+      "FRA": "ST 05 (Station)",
+      "ITA": "ST 05 (Stazione)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_06": {
+      "SPA": "ST 06 (Estación)",
+      "ENG": "ST 06 (Station)",
+      "FRA": "ST 06 (Station)",
+      "ITA": "ST 06 (Stazione)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_07": {
+      "SPA": "ST 07 (Estación)",
+      "ENG": "ST 07 (Station)",
+      "FRA": "ST 07 (Station)",
+      "ITA": "ST 07 (Stazione)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_08": {
+      "SPA": "ST 08 (Estación)",
+      "ENG": "ST 08 (Station)",
+      "FRA": "ST 08 (Station)",
+      "ITA": "ST 08 (Stazione)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_ST_09": {
+      "SPA": "ST 09 (Estación)",
+      "ENG": "ST 09 (Station)",
+      "FRA": "ST 09 (Station)",
+      "ITA": "ST 09 (Stazione)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_FC_01": {
+      "SPA": "FC 01 (Fotocélula)",
+      "ENG": "FC 01 (Photocell)",
+      "FRA": "FC 01 (Photocellule)",
+      "ITA": "FC 01 (Fotocellula)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_FC_02": {
+      "SPA": "FC 02 (Fotocélula)",
+      "ENG": "FC 02 (Photocell)",
+      "FRA": "FC 02 (Photocellule)",
+      "ITA": "FC 02 (Fotocellula)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_FC_03": {
+      "SPA": "FC 03 (Fotocélula)",
+      "ENG": "FC 03 (Photocell)",
+      "FRA": "FC 03 (Photocellule)",
+      "ITA": "FC 03 (Fotocellula)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_FC_04": {
+      "SPA": "FC 04 (Fotocélula)",
+      "ENG": "FC 04 (Photocell)",
+      "FRA": "FC 04 (Photocellule)",
+      "ITA": "FC 04 (Fotocellula)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_TL_01": {
+      "SPA": "TL 01 (Semáforo)",
+      "ENG": "TL 01 (Traffic light)",
+      "FRA": "TL 01 (Feu de signalisation)",
+      "ITA": "TL 01 (Semaforo)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_TL_02": {
+      "SPA": "TL 02 (Semáforo)",
+      "ENG": "TL 02 (Traffic light)",
+      "FRA": "TL 02 (Feu de signalisation)",
+      "ITA": "TL 02 (Semaforo)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_TL_03": {
+      "SPA": "TL 03 (Semáforo)",
+      "ENG": "TL 03 (Traffic light)",
+      "FRA": "TL 03 (Feu de signalisation)",
+      "ITA": "TL 03 (Semaforo)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_GANTRY 1": {
+      "SPA": "GANTRY 1 (Pórtico)",
+      "ENG": "GANTRY 1 (Gantry)",
+      "FRA": "GANTRY 1 (Portique)",
+      "ITA": "GANTRY 1 (Portale)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_L_GANTRY 2": {
+      "SPA": "GANTRY 2 (Pórtico)",
+      "ENG": "GANTRY 2 (Gantry)",
+      "FRA": "GANTRY 2 (Portique)",
+      "ITA": "GANTRY 2 (Portale)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_AD_MOVIMIENTO EJE X": {
+      "SPA": "Movimiento Eje X",
+      "ENG": "X Axis Movement",
+      "FRA": "Mouvement Axe X",
+      "ITA": "Movimento Asse X"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_DD_MOVIMIENTO EJE Y": {
+      "SPA": "Movimiento Eje Y",
+      "ENG": "Y Axis Movement",
+      "FRA": "Mouvement Axe Y",
+      "ITA": "Movimento Asse Y"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_GD_MOVIMIENTO EJE R (piston)": {
+      "SPA": "Movimiento Eje R (pistón)",
+      "ENG": "R Axis Movement (piston)",
+      "FRA": "Mouvement Axe R (piston)",
+      "ITA": "Movimento Asse R (pistone)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_ID_MOVIMIENTO EJE H (rotacion cepillo)": {
+      "SPA": "Movimiento Eje H (rotación cepillo)",
+      "ENG": "H Axis Movement (brush rotation)",
+      "FRA": "Mouvement Axe H (rotation brosse)",
+      "ITA": "Movimento Asse H (rotazione spazzola)"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_CL_FC UP": {
+      "SPA": "FC Arriba",
+      "ENG": "FC Up",
+      "FRA": "FC Haut",
+      "ITA": "FC Su"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_CM_FC UP": {
+      "SPA": "FC Arriba",
+      "ENG": "FC Up",
+      "FRA": "FC Haut",
+      "ITA": "FC Su"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_CY_FC DOWN": {
+      "SPA": "FC Abajo",
+      "ENG": "FC Down",
+      "FRA": "FC Bas",
+      "ITA": "FC Giù"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_CZ_FC DOWN": {
+      "SPA": "FC Abajo",
+      "ENG": "FC Down",
+      "FRA": "FC Bas",
+      "ITA": "FC Giù"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_FL_FC ADELANTE": {
+      "SPA": "FC Adelante",
+      "ENG": "FC Forward",
+      "FRA": "FC Avant",
+      "ITA": "FC Avanti"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_FM_FC ADELANTE": {
+      "SPA": "FC Adelante",
+      "ENG": "FC Forward",
+      "FRA": "FC Avant",
+      "ITA": "FC Avanti"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_FY_FC ATRÁS": {
+      "SPA": "FC Atrás",
+      "ENG": "FC Backward",
+      "FRA": "FC Arrière",
+      "ITA": "FC Indietro"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_FZ_FC ATRÁS": {
+      "SPA": "FC Atrás",
+      "ENG": "FC Backward",
+      "FRA": "FC Arrière",
+      "ITA": "FC Indietro"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_GY_FC VASTAGO REDOGIDO": {
+      "SPA": "FC Vástago Recogido",
+      "ENG": "FC Rod Retracted",
+      "FRA": "FC Tige Rétractée",
+      "ITA": "FC Stelo Ritirato"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_GZ_FC VASTAGO REDOGIDO": {
+      "SPA": "FC Vástago Recogido",
+      "ENG": "FC Rod Retracted",
+      "FRA": "FC Tige Rétractée",
+      "ITA": "FC Stelo Ritirato"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_HL_FC VASTAGO ABIERTO": {
+      "SPA": "FC Vástago Abierto",
+      "ENG": "FC Rod Extended",
+      "FRA": "FC Tige Étendue",
+      "ITA": "FC Stelo Esteso"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_HM_FC VASTAGO ABIERTO": {
+      "SPA": "FC Vástago Abierto",
+      "ENG": "FC Rod Extended",
+      "FRA": "FC Tige Étendue",
+      "ITA": "FC Stelo Esteso"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_HY_FC CEPILLO RECOGIDO": {
+      "SPA": "FC Cepillo Recogido",
+      "ENG": "FC Brush Retracted",
+      "FRA": "FC Brosse Rétractée",
+      "ITA": "FC Spazzola Ritirata"
+    },
+    "labelVisibility_excel_3D_Elements_Info_Setting_HZ_FC CEPILLO RECOGIDO": {
+      "SPA": "FC Cepillo Recogido",
+      "ENG": "FC Brush Retracted",
+      "FRA": "FC Brosse Rétractée",
+      "ITA": "FC Spazzola Ritirata"
+    },
     "fastConfig_excel_A_Configuraciones rapidas": {
       "SPA": "Configuraciones Rápidas",
       "ENG": "Fast Configuration",
