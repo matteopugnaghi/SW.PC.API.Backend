@@ -8886,6 +8886,42 @@
       "ENG": "Gantry",
       "FRA": "Portique",
       "ITA": "Portale"
+    },
+    "infoPanel.tour.title": {
+      "SPA": "TOUR VIRTUAL",
+      "ENG": "VIRTUAL TOUR",
+      "FRA": "VISITE VIRTUELLE",
+      "ITA": "TOUR VIRTUALE"
+    },
+    "infoPanel.tour.waypoints": {
+      "SPA": "Waypoints",
+      "ENG": "Waypoints",
+      "FRA": "Points de passage",
+      "ITA": "Punti di passaggio"
+    },
+    "infoPanel.tour.status": {
+      "SPA": "Estado",
+      "ENG": "Status",
+      "FRA": "État",
+      "ITA": "Stato"
+    },
+    "infoPanel.tour.running": {
+      "SPA": "EJECUTANDO",
+      "ENG": "RUNNING",
+      "FRA": "EN COURS",
+      "ITA": "IN ESECUZIONE"
+    },
+    "infoPanel.tour.calibrating": {
+      "SPA": "CALIBRANDO",
+      "ENG": "CALIBRATING",
+      "FRA": "CALIBRATION",
+      "ITA": "CALIBRAZIONE"
+    },
+    "infoPanel.tour.ready": {
+      "SPA": "LISTO",
+      "ENG": "READY",
+      "FRA": "PRÊT",
+      "ITA": "PRONTO"
     }
   }
 }
