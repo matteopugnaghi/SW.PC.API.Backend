@@ -8778,6 +8778,114 @@
       "ENG": "Exit",
       "FRA": "Quitter",
       "ITA": "Esci"
+    },
+    "layers.title": {
+      "SPA": "Capas de Visibilidad",
+      "ENG": "Visibility Layers",
+      "FRA": "Couches de Visibilité",
+      "ITA": "Livelli di Visibilità"
+    },
+    "layers.all": {
+      "SPA": "Todos",
+      "ENG": "All",
+      "FRA": "Tous",
+      "ITA": "Tutti"
+    },
+    "layers.none": {
+      "SPA": "Ninguno",
+      "ENG": "None",
+      "FRA": "Aucun",
+      "ITA": "Nessuno"
+    },
+    "labelVisibility_excel_3D Elements_Z_General": {
+      "SPA": "General",
+      "ENG": "General",
+      "FRA": "Général",
+      "ITA": "Generale"
+    },
+    "labelVisibility_excel_3D Elements_Z_TANK": {
+      "SPA": "Tanques",
+      "ENG": "Tanks",
+      "FRA": "Réservoirs",
+      "ITA": "Serbatoi"
+    },
+    "labelVisibility_excel_3D Elements_Z_Valve CR": {
+      "SPA": "Válvulas CR",
+      "ENG": "CR Valves",
+      "FRA": "Vannes CR",
+      "ITA": "Valvole CR"
+    },
+    "labelVisibility_excel_3D Elements_Z_PUMP": {
+      "SPA": "Bombas",
+      "ENG": "Pumps",
+      "FRA": "Pompes",
+      "ITA": "Pompe"
+    },
+    "labelVisibility_excel_3D Elements_Z_Valve WP": {
+      "SPA": "Válvulas WP",
+      "ENG": "WP Valves",
+      "FRA": "Vannes WP",
+      "ITA": "Valvole WP"
+    },
+    "labelVisibility_excel_3D Elements_Z_FC": {
+      "SPA": "Fines de Carrera",
+      "ENG": "Limit Switches",
+      "FRA": "Fins de Course",
+      "ITA": "Finecorsa"
+    },
+    "labelVisibility_excel_3D Elements_Z_TRAFIC_LIGHT": {
+      "SPA": "Semáforos",
+      "ENG": "Traffic Lights",
+      "FRA": "Feux de Signalisation",
+      "ITA": "Semafori"
+    },
+    "labelVisibility_excel_3D Elements_Z_COMPRESOR": {
+      "SPA": "Compresor",
+      "ENG": "Compressor",
+      "FRA": "Compresseur",
+      "ITA": "Compressore"
+    },
+    "labelVisibility_excel_3D Elements_Z_FILTER": {
+      "SPA": "Filtros",
+      "ENG": "Filters",
+      "FRA": "Filtres",
+      "ITA": "Filtri"
+    },
+    "labelVisibility_excel_3D Elements_Z_SOFTENER": {
+      "SPA": "Descalcificadores",
+      "ENG": "Softeners",
+      "FRA": "Adoucisseurs",
+      "ITA": "Addolcitori"
+    },
+    "labelVisibility_excel_3D Elements_Z_STATIONS": {
+      "SPA": "Estaciones",
+      "ENG": "Stations",
+      "FRA": "Stations",
+      "ITA": "Stazioni"
+    },
+    "labelVisibility_excel_3D Elements_Z_SHOULDER": {
+      "SPA": "Brazos",
+      "ENG": "Shoulders",
+      "FRA": "Bras",
+      "ITA": "Bracci"
+    },
+    "labelVisibility_excel_3D Elements_Z_Vertical brush": {
+      "SPA": "Cepillos Verticales",
+      "ENG": "Vertical Brushes",
+      "FRA": "Brosses Verticales",
+      "ITA": "Spazzole Verticali"
+    },
+    "labelVisibility_excel_3D Elements_Z_TRAIN": {
+      "SPA": "Tren",
+      "ENG": "Train",
+      "FRA": "Train",
+      "ITA": "Treno"
+    },
+    "labelVisibility_excel_3D Elements_Z_Gantry": {
+      "SPA": "Pórtico",
+      "ENG": "Gantry",
+      "FRA": "Portique",
+      "ITA": "Portale"
     }
   }
 }
