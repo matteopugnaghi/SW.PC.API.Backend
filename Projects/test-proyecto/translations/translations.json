@@ -8922,6 +8922,96 @@
       "ENG": "READY",
       "FRA": "PRÊT",
       "ITA": "PRONTO"
+    },
+    "systemTools.title": {
+      "SPA": "Herramientas del Sistema",
+      "ENG": "System Tools",
+      "FRA": "Outils Système",
+      "ITA": "Strumenti di Sistema"
+    },
+    "systemTools.teamviewer": {
+      "SPA": "TeamViewer",
+      "ENG": "TeamViewer",
+      "FRA": "TeamViewer",
+      "ITA": "TeamViewer"
+    },
+    "systemTools.restartApp": {
+      "SPA": "Reiniciar App",
+      "ENG": "Restart App",
+      "FRA": "Redémarrer App",
+      "ITA": "Riavvia App"
+    },
+    "systemTools.restartingApp": {
+      "SPA": "Reiniciando aplicación...",
+      "ENG": "Restarting application...",
+      "FRA": "Redémarrage de l'application...",
+      "ITA": "Riavvio dell'applicazione..."
+    },
+    "systemTools.networkDiagnostic": {
+      "SPA": "Diagnóstico Red",
+      "ENG": "Network Diagnostic",
+      "FRA": "Diagnostic Réseau",
+      "ITA": "Diagnostica Rete"
+    },
+    "systemTools.fullscreen": {
+      "SPA": "Pantalla Completa",
+      "ENG": "Fullscreen",
+      "FRA": "Plein Écran",
+      "ITA": "Schermo Intero"
+    },
+    "systemTools.exitFullscreen": {
+      "SPA": "Salir Pantalla Completa",
+      "ENG": "Exit Fullscreen",
+      "FRA": "Quitter Plein Écran",
+      "ITA": "Esci Schermo Intero"
+    },
+    "systemTools.fullscreenActivated": {
+      "SPA": "Pantalla completa activada",
+      "ENG": "Fullscreen activated",
+      "FRA": "Plein écran activé",
+      "ITA": "Schermo intero attivato"
+    },
+    "systemTools.fullscreenDeactivated": {
+      "SPA": "Pantalla completa desactivada",
+      "ENG": "Fullscreen deactivated",
+      "FRA": "Plein écran désactivé",
+      "ITA": "Schermo intero disattivato"
+    },
+    "systemTools.windowsLogout": {
+      "SPA": "Cerrar Sesión Windows",
+      "ENG": "Windows Logout",
+      "FRA": "Déconnexion Windows",
+      "ITA": "Disconnetti Windows"
+    },
+    "systemTools.windowsLogoutConfirm": {
+      "SPA": "¿Está seguro que desea cerrar la sesión de Windows?\n\nEsto cerrará todas las aplicaciones.",
+      "ENG": "Are you sure you want to log out of Windows?\n\nThis will close all applications.",
+      "FRA": "Êtes-vous sûr de vouloir fermer la session Windows?\n\nCela fermera toutes les applications.",
+      "ITA": "Sei sicuro di voler disconnetterti da Windows?\n\nQuesto chiuderà tutte le applicazioni."
+    },
+    "systemTools.auditWarning": {
+      "SPA": "Acciones registradas en auditoría",
+      "ENG": "Actions logged in audit",
+      "FRA": "Actions enregistrées dans l'audit",
+      "ITA": "Azioni registrate nell'audit"
+    },
+    "systemTools.networkModal.title": {
+      "SPA": "Diagnóstico de Red",
+      "ENG": "Network Diagnostic",
+      "FRA": "Diagnostic Réseau",
+      "ITA": "Diagnostica di Rete"
+    },
+    "systemTools.networkModal.close": {
+      "SPA": "Cerrar",
+      "ENG": "Close",
+      "FRA": "Fermer",
+      "ITA": "Chiudi"
+    },
+    "systemTools.networkModal.refresh": {
+      "SPA": "Actualizar",
+      "ENG": "Refresh",
+      "FRA": "Actualiser",
+      "ITA": "Aggiorna"
     }
   }
 }
