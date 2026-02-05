@@ -9066,6 +9066,494 @@
       "ENG": "Refresh",
       "FRA": "Actualiser",
       "ITA": "Aggiorna"
+    },
+
+    "operationLogs.category.navigation": {
+      "SPA": "Navegación",
+      "ENG": "Navigation",
+      "FRA": "Navigation",
+      "ITA": "Navigazione"
+    },
+    "operationLogs.category.alarm": {
+      "SPA": "Alarmas Usuario",
+      "ENG": "User Alarms",
+      "FRA": "Alarmes Utilisateur",
+      "ITA": "Allarmi Utente"
+    },
+    "operationLogs.category.recipe": {
+      "SPA": "Recetas",
+      "ENG": "Recipes",
+      "FRA": "Recettes",
+      "ITA": "Ricette"
+    },
+    "operationLogs.category.process": {
+      "SPA": "Procesos",
+      "ENG": "Processes",
+      "FRA": "Processus",
+      "ITA": "Processi"
+    },
+    "operationLogs.category.setpoint": {
+      "SPA": "Setpoints",
+      "ENG": "Setpoints",
+      "FRA": "Points de consigne",
+      "ITA": "Setpoint"
+    },
+    "operationLogs.category.statistics": {
+      "SPA": "Estadísticas",
+      "ENG": "Statistics",
+      "FRA": "Statistiques",
+      "ITA": "Statistiche"
+    },
+    "operationLogs.category.export": {
+      "SPA": "Exportaciones",
+      "ENG": "Exports",
+      "FRA": "Exportations",
+      "ITA": "Esportazioni"
+    },
+    "operationLogs.category.backup": {
+      "SPA": "Backup",
+      "ENG": "Backup",
+      "FRA": "Sauvegarde",
+      "ITA": "Backup"
+    },
+    "operationLogs.category.configuration": {
+      "SPA": "Configuración",
+      "ENG": "Configuration",
+      "FRA": "Configuration",
+      "ITA": "Configurazione"
+    },
+    "operationLogs.category.plcCommand": {
+      "SPA": "Órdenes PLC",
+      "ENG": "PLC Commands",
+      "FRA": "Commandes PLC",
+      "ITA": "Comandi PLC"
+    },
+    "operationLogs.category.plcAlarmHistory": {
+      "SPA": "Historial Alarmas PLC",
+      "ENG": "PLC Alarm History",
+      "FRA": "Historique Alarmes PLC",
+      "ITA": "Storico Allarmi PLC"
+    },
+    "operationLogs.category.plcAlarm": {
+      "SPA": "PLC Alarmas",
+      "ENG": "PLC Alarms",
+      "FRA": "Alarmes PLC",
+      "ITA": "Allarmi PLC"
+    },
+    "operationLogs.category.plcNotification": {
+      "SPA": "PLC Avisos",
+      "ENG": "PLC Notifications",
+      "FRA": "Notifications PLC",
+      "ITA": "Notifiche PLC"
+    },
+    "operationLogs.category.plcInfo": {
+      "SPA": "PLC Info",
+      "ENG": "PLC Info",
+      "FRA": "Info PLC",
+      "ITA": "Info PLC"
+    },
+    "operationLogs.category.system": {
+      "SPA": "Sistema",
+      "ENG": "System",
+      "FRA": "Système",
+      "ITA": "Sistema"
+    },
+
+    "operationLogs.action.ViewChange": {
+      "SPA": "Cambio de vista",
+      "ENG": "View changed",
+      "FRA": "Changement de vue",
+      "ITA": "Cambio vista"
+    },
+    "operationLogs.action.MenuOpen": {
+      "SPA": "Menú abierto",
+      "ENG": "Menu opened",
+      "FRA": "Menu ouvert",
+      "ITA": "Menu aperto"
+    },
+    "operationLogs.action.MenuClose": {
+      "SPA": "Menú cerrado",
+      "ENG": "Menu closed",
+      "FRA": "Menu fermé",
+      "ITA": "Menu chiuso"
+    },
+    "operationLogs.action.AlarmView": {
+      "SPA": "Ver alarmas",
+      "ENG": "View alarms",
+      "FRA": "Voir alarmes",
+      "ITA": "Visualizza allarmi"
+    },
+    "operationLogs.action.AlarmAcknowledge": {
+      "SPA": "Alarma reconocida",
+      "ENG": "Alarm acknowledged",
+      "FRA": "Alarme acquittée",
+      "ITA": "Allarme riconosciuto"
+    },
+    "operationLogs.action.AlarmReset": {
+      "SPA": "Alarma reseteada",
+      "ENG": "Alarm reset",
+      "FRA": "Alarme réinitialisée",
+      "ITA": "Allarme resettato"
+    },
+    "operationLogs.action.AlarmSilence": {
+      "SPA": "Alarma silenciada",
+      "ENG": "Alarm silenced",
+      "FRA": "Alarme silencée",
+      "ITA": "Allarme silenziato"
+    },
+    "operationLogs.action.AlarmExport": {
+      "SPA": "Alarmas exportadas",
+      "ENG": "Alarms exported",
+      "FRA": "Alarmes exportées",
+      "ITA": "Allarmi esportati"
+    },
+    "operationLogs.action.RecipeView": {
+      "SPA": "Ver recetas",
+      "ENG": "View recipes",
+      "FRA": "Voir recettes",
+      "ITA": "Visualizza ricette"
+    },
+    "operationLogs.action.RecipeCreate": {
+      "SPA": "Receta creada",
+      "ENG": "Recipe created",
+      "FRA": "Recette créée",
+      "ITA": "Ricetta creata"
+    },
+    "operationLogs.action.RecipeEdit": {
+      "SPA": "Receta editada",
+      "ENG": "Recipe edited",
+      "FRA": "Recette modifiée",
+      "ITA": "Ricetta modificata"
+    },
+    "operationLogs.action.RecipeDelete": {
+      "SPA": "Receta eliminada",
+      "ENG": "Recipe deleted",
+      "FRA": "Recette supprimée",
+      "ITA": "Ricetta eliminata"
+    },
+    "operationLogs.action.RecipeLoad": {
+      "SPA": "Receta cargada",
+      "ENG": "Recipe loaded",
+      "FRA": "Recette chargée",
+      "ITA": "Ricetta caricata"
+    },
+    "operationLogs.action.RecipeExecute": {
+      "SPA": "Receta ejecutada",
+      "ENG": "Recipe executed",
+      "FRA": "Recette exécutée",
+      "ITA": "Ricetta eseguita"
+    },
+    "operationLogs.action.RecipePause": {
+      "SPA": "Receta pausada",
+      "ENG": "Recipe paused",
+      "FRA": "Recette en pause",
+      "ITA": "Ricetta in pausa"
+    },
+    "operationLogs.action.RecipeResume": {
+      "SPA": "Receta reanudada",
+      "ENG": "Recipe resumed",
+      "FRA": "Recette reprise",
+      "ITA": "Ricetta ripresa"
+    },
+    "operationLogs.action.RecipeAbort": {
+      "SPA": "Receta abortada",
+      "ENG": "Recipe aborted",
+      "FRA": "Recette annulée",
+      "ITA": "Ricetta interrotta"
+    },
+    "operationLogs.action.RecipeExport": {
+      "SPA": "Receta exportada",
+      "ENG": "Recipe exported",
+      "FRA": "Recette exportée",
+      "ITA": "Ricetta esportata"
+    },
+    "operationLogs.action.RecipeImport": {
+      "SPA": "Receta importada",
+      "ENG": "Recipe imported",
+      "FRA": "Recette importée",
+      "ITA": "Ricetta importata"
+    },
+    "operationLogs.action.RecipeWritePlc": {
+      "SPA": "Receta escrita a PLC",
+      "ENG": "Recipe written to PLC",
+      "FRA": "Recette écrite au PLC",
+      "ITA": "Ricetta scritta a PLC"
+    },
+    "operationLogs.action.RecipeReadPlc": {
+      "SPA": "Receta leída de PLC",
+      "ENG": "Recipe read from PLC",
+      "FRA": "Recette lue du PLC",
+      "ITA": "Ricetta letta da PLC"
+    },
+    "operationLogs.action.WashTypeCreate": {
+      "SPA": "Tipo lavado creado",
+      "ENG": "Wash type created",
+      "FRA": "Type lavage créé",
+      "ITA": "Tipo lavaggio creato"
+    },
+    "operationLogs.action.WashTypeEdit": {
+      "SPA": "Tipo lavado editado",
+      "ENG": "Wash type edited",
+      "FRA": "Type lavage modifié",
+      "ITA": "Tipo lavaggio modificato"
+    },
+    "operationLogs.action.WashTypeDelete": {
+      "SPA": "Tipo lavado eliminado",
+      "ENG": "Wash type deleted",
+      "FRA": "Type lavage supprimé",
+      "ITA": "Tipo lavaggio eliminato"
+    },
+    "operationLogs.action.WashTypeWritePlc": {
+      "SPA": "Tipo lavado escrito a PLC",
+      "ENG": "Wash type written to PLC",
+      "FRA": "Type lavage écrit au PLC",
+      "ITA": "Tipo lavaggio scritto a PLC"
+    },
+    "operationLogs.action.ProcessStart": {
+      "SPA": "Proceso iniciado",
+      "ENG": "Process started",
+      "FRA": "Processus démarré",
+      "ITA": "Processo avviato"
+    },
+    "operationLogs.action.ProcessStop": {
+      "SPA": "Proceso detenido",
+      "ENG": "Process stopped",
+      "FRA": "Processus arrêté",
+      "ITA": "Processo fermato"
+    },
+    "operationLogs.action.ProcessPause": {
+      "SPA": "Proceso pausado",
+      "ENG": "Process paused",
+      "FRA": "Processus en pause",
+      "ITA": "Processo in pausa"
+    },
+    "operationLogs.action.ProcessResume": {
+      "SPA": "Proceso reanudado",
+      "ENG": "Process resumed",
+      "FRA": "Processus repris",
+      "ITA": "Processo ripreso"
+    },
+    "operationLogs.action.ProcessModeChange": {
+      "SPA": "Modo cambiado",
+      "ENG": "Mode changed",
+      "FRA": "Mode changé",
+      "ITA": "Modalità cambiata"
+    },
+    "operationLogs.action.CommandExecute": {
+      "SPA": "Comando ejecutado",
+      "ENG": "Command executed",
+      "FRA": "Commande exécutée",
+      "ITA": "Comando eseguito"
+    },
+    "operationLogs.action.SetpointView": {
+      "SPA": "Ver setpoints",
+      "ENG": "View setpoints",
+      "FRA": "Voir points de consigne",
+      "ITA": "Visualizza setpoint"
+    },
+    "operationLogs.action.SetpointChange": {
+      "SPA": "Setpoint modificado",
+      "ENG": "Setpoint changed",
+      "FRA": "Point de consigne modifié",
+      "ITA": "Setpoint modificato"
+    },
+    "operationLogs.action.SetpointOverride": {
+      "SPA": "Setpoint forzado",
+      "ENG": "Setpoint overridden",
+      "FRA": "Point de consigne forcé",
+      "ITA": "Setpoint forzato"
+    },
+    "operationLogs.action.LimitChange": {
+      "SPA": "Límite modificado",
+      "ENG": "Limit changed",
+      "FRA": "Limite modifiée",
+      "ITA": "Limite modificato"
+    },
+    "operationLogs.action.StatisticsView": {
+      "SPA": "Ver estadísticas",
+      "ENG": "View statistics",
+      "FRA": "Voir statistiques",
+      "ITA": "Visualizza statistiche"
+    },
+    "operationLogs.action.StatisticsExport": {
+      "SPA": "Estadísticas exportadas",
+      "ENG": "Statistics exported",
+      "FRA": "Statistiques exportées",
+      "ITA": "Statistiche esportate"
+    },
+    "operationLogs.action.ReportGenerate": {
+      "SPA": "Informe generado",
+      "ENG": "Report generated",
+      "FRA": "Rapport généré",
+      "ITA": "Report generato"
+    },
+    "operationLogs.action.ReportExport": {
+      "SPA": "Informe exportado",
+      "ENG": "Report exported",
+      "FRA": "Rapport exporté",
+      "ITA": "Report esportato"
+    },
+    "operationLogs.action.DataExport": {
+      "SPA": "Datos exportados",
+      "ENG": "Data exported",
+      "FRA": "Données exportées",
+      "ITA": "Dati esportati"
+    },
+    "operationLogs.action.BackupCreate": {
+      "SPA": "Backup creado",
+      "ENG": "Backup created",
+      "FRA": "Sauvegarde créée",
+      "ITA": "Backup creato"
+    },
+    "operationLogs.action.BackupRestore": {
+      "SPA": "Backup restaurado",
+      "ENG": "Backup restored",
+      "FRA": "Sauvegarde restaurée",
+      "ITA": "Backup ripristinato"
+    },
+    "operationLogs.action.BackupDelete": {
+      "SPA": "Backup eliminado",
+      "ENG": "Backup deleted",
+      "FRA": "Sauvegarde supprimée",
+      "ITA": "Backup eliminato"
+    },
+    "operationLogs.action.ConfigView": {
+      "SPA": "Ver configuración",
+      "ENG": "View configuration",
+      "FRA": "Voir configuration",
+      "ITA": "Visualizza configurazione"
+    },
+    "operationLogs.action.ConfigChange": {
+      "SPA": "Configuración modificada",
+      "ENG": "Configuration changed",
+      "FRA": "Configuration modifiée",
+      "ITA": "Configurazione modificata"
+    },
+    "operationLogs.action.ConfigWritePlc": {
+      "SPA": "Configuración escrita a PLC",
+      "ENG": "Configuration written to PLC",
+      "FRA": "Configuration écrite au PLC",
+      "ITA": "Configurazione scritta a PLC"
+    },
+    "operationLogs.action.ConfigReadPlc": {
+      "SPA": "Configuración leída de PLC",
+      "ENG": "Configuration read from PLC",
+      "FRA": "Configuration lue du PLC",
+      "ITA": "Configurazione letta da PLC"
+    },
+    "operationLogs.action.ConfigReset": {
+      "SPA": "Configuración reseteada",
+      "ENG": "Configuration reset",
+      "FRA": "Configuration réinitialisée",
+      "ITA": "Configurazione resettata"
+    },
+    "operationLogs.action.PlcAlarmActivated": {
+      "SPA": "Alarma PLC activada",
+      "ENG": "PLC alarm activated",
+      "FRA": "Alarme PLC activée",
+      "ITA": "Allarme PLC attivato"
+    },
+    "operationLogs.action.PlcAlarmDeactivated": {
+      "SPA": "Alarma PLC desactivada",
+      "ENG": "PLC alarm deactivated",
+      "FRA": "Alarme PLC désactivée",
+      "ITA": "Allarme PLC disattivato"
+    },
+    "operationLogs.action.PlcNotificationActivated": {
+      "SPA": "Aviso PLC activado",
+      "ENG": "PLC notification activated",
+      "FRA": "Notification PLC activée",
+      "ITA": "Notifica PLC attivata"
+    },
+    "operationLogs.action.PlcNotificationDeactivated": {
+      "SPA": "Aviso PLC desactivado",
+      "ENG": "PLC notification deactivated",
+      "FRA": "Notification PLC désactivée",
+      "ITA": "Notifica PLC disattivata"
+    },
+    "operationLogs.action.PlcInfoActivated": {
+      "SPA": "Info PLC activada",
+      "ENG": "PLC info activated",
+      "FRA": "Info PLC activée",
+      "ITA": "Info PLC attivata"
+    },
+    "operationLogs.action.PlcInfoDeactivated": {
+      "SPA": "Info PLC desactivada",
+      "ENG": "PLC info deactivated",
+      "FRA": "Info PLC désactivée",
+      "ITA": "Info PLC disattivata"
+    },
+    "operationLogs.action.PlcCommandWashChange": {
+      "SPA": "Cambio lavado (PLC)",
+      "ENG": "Wash change (PLC)",
+      "FRA": "Changement lavage (PLC)",
+      "ITA": "Cambio lavaggio (PLC)"
+    },
+    "operationLogs.action.PlcCommandTrainChange": {
+      "SPA": "Cambio tren (PLC)",
+      "ENG": "Train change (PLC)",
+      "FRA": "Changement train (PLC)",
+      "ITA": "Cambio treno (PLC)"
+    },
+    "operationLogs.action.PlcCommandModeChange": {
+      "SPA": "Cambio modo (PLC)",
+      "ENG": "Mode change (PLC)",
+      "FRA": "Changement mode (PLC)",
+      "ITA": "Cambio modalità (PLC)"
+    },
+    "operationLogs.action.PlcCommandRecipeLoad": {
+      "SPA": "Receta cargada (PLC)",
+      "ENG": "Recipe loaded (PLC)",
+      "FRA": "Recette chargée (PLC)",
+      "ITA": "Ricetta caricata (PLC)"
+    },
+    "operationLogs.action.PlcCommandProcessStart": {
+      "SPA": "Proceso iniciado (PLC)",
+      "ENG": "Process started (PLC)",
+      "FRA": "Processus démarré (PLC)",
+      "ITA": "Processo avviato (PLC)"
+    },
+    "operationLogs.action.PlcCommandProcessStop": {
+      "SPA": "Proceso parado (PLC)",
+      "ENG": "Process stopped (PLC)",
+      "FRA": "Processus arrêté (PLC)",
+      "ITA": "Processo fermato (PLC)"
+    },
+    "operationLogs.action.PlcCommandGeneric": {
+      "SPA": "Comando PLC",
+      "ENG": "PLC command",
+      "FRA": "Commande PLC",
+      "ITA": "Comando PLC"
+    },
+    "operationLogs.action.PlcCommandParameter": {
+      "SPA": "Parámetro (PLC)",
+      "ENG": "Parameter (PLC)",
+      "FRA": "Paramètre (PLC)",
+      "ITA": "Parametro (PLC)"
+    },
+    "operationLogs.action.PlcCommandStatus": {
+      "SPA": "Estado (PLC)",
+      "ENG": "Status (PLC)",
+      "FRA": "État (PLC)",
+      "ITA": "Stato (PLC)"
+    },
+    "operationLogs.action.SystemStartup": {
+      "SPA": "Sistema iniciado",
+      "ENG": "System started",
+      "FRA": "Système démarré",
+      "ITA": "Sistema avviato"
+    },
+    "operationLogs.action.SystemShutdown": {
+      "SPA": "Sistema apagado",
+      "ENG": "System shutdown",
+      "FRA": "Système arrêté",
+      "ITA": "Sistema spento"
+    },
+    "operationLogs.action.SystemError": {
+      "SPA": "Error del sistema",
+      "ENG": "System error",
+      "FRA": "Erreur système",
+      "ITA": "Errore di sistema"
     }
   }
 }

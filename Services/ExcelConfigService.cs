@@ -3381,7 +3381,7 @@ namespace SW.PC.API.Backend.Services
                 // Leer definiciones de alarmas (fila 2 en adelante)
                 int row = 2;
                 int emptyRows = 0;
-                const int maxEmptyRows = 10;
+                const int maxEmptyRows = 50; // Permitir hasta 50 filas vacías consecutivas
                 const int maxRow = 500; // Límite de seguridad
                 
                 _logger.LogInformation("🔔 Iniciando lectura de alarmas desde fila 2...");
