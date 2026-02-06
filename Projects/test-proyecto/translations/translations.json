@@ -9746,6 +9746,30 @@
       "ENG": "Manual mode",
       "FRA": "Mode manuel",
       "ITA": "Modo manuale"
+    },
+    "operationLogs.modes.semiautomaticMode": {
+      "SPA": "Modo Semiautomático",
+      "ENG": "Semiautomatic Mode",
+      "FRA": "Mode Semi-automatique",
+      "ITA": "Modo Semiautomatico"
+    },
+    "operationLogs.modes.manualMode": {
+      "SPA": "Modo Manual",
+      "ENG": "Manual Mode",
+      "FRA": "Mode Manuel",
+      "ITA": "Modo Manuale"
+    },
+    "operationLogs.state.on": {
+      "SPA": "ENCENDIDO",
+      "ENG": "ON",
+      "FRA": "ACTIVÉ",
+      "ITA": "ACCESO"
+    },
+    "operationLogs.state.off": {
+      "SPA": "APAGADO",
+      "ENG": "OFF",
+      "FRA": "DÉSACTIVÉ",
+      "ITA": "SPENTO"
     }
   }
 }
