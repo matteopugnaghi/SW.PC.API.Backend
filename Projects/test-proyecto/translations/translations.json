@@ -9560,6 +9560,168 @@
       "ENG": "System error",
       "FRA": "Erreur système",
       "ITA": "Errore di sistema"
+    },
+    "operationLogs.actions.RecipeCreate": {
+      "SPA": "Receta creada",
+      "ENG": "Recipe created",
+      "FRA": "Recette créée",
+      "ITA": "Ricetta creata"
+    },
+    "operationLogs.actions.RecipeEdit": {
+      "SPA": "Receta editada",
+      "ENG": "Recipe edited",
+      "FRA": "Recette modifiée",
+      "ITA": "Ricetta modificata"
+    },
+    "operationLogs.actions.RecipeDelete": {
+      "SPA": "Receta eliminada",
+      "ENG": "Recipe deleted",
+      "FRA": "Recette supprimée",
+      "ITA": "Ricetta eliminata"
+    },
+    "operationLogs.actions.RecipeLoad": {
+      "SPA": "Receta seleccionada",
+      "ENG": "Recipe selected",
+      "FRA": "Recette sélectionnée",
+      "ITA": "Ricetta selezionata"
+    },
+    "operationLogs.actions.RecipeReadPlc": {
+      "SPA": "Receta desde PLC",
+      "ENG": "Recipe from PLC",
+      "FRA": "Recette depuis API",
+      "ITA": "Ricetta da PLC"
+    },
+    "operationLogs.actions.RecipeWritePlc": {
+      "SPA": "Escrito al PLC",
+      "ENG": "Written to PLC",
+      "FRA": "Écrit vers API",
+      "ITA": "Scritto su PLC"
+    },
+    "operationLogs.actions.WashTypeCreate": {
+      "SPA": "Tipo lavado creado",
+      "ENG": "Wash type created",
+      "FRA": "Type de lavage créé",
+      "ITA": "Tipo lavaggio creato"
+    },
+    "operationLogs.actions.WashTypeEdit": {
+      "SPA": "Tipo lavado editado",
+      "ENG": "Wash type edited",
+      "FRA": "Type de lavage modifié",
+      "ITA": "Tipo lavaggio modificato"
+    },
+    "operationLogs.actions.WashTypeDelete": {
+      "SPA": "Tipo lavado eliminado",
+      "ENG": "Wash type deleted",
+      "FRA": "Type de lavage supprimé",
+      "ITA": "Tipo lavaggio eliminato"
+    },
+    "operationLogs.actions.WashTypeLoad": {
+      "SPA": "Tipo lavado seleccionado",
+      "ENG": "Wash type selected",
+      "FRA": "Type de lavage sélectionné",
+      "ITA": "Tipo lavaggio selezionato"
+    },
+    "operationLogs.actions.WashTypeWritePlc": {
+      "SPA": "Tipo lavado escrito al PLC",
+      "ENG": "Wash type written to PLC",
+      "FRA": "Type de lavage écrit vers API",
+      "ITA": "Tipo lavaggio scritto su PLC"
+    },
+    "operationLogs.actions.WashTypeReadPlc": {
+      "SPA": "Tipo lavado leído del PLC",
+      "ENG": "Wash type read from PLC",
+      "FRA": "Type de lavage lu depuis API",
+      "ITA": "Tipo lavaggio letto da PLC"
+    },
+    "operationLogs.actions.WashTypeSaveFromPlc": {
+      "SPA": "Tipo lavado guardado en DB desde PLC",
+      "ENG": "Wash type saved to DB from PLC",
+      "FRA": "Type de lavage sauvegardé en BD depuis API",
+      "ITA": "Tipo lavaggio salvato in DB da PLC"
+    },
+    "operationLogs.actions.TrainTypeCreate": {
+      "SPA": "Tipo tren creado",
+      "ENG": "Train type created",
+      "FRA": "Type de train créé",
+      "ITA": "Tipo treno creato"
+    },
+    "operationLogs.actions.TrainTypeEdit": {
+      "SPA": "Tipo tren editado",
+      "ENG": "Train type edited",
+      "FRA": "Type de train modifié",
+      "ITA": "Tipo treno modificato"
+    },
+    "operationLogs.actions.TrainTypeDelete": {
+      "SPA": "Tipo tren eliminado",
+      "ENG": "Train type deleted",
+      "FRA": "Type de train supprimé",
+      "ITA": "Tipo treno eliminato"
+    },
+    "operationLogs.actions.TrainTypeLoad": {
+      "SPA": "Tipo tren seleccionado",
+      "ENG": "Train type selected",
+      "FRA": "Type de train sélectionné",
+      "ITA": "Tipo treno selezionato"
+    },
+    "operationLogs.actions.TrainTypeWritePlc": {
+      "SPA": "Tipo tren escrito al PLC",
+      "ENG": "Train type written to PLC",
+      "FRA": "Type de train écrit vers API",
+      "ITA": "Tipo treno scritto su PLC"
+    },
+    "operationLogs.actions.TrainTypeReadPlc": {
+      "SPA": "Tipo tren leído del PLC",
+      "ENG": "Train type read from PLC",
+      "FRA": "Type de train lu depuis API",
+      "ITA": "Tipo treno letto da PLC"
+    },
+    "operationLogs.actions.TrainTypeSaveFromPlc": {
+      "SPA": "Tipo tren guardado en DB desde PLC",
+      "ENG": "Train type saved to DB from PLC",
+      "FRA": "Type de train sauvegardé en BD depuis API",
+      "ITA": "Tipo treno salvato in DB da PLC"
+    },
+    "operationLogs.actions.ManualModeToggle": {
+      "SPA": "Modo manual",
+      "ENG": "Manual mode",
+      "FRA": "Mode manuel",
+      "ITA": "Modo manuale"
+    },
+    "operationLogs.actions.MachineSettingsWrite": {
+      "SPA": "Config. máquina escrita",
+      "ENG": "Machine settings written",
+      "FRA": "Config. machine écrite",
+      "ITA": "Config. macchina scritta"
+    },
+    "operationLogs.actions.MachineSettingsSave": {
+      "SPA": "Config. máquina guardada",
+      "ENG": "Machine settings saved",
+      "FRA": "Config. machine sauvegardée",
+      "ITA": "Config. macchina salvata"
+    },
+    "operationLogs.actions.FastConfigWrite": {
+      "SPA": "Config. rápida escrita",
+      "ENG": "Fast config written",
+      "FRA": "Config. rapide écrite",
+      "ITA": "Config. rapida scritta"
+    },
+    "operationLogs.actions.PlcLogReceived": {
+      "SPA": "Log PLC",
+      "ENG": "PLC Log",
+      "FRA": "Log API",
+      "ITA": "Log PLC"
+    },
+    "operationLogs.actions.ConfigWritePlc": {
+      "SPA": "Config. escrita al PLC",
+      "ENG": "Config written to PLC",
+      "FRA": "Config. écrite vers PLC",
+      "ITA": "Config. scritta su PLC"
+    },
+    "operationLogs.actions.ConfigChange": {
+      "SPA": "Config. guardada en DB",
+      "ENG": "Config saved to DB",
+      "FRA": "Config. sauvegardée en BD",
+      "ITA": "Config. salvata in DB"
     }
   }
 }

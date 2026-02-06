@@ -217,7 +217,7 @@ namespace SW.PC.API.Backend.Controllers
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
                     OperationAction.WashTypeCreate,
-                    $"Creado tipo de lavado: {washType.Name} ({washType.Code})",
+                    $"{washType.Name} ({washType.Code})",
                     username);
 
                 _logger.LogInformation("✅ Created wash type: {Name} ({Code})", washType.Name, washType.Code);
@@ -313,7 +313,7 @@ namespace SW.PC.API.Backend.Controllers
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
                     OperationAction.WashTypeEdit,
-                    $"Actualizado tipo de lavado: {washType.Name} ({washType.Code})",
+                    $"{washType.Name} ({washType.Code})",
                     username);
 
                 _logger.LogInformation("✅ Updated wash type: {Name} ({Code})", washType.Name, washType.Code);
@@ -359,7 +359,7 @@ namespace SW.PC.API.Backend.Controllers
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
                     OperationAction.WashTypeDelete,
-                    $"Eliminado tipo de lavado: {washType.Name} ({washType.Code})",
+                    $"{washType.Name} ({washType.Code})",
                     username);
 
                 _logger.LogInformation("🗑️ Deleted wash type: {Name} ({Code})", washType.Name, washType.Code);
@@ -465,8 +465,8 @@ namespace SW.PC.API.Backend.Controllers
                 // Operation log (L2) - Recetas
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
-                    OperationAction.RecipeLoad,
-                    $"Seleccionado tipo de lavado: {washType.Name} ({washType.Code})",
+                    OperationAction.WashTypeLoad,
+                    $"{washType.Name} ({washType.Code})",
                     username);
 
                 _logger.LogInformation("✅ Selected wash type: {Name} ({Code})", washType.Name, washType.Code);
@@ -727,8 +727,8 @@ namespace SW.PC.API.Backend.Controllers
                 // Operation log (L2) - Recetas
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
-                    OperationAction.RecipeReadPlc,
-                    $"Guardado tipo de lavado desde PLC: Slot {dto.SlotNumber} - {existingWashType.Name}",
+                    OperationAction.WashTypeSaveFromPlc,
+                    $"Slot {dto.SlotNumber} - {existingWashType.Name}",
                     username);
 
                 _logger.LogInformation("✅ Saved wash type from PLC: Slot {Slot} - {Name}", dto.SlotNumber, existingWashType.Name);
@@ -1107,11 +1107,10 @@ namespace SW.PC.API.Backend.Controllers
             await _dbContext.SaveChangesAsync();
 
             // Operation log (L2) - Recetas
-            var status = errors.Count == 0 ? "exitosa" : $"parcial ({errors.Count} errores)";
             await _operationLog.LogAsync(
                 OperationCategory.Recipe,
                 OperationAction.WashTypeWritePlc,
-                $"Escritura al PLC {status}: {washType.Name} - {parametersWritten} parámetros",
+                washType.Name,
                 username);
 
             return new WriteToPlcResponseDto
@@ -1318,15 +1317,10 @@ namespace SW.PC.API.Backend.Controllers
             }
 
             // Operation log (L2) - Recetas
-            var status = errors.Count == 0 && parametersWritten > 0 
-                ? "exitosa" 
-                : parametersWritten == 0 
-                    ? "sin parámetros escritos" 
-                    : $"parcial ({errors.Count} errores)";
             await _operationLog.LogAsync(
                 OperationCategory.Recipe,
                 OperationAction.WashTypeWritePlc,
-                $"Escritura al PLC (alternativo [{alternatePlcPrefix}]) {status}: {washType.Name} - {parametersWritten} parámetros",
+                $"{washType.Name} (PLC ALT)",
                 username);
 
             return new WriteToPlcResponseDto

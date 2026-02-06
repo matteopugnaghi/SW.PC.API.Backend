@@ -84,12 +84,15 @@ public enum OperationAction
     RecipeAbort = 28,
     RecipeExport = 29,
     RecipeImport = 30,
-    RecipeWritePlc = 31,        // Escribir receta al PLC
-    RecipeReadPlc = 32,         // Leer receta del PLC
+    RecipeWritePlc = 31,        // Escribir receta al PLC (genérico)
+    RecipeReadPlc = 32,         // Leer receta del PLC (genérico)
     WashTypeCreate = 33,        // Crear tipo de lavado
     WashTypeEdit = 34,          // Editar tipo de lavado
     WashTypeDelete = 35,        // Eliminar tipo de lavado
     WashTypeWritePlc = 36,      // Escribir tipo de lavado al PLC
+    TrainTypeCreate = 37,       // Crear tipo de tren
+    TrainTypeEdit = 38,         // Editar tipo de tren
+    TrainTypeDelete = 39,       // Eliminar tipo de tren
     
     // Process (40-49)
     ProcessStart = 40,
@@ -147,6 +150,17 @@ public enum OperationAction
     
     // PLC Messages - Logs recibidos desde el PLC (120)
     PlcLogReceived = 120,            // Log recibido desde PLC
+    
+    // Train Type specific (130-139)
+    TrainTypeLoad = 130,             // Seleccionar tipo de tren
+    TrainTypeWritePlc = 131,         // Escribir tipo de tren al PLC
+    TrainTypeReadPlc = 132,          // Leer tipo de tren del PLC
+    TrainTypeSaveFromPlc = 133,      // Guardar tipo de tren en DB desde PLC
+    
+    // Wash Type specific (140-149)
+    WashTypeLoad = 140,              // Seleccionar tipo de lavado
+    WashTypeReadPlc = 141,           // Leer tipo de lavado del PLC
+    WashTypeSaveFromPlc = 142,       // Guardar tipo de lavado en DB desde PLC
     
     // System (200+)
     SystemStartup = 200,

@@ -219,8 +219,8 @@ namespace SW.PC.API.Backend.Controllers
                 // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
-                    OperationAction.RecipeCreate,
-                    $"Creado tipo de tren: {trainType.Name} ({trainType.Code})",
+                    OperationAction.TrainTypeCreate,
+                    $"{trainType.Name} ({trainType.Code})",
                     username);
 
                 _logger.LogInformation("✅ Created train type: {Name} ({Code})", trainType.Name, trainType.Code);
@@ -325,8 +325,8 @@ namespace SW.PC.API.Backend.Controllers
                 // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
-                    OperationAction.RecipeEdit,
-                    $"Actualizado tipo de tren: {trainType.Name} ({trainType.Code})",
+                    OperationAction.TrainTypeEdit,
+                    $"{trainType.Name} ({trainType.Code})",
                     username);
 
                 _logger.LogInformation("✅ Updated train type: {Name} ({Code})", trainType.Name, trainType.Code);
@@ -369,8 +369,8 @@ namespace SW.PC.API.Backend.Controllers
                 // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
-                    OperationAction.RecipeDelete,
-                    $"Eliminado tipo de tren: {trainTypeName} ({trainTypeCode})",
+                    OperationAction.TrainTypeDelete,
+                    $"{trainTypeName} ({trainTypeCode})",
                     username);
 
                 _logger.LogInformation("🗑️ Deleted train type: {Name} ({Code})", trainTypeName, trainTypeCode);
@@ -476,8 +476,8 @@ namespace SW.PC.API.Backend.Controllers
                 // Operation log (L2) - Recetas
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
-                    OperationAction.RecipeLoad,
-                    $"Seleccionado tipo de tren: {trainType.Name} ({trainType.Code})",
+                    OperationAction.TrainTypeLoad,
+                    $"{trainType.Name} ({trainType.Code})",
                     username);
 
                 _logger.LogInformation("✅ Selected train type: {Name} ({Code})", trainType.Name, trainType.Code);
@@ -659,8 +659,8 @@ namespace SW.PC.API.Backend.Controllers
                 // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
-                    OperationAction.RecipeReadPlc,
-                    $"Guardado tipo de tren desde PLC: {existingTrainType.Name} (Slot {dto.SlotNumber})",
+                    OperationAction.TrainTypeSaveFromPlc,
+                    $"Slot {dto.SlotNumber} - {existingTrainType.Name}",
                     username);
 
                 _logger.LogInformation("🚆 Train type saved from PLC: {Name} (Slot {Slot})", 
@@ -963,8 +963,8 @@ namespace SW.PC.API.Backend.Controllers
                 // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
-                    OperationAction.RecipeWritePlc,
-                    $"Escritura al PLC del tipo de tren: {trainType.Name} - {successCount} parámetros",
+                    OperationAction.TrainTypeWritePlc,
+                    trainType.Name,
                     username);
 
                 _logger.LogInformation("🚆 Train type '{Name}' written to PLC: {Success} success, {Errors} errors", 
@@ -1140,8 +1140,8 @@ namespace SW.PC.API.Backend.Controllers
                 // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
-                    OperationAction.RecipeWritePlc,
-                    $"Escritura al PLC ALTERNATIVO del tipo de tren: {trainType.Name} - {successCount} parámetros",
+                    OperationAction.TrainTypeWritePlc,
+                    $"{trainType.Name} (PLC ALT)",
                     username);
 
                 _logger.LogInformation("🚆 [ALT] Train type '{Name}' written to ALTERNATE PLC: {Success} success, {Errors} errors", 
@@ -1286,8 +1286,8 @@ namespace SW.PC.API.Backend.Controllers
                 // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
-                    OperationAction.RecipeWritePlc,
-                    $"Escritura directa al PLC de receta de tren: {effectiveName ?? "Sin nombre"} - {successCount} parámetros",
+                    OperationAction.TrainTypeWritePlc,
+                    effectiveName ?? "N/A",
                     username);
 
                 _logger.LogInformation("🚆 Train recipe '{Name}' written to PLC: {Success} success, {Errors} errors", 
@@ -1591,8 +1591,8 @@ namespace SW.PC.API.Backend.Controllers
             // Log de operación
             await _operationLog.LogAsync(
                 OperationCategory.Recipe,
-                OperationAction.RecipeWritePlc,
-                $"Escritura al PLC del tipo de tren: {trainType.Name} - {successCount} parámetros",
+                OperationAction.TrainTypeWritePlc,
+                trainType.Name,
                 username);
 
             _logger.LogInformation("🚆 Train type '{Name}' written to PLC: {Success} success, {Errors} errors",

@@ -253,7 +253,7 @@ namespace SW.PC.API.Backend.Controllers
                     await _operationLog.LogAsync(
                         category: OperationCategory.Process,
                         action: OperationAction.ConfigChange,
-                        description: $"Manual mode: {request.ElementId} set to {(request.Value ? "ON" : "OFF")}",
+                        description: $"{request.ElementId} → {(request.Value ? "ON" : "OFF")}",
                         user: userName,
                         details: new Dictionary<string, object> { ["PlcVariable"] = request.PlcVariable, ["ElementId"] = request.ElementId, ["Value"] = request.Value }
                     );

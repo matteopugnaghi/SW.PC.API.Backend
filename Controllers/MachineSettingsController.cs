@@ -387,7 +387,7 @@ namespace SW.PC.API.Backend.Controllers
                 await _operationLog.LogAsync(
                     OperationCategory.Configuration,
                     errorCount == 0 ? OperationAction.ConfigWritePlc : OperationAction.ConfigChange,
-                    $"Machine settings written to PLC: {successCount} success, {errorCount} errors",
+                    $"{successCount} OK, {errorCount} ERR",
                     User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "System");
 
                 _logger.LogInformation("⚙️ Wrote {Success} values to PLC ({Errors} errors)", successCount, errorCount);
@@ -545,7 +545,7 @@ namespace SW.PC.API.Backend.Controllers
                 await _operationLog.LogAsync(
                     OperationCategory.Configuration,
                     OperationAction.ConfigChange,
-                    $"Machine settings saved to database: {count} parameters",
+                    $"{count} OK, 0 ERR",
                     user);
 
                 _logger.LogInformation("⚙️ Saved {Count} values to database", count);

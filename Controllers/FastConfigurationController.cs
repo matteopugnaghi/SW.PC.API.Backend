@@ -317,7 +317,7 @@ namespace SW.PC.API.Backend.Controllers
                 await _operationLog.LogAsync(
                     OperationCategory.Configuration,
                     errorCount == 0 ? OperationAction.ConfigWritePlc : OperationAction.ConfigChange,
-                    $"Fast configuration written to PLC: {successCount} success, {errorCount} errors",
+                    $"{successCount} OK, {errorCount} ERR",
                     User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "System");
 
                 _logger.LogInformation("⚡ Wrote {Success} fast config values to PLC ({Errors} errors)", successCount, errorCount);
