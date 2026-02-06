@@ -90,6 +90,10 @@ public class OperationLogService : IOperationLogService
     private static readonly TimeSpan AlarmCacheExpiration = TimeSpan.FromMinutes(5);
     private readonly object _alarmCacheLock = new();
     
+    // Flag para evitar verificar la tabla en cada operación
+    private static bool _tableVerified = false;
+    private static readonly object _tableVerifyLock = new();
+    
     // Regex para parsear variable PLC de alarma histórica
     // Formato: MAIN.fbMachine.st_alarmHistPc[X].Alarm/Notification/Info
     private static readonly Regex AlarmHistRegex = new(
@@ -698,12 +702,25 @@ public class OperationLogService : IOperationLogService
     // ============================================================================
     
     /// <summary>
-    /// Asegura que la tabla OperationLogs existe en la base de datos
+    /// Asegura que la tabla OperationLogs existe en la base de datos.
+    /// Solo verifica una vez por ejecución de la aplicación.
     /// </summary>
     private async Task EnsureOperationLogsTableExistsAsync(AquafrischDbContext context)
     {
+        // ✅ OPTIMIZACIÓN: Solo verificar la tabla una vez
+        if (_tableVerified)
+            return;
+            
+        lock (_tableVerifyLock)
+        {
+            if (_tableVerified)
+                return;
+        }
+        
         try
         {
+            _logger.LogInformation("📋 Verificando tabla OperationLogs (una sola vez)...");
+            
             // Crear tabla si no existe
             await context.Database.ExecuteSqlRawAsync(@"
                 CREATE TABLE IF NOT EXISTS OperationLogs (
@@ -732,10 +749,23 @@ public class OperationLogService : IOperationLogService
             // Crear índices básicos
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Timestamp ON OperationLogs(Timestamp)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Category ON OperationLogs(Category)");
+            
+            // Marcar como verificada
+            lock (_tableVerifyLock)
+            {
+                _tableVerified = true;
+            }
+            
+            _logger.LogInformation("✅ Tabla OperationLogs verificada correctamente");
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Tabla OperationLogs verificada (puede que ya exista)");
+            // Marcar como verificada incluso si falla (la tabla probablemente existe)
+            lock (_tableVerifyLock)
+            {
+                _tableVerified = true;
+            }
         }
     }
 }

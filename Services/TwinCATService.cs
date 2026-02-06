@@ -19,6 +19,35 @@ namespace SW.PC.API.Backend.Services
         TwinCATVersionInfo GetVersionInfo();
         Task<double> GetTaskCycleTimeAsync();
         event EventHandler<PlcNotification>? OnVariableChanged;
+        
+        // 🔔 ADS Notifications API - Push notifications from PLC
+        /// <summary>
+        /// Register a single variable for ADS notifications (push on change).
+        /// Returns the notification handle, or 0 if failed.
+        /// </summary>
+        Task<uint> RegisterNotificationAsync(string variableName, Type dataType, int cycleTimeMs = 100);
+        
+        /// <summary>
+        /// Register multiple variables for ADS notifications in batch.
+        /// Returns dictionary of variableName -> notificationHandle (0 if failed).
+        /// </summary>
+        Task<Dictionary<string, uint>> RegisterMultipleNotificationsAsync(
+            IEnumerable<string> variableNames, Type dataType, int cycleTimeMs = 100);
+        
+        /// <summary>
+        /// Unregister a notification by handle.
+        /// </summary>
+        Task<bool> UnregisterNotificationAsync(uint notificationHandle);
+        
+        /// <summary>
+        /// Unregister all active notifications.
+        /// </summary>
+        Task UnregisterAllNotificationsAsync();
+        
+        /// <summary>
+        /// Number of active notification registrations.
+        /// </summary>
+        int ActiveNotificationCount { get; }
     }
     
     public class TwinCATService : ITwinCATService, IDisposable
@@ -43,7 +72,16 @@ namespace SW.PC.API.Backend.Services
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, uint> _handleCache = new();
         private readonly object _handleLock = new object();
         
+        // 🔔 ADS Notifications - Push notifications from PLC
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<uint, NotificationRegistration> _notificationRegistrations = new();
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, object?> _lastNotifiedValues = new();
+        
         public event EventHandler<PlcNotification>? OnVariableChanged;
+        
+        /// <summary>
+        /// Number of active ADS notification registrations
+        /// </summary>
+        public int ActiveNotificationCount => _notificationRegistrations.Count;
         
         public bool IsConnected 
         {
@@ -920,7 +958,344 @@ namespace SW.PC.API.Backend.Services
         
         public void Dispose()
         {
+            // 🔔 Unregister all notifications before disposing
+            UnregisterAllNotificationsAsync().GetAwaiter().GetResult();
             _adsClient?.Dispose();
         }
+        
+        #region ADS Notifications Implementation
+        
+        /// <summary>
+        /// Internal class to track notification registrations
+        /// </summary>
+        private class NotificationRegistration
+        {
+            public uint NotificationHandle { get; set; }
+            public uint VariableHandle { get; set; }
+            public string VariableName { get; set; } = string.Empty;
+            public Type DataType { get; set; } = typeof(bool);
+            public DateTime RegisteredAt { get; set; } = DateTime.Now;
+        }
+        
+        /// <summary>
+        /// Register a single variable for ADS notifications (push on change).
+        /// </summary>
+        public async Task<uint> RegisterNotificationAsync(string variableName, Type dataType, int cycleTimeMs = 100)
+        {
+            if (!IsConnected || _adsClient == null)
+            {
+                _logger.LogWarning("🔔 Cannot register notification - PLC not connected: {Var}", variableName);
+                return 0;
+            }
+            
+            if (_isSimulatedMode)
+            {
+                // En modo simulado, simular el registro pero no hacer nada real
+                var fakeHandle = (uint)(variableName.GetHashCode() & 0x7FFFFFFF);
+                _logger.LogDebug("🔔 [SIMULATED] Notification registered: {Var} → Handle {Handle}", variableName, fakeHandle);
+                return fakeHandle;
+            }
+            
+            try
+            {
+                // Get or create variable handle
+                var varHandle = GetOrCreateHandle(variableName);
+                
+                // Determine data size based on type
+                int dataSize = GetDataSize(dataType);
+                
+                // Configure notification settings
+                // TransMode.OnChange = notify only when value changes
+                // cycleTimeMs = minimum time between notifications (in 100ns units for ADS)
+                var notificationSettings = new NotificationSettings(
+                    AdsTransMode.OnChange,
+                    cycleTimeMs,      // Cycle time in ms
+                    0                 // Max delay (0 = immediate)
+                );
+                
+                // Register the notification
+                var notifHandle = _adsClient.AddDeviceNotification(
+                    variableName,
+                    dataSize,
+                    notificationSettings,
+                    null  // User data (not needed, we track by handle)
+                );
+                
+                // Store registration info
+                _notificationRegistrations[notifHandle] = new NotificationRegistration
+                {
+                    NotificationHandle = notifHandle,
+                    VariableHandle = varHandle,
+                    VariableName = variableName,
+                    DataType = dataType
+                };
+                
+                _logger.LogInformation("🔔 ADS Notification registered: {Var} → Handle {Handle} (cycle: {Cycle}ms)", 
+                    variableName, notifHandle, cycleTimeMs);
+                
+                return await Task.FromResult(notifHandle);
+            }
+            catch (AdsErrorException ex)
+            {
+                _logger.LogError(ex, "❌ Failed to register notification for {Var}: ADS Error {Code}", 
+                    variableName, ex.ErrorCode);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Failed to register notification for {Var}", variableName);
+                return 0;
+            }
+        }
+        
+        /// <summary>
+        /// Register multiple variables for ADS notifications in batch.
+        /// </summary>
+        public async Task<Dictionary<string, uint>> RegisterMultipleNotificationsAsync(
+            IEnumerable<string> variableNames, Type dataType, int cycleTimeMs = 100)
+        {
+            var results = new Dictionary<string, uint>();
+            var variableList = variableNames.ToList();
+            
+            _logger.LogInformation("🔔 Registering {Count} ADS notifications (type: {Type}, cycle: {Cycle}ms)...", 
+                variableList.Count, dataType.Name, cycleTimeMs);
+            
+            // Setup notification event handler ONCE if not already done
+            if (_adsClient != null && !_notificationEventAttached)
+            {
+                _adsClient.AdsNotification += OnAdsNotification;
+                _notificationEventAttached = true;
+                _logger.LogInformation("🔔✅ ADS Notification event handler ATTACHED to AdsClient");
+            }
+            
+            int successCount = 0;
+            int failCount = 0;
+            
+            foreach (var varName in variableList)
+            {
+                var handle = await RegisterNotificationAsync(varName, dataType, cycleTimeMs);
+                results[varName] = handle;
+                
+                if (handle > 0)
+                    successCount++;
+                else
+                    failCount++;
+            }
+            
+            // 🔍 DEBUG: Listar handles de st_alarmHistPc
+            var histHandles = results.Where(r => r.Key.Contains("st_alarmHistPc") && r.Value > 0)
+                                     .OrderBy(r => r.Key)
+                                     .Take(10)
+                                     .Select(r => $"{r.Key.Split('[')[1].Split(']')[0]}→{r.Value}");
+            _logger.LogInformation("🔔🔍 st_alarmHistPc handles (primeros 10): {Handles}", 
+                string.Join(", ", histHandles));
+            
+            var histTotal = results.Count(r => r.Key.Contains("st_alarmHistPc") && r.Value > 0);
+            _logger.LogInformation("🔔🔍 Total st_alarmHistPc registradas: {Count}", histTotal);
+            
+            _logger.LogInformation("🔔 Notification registration complete: {Success} OK, {Failed} failed (total active: {Total})", 
+                successCount, failCount, _notificationRegistrations.Count);
+            
+            return results;
+        }
+        
+        private bool _notificationEventAttached = false;
+        
+        // 🔍 DEBUG: Contador para diagnóstico
+        private int _totalNotificationsReceived = 0;
+        
+        /// <summary>
+        /// Event handler for ADS notifications - called by TwinCAT when a value changes
+        /// </summary>
+        private void OnAdsNotification(object? sender, AdsNotificationEventArgs e)
+        {
+            try
+            {
+                _totalNotificationsReceived++;
+                
+                // 🔍 DEBUG: Log TODAS las notificaciones cada 100
+                if (_totalNotificationsReceived % 100 == 0)
+                {
+                    _logger.LogInformation("🔔📊 Total notifications received so far: {Count}", _totalNotificationsReceived);
+                }
+                
+                _logger.LogInformation("🔔📥 ADS Notification RECEIVED! Handle: {Handle}, DataLength: {Len}", 
+                    e.Handle, e.Data.Length);
+                
+                // Find the registration for this notification
+                if (!_notificationRegistrations.TryGetValue(e.Handle, out var registration))
+                {
+                    _logger.LogWarning("🔔 Received notification for unknown handle: {Handle}", e.Handle);
+                    return;
+                }
+                
+                // 🔍 DEBUG: Log específico para st_alarmHistPc
+                if (registration.VariableName.Contains("st_alarmHistPc"))
+                {
+                    _logger.LogInformation("🔔🔍 HIST ALARM notification: {Var}, Handle: {Handle}", 
+                        registration.VariableName, e.Handle);
+                }
+                
+                // Read the new value from the notification data
+                object? newValue = ReadValueFromNotification(e.Data, registration.DataType);
+                
+                _logger.LogInformation("🔔📥 Notification parsed: {Var} = {Value}", 
+                    registration.VariableName, newValue ?? "null");
+                
+                // Get old value (if any)
+                _lastNotifiedValues.TryGetValue(registration.VariableName, out var oldValue);
+                
+                // Update last known value
+                _lastNotifiedValues[registration.VariableName] = newValue;
+                
+                // Only fire event if value actually changed
+                if (!Equals(oldValue, newValue))
+                {
+                    _logger.LogInformation("🔔🔄 Notification CHANGED: {Var} = {OldValue} → {NewValue}", 
+                        registration.VariableName, oldValue ?? "null", newValue ?? "null");
+                    
+                    // Fire the OnVariableChanged event
+                    var hasSubscribers = OnVariableChanged != null;
+                    _logger.LogInformation("🔔📤 Firing OnVariableChanged event (subscribers: {HasSub})", hasSubscribers);
+                    
+                    OnVariableChanged?.Invoke(this, new PlcNotification
+                    {
+                        VariableName = registration.VariableName,
+                        OldValue = oldValue,
+                        NewValue = newValue,
+                        Timestamp = DateTime.Now,
+                        NotificationHandle = e.Handle
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error processing ADS notification for handle {Handle}", e.Handle);
+            }
+        }
+        
+        /// <summary>
+        /// Read value from notification data buffer based on data type
+        /// </summary>
+        private object? ReadValueFromNotification(ReadOnlyMemory<byte> data, Type dataType)
+        {
+            var span = data.Span;
+            
+            if (dataType == typeof(bool))
+            {
+                return span.Length > 0 && span[0] != 0;
+            }
+            else if (dataType == typeof(int) || dataType == typeof(Int16))
+            {
+                if (span.Length >= 2)
+                    return BitConverter.ToInt16(span);
+                return 0;
+            }
+            else if (dataType == typeof(Int32))
+            {
+                if (span.Length >= 4)
+                    return BitConverter.ToInt32(span);
+                return 0;
+            }
+            else if (dataType == typeof(float))
+            {
+                if (span.Length >= 4)
+                    return BitConverter.ToSingle(span);
+                return 0f;
+            }
+            else if (dataType == typeof(double))
+            {
+                if (span.Length >= 8)
+                    return BitConverter.ToDouble(span);
+                return 0.0;
+            }
+            else if (dataType == typeof(uint) || dataType == typeof(UInt32))
+            {
+                if (span.Length >= 4)
+                    return BitConverter.ToUInt32(span);
+                return 0u;
+            }
+            else if (dataType == typeof(UInt16))
+            {
+                if (span.Length >= 2)
+                    return BitConverter.ToUInt16(span);
+                return (ushort)0;
+            }
+            
+            _logger.LogWarning("🔔 Unknown data type for notification: {Type}", dataType.Name);
+            return null;
+        }
+        
+        /// <summary>
+        /// Get data size in bytes for a given type
+        /// </summary>
+        private int GetDataSize(Type dataType)
+        {
+            if (dataType == typeof(bool)) return 1;
+            if (dataType == typeof(byte) || dataType == typeof(sbyte)) return 1;
+            if (dataType == typeof(Int16) || dataType == typeof(UInt16)) return 2;
+            if (dataType == typeof(int) || dataType == typeof(Int32) || dataType == typeof(UInt32)) return 4;
+            if (dataType == typeof(float)) return 4;
+            if (dataType == typeof(double) || dataType == typeof(Int64) || dataType == typeof(UInt64)) return 8;
+            
+            // Default for unknown types
+            return 4;
+        }
+        
+        /// <summary>
+        /// Unregister a notification by handle.
+        /// </summary>
+        public async Task<bool> UnregisterNotificationAsync(uint notificationHandle)
+        {
+            if (_adsClient == null || notificationHandle == 0)
+                return false;
+            
+            try
+            {
+                if (_notificationRegistrations.TryRemove(notificationHandle, out var registration))
+                {
+                    if (!_isSimulatedMode)
+                    {
+                        _adsClient.DeleteDeviceNotification(notificationHandle);
+                    }
+                    
+                    _logger.LogDebug("🔔 Notification unregistered: {Var} (handle: {Handle})", 
+                        registration.VariableName, notificationHandle);
+                    
+                    return true;
+                }
+                
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error unregistering notification {Handle}", notificationHandle);
+                return await Task.FromResult(false);
+            }
+        }
+        
+        /// <summary>
+        /// Unregister all active notifications.
+        /// </summary>
+        public async Task UnregisterAllNotificationsAsync()
+        {
+            var count = _notificationRegistrations.Count;
+            if (count == 0)
+                return;
+            
+            _logger.LogInformation("🔔 Unregistering all {Count} notifications...", count);
+            
+            foreach (var handle in _notificationRegistrations.Keys.ToList())
+            {
+                await UnregisterNotificationAsync(handle);
+            }
+            
+            _notificationRegistrations.Clear();
+            _lastNotifiedValues.Clear();
+            
+            _logger.LogInformation("🔔 All notifications unregistered");
+        }
+        
+        #endregion
     }
 }

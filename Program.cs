@@ -128,6 +128,10 @@ builder.Services.AddAuthorization();
 builder.Services.Configure<PlcPollingConfiguration>(
     builder.Configuration.GetSection("PlcPolling"));
 
+// 🔔 Configure AlarmNotification settings (ADS push notifications for alarms)
+builder.Services.Configure<AlarmNotificationConfiguration>(
+    builder.Configuration.GetSection("AlarmNotification"));
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🔐 PHASE 2: Authentication System - SQLite Database (EU CRA / CADRA Compliance)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -200,6 +204,8 @@ builder.Services.AddHttpClient("AuditExternal", client =>
 // builder.Services.AddHostedService<PlcNotificationService>(); // Servicio legacy - reemplazado por PlcPollingService
 builder.Services.AddSingleton<PlcPollingService>(); // ✅ Registrar como Singleton para poder acceder desde controllers
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PlcPollingService>()); // ✅ También como HostedService
+builder.Services.AddSingleton<AlarmNotificationService>(); // 🔔 ADS Notifications para alarmas (más eficiente que polling)
+builder.Services.AddHostedService(sp => sp.GetRequiredService<AlarmNotificationService>()); // 🔔 También como HostedService
 builder.Services.AddHostedService<IntegrityVerificationService>(); // 🔐 Verificación periódica de integridad (cada 2 min)
 builder.Services.AddHostedService<BackupSchedulerService>(); // 💾 Backup automático programado (DATA MANAGEMENT)
 builder.Services.AddHostedService<WashRecipeAutoLoadService>(); // 🚿 Auto-carga de recetas de lavado desde PLC

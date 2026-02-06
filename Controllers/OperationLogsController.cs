@@ -39,7 +39,7 @@ public class OperationLogsController : ControllerBase
     /// Obtener logs de operación con filtros y paginación
     /// </summary>
     /// <param name="page">Número de página (1-based)</param>
-    /// <param name="pageSize">Registros por página (max 200)</param>
+    /// <param name="pageSize">Registros por página (max 2000)</param>
     /// <param name="category">Filtrar por categoría</param>
     /// <param name="action">Filtrar por acción</param>
     /// <param name="severity">Severidad mínima</param>
@@ -70,7 +70,7 @@ public class OperationLogsController : ControllerBase
             var filter = new OperationLogFilter
             {
                 Page = Math.Max(1, page),
-                PageSize = Math.Clamp(pageSize, 1, 200),
+                PageSize = Math.Clamp(pageSize, 1, 2000),
                 User = user,
                 FromDate = fromDate,
                 ToDate = toDate,
@@ -122,7 +122,7 @@ public class OperationLogsController : ControllerBase
         try
         {
             var logs = await _operationLogService.GetRecentLogsAsync(
-                Math.Clamp(count, 1, 200), 
+                Math.Clamp(count, 1, 2000), 
                 lang?.ToUpperInvariant() ?? "SPA");
             return Ok(logs);
         }

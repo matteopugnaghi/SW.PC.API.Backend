@@ -511,6 +511,17 @@ namespace SW.PC.API.Backend.Services
             var simStatus = _twinCATService.IsSimulated ? " (SIMULADO)" : "";
             _metricsService.SetPlcPollingStatus(true, true, $"OK - {_monitoredVariables.Count} variables{simStatus}", _twinCATService.IsSimulated);
 
+            // 🔔 En modo simulado, las alarmas se pollean (no hay notificaciones ADS reales)
+            if (_twinCATService.IsSimulated && _config.ExcludeAlarmsFromPolling)
+            {
+                _logger.LogWarning("🔔 Modo SIMULADO detectado - alarmas se monitorearan por POLLING (no notificaciones ADS)");
+            }
+            else if (_config.ExcludeAlarmsFromPolling)
+            {
+                var alarmCount = _monitoredVariables.Count(v => AlarmNotificationService.IsAlarmVariable(v));
+                _logger.LogInformation("🔔 Modo REAL - {Count} alarmas excluidas del polling (usan notificaciones ADS)", alarmCount);
+            }
+
             // Marcar que Excel ya fue cargado
             _excelLoadedOnce = true;
             _logger.LogInformation("✅ Excel cargado UNA vez al inicio. No se recargará automáticamente.");
@@ -591,6 +602,15 @@ namespace SW.PC.API.Backend.Services
 
             // 🎯 Usar variables activas (filtradas por vista) si el filtrado está habilitado
             var variablesToPoll = _viewFilteringEnabled ? _activeVariables : _monitoredVariables;
+            
+            // 🔔 Excluir alarmas si están manejadas por AlarmNotificationService
+            // PERO solo en modo REAL (no simulado) - en simulado las alarmas necesitan polling
+            if (_config.ExcludeAlarmsFromPolling && !_twinCATService.IsSimulated)
+            {
+                variablesToPoll = variablesToPoll
+                    .Where(v => !AlarmNotificationService.IsAlarmVariable(v))
+                    .ToList();
+            }
             
             // Registrar número de variables monitoreadas
             _metricsService.SetPlcMonitoredVariables(variablesToPoll.Count);

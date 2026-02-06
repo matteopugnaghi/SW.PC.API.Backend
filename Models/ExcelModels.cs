@@ -1560,6 +1560,23 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Timestamp de la última actualización de estados
         /// </summary>
         public DateTime LastStatusUpdate { get; set; } = DateTime.Now;
+
+        // ===== 🔔 ALARM NOTIFICATIONS =====
+        
+        /// <summary>
+        /// Servicio de notificaciones de alarma habilitado
+        /// </summary>
+        public bool AlarmNotificationEnabled { get; set; }
+        
+        /// <summary>
+        /// Notificaciones de alarma activas y funcionando
+        /// </summary>
+        public bool AlarmNotificationActive { get; set; }
+        
+        /// <summary>
+        /// Último mensaje de estado del servicio de notificaciones
+        /// </summary>
+        public string AlarmNotificationStatus { get; set; } = "No iniciado";
     }
 
     #region Alarm System Models

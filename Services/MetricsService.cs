@@ -61,7 +61,14 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         void SetUseSimulatedPlc(bool simulated);
 
-        // ===== 🔐 SOFTWARE INTEGRITY =====
+        // ===== � ALARM NOTIFICATIONS =====
+
+        /// <summary>
+        /// Registrar estado del servicio de notificaciones de alarma
+        /// </summary>
+        void SetAlarmNotificationStatus(bool enabled, bool active, string statusMessage);
+
+        // ===== �🔐 SOFTWARE INTEGRITY =====
 
         /// <summary>
         /// Establecer servicio de integridad de software
@@ -190,6 +197,9 @@ namespace SW.PC.API.Backend.Services
                         DatabaseConnected = _servicesStatus.DatabaseConnected,
                         DatabaseStatus = _servicesStatus.DatabaseStatus,
                         UseSimulatedPlc = _servicesStatus.UseSimulatedPlc,
+                        AlarmNotificationEnabled = _servicesStatus.AlarmNotificationEnabled,
+                        AlarmNotificationActive = _servicesStatus.AlarmNotificationActive,
+                        AlarmNotificationStatus = _servicesStatus.AlarmNotificationStatus,
                         LastStatusUpdate = _servicesStatus.LastStatusUpdate
                     }
                 };
@@ -245,6 +255,17 @@ namespace SW.PC.API.Backend.Services
             lock (_lock)
             {
                 _servicesStatus.UseSimulatedPlc = simulated;
+                _servicesStatus.LastStatusUpdate = DateTime.Now;
+            }
+        }
+
+        public void SetAlarmNotificationStatus(bool enabled, bool active, string statusMessage)
+        {
+            lock (_lock)
+            {
+                _servicesStatus.AlarmNotificationEnabled = enabled;
+                _servicesStatus.AlarmNotificationActive = active;
+                _servicesStatus.AlarmNotificationStatus = statusMessage;
                 _servicesStatus.LastStatusUpdate = DateTime.Now;
             }
         }

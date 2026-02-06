@@ -9,6 +9,12 @@ namespace SW.PC.API.Backend.Models
         public int PollingIntervalMs { get; set; } = 1000;
         public string ExcelFileName { get; set; } = "ProjectConfig.xlsm";
         public bool AutoLoadFromExcel { get; set; } = true;
+        
+        /// <summary>
+        /// Si true, las variables de alarma (st_alarmPc, st_alarmHistPc) se excluyen del polling
+        /// porque se manejan por notificaciones ADS (más eficiente).
+        /// </summary>
+        public bool ExcludeAlarmsFromPolling { get; set; } = true;
     }
 
     /// <summary>
