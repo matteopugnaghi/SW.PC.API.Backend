@@ -248,12 +248,13 @@ namespace SW.PC.API.Backend.Controllers
 
                 if (success)
                 {
-                    // Registrar en log de operaciones
+                    // Registrar en log de operaciones (guardar solo la clave de traducción)
                     var userName = User.Identity?.Name ?? "Unknown";
+                    var descriptionKey = !string.IsNullOrEmpty(request.Description) ? request.Description : request.ElementId;
                     await _operationLog.LogAsync(
                         category: OperationCategory.Process,
-                        action: OperationAction.ConfigChange,
-                        description: $"{request.ElementId} → {(request.Value ? "ON" : "OFF")}",
+                        action: OperationAction.ManualModeToggle,
+                        description: descriptionKey, // Solo la clave, sin ON/OFF
                         user: userName,
                         details: new Dictionary<string, object> { ["PlcVariable"] = request.PlcVariable, ["ElementId"] = request.ElementId, ["Value"] = request.Value }
                     );

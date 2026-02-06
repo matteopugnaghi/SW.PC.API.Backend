@@ -42,6 +42,7 @@ namespace SW.PC.API.Backend.Controllers
             try
             {
                 var translations = await LoadTranslationsAsync();
+                _logger.LogDebug("🌐 Retornando {Count} traducciones", translations.Translations.Count);
                 return Ok(translations);
             }
             catch (FileNotFoundException)
@@ -54,6 +55,20 @@ namespace SW.PC.API.Backend.Controllers
                 _logger.LogError(ex, "🌐 Error cargando traducciones");
                 return StatusCode(500, new { error = "Error loading translations", message = ex.Message });
             }
+        }
+        
+        /// <summary>
+        /// Limpia la caché de traducciones (para desarrollo)
+        /// </summary>
+        [HttpPost("clear-cache")]
+        public ActionResult ClearCache()
+        {
+            lock (_cacheLock)
+            {
+                _cache.Clear();
+            }
+            _logger.LogInformation("🌐 Caché de traducciones limpiada");
+            return Ok(new { message = "Cache cleared" });
         }
 
         /// <summary>
@@ -249,6 +264,19 @@ namespace SW.PC.API.Backend.Controllers
             {
                 throw new InvalidOperationException("Failed to deserialize translations file");
             }
+            
+            _logger.LogInformation("🌐 Deserializado: Translations={TransCount}, ExtensionData={ExtCount}", 
+                data.Translations?.Count ?? 0, data.ExtensionData?.Count ?? 0);
+            
+            // Si Translations está vacío pero hay ExtensionData, procesar
+            if ((data.Translations == null || data.Translations.Count == 0) && data.ExtensionData != null)
+            {
+                _logger.LogInformation("🌐 Procesando ExtensionData porque Translations está vacío...");
+                data.ProcessExtensionData();
+            }
+            
+            _logger.LogInformation("🌐 Después de procesar: {Count} traducciones totales", 
+                data.Translations?.Count ?? 0);
 
             // Guardar en caché
             lock (_cacheLock)
@@ -272,6 +300,43 @@ namespace SW.PC.API.Backend.Controllers
         public TranslationsMetadata Metadata { get; set; } = new();
         public Dictionary<string, PageInfo> Pages { get; set; } = new();
         public Dictionary<string, Dictionary<string, string>> Translations { get; set; } = new();
+        
+        /// <summary>
+        /// Captura propiedades adicionales del JSON (las claves de traducción están en el nivel raíz)
+        /// </summary>
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+        
+        /// <summary>
+        /// Procesa ExtensionData y mueve las traducciones al diccionario Translations
+        /// </summary>
+        public void ProcessExtensionData()
+        {
+            if (ExtensionData == null) return;
+            
+            foreach (var kvp in ExtensionData)
+            {
+                // Ignorar metadata y pages (ya están deserializados)
+                if (kvp.Key == "metadata" || kvp.Key == "pages") continue;
+                
+                // Intentar parsear como traducción { "SPA": "...", "ENG": "..." }
+                if (kvp.Value.ValueKind == JsonValueKind.Object)
+                {
+                    var translations = new Dictionary<string, string>();
+                    foreach (var prop in kvp.Value.EnumerateObject())
+                    {
+                        if (prop.Value.ValueKind == JsonValueKind.String)
+                        {
+                            translations[prop.Name] = prop.Value.GetString() ?? "";
+                        }
+                    }
+                    if (translations.Count > 0)
+                    {
+                        Translations[kvp.Key] = translations;
+                    }
+                }
+            }
+        }
     }
 
     public class TranslationsMetadata

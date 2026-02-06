@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.Excel;
@@ -15,6 +16,8 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IRecoveryCodeService _recoveryCodeService;
         private readonly IAuditLogService _auditLog;
         private readonly IRequestProjectContext _projectContext;
+        private readonly ITwinCATService _twinCATService;
+        private readonly IOperationLogService _operationLog;
         private readonly ILogger<ConfigController> _logger;
         
         public ConfigController(
@@ -24,6 +27,8 @@ namespace SW.PC.API.Backend.Controllers
             IRecoveryCodeService recoveryCodeService,
             IAuditLogService auditLog,
             IRequestProjectContext projectContext,
+            ITwinCATService twinCATService,
+            IOperationLogService operationLog,
             ILogger<ConfigController> logger)
         {
             _configurationService = configurationService;
@@ -32,6 +37,8 @@ namespace SW.PC.API.Backend.Controllers
             _recoveryCodeService = recoveryCodeService;
             _auditLog = auditLog;
             _projectContext = projectContext;
+            _twinCATService = twinCATService;
+            _operationLog = operationLog;
             _logger = logger;
         }
         
@@ -589,6 +596,58 @@ namespace SW.PC.API.Backend.Controllers
             {
                 _logger.LogError(ex, "Error loading Semiautomatic_Mode configuration: {Message}", ex.Message);
                 return StatusCode(500, new { error = "Error loading semiautomatic configuration", detail = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Toggle an element in semiautomatic mode (write to PLC with logging)
+        /// </summary>
+        /// <param name="request">Toggle request with variable name/id and value</param>
+        /// <returns>Result of the toggle operation</returns>
+        [HttpPost("semiautomatic/toggle")]
+        [Authorize]
+        [ProducesResponseType(200)]
+        [ProducesResponseType(400)]
+        public async Task<ActionResult> ToggleSemiautomaticElement([FromBody] SemiautomaticToggleRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(request.PlcVariable))
+                {
+                    return BadRequest(new { error = "PLC variable is required" });
+                }
+
+                _logger.LogInformation("⚡ Semiautomatic toggle: {Var} = {Value}", request.PlcVariable, request.Value);
+
+                // Write to PLC
+                var success = await _twinCATService.WriteVariableAsync(request.PlcVariable, request.Value, typeof(bool));
+
+                if (success)
+                {
+                    var userName = User.Identity?.Name ?? "Unknown";
+                    // Guardar solo la clave de traducción (description viene del frontend)
+                    var descriptionKey = !string.IsNullOrEmpty(request.Description) 
+                        ? request.Description 
+                        : (request.ElementId ?? request.PlcVariable);
+                    await _operationLog.LogAsync(
+                        category: OperationCategory.Process,
+                        action: OperationAction.SemiautomaticToggle,
+                        description: descriptionKey, // Solo la clave, sin ON/OFF
+                        user: userName,
+                        details: new Dictionary<string, object> { ["PlcVariable"] = request.PlcVariable, ["ElementId"] = request.ElementId ?? request.PlcVariable, ["Value"] = request.Value }
+                    );
+
+                    return Ok(new { success = true, variable = request.PlcVariable, value = request.Value });
+                }
+                else
+                {
+                    return StatusCode(500, new { error = "Failed to write to PLC" });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error toggling semiautomatic element: {Message}", ex.Message);
+                return StatusCode(500, new { error = "Error toggling element", detail = ex.Message });
             }
         }
 

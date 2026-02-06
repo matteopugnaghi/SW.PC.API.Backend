@@ -118,6 +118,11 @@ namespace SW.PC.API.Backend.Models
         /// Nuevo estado (true = activar, false = desactivar)
         /// </summary>
         public bool Value { get; set; }
+
+        /// <summary>
+        /// Descripción traducida del elemento (para logs)
+        /// </summary>
+        public string? Description { get; set; }
     }
 
     /// <summary>
@@ -134,5 +139,31 @@ namespace SW.PC.API.Backend.Models
         /// Timestamp de la lectura
         /// </summary>
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Request para activar/desactivar un elemento en modo semiautomático
+    /// </summary>
+    public class SemiautomaticToggleRequest
+    {
+        /// <summary>
+        /// ID del elemento (opcional, para descripción en logs)
+        /// </summary>
+        public string? ElementId { get; set; }
+
+        /// <summary>
+        /// Variable PLC a escribir
+        /// </summary>
+        public string PlcVariable { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Nuevo estado (true = activar, false = desactivar)
+        /// </summary>
+        public bool Value { get; set; }
+
+        /// <summary>
+        /// Clave de traducción para la descripción (se traduce en el frontend)
+        /// </summary>
+        public string? Description { get; set; }
     }
 }

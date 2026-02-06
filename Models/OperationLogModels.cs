@@ -101,6 +101,8 @@ public enum OperationAction
     ProcessResume = 43,
     ProcessModeChange = 44,
     CommandExecute = 45,
+    SemiautomaticToggle = 46,   // Toggle elemento en panel semiauto
+    ManualModeToggle = 47,      // Toggle elemento en modo manual
     
     // Setpoint (50-59)
     SetpointView = 50,
@@ -373,6 +375,12 @@ public class OperationLogDto
     /// </summary>
     public string ActionKey { get; set; } = string.Empty;
     
+    /// <summary>
+    /// Datos adicionales (JSON deserializado)
+    /// Para Manual/Semiautomático incluye: PlcVariable, ElementId, Value
+    /// </summary>
+    public object? Details { get; set; }
+    
     public string? PlcVariable { get; set; }
     public int? AlarmIndex { get; set; }
     public string? AlarmCode { get; set; }
@@ -389,6 +397,21 @@ public class OperationLogDto
     /// </summary>
     public static OperationLogDto FromEntity(OperationLog entity, string? alarmMessage = null)
     {
+        // Deserializar DetailsJson si existe
+        object? details = null;
+        if (!string.IsNullOrEmpty(entity.DetailsJson))
+        {
+            try
+            {
+                details = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(entity.DetailsJson);
+            }
+            catch
+            {
+                // Si falla, devolver el JSON como string
+                details = entity.DetailsJson;
+            }
+        }
+        
         return new OperationLogDto
         {
             Id = entity.Id,
@@ -400,6 +423,7 @@ public class OperationLogDto
             Description = entity.Description,
             Message = alarmMessage, // Para PlcAlarmHistory viene del Excel
             ActionKey = entity.GetActionKey(),
+            Details = details, // JSON deserializado
             PlcVariable = entity.PlcVariable,
             AlarmIndex = entity.AlarmIndex,
             AlarmCode = entity.AlarmCode,

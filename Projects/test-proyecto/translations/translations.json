@@ -9734,6 +9734,18 @@
       "ENG": "FastConfig with errors",
       "FRA": "Config.Rapide avec erreurs",
       "ITA": "Config.Rapida con errori"
+    },
+    "operationLogs.actions.SemiautomaticToggle": {
+      "SPA": "Semiautomático",
+      "ENG": "Semiautomatic",
+      "FRA": "Semi-automatique",
+      "ITA": "Semiautomatico"
+    },
+    "operationLogs.actions.ManualModeToggle": {
+      "SPA": "Modo manual",
+      "ENG": "Manual mode",
+      "FRA": "Mode manuel",
+      "ITA": "Modo manuale"
     }
   }
 }
