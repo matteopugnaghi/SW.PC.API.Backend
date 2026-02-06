@@ -128,6 +128,8 @@ public enum OperationAction
     ConfigWritePlc = 92,        // Escribir configuración al PLC
     ConfigReadPlc = 93,         // Leer configuración del PLC
     ConfigReset = 94,           // Reset a valores por defecto
+    FastConfigWritePlc = 95,    // Escribir configuración rápida al PLC
+    FastConfigChange = 96,      // Cambio de configuración rápida
     
     // PLC Alarm History (100-109)
     PlcAlarmActivated = 100,

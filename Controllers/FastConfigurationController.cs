@@ -316,7 +316,7 @@ namespace SW.PC.API.Backend.Controllers
                 // Registrar operación
                 await _operationLog.LogAsync(
                     OperationCategory.Configuration,
-                    errorCount == 0 ? OperationAction.ConfigWritePlc : OperationAction.ConfigChange,
+                    errorCount == 0 ? OperationAction.FastConfigWritePlc : OperationAction.FastConfigChange,
                     $"{successCount} OK, {errorCount} ERR",
                     User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "System");
 

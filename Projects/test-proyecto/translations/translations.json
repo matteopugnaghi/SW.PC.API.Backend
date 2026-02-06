@@ -9722,6 +9722,18 @@
       "ENG": "Config saved to DB",
       "FRA": "Config. sauvegardée en BD",
       "ITA": "Config. salvata in DB"
+    },
+    "operationLogs.actions.FastConfigWritePlc": {
+      "SPA": "Config.Rápida escrita al PLC",
+      "ENG": "FastConfig written to PLC",
+      "FRA": "Config.Rapide écrite vers PLC",
+      "ITA": "Config.Rapida scritta su PLC"
+    },
+    "operationLogs.actions.FastConfigChange": {
+      "SPA": "Config.Rápida con errores",
+      "ENG": "FastConfig with errors",
+      "FRA": "Config.Rapide avec erreurs",
+      "ITA": "Config.Rapida con errori"
     }
   }
 }
