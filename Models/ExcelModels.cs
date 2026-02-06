@@ -379,6 +379,17 @@ namespace SW.PC.API.Backend.Models.Excel
         /// </summary>
         public string ClientsIdConnected { get; set; } = "";
 
+        /// <summary>
+        /// Variable PLC (WSTRING) donde el PLC escribe mensajes/logs para registrar en Operation Log.
+        /// Se usa ADS Notification para detectar cambios (eficiente, solo cuando hay nuevo mensaje).
+        /// El PLC debe concatenar un ID/timestamp para asegurar que siempre sea diferente.
+        /// Formato recomendado: "ID|CATEGORIA|MENSAJE" (ej: "001|PROCESS|Motor arrancado")
+        /// Categorías válidas: PROCESS, ALARM, INFO, WARNING, COMMAND
+        /// Si vacío, esta funcionalidad está deshabilitada.
+        /// Ejemplo: "GVL.sLogToPC" o "MAIN.fbMachine.sLogMessage"
+        /// </summary>
+        public string LogFromTwincatPlcVariable { get; set; } = "";
+
         // ===== BASE DE DATOS SQLite =====
         /// <summary>
         /// Habilitar/deshabilitar base de datos SQLite (autenticación, audit logs, etc.)

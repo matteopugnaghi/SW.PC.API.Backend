@@ -30,7 +30,11 @@ namespace SW.PC.API.Backend.Services
         private Dictionary<string, uint> _notificationHandles = new();
         private bool _notificationsRegistered = false;
         
-        // 🔥 Warm-up: Ignorar notificaciones iniciales de ADS (solo al primer arranque)
+        // � Variable WSTRING para recibir logs/mensajes desde el PLC
+        private string? _logFromTwincatVariable = null;
+        private string _lastLogFromTwincatValue = ""; // Para detectar cambios
+        
+        // �🔥 Warm-up: Ignorar notificaciones iniciales de ADS (solo al primer arranque)
         private DateTime _warmupEndTime = DateTime.MaxValue;
         private bool _isInWarmupPeriod = true;
         private bool _warmupAlreadyCompleted = false;  // Para evitar reiniciar warm-up en reconexiones
@@ -181,6 +185,27 @@ namespace SW.PC.API.Backend.Services
                 
                 _logger.LogInformation("🔔 Variables de alarma encontradas: {Total} (activas: {Active}, historial: {History})",
                     _alarmVariables.Count, alarmPcCount, alarmHistCount);
+                
+                // 📝 Cargar variable LogFromTwincat desde SystemConfiguration
+                try
+                {
+                    var excelPath = excelConfigService.GetExcelConfigPath();
+                    var systemConfig = await excelConfigService.LoadSystemConfigurationAsync(excelPath);
+                    
+                    if (!string.IsNullOrWhiteSpace(systemConfig.LogFromTwincatPlcVariable))
+                    {
+                        _logFromTwincatVariable = systemConfig.LogFromTwincatPlcVariable;
+                        _logger.LogInformation("📝 LogFromTwincat habilitado: Variable PLC = {Variable}", _logFromTwincatVariable);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("📝 LogFromTwincat deshabilitado (celda vacía en Excel SystemConfig)");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ Error cargando LogFromTwincat desde SystemConfiguration");
+                }
             }
             catch (Exception ex)
             {
@@ -249,6 +274,34 @@ namespace SW.PC.API.Backend.Services
                     string.Join(", ", failed));
             }
             
+            // 📝 Registrar también LogFromTwincat (WSTRING) si está configurado
+            if (!string.IsNullOrWhiteSpace(_logFromTwincatVariable))
+            {
+                try
+                {
+                    var handle = await _twinCATService.RegisterNotificationAsync(
+                        _logFromTwincatVariable,
+                        typeof(string),  // WSTRING → string
+                        _config.CycleTimeMs
+                    );
+                    
+                    if (handle > 0)
+                    {
+                        _notificationHandles[_logFromTwincatVariable] = handle;
+                        _logger.LogInformation("📝 LogFromTwincat registrado: {Variable} (handle: {Handle})", 
+                            _logFromTwincatVariable, handle);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("⚠️ No se pudo registrar LogFromTwincat: {Variable}", _logFromTwincatVariable);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ Error registrando LogFromTwincat: {Variable}", _logFromTwincatVariable);
+                }
+            }
+            
             // Actualizar métricas
             _metricsService.SetAlarmNotificationStatus(
                 _config.Enabled, 
@@ -262,6 +315,14 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         private void OnAlarmChanged(object? sender, PlcNotification notification)
         {
+            // 📝 Verificar si es LogFromTwincat (WSTRING de mensajes del PLC)
+            if (!string.IsNullOrWhiteSpace(_logFromTwincatVariable) && 
+                notification.VariableName == _logFromTwincatVariable)
+            {
+                _ = HandleLogFromTwincatAsync(notification);
+                return;
+            }
+            
             // Verificar que es una variable de alarma
             if (!IsAlarmVariable(notification.VariableName))
             {
@@ -337,6 +398,59 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ Error registrando alarma histórica en Operation Log: {Var}", variableName);
+            }
+        }
+        
+        /// <summary>
+        /// Manejar mensaje recibido desde variable LogFromTwincat (WSTRING)
+        /// </summary>
+        private async Task HandleLogFromTwincatAsync(PlcNotification notification)
+        {
+            try
+            {
+                // Extraer el mensaje (WSTRING → string)
+                string message = notification.NewValue?.ToString() ?? "";
+                
+                // Ignorar mensajes vacíos o iguales al anterior (warm-up o sin cambio real)
+                if (string.IsNullOrWhiteSpace(message) || message == _lastLogFromTwincatValue)
+                {
+                    return;
+                }
+                
+                _lastLogFromTwincatValue = message;
+                
+                // Ignorar durante warm-up
+                if (_isInWarmupPeriod)
+                {
+                    if (DateTime.Now >= _warmupEndTime)
+                    {
+                        _isInWarmupPeriod = false;
+                        _warmupAlreadyCompleted = true;
+                        _logger.LogInformation("🔥 Warm-up completado - LogFromTwincat activo");
+                    }
+                    else
+                    {
+                        _logger.LogDebug("📝 [LogFromTwincat] Ignorando mensaje durante warm-up: {Message}", message);
+                        return;
+                    }
+                }
+                
+                _logger.LogInformation("📝 [LogFromTwincat] Mensaje recibido: {Message}", message);
+                
+                // Registrar en Operation Log
+                using var scope = _serviceProvider.CreateScope();
+                var operationLogService = scope.ServiceProvider.GetRequiredService<IOperationLogService>();
+                
+                var result = await operationLogService.LogPlcMessageAsync(message);
+                
+                if (result != null)
+                {
+                    _logger.LogInformation("📝 Mensaje PLC registrado en Operation Log: {Message}", message);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error procesando LogFromTwincat: {Value}", notification.NewValue);
             }
         }
         

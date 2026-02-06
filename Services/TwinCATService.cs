@@ -1221,6 +1221,33 @@ namespace SW.PC.API.Backend.Services
                     return BitConverter.ToUInt16(span);
                 return (ushort)0;
             }
+            else if (dataType == typeof(string))
+            {
+                // WSTRING en TwinCAT: Unicode (2 bytes por caracter), terminado en null
+                try
+                {
+                    // Buscar el terminador null (2 bytes 0x00 0x00)
+                    int length = 0;
+                    for (int i = 0; i < span.Length - 1; i += 2)
+                    {
+                        if (span[i] == 0 && span[i + 1] == 0)
+                            break;
+                        length += 2;
+                    }
+                    
+                    if (length > 0)
+                    {
+                        var stringBytes = span.Slice(0, length).ToArray();
+                        return System.Text.Encoding.Unicode.GetString(stringBytes);
+                    }
+                    return string.Empty;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "🔔 Error parsing WSTRING from notification");
+                    return null;
+                }
+            }
             
             _logger.LogWarning("🔔 Unknown data type for notification: {Type}", dataType.Name);
             return null;
@@ -1237,6 +1264,7 @@ namespace SW.PC.API.Backend.Services
             if (dataType == typeof(int) || dataType == typeof(Int32) || dataType == typeof(UInt32)) return 4;
             if (dataType == typeof(float)) return 4;
             if (dataType == typeof(double) || dataType == typeof(Int64) || dataType == typeof(UInt64)) return 8;
+            if (dataType == typeof(string)) return 512; // WSTRING(255) = 255*2 bytes + algunos extras
             
             // Default for unknown types
             return 4;

@@ -145,6 +145,9 @@ public enum OperationAction
     PlcCommandParameter = 117,       // Cambio de parámetro desde PLC
     PlcCommandStatus = 118,          // Cambio de estado desde PLC
     
+    // PLC Messages - Logs recibidos desde el PLC (120)
+    PlcLogReceived = 120,            // Log recibido desde PLC
+    
     // System (200+)
     SystemStartup = 200,
     SystemShutdown = 201,

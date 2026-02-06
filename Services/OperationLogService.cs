@@ -40,6 +40,13 @@ public interface IOperationLogService
     Task<OperationLog?> LogPlcAlarmHistoryAsync(string plcVariable, bool isActive);
     
     /// <summary>
+    /// Registrar un mensaje enviado desde el PLC (LogFromTwincat WSTRING).
+    /// Formato esperado: "ID|CATEGORIA|MENSAJE" (ej: "001|PROCESS|Motor arrancado")
+    /// Categorías: PROCESS, ALARM, INFO, WARNING, COMMAND (default: INFO si no especificada)
+    /// </summary>
+    Task<OperationLog?> LogPlcMessageAsync(string rawMessage);
+    
+    /// <summary>
     /// Obtener logs con filtros y paginación
     /// </summary>
     Task<OperationLogPagedResponse> GetLogsAsync(OperationLogFilter filter);
@@ -238,6 +245,82 @@ public class OperationLogService : IOperationLogService
     }
 
     /// <summary>
+    /// Registrar un mensaje enviado desde el PLC (LogFromTwincat WSTRING).
+    /// Formato esperado: "ID|CATEGORIA|MENSAJE" (ej: "001|PROCESS|Motor arrancado")
+    /// </summary>
+    public async Task<OperationLog?> LogPlcMessageAsync(string rawMessage)
+    {
+        if (string.IsNullOrWhiteSpace(rawMessage))
+        {
+            _logger.LogDebug("📋 [PlcMessage] Mensaje vacío recibido, ignorando");
+            return null;
+        }
+
+        try
+        {
+            // Parsear mensaje: "ID|CATEGORIA|MENSAJE" o "MENSAJE" simple
+            string messageId = "";
+            string category = "INFO";
+            string message = rawMessage;
+
+            var parts = rawMessage.Split('|', 3);
+            if (parts.Length >= 3)
+            {
+                // Formato completo: ID|CATEGORIA|MENSAJE
+                messageId = parts[0].Trim();
+                category = parts[1].Trim().ToUpperInvariant();
+                message = parts[2].Trim();
+            }
+            else if (parts.Length == 2)
+            {
+                // Formato: CATEGORIA|MENSAJE (sin ID)
+                category = parts[0].Trim().ToUpperInvariant();
+                message = parts[1].Trim();
+            }
+            // Si solo hay una parte, message ya tiene el valor correcto
+
+            // Crear entrada de log
+            var entry = new OperationLog
+            {
+                Timestamp = DateTime.Now,
+                Category = OperationCategory.PlcCommand, // Usamos PlcCommand para mensajes del PLC
+                Action = OperationAction.PlcLogReceived,
+                Severity = OperationSeverity.Info,
+                User = "PLC",
+                Description = message,
+                NewValue = messageId, // Guardamos el ID del mensaje para referencia
+                DetailsJson = JsonSerializer.Serialize(new Dictionary<string, object>
+                {
+                    ["rawMessage"] = rawMessage,
+                    ["messageId"] = messageId,
+                    ["category"] = category,
+                    ["message"] = message
+                })
+            };
+
+            // Guardar en base de datos
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+            
+            await EnsureOperationLogsTableExistsAsync(dbContext);
+            
+            dbContext.OperationLogs.Add(entry);
+            await dbContext.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "📋 Mensaje PLC registrado: [{Category}] ID={Id} - {Message}",
+                category, messageId, message);
+
+            return entry;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error registrando mensaje PLC: {Message}", rawMessage);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Obtener logs con filtros y paginación
     /// </summary>
     public async Task<OperationLogPagedResponse> GetLogsAsync(OperationLogFilter filter)
@@ -317,7 +400,7 @@ public class OperationLogService : IOperationLogService
         // Debug: mostrar cuántas alarmas se cargaron
         if (alarmConfig != null)
         {
-            _logger.LogInformation("🔔 Alarmas cargadas desde Excel: {Total} (Alarms={A}, Notifications={N}, Infos={I})",
+            _logger.LogDebug("🔔 Alarmas cargadas desde Excel: {Total} (Alarms={A}, Notifications={N}, Infos={I})",
                 alarmConfig.TotalCount, alarmConfig.Alarms.Count, alarmConfig.Notifications.Count, alarmConfig.Infos.Count);
         }
         else
@@ -333,7 +416,7 @@ public class OperationLogService : IOperationLogService
             // Si es PlcAlarmHistory, obtener texto desde Excel
             if (item.Category == OperationCategory.PlcAlarmHistory && item.AlarmIndex.HasValue)
             {
-                _logger.LogInformation("🔍 Buscando alarma: Index={Index}, Type={Type}", item.AlarmIndex, item.AlarmType);
+                _logger.LogDebug("🔍 Buscando alarma: Index={Index}, Type={Type}", item.AlarmIndex, item.AlarmType);
                 
                 var alarmDef = alarmConfig?.GetAll()
                     .FirstOrDefault(a => a.Index == item.AlarmIndex.Value && 
@@ -342,7 +425,7 @@ public class OperationLogService : IOperationLogService
                 if (alarmDef != null)
                 {
                     alarmMessage = alarmDef.GetText(language);
-                    _logger.LogInformation("✅ Encontrada alarma: Index={Index}, Type={Type}, Text='{Text}'", 
+                    _logger.LogDebug("✅ Encontrada alarma: Index={Index}, Type={Type}, Text='{Text}'", 
                         alarmDef.Index, alarmDef.Type, alarmMessage);
                 }
                 else

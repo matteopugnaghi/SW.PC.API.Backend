@@ -9537,6 +9537,12 @@
       "FRA": "État (PLC)",
       "ITA": "Stato (PLC)"
     },
+    "operationLogs.action.PlcLogReceived": {
+      "SPA": "Log recibido de PLC",
+      "ENG": "Log received from PLC",
+      "FRA": "Log reçu du PLC",
+      "ITA": "Log ricevuto dal PLC"
+    },
     "operationLogs.action.SystemStartup": {
       "SPA": "Sistema iniciado",
       "ENG": "System started",

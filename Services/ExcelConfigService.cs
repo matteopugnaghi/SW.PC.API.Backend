@@ -2464,6 +2464,18 @@ namespace SW.PC.API.Backend.Services
                                 if (!string.IsNullOrWhiteSpace(paramValue))
                                     config.ClientsIdConnected = paramValue;
                                 break;
+                            
+                            // 📋 LOG FROM TWINCAT (PLC → Operation Log)
+                            case "logfromtwincat":
+                            case "log_from_twincat":
+                            case "logfromtwincatplcvariable":
+                            case "log_from_twincat_plc_variable":
+                            case "logfromtwincat_plc_variable":
+                            case "plclogvariable":
+                            case "plc_log_variable":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.LogFromTwincatPlcVariable = paramValue;
+                                break;
 
                             // BASE DE DATOS SQLite
                             case "enabledatabase":
