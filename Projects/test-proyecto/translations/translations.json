@@ -9711,6 +9711,18 @@
       "FRA": "Log API",
       "ITA": "Log PLC"
     },
+    "operationLogs.actions.PlcCommandWashChange": {
+      "SPA": "Cambio lavado automático",
+      "ENG": "Automatic wash change",
+      "FRA": "Changement lavage automatique",
+      "ITA": "Cambio lavaggio automatico"
+    },
+    "operationLogs.actions.PlcCommandTrainChange": {
+      "SPA": "Cambio tipo tren automático",
+      "ENG": "Automatic train type change",
+      "FRA": "Changement type train automatique",
+      "ITA": "Cambio tipo treno automatico"
+    },
     "operationLogs.actions.ConfigWritePlc": {
       "SPA": "Config. escrita al PLC",
       "ENG": "Config written to PLC",
