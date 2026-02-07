@@ -21,9 +21,6 @@ public enum OperationCategory
     /// <summary>Navegación en la aplicación</summary>
     Navigation = 0,
     
-    /// <summary>Alarmas de usuario (reconocimiento, etc.)</summary>
-    Alarm = 1,
-    
     /// <summary>Recetas</summary>
     Recipe = 2,
     
@@ -32,9 +29,6 @@ public enum OperationCategory
     
     /// <summary>Estadísticas</summary>
     Statistics = 5,
-    
-    /// <summary>Backup</summary>
-    Backup = 7,
     
     /// <summary>Configuración de máquina</summary>
     Configuration = 8,
@@ -77,11 +71,6 @@ public enum OperationAction
     StatisticsExport = 61,
     ReportGenerate = 62,
     ReportExport = 63,
-    
-    // Backup (80-89)
-    BackupCreate = 80,
-    BackupRestore = 81,
-    BackupDelete = 82,
     
     // Configuration / Machine Settings (90-99)
     ConfigChange = 91,          // Cambio de configuración de máquina

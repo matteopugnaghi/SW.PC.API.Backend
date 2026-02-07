@@ -380,11 +380,10 @@ public class OperationLogsController : ControllerBase
     private static string GetCategoryLabel(OperationCategory category) => category switch
     {
         OperationCategory.Navigation => "Navegación",
-        OperationCategory.Alarm => "Alarmas Usuario",
         OperationCategory.Recipe => "Recetas",
         OperationCategory.Process => "Procesos",
         OperationCategory.Statistics => "Estadísticas",
-        OperationCategory.Backup => "Backup",
+        OperationCategory.Configuration => "Configuración",
         OperationCategory.PlcAlarmHistory => "Historial Alarmas PLC",
         OperationCategory.System => "Sistema",
         _ => category.ToString()
@@ -393,11 +392,10 @@ public class OperationLogsController : ControllerBase
     private static string GetCategoryIcon(OperationCategory category) => category switch
     {
         OperationCategory.Navigation => "🧭",
-        OperationCategory.Alarm => "🚨",
         OperationCategory.Recipe => "📋",
         OperationCategory.Process => "⚙️",
         OperationCategory.Statistics => "📊",
-        OperationCategory.Backup => "💾",
+        OperationCategory.Configuration => "🔧",
         OperationCategory.PlcAlarmHistory => "🔔",
         OperationCategory.System => "🖥️",
         _ => "📝"
@@ -442,7 +440,6 @@ public class OperationLogsController : ControllerBase
             OperationAction.MenuOpen, 
             OperationAction.MenuClose 
         },
-        OperationCategory.Alarm => Array.Empty<OperationAction>(), // No longer used
         OperationCategory.Recipe => new[] {
             OperationAction.WashTypeCreate,
             OperationAction.WashTypeEdit,
@@ -469,11 +466,6 @@ public class OperationLogsController : ControllerBase
             OperationAction.StatisticsExport,
             OperationAction.ReportGenerate,
             OperationAction.ReportExport
-        },
-        OperationCategory.Backup => new[] {
-            OperationAction.BackupCreate,
-            OperationAction.BackupRestore,
-            OperationAction.BackupDelete
         },
         OperationCategory.PlcAlarmHistory => new[] {
             OperationAction.PlcAlarmActivated,
