@@ -428,8 +428,6 @@ public class OperationLogsController : ControllerBase
     private static string GetActionLabel(OperationAction action) => action switch
     {
         OperationAction.ViewChange => "Cambio de vista",
-        OperationAction.RecipeLoad => "Cargar receta",
-        OperationAction.RecipeExecute => "Ejecutar receta",
         OperationAction.ProcessStart => "Iniciar proceso",
         OperationAction.ProcessStop => "Parar proceso",
         OperationAction.PlcAlarmActivated => "Alarma PLC activada",
@@ -450,17 +448,21 @@ public class OperationLogsController : ControllerBase
         },
         OperationCategory.Alarm => Array.Empty<OperationAction>(), // No longer used
         OperationCategory.Recipe => new[] {
-            OperationAction.RecipeView,
-            OperationAction.RecipeCreate,
-            OperationAction.RecipeEdit,
-            OperationAction.RecipeDelete,
-            OperationAction.RecipeLoad,
-            OperationAction.RecipeExecute,
-            OperationAction.RecipePause,
-            OperationAction.RecipeResume,
-            OperationAction.RecipeAbort,
-            OperationAction.RecipeExport,
-            OperationAction.RecipeImport
+            OperationAction.WashTypeCreate,
+            OperationAction.WashTypeEdit,
+            OperationAction.WashTypeDelete,
+            OperationAction.WashTypeWritePlc,
+            OperationAction.WashTypeLoad,
+            OperationAction.WashTypeSaveFromPlc,
+            OperationAction.WashTypeWritePlcFromEditor,
+            OperationAction.TrainTypeCreate,
+            OperationAction.TrainTypeEdit,
+            OperationAction.TrainTypeDelete,
+            OperationAction.TrainTypeLoad,
+            OperationAction.TrainTypeWritePlc,
+            OperationAction.TrainTypeSaveFromPlc,
+            OperationAction.TrainTypeInterpolationWrite,
+            OperationAction.TrainTypeWritePlcFromEditor
         },
         OperationCategory.Process => new[] {
             OperationAction.ProcessStart,
@@ -558,7 +560,7 @@ public class OperationLogsController : ControllerBase
                 OperationAction.PlcAlarmDeactivated,
                 OperationAction.ProcessStart,
                 OperationAction.ProcessStop,
-                OperationAction.RecipeLoad,
+                OperationAction.TrainTypeLoad,
                 OperationAction.ViewChange
             };
             var users = new[] { "operator", "admin", "technician", "supervisor", "PLC" };

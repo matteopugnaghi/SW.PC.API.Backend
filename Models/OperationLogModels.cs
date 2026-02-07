@@ -62,24 +62,11 @@ public enum OperationAction
     MenuOpen = 1,
     MenuClose = 2,
     
-    // Recipe / Wash Types (20-39)
-    RecipeView = 20,
-    RecipeCreate = 21,
-    RecipeEdit = 22,
-    RecipeDelete = 23,
-    RecipeLoad = 24,
-    RecipeExecute = 25,
-    RecipePause = 26,
-    RecipeResume = 27,
-    RecipeAbort = 28,
-    RecipeExport = 29,
-    RecipeImport = 30,
-    RecipeWritePlc = 31,        // Escribir receta al PLC (genérico)
-    RecipeReadPlc = 32,         // Leer receta del PLC (genérico)
+    // Recipe / Wash Types (30-39)
     WashTypeCreate = 33,        // Crear tipo de lavado
     WashTypeEdit = 34,          // Editar tipo de lavado
     WashTypeDelete = 35,        // Eliminar tipo de lavado
-    WashTypeWritePlc = 36,      // Escribir tipo de lavado al PLC
+    WashTypeWritePlc = 36,      // Escribir tipo de lavado al PLC (desde lista)
     TrainTypeCreate = 37,       // Crear tipo de tren
     TrainTypeEdit = 38,         // Editar tipo de tren
     TrainTypeDelete = 39,       // Eliminar tipo de tren
@@ -109,11 +96,8 @@ public enum OperationAction
     BackupDelete = 82,
     
     // Configuration / Machine Settings (90-99)
-    ConfigView = 90,
     ConfigChange = 91,          // Cambio de configuración de máquina
     ConfigWritePlc = 92,        // Escribir configuración al PLC
-    ConfigReadPlc = 93,         // Leer configuración del PLC
-    ConfigReset = 94,           // Reset a valores por defecto
     FastConfigWritePlc = 95,    // Escribir configuración rápida al PLC
     FastConfigChange = 96,      // Cambio de configuración rápida
     
@@ -134,17 +118,15 @@ public enum OperationAction
     
     // Train Type specific (130-139)
     TrainTypeLoad = 130,             // Seleccionar tipo de tren
-    TrainTypeWritePlc = 131,         // Escribir tipo de tren al PLC
-    TrainTypeReadPlc = 132,          // Leer tipo de tren del PLC
+    TrainTypeWritePlc = 131,         // Escribir tipo de tren al PLC (desde lista)
     TrainTypeSaveFromPlc = 133,      // Guardar tipo de tren en DB desde PLC
     TrainTypeInterpolationWrite = 134, // Escribir tabla de interpolación al PLC
-    TrainTypeWritePlcFromEditor = 135,   // Escribir tipo de tren al PLC desde editor receta
+    TrainTypeWritePlcFromEditor = 135, // Escribir tipo de tren al PLC (desde editor)
     
     // Wash Type specific (140-149)
     WashTypeLoad = 140,              // Seleccionar tipo de lavado
-    WashTypeReadPlc = 141,           // Leer tipo de lavado del PLC
     WashTypeSaveFromPlc = 142,       // Guardar tipo de lavado en DB desde PLC
-    WashTypeWritePlcFromEditor = 143 // Escribir tipo de lavado al PLC desde editor receta
+    WashTypeWritePlcFromEditor = 143 // Escribir tipo de lavado al PLC (desde editor)
     
     // ❌ System (200+) - ELIMINADO: Los eventos de sistema (Startup, Shutdown, Error)
     //    ya se registran en L1 (Audit Log) con AuditAction.SystemStart/SystemStop

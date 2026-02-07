@@ -9207,84 +9207,6 @@
       "FRA": "Alarmes exportées",
       "ITA": "Allarmi esportati"
     },
-    "operationLogs.action.RecipeView": {
-      "SPA": "Ver recetas",
-      "ENG": "View recipes",
-      "FRA": "Voir recettes",
-      "ITA": "Visualizza ricette"
-    },
-    "operationLogs.action.RecipeCreate": {
-      "SPA": "Receta creada",
-      "ENG": "Recipe created",
-      "FRA": "Recette créée",
-      "ITA": "Ricetta creata"
-    },
-    "operationLogs.action.RecipeEdit": {
-      "SPA": "Receta editada",
-      "ENG": "Recipe edited",
-      "FRA": "Recette modifiée",
-      "ITA": "Ricetta modificata"
-    },
-    "operationLogs.action.RecipeDelete": {
-      "SPA": "Receta eliminada",
-      "ENG": "Recipe deleted",
-      "FRA": "Recette supprimée",
-      "ITA": "Ricetta eliminata"
-    },
-    "operationLogs.action.RecipeLoad": {
-      "SPA": "Receta cargada",
-      "ENG": "Recipe loaded",
-      "FRA": "Recette chargée",
-      "ITA": "Ricetta caricata"
-    },
-    "operationLogs.action.RecipeExecute": {
-      "SPA": "Receta ejecutada",
-      "ENG": "Recipe executed",
-      "FRA": "Recette exécutée",
-      "ITA": "Ricetta eseguita"
-    },
-    "operationLogs.action.RecipePause": {
-      "SPA": "Receta pausada",
-      "ENG": "Recipe paused",
-      "FRA": "Recette en pause",
-      "ITA": "Ricetta in pausa"
-    },
-    "operationLogs.action.RecipeResume": {
-      "SPA": "Receta reanudada",
-      "ENG": "Recipe resumed",
-      "FRA": "Recette reprise",
-      "ITA": "Ricetta ripresa"
-    },
-    "operationLogs.action.RecipeAbort": {
-      "SPA": "Receta abortada",
-      "ENG": "Recipe aborted",
-      "FRA": "Recette annulée",
-      "ITA": "Ricetta interrotta"
-    },
-    "operationLogs.action.RecipeExport": {
-      "SPA": "Receta exportada",
-      "ENG": "Recipe exported",
-      "FRA": "Recette exportée",
-      "ITA": "Ricetta esportata"
-    },
-    "operationLogs.action.RecipeImport": {
-      "SPA": "Receta importada",
-      "ENG": "Recipe imported",
-      "FRA": "Recette importée",
-      "ITA": "Ricetta importata"
-    },
-    "operationLogs.action.RecipeWritePlc": {
-      "SPA": "Receta escrita a PLC",
-      "ENG": "Recipe written to PLC",
-      "FRA": "Recette écrite au PLC",
-      "ITA": "Ricetta scritta a PLC"
-    },
-    "operationLogs.action.RecipeReadPlc": {
-      "SPA": "Receta leída de PLC",
-      "ENG": "Recipe read from PLC",
-      "FRA": "Recette lue du PLC",
-      "ITA": "Ricetta letta da PLC"
-    },
     "operationLogs.action.WashTypeCreate": {
       "SPA": "Tipo lavado creado",
       "ENG": "Wash type created",
@@ -9417,12 +9339,6 @@
       "FRA": "Sauvegarde supprimée",
       "ITA": "Backup eliminato"
     },
-    "operationLogs.action.ConfigView": {
-      "SPA": "Ver configuración",
-      "ENG": "View configuration",
-      "FRA": "Voir configuration",
-      "ITA": "Visualizza configurazione"
-    },
     "operationLogs.action.ConfigChange": {
       "SPA": "Configuración modificada",
       "ENG": "Configuration changed",
@@ -9434,18 +9350,6 @@
       "ENG": "Configuration written to PLC",
       "FRA": "Configuration écrite au PLC",
       "ITA": "Configurazione scritta a PLC"
-    },
-    "operationLogs.action.ConfigReadPlc": {
-      "SPA": "Configuración leída de PLC",
-      "ENG": "Configuration read from PLC",
-      "FRA": "Configuration lue du PLC",
-      "ITA": "Configurazione letta da PLC"
-    },
-    "operationLogs.action.ConfigReset": {
-      "SPA": "Configuración reseteada",
-      "ENG": "Configuration reset",
-      "FRA": "Configuration réinitialisée",
-      "ITA": "Configurazione resettata"
     },
     "operationLogs.action.PlcAlarmActivated": {
       "SPA": "Alarma PLC activada",
@@ -9561,42 +9465,6 @@
       "FRA": "Erreur système",
       "ITA": "Errore di sistema"
     },
-    "operationLogs.actions.RecipeCreate": {
-      "SPA": "Receta creada",
-      "ENG": "Recipe created",
-      "FRA": "Recette créée",
-      "ITA": "Ricetta creata"
-    },
-    "operationLogs.actions.RecipeEdit": {
-      "SPA": "Receta editada",
-      "ENG": "Recipe edited",
-      "FRA": "Recette modifiée",
-      "ITA": "Ricetta modificata"
-    },
-    "operationLogs.actions.RecipeDelete": {
-      "SPA": "Receta eliminada",
-      "ENG": "Recipe deleted",
-      "FRA": "Recette supprimée",
-      "ITA": "Ricetta eliminata"
-    },
-    "operationLogs.actions.RecipeLoad": {
-      "SPA": "Receta seleccionada",
-      "ENG": "Recipe selected",
-      "FRA": "Recette sélectionnée",
-      "ITA": "Ricetta selezionata"
-    },
-    "operationLogs.actions.RecipeReadPlc": {
-      "SPA": "Receta desde PLC",
-      "ENG": "Recipe from PLC",
-      "FRA": "Recette depuis API",
-      "ITA": "Ricetta da PLC"
-    },
-    "operationLogs.actions.RecipeWritePlc": {
-      "SPA": "Escrito al PLC",
-      "ENG": "Written to PLC",
-      "FRA": "Écrit vers API",
-      "ITA": "Scritto su PLC"
-    },
     "operationLogs.actions.WashTypeCreate": {
       "SPA": "Tipo lavado creado",
       "ENG": "Wash type created",
@@ -9633,12 +9501,6 @@
       "FRA": "Type de lavage écrit vers API (éditeur)",
       "ITA": "Tipo lavaggio scritto su PLC (editor)"
     },
-    "operationLogs.actions.WashTypeReadPlc": {
-      "SPA": "Tipo lavado leído del PLC",
-      "ENG": "Wash type read from PLC",
-      "FRA": "Type de lavage lu depuis API",
-      "ITA": "Tipo lavaggio letto da PLC"
-    },
     "operationLogs.actions.WashTypeSaveFromPlc": {
       "SPA": "Tipo lavado guardado en DB desde PLC",
       "ENG": "Wash type saved to DB from PLC",
@@ -9674,12 +9536,6 @@
       "ENG": "Train type written to PLC",
       "FRA": "Type de train écrit vers API",
       "ITA": "Tipo treno scritto su PLC"
-    },
-    "operationLogs.actions.TrainTypeReadPlc": {
-      "SPA": "Tipo tren leído del PLC",
-      "ENG": "Train type read from PLC",
-      "FRA": "Type de train lu depuis API",
-      "ITA": "Tipo treno letto da PLC"
     },
     "operationLogs.actions.TrainTypeSaveFromPlc": {
       "SPA": "Tipo tren guardado en DB desde PLC",
