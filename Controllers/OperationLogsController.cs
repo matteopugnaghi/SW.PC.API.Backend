@@ -379,7 +379,6 @@ public class OperationLogsController : ControllerBase
 
     private static string GetCategoryLabel(OperationCategory category) => category switch
     {
-        OperationCategory.Navigation => "Navegación",
         OperationCategory.Recipe => "Recetas",
         OperationCategory.Process => "Procesos",
         OperationCategory.Statistics => "Estadísticas",
@@ -390,7 +389,6 @@ public class OperationLogsController : ControllerBase
 
     private static string GetCategoryIcon(OperationCategory category) => category switch
     {
-        OperationCategory.Navigation => "🧭",
         OperationCategory.Recipe => "📋",
         OperationCategory.Process => "⚙️",
         OperationCategory.Statistics => "📊",
@@ -421,7 +419,6 @@ public class OperationLogsController : ControllerBase
 
     private static string GetActionLabel(OperationAction action) => action switch
     {
-        OperationAction.ViewChange => "Cambio de vista",
         OperationAction.PlcAlarmActivated => "Alarma PLC activada",
         OperationAction.PlcAlarmDeactivated => "Alarma PLC desactivada",
         OperationAction.PlcNotificationActivated => "Notificación PLC activada",
@@ -433,11 +430,6 @@ public class OperationLogsController : ControllerBase
 
     private static IEnumerable<OperationAction> FilterActionsByCategory(OperationCategory category) => category switch
     {
-        OperationCategory.Navigation => new[] { 
-            OperationAction.ViewChange, 
-            OperationAction.MenuOpen, 
-            OperationAction.MenuClose 
-        },
         OperationCategory.Recipe => new[] {
             OperationAction.WashTypeCreate,
             OperationAction.WashTypeEdit,
@@ -531,7 +523,7 @@ public class OperationLogsController : ControllerBase
                 OperationCategory.Process, 
                 OperationCategory.PlcAlarmHistory, 
                 OperationCategory.Recipe,
-                OperationCategory.Navigation
+                OperationCategory.Configuration
             };
             var actions = new[] {
                 OperationAction.PlcAlarmActivated,
@@ -539,7 +531,7 @@ public class OperationLogsController : ControllerBase
                 OperationAction.SemiautomaticToggle,
                 OperationAction.ManualModeToggle,
                 OperationAction.TrainTypeLoad,
-                OperationAction.ViewChange
+                OperationAction.ConfigWritePlc
             };
             var users = new[] { "operator", "admin", "technician", "supervisor", "PLC" };
             var random = new Random();

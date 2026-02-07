@@ -18,9 +18,6 @@ namespace SW.PC.API.Backend.Models;
 /// </summary>
 public enum OperationCategory
 {
-    /// <summary>Navegación en la aplicación</summary>
-    Navigation = 0,
-    
     /// <summary>Recetas</summary>
     Recipe = 2,
     
@@ -45,11 +42,6 @@ public enum OperationCategory
 /// </summary>
 public enum OperationAction
 {
-    // Navigation (0-9)
-    ViewChange = 0,
-    MenuOpen = 1,
-    MenuClose = 2,
-    
     // Recipe / Wash Types (30-39)
     WashTypeCreate = 33,        // Crear tipo de lavado
     WashTypeEdit = 34,          // Editar tipo de lavado
