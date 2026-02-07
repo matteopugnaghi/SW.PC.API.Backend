@@ -141,12 +141,10 @@ public enum OperationAction
     // Wash Type specific (140-149)
     WashTypeLoad = 140,              // Seleccionar tipo de lavado
     WashTypeReadPlc = 141,           // Leer tipo de lavado del PLC
-    WashTypeSaveFromPlc = 142,       // Guardar tipo de lavado en DB desde PLC
+    WashTypeSaveFromPlc = 142        // Guardar tipo de lavado en DB desde PLC
     
-    // System (200+)
-    SystemStartup = 200,
-    SystemShutdown = 201,
-    SystemError = 202
+    // ❌ System (200+) - ELIMINADO: Los eventos de sistema (Startup, Shutdown, Error)
+    //    ya se registran en L1 (Audit Log) con AuditAction.SystemStart/SystemStop
 }
 
 /// <summary>
@@ -318,7 +316,6 @@ public class OperationLog
             OperationAction.PlcNotificationDeactivated => OperationSeverity.Info,
             OperationAction.PlcInfoActivated => OperationSeverity.Info,
             OperationAction.PlcInfoDeactivated => OperationSeverity.Info,
-            OperationAction.SystemError => OperationSeverity.Critical,
             _ => OperationSeverity.Info
         };
     }

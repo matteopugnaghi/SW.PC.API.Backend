@@ -493,9 +493,6 @@ public class OperationLogsController : ControllerBase
             OperationAction.PlcInfoDeactivated
         },
         OperationCategory.System => new[] {
-            OperationAction.SystemStartup,
-            OperationAction.SystemShutdown,
-            OperationAction.SystemError,
             OperationAction.ConfigChange
         },
         _ => Enum.GetValues<OperationAction>()
