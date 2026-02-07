@@ -307,6 +307,7 @@ namespace SW.PC.API.Backend.Controllers
                                 {
                                     changes.Add(new Dictionary<string, string> { 
                                         {"name", setting.Name}, 
+                                        {"type", "bool"},
                                         {"old", oldValueStr}, 
                                         {"new", newValueStr} 
                                     });
@@ -348,6 +349,7 @@ namespace SW.PC.API.Backend.Controllers
                                 {
                                     changes.Add(new Dictionary<string, string> { 
                                         {"name", setting.Name}, 
+                                        {"type", "int"},
                                         {"old", oldValueStr}, 
                                         {"new", newValueStr} 
                                     });
@@ -389,6 +391,7 @@ namespace SW.PC.API.Backend.Controllers
                                 {
                                     changes.Add(new Dictionary<string, string> { 
                                         {"name", setting.Name}, 
+                                        {"type", "lreal"},
                                         {"old", oldValueStr}, 
                                         {"new", newValueStr} 
                                     });
@@ -430,6 +433,7 @@ namespace SW.PC.API.Backend.Controllers
                                 {
                                     changes.Add(new Dictionary<string, string> { 
                                         {"name", setting.Name}, 
+                                        {"type", "lreal2"},
                                         {"old", oldValueStr}, 
                                         {"new", newValueStr} 
                                     });
@@ -606,6 +610,7 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         changes.Add(new Dictionary<string, string> { 
                             {"name", setting?.Name ?? kvp.Key}, 
+                            {"type", "bool"},
                             {"old", oldValue ?? "(nuevo)"}, 
                             {"new", newValue} 
                         });
@@ -627,6 +632,7 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         changes.Add(new Dictionary<string, string> { 
                             {"name", setting?.Name ?? kvp.Key}, 
+                            {"type", "int"},
                             {"old", oldValue ?? "(nuevo)"}, 
                             {"new", newValue} 
                         });
@@ -648,6 +654,7 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         changes.Add(new Dictionary<string, string> { 
                             {"name", setting?.Name ?? kvp.Key}, 
+                            {"type", "lreal"},
                             {"old", oldValue ?? "(nuevo)"}, 
                             {"new", newValue} 
                         });
@@ -669,6 +676,7 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         changes.Add(new Dictionary<string, string> { 
                             {"name", setting?.Name ?? kvp.Key}, 
+                            {"type", "lreal2"},
                             {"old", oldValue ?? "(nuevo)"}, 
                             {"new", newValue} 
                         });

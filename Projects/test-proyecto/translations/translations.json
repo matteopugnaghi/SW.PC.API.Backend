@@ -9818,6 +9818,18 @@
       "ENG": "OFF",
       "FRA": "DÉSACTIVÉ",
       "ITA": "SPENTO"
+    },
+    "operationLogs.changes": {
+      "SPA": "cambios",
+      "ENG": "changes",
+      "FRA": "changements",
+      "ITA": "modifiche"
+    },
+    "operationLogs.noChanges": {
+      "SPA": "Sin cambios",
+      "ENG": "No changes",
+      "FRA": "Aucun changement",
+      "ITA": "Nessuna modifica"
     }
   }
 }

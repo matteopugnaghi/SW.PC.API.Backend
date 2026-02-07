@@ -262,6 +262,7 @@ namespace SW.PC.API.Backend.Controllers
                                 {
                                     changes.Add(new Dictionary<string, string> { 
                                         {"name", setting.Description}, 
+                                        {"type", "fcbool"},
                                         {"old", oldValueStr}, 
                                         {"new", newValueStr} 
                                     });
@@ -303,6 +304,7 @@ namespace SW.PC.API.Backend.Controllers
                                 {
                                     changes.Add(new Dictionary<string, string> { 
                                         {"name", setting.Description}, 
+                                        {"type", "fcint"},
                                         {"old", oldValueStr}, 
                                         {"new", newValueStr} 
                                     });
@@ -344,6 +346,7 @@ namespace SW.PC.API.Backend.Controllers
                                 {
                                     changes.Add(new Dictionary<string, string> { 
                                         {"name", setting.Description}, 
+                                        {"type", "fclreal"},
                                         {"old", oldValueStr}, 
                                         {"new", newValueStr} 
                                     });
