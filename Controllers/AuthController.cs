@@ -79,7 +79,20 @@ public class AuthController : ControllerBase
             return Ok(new AuthOperationResponse { Success = true, Message = "No hay sesión activa" });
         }
         
+        var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "unknown";
+        var ipAddress = GetClientIpAddress();
+        
         var response = await _authService.LogoutAsync(token);
+        
+        await _auditLog.LogAsync(
+            AuditCategory.Authentication,
+            AuditAction.Logout,
+            AuditResult.Success,
+            $"Usuario {username} cerró sesión voluntariamente",
+            userName: username,
+            ipAddress: ipAddress,
+            projectId: _projectContext.ProjectId);
+        
         return Ok(response);
     }
 
@@ -294,80 +307,6 @@ public class AuthController : ControllerBase
         {
             _logger.LogError(ex, "Error obteniendo usuarios disponibles");
             return Ok(Array.Empty<AvailableUserInfo>()); // Devolver lista vacía en caso de error
-        }
-    }
-
-    /// <summary>
-    /// Login técnico para acceso al panel de mantenimiento
-    /// Solo permite SuperAdmin, Administrator, Maintenance
-    /// Usado cuando el sistema está en modo kiosk y se necesita acceso a herramientas
-    /// </summary>
-    [HttpPost("technical-login")]
-    [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> TechnicalLogin([FromBody] LoginRequest request)
-    {
-        try
-        {
-            var ipAddress = GetClientIpAddress();
-            var userAgent = Request.Headers.UserAgent.ToString();
-            
-            // Verificar credenciales
-            var loginResponse = await _authService.LoginAsync(request, ipAddress, userAgent);
-            
-            if (!loginResponse.Success)
-            {
-                await _auditLog.LogAsync(
-                    AuditCategory.Authentication,
-                    AuditAction.LoginFailed,
-                    AuditResult.Failure,
-                    $"Intento fallido de login técnico desde {ipAddress}",
-                    userName: request.Username,
-                    ipAddress: ipAddress
-                );
-                return Unauthorized(new { success = false, message = loginResponse.Message ?? "Credenciales inválidas" });
-            }
-            
-            // Verificar que el rol está autorizado
-            var authorizedRoles = new[] { "SuperAdmin", "Administrator", "Maintenance" };
-            var userRole = loginResponse.User?.Roles?.FirstOrDefault() ?? "";
-            
-            if (!authorizedRoles.Any(r => userRole.Equals(r, StringComparison.OrdinalIgnoreCase)))
-            {
-                await _auditLog.LogAsync(
-                    AuditCategory.Authentication,
-                    AuditAction.PermissionDenied,
-                    AuditResult.Failure,
-                    $"Usuario {request.Username} intentó acceso técnico sin autorización. Rol: {userRole}",
-                    userName: request.Username,
-                    ipAddress: ipAddress
-                );
-                return Unauthorized(new { success = false, message = "No tiene permisos para acceso técnico" });
-            }
-            
-            await _auditLog.LogAsync(
-                AuditCategory.Authentication,
-                AuditAction.Login,
-                AuditResult.Success,
-                $"Acceso técnico exitoso desde {ipAddress}",
-                userName: request.Username,
-                ipAddress: ipAddress
-            );
-            
-            return Ok(new
-            {
-                success = true,
-                username = loginResponse.User?.Username,
-                role = userRole,
-                fullName = loginResponse.User?.FullName,
-                message = "Acceso técnico autorizado"
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error en login técnico");
-            return StatusCode(500, new { success = false, message = "Error del servidor" });
         }
     }
 

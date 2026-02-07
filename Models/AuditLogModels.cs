@@ -18,17 +18,14 @@ namespace SW.PC.API.Backend.Models
         Certificate,    // Gestión de certificados
         System,         // Eventos del sistema
         
-        // 🔴 PENDIENTES - Para implementar con futuras funcionalidades
-        Plc,            // Operaciones PLC (conexión, escritura, modo)
-        Alarm,          // Gestión de alarmas (reconocimiento, silencio)
-        Recipe,         // Gestión de recetas (carga, ejecución, guardado)
-        Setpoint,       // Cambios de consignas/setpoints
-        Process,        // Acciones de proceso (start, stop, modo)
-        Statistics,     // Acceso a estadísticas/reportes
-        Export,         // Exportación de datos
-        Backup,         // Backup y restauración
-        Model3D,        // Carga/configuración de modelos 3D
-        Maintenance     // Acciones de mantenimiento
+        // 🔴 PENDIENTES - Para implementar
+        Plc,            // Operaciones PLC (conexión, desconexión)
+        OtCommunication, // Comunicaciones OT externas (OPC UA, Modbus, MQTT)
+        Export,         // Exportación de datos de auditoría
+        Backup          // Backup y restauración
+        
+        // ⚠️ NOTA: Categorías operativas (Alarm, Recipe, Setpoint, Process, 
+        //    Statistics, Model3D, Maintenance) van a L2 Operation Log, NO aquí
     }
 
     /// <summary>
@@ -60,6 +57,8 @@ namespace SW.PC.API.Backend.Models
         Login,
         Logout,
         LoginFailed,
+        SupportUnlock,          // Desbloqueo de soporte Aquafrisch exitoso
+        SupportUnlockFailed,    // Desbloqueo de soporte fallido (código inválido)
         AccountLocked,
         AccountUnlocked,
         LogoutAllSessions,
@@ -112,42 +111,9 @@ namespace SW.PC.API.Backend.Models
         PlcProgramDownload,     // Descarga de programa al PLC
         PlcFirmwareUpdate,      // Actualización de firmware
         
-        // Recetas 🔴
-        RecipeCreate,           // Crear receta
-        RecipeUpdate,           // Modificar receta
-        RecipeDelete,           // Eliminar receta
-        RecipeLoad,             // Cargar receta en máquina - CRÍTICO
-        RecipeUnload,           // Descargar receta
-        RecipeExecute,          // Ejecutar/iniciar receta - CRÍTICO
-        RecipePause,            // Pausar receta
-        RecipeResume,           // Reanudar receta
-        RecipeAbort,            // Abortar receta - CRÍTICO
-        RecipeComplete,         // Receta completada
-        RecipeExport,           // Exportar receta
-        RecipeImport,           // Importar receta
-        
-        // Control de Proceso 🔴
-        ProcessStart,           // Arranque de proceso
-        ProcessStop,            // Parada de proceso
-        ProcessPause,           // Pausa de proceso
-        ProcessResume,          // Reanudación de proceso
-        ProcessEmergencyStop,   // Parada de emergencia - CRÍTICO
-        ProcessModeChange,      // Cambio AUTO/MANUAL/etc
-        ProcessPhaseChange,     // Cambio de fase
-        CommandExecute,         // Ejecución de comando manual
-        
-        // Estadísticas/Reportes 🔴
-        StatisticsView,         // Visualización de estadísticas
-        StatisticsExport,       // Exportación de estadísticas
-        ReportGenerate,         // Generación de reporte
-        ReportExport,           // Exportación de reporte
-        ReportSchedule,         // Programación de reporte
-        
-        // Exportación de Datos 🔴
-        DataExport,             // Exportación genérica
-        DataExportScheduled,    // Exportación programada
-        TrendExport,            // Exportación de tendencias
-        HistorianQuery,         // Consulta a histórico
+        // Exportación de Datos de Auditoría 🔴
+        AuditExport,            // Exportación de logs de auditoría
+        AuditArchive,           // Archivado de logs antiguos
         
         // Backup/Restore 🔴
         BackupCreate,           // Creación de backup
@@ -155,22 +121,38 @@ namespace SW.PC.API.Backend.Models
         BackupSchedule,         // Programación de backup
         BackupDelete,           // Eliminación de backup
         
-        // Modelos 3D 🔴
-        Model3DLoad,            // Carga de modelo 3D
-        Model3DConfigChange,    // Cambio de configuración de modelo
-        Model3DBindingChange,   // Cambio de binding PLC
+        // ⚠️ NOTA: Acciones operativas (Recipe*, Process*, Statistics*, Model3D*,
+        //    Maintenance*) van a L2 Operation Log, NO al Audit Log L1
         
-        // Mantenimiento 🔴
-        MaintenanceStart,       // Inicio de mantenimiento
-        MaintenanceEnd,         // Fin de mantenimiento
-        MaintenanceSchedule,    // Programación de mantenimiento
-        CalibrationStart,       // Inicio de calibración
-        CalibrationComplete,    // Calibración completada
-        
-        // Comunicaciones 🔴
+        // Comunicaciones OT/Externas 🔴 (para servicios externos de seguridad)
         ExternalApiCall,        // Llamada a API externa
         SignalRConnect,         // Conexión SignalR
         SignalRDisconnect,      // Desconexión SignalR
+        
+        // OPC UA 🔴 (futuro)
+        OpcUaConnect,           // Conexión a servidor OPC UA
+        OpcUaDisconnect,        // Desconexión de servidor OPC UA  
+        OpcUaConnectionLost,    // Pérdida de conexión OPC UA
+        OpcUaSubscribe,         // Suscripción a nodos OPC UA
+        OpcUaWrite,             // Escritura a nodo OPC UA - CRÍTICO
+        OpcUaSecurityChange,    // Cambio de política de seguridad OPC UA
+        
+        // Modbus TCP 🔴 (futuro)
+        ModbusConnect,          // Conexión Modbus TCP
+        ModbusDisconnect,       // Desconexión Modbus TCP
+        ModbusConnectionLost,   // Pérdida de conexión Modbus
+        ModbusWrite,            // Escritura registro Modbus - CRÍTICO
+        
+        // MQTT Industrial 🔴 (futuro)
+        MqttConnect,            // Conexión a broker MQTT
+        MqttDisconnect,         // Desconexión MQTT
+        MqttConnectionLost,     // Pérdida de conexión MQTT
+        MqttPublish,            // Publicación mensaje MQTT (solo si crítico)
+        
+        // SCADA/ERP Remoto 🔴 (futuro)
+        ScadaRemoteConnect,     // Conexión a SCADA remoto
+        ScadaRemoteDisconnect,  // Desconexión SCADA remoto
+        ErpIntegrationSync,     // Sincronización con ERP/MES
         
         // Excel Config 🔴 (para mejor trazabilidad)
         ExcelConfigLoad,        // Carga de configuración Excel

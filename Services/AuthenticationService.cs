@@ -163,6 +163,15 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 await LogLoginAttemptAsync(request.Username, false, AuthEventType.LoginFailed, 
                     ipAddress, userAgent, "Usuario no encontrado", "Local");
                 
+                // 📝 Audit Log CRA - Login fallido (usuario no existe)
+                await _auditLog.LogAsync(
+                    AuditCategory.Authentication,
+                    AuditAction.LoginFailed,
+                    AuditResult.Warning,
+                    $"Login fallido - usuario '{request.Username}' no encontrado",
+                    null, request.Username, ipAddress,
+                    projectId: projectId);
+                
                 // Respuesta genérica para no revelar si el usuario existe
                 return new LoginResponse
                 {
@@ -195,6 +204,15 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             {
                 await LogLoginAttemptAsync(request.Username, false, AuthEventType.LoginFailed, 
                     ipAddress, userAgent, "Cuenta deshabilitada", "Local");
+                
+                // 📝 Audit Log CRA - Login fallido (cuenta deshabilitada)
+                await _auditLog.LogAsync(
+                    AuditCategory.Authentication,
+                    AuditAction.LoginFailed,
+                    AuditResult.Warning,
+                    $"Login fallido - cuenta '{request.Username}' deshabilitada",
+                    user.Id.ToString(), request.Username, ipAddress,
+                    projectId: projectId);
                 
                 return new LoginResponse
                 {
@@ -268,6 +286,14 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 
                 await LogLoginAttemptAsync(request.Username, false, AuthEventType.LoginFailed, 
                     ipAddress, userAgent, "Contraseña incorrecta", authMethod);
+                
+                await _auditLog.LogAsync(
+                    AuditCategory.Authentication, 
+                    AuditAction.LoginFailed, 
+                    AuditResult.Warning,
+                    $"Login fallido para usuario {request.Username} - contraseña incorrecta",
+                    request.Username, request.Username, ipAddress,
+                    projectId: projectId);
                 
                 return new LoginResponse
                 {
@@ -701,6 +727,13 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             // Verificar que nueva contraseña y confirmación coinciden
             if (request.NewPassword != request.ConfirmPassword)
             {
+                await _auditLog.LogAsync(
+                    AuditCategory.Authentication, 
+                    AuditAction.PasswordChangeFailed, 
+                    AuditResult.Failure,
+                    $"Cambio de contraseña fallido para {user.Username}: contraseñas no coinciden",
+                    user.Id.ToString(), user.Username);
+                
                 return new ChangePasswordResponse 
                 { 
                     Success = false, 
@@ -712,6 +745,13 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             var validation = ValidatePassword(request.NewPassword);
             if (!validation.IsValid)
             {
+                await _auditLog.LogAsync(
+                    AuditCategory.Authentication, 
+                    AuditAction.PasswordChangeFailed, 
+                    AuditResult.Failure,
+                    $"Cambio de contraseña fallido para {user.Username}: no cumple política ({string.Join(", ", validation.Errors)})",
+                    user.Id.ToString(), user.Username);
+                
                 return new ChangePasswordResponse 
                 { 
                     Success = false, 
@@ -723,6 +763,13 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             // Verificar que no sea igual a la anterior
             if (VerifyPassword(request.NewPassword, user.PasswordHash))
             {
+                await _auditLog.LogAsync(
+                    AuditCategory.Authentication, 
+                    AuditAction.PasswordChangeFailed, 
+                    AuditResult.Failure,
+                    $"Cambio de contraseña fallido para {user.Username}: nueva contraseña igual a la anterior",
+                    user.Id.ToString(), user.Username);
+                
                 return new ChangePasswordResponse 
                 { 
                     Success = false, 
@@ -953,12 +1000,21 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             user.ModifiedBy = modifiedBy;
             
             // Actualizar roles si se especificaron
+            bool rolesChanged = false;
+            string? oldRolesStr = null;
+            string? newRolesStr = null;
+            
             if (request.Roles != null)
             {
+                // Guardar roles anteriores para audit
+                var oldRoles = user.UserRoles.Select(ur => ur.Role?.Name ?? "Unknown").OrderBy(r => r).ToList();
+                oldRolesStr = string.Join(", ", oldRoles);
+                
                 // Remover roles actuales
                 Context.UserRoles.RemoveRange(user.UserRoles);
                 
                 // Asignar nuevos roles
+                var newRolesList = new List<string>();
                 foreach (var roleName in request.Roles)
                 {
                     var role = await Context.Roles.FirstOrDefaultAsync(r => r.Name.ToLower() == roleName.ToLower());
@@ -971,8 +1027,11 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                             AssignedAt = DateTime.Now,
                             AssignedBy = modifiedBy
                         });
+                        newRolesList.Add(role.Name);
                     }
                 }
+                newRolesStr = string.Join(", ", newRolesList.OrderBy(r => r));
+                rolesChanged = oldRolesStr != newRolesStr;
             }
             
             await Context.SaveChangesAsync();
@@ -983,6 +1042,17 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 AuditResult.Success,
                 $"Usuario {user.Username} modificado por {modifiedBy}",
                 null, modifiedBy);
+            
+            // 📝 Audit Log CRA - Registrar cambio de roles específico
+            if (rolesChanged)
+            {
+                await _auditLog.LogAsync(
+                    AuditCategory.Authentication,
+                    AuditAction.RoleChanged,
+                    AuditResult.Success,
+                    $"Roles de '{user.Username}' cambiados: [{oldRolesStr}] → [{newRolesStr}] por {modifiedBy}",
+                    null, modifiedBy);
+            }
             
             return new AuthOperationResponse { Success = true, Message = "Usuario actualizado exitosamente" };
         }

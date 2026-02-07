@@ -53,6 +53,7 @@ namespace SW.PC.API.Backend.Services
     public class TwinCATService : ITwinCATService, IDisposable
     {
         private readonly ILogger<TwinCATService> _logger;
+        private readonly IAuditLogService _auditLog;
         private readonly AdsConfiguration _config;
         private AdsClient? _adsClient;  // ✅ CLASE CORRECTA de Beckhoff 6.x
         private bool _isConnected;
@@ -305,9 +306,10 @@ namespace SW.PC.API.Backend.Services
         
         private readonly bool _forceSimulatedMode = false; // Forzar modo simulado desde Excel
         
-        public TwinCATService(IConfiguration configuration, ILogger<TwinCATService> logger, IExcelConfigService excelConfig, IProjectContextService projectContext)
+        public TwinCATService(IConfiguration configuration, ILogger<TwinCATService> logger, IExcelConfigService excelConfig, IProjectContextService projectContext, IAuditLogService auditLog)
         {
             _logger = logger;
+            _auditLog = auditLog;
             
             // Cargar configuración desde Excel del PROYECTO ACTIVO (prioridad) o legacy/fallback
             SystemConfiguration? systemConfig = null;
@@ -439,6 +441,14 @@ namespace SW.PC.API.Backend.Services
                             _logger.LogWarning("🔴 PLC NO está en RUN (State={State}) - Marcando como DESCONECTADO", state.AdsState);
                             _isConnected = false;
                             _isSimulatedMode = false;
+                            
+                            // 📋 L1 Audit Log: PLC Connect Failed - Not in RUN
+                            await _auditLog.LogAsync(
+                                AuditCategory.Plc,
+                                AuditAction.PlcConnect,
+                                AuditResult.Failure,
+                                $"PLC at {_config.NetId}:{_config.Port} not in RUN state: {state.AdsState}");
+                            
                             return false;
                         }
                         
@@ -446,6 +456,13 @@ namespace SW.PC.API.Backend.Services
                         _isConnected = true;
                         _isSimulatedMode = false;
                         _consecutiveTimeoutErrors = 0;
+                        
+                        // 📋 L1 Audit Log: PLC Connect Success
+                        await _auditLog.LogAsync(
+                            AuditCategory.Plc,
+                            AuditAction.PlcConnect,
+                            AuditResult.Success,
+                            $"Connected to PLC at {_config.NetId}:{_config.Port} - Device: {deviceInfo.Name}");
                         
                         return true;
                     }
@@ -462,6 +479,13 @@ namespace SW.PC.API.Backend.Services
                         _adsClient?.Dispose();
                         _adsClient = null;
                         
+                        // 📋 L1 Audit Log: PLC Connect Failed - No response
+                        await _auditLog.LogAsync(
+                            AuditCategory.Plc,
+                            AuditAction.PlcConnect,
+                            AuditResult.Failure,
+                            $"PLC at {_config.NetId}:{_config.Port} not responding - Error: {verifyEx.ErrorCode}");
+                        
                         return false;
                     }
                 }
@@ -475,6 +499,13 @@ namespace SW.PC.API.Backend.Services
                     _isConnected = false;
                     _isSimulatedMode = false;
                     _logger.LogError("⛔ UseSimulatedPlc=FALSE - NO se usará modo simulado. Verifique la conexión al PLC.");
+                    
+                    // 📋 L1 Audit Log: PLC Connect Failed - Exception
+                    await _auditLog.LogAsync(
+                        AuditCategory.Plc,
+                        AuditAction.PlcConnect,
+                        AuditResult.Error,
+                        $"Cannot connect to PLC at {_config.NetId}:{_config.Port} - {ex.Message}");
                     
                     return false;
                 }
@@ -492,6 +523,8 @@ namespace SW.PC.API.Backend.Services
             // ⚡ Limpiar cache de handles antes de desconectar
             ClearHandleCache();
             
+            var wasConnected = _isConnected && !_isSimulatedMode;
+            
             if (_adsClient != null)
             {
                 _adsClient.Dispose();
@@ -502,7 +535,18 @@ namespace SW.PC.API.Backend.Services
             _isConnected = false;
             _isSimulatedMode = false;
             _logger.LogInformation("✅ Disconnected from TwinCAT service");
-            return await Task.FromResult(true);
+            
+            // 📋 L1 Audit Log: PLC Disconnect (solo si estaba realmente conectado)
+            if (wasConnected)
+            {
+                await _auditLog.LogAsync(
+                    AuditCategory.Plc,
+                    AuditAction.PlcDisconnect,
+                    AuditResult.Success,
+                    $"Disconnected from PLC at {_config.NetId}:{_config.Port}");
+            }
+            
+            return true;
         }
         
         public async Task<PlcDataSnapshot> ReadAllVariablesAsync(List<string> variableNames)

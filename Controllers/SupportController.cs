@@ -21,6 +21,7 @@ using System.Security.Cryptography;
 using System.Text;
 using SW.PC.API.Backend.Services;
 using SW.PC.API.Backend.Models.Excel;
+using SW.PC.API.Backend.Models;
 
 namespace SW.PC.API.Backend.Controllers
 {
@@ -32,6 +33,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IExcelConfigService _excelConfigService;
         private readonly IConfiguration _configuration;
         private readonly IRequestProjectContext _projectContext;
+        private readonly IAuditLogService _auditLog;
 
         // 🔐 SECRETO CONOCIDO SOLO POR AQUAFRISCH
         // Este valor DEBE ser el mismo en:
@@ -49,12 +51,14 @@ namespace SW.PC.API.Backend.Controllers
             ILogger<SupportController> logger,
             IExcelConfigService excelConfigService,
             IConfiguration configuration,
-            IRequestProjectContext projectContext)
+            IRequestProjectContext projectContext,
+            IAuditLogService auditLog)
         {
             _logger = logger;
             _excelConfigService = excelConfigService;
             _configuration = configuration;
             _projectContext = projectContext;
+            _auditLog = auditLog;
         }
 
         /// <summary>
@@ -127,10 +131,20 @@ namespace SW.PC.API.Backend.Controllers
 
             // Verificar el código de respuesta (usa secret hardcodeado, igual que RecoveryCodeService)
             var isValid = VerifyResponseCode(config.InstallationId, request.ResponseCode);
+            var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
             if (!isValid)
             {
                 _logger.LogWarning("❌ Código de soporte inválido para instalación {InstallationId}", config.InstallationId);
+                
+                await _auditLog.LogAsync(
+                    AuditCategory.Authentication,
+                    AuditAction.SupportUnlockFailed,
+                    AuditResult.Failure,
+                    $"Código de desbloqueo Aquafrisch inválido para instalación {config.InstallationId}",
+                    ipAddress: clientIp,
+                    projectId: _projectContext.ProjectId);
+                
                 return Unauthorized(new { success = false, message = "Código inválido o expirado" });
             }
 
@@ -162,6 +176,14 @@ namespace SW.PC.API.Backend.Controllers
 
             _logger.LogWarning("✅ Sesión de soporte creada: {SessionId} para {InstallationId}, expira: {ExpiresAt}",
                 sessionId, config.InstallationId, expiresAt);
+            
+            await _auditLog.LogAsync(
+                AuditCategory.Authentication,
+                AuditAction.SupportUnlock,
+                AuditResult.Success,
+                $"Acceso de soporte Aquafrisch desbloqueado para instalación {config.InstallationId}. Sesión: {sessionId}, Duración: {config.SupportUnlockDurationMinutes} min",
+                ipAddress: clientIp,
+                projectId: _projectContext.ProjectId);
 
             return Ok(new
             {
