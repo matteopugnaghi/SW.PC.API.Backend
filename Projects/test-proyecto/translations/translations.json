@@ -9723,6 +9723,42 @@
       "FRA": "Changement type train automatique",
       "ITA": "Cambio tipo treno automatico"
     },
+    "operationLogs.actions.PlcAlarmActivated": {
+      "SPA": "Alarma PLC activada",
+      "ENG": "PLC Alarm activated",
+      "FRA": "Alarme PLC activée",
+      "ITA": "Allarme PLC attivato"
+    },
+    "operationLogs.actions.PlcAlarmDeactivated": {
+      "SPA": "Alarma PLC desactivada",
+      "ENG": "PLC Alarm deactivated",
+      "FRA": "Alarme PLC désactivée",
+      "ITA": "Allarme PLC disattivato"
+    },
+    "operationLogs.actions.PlcNotificationActivated": {
+      "SPA": "Aviso PLC activado",
+      "ENG": "PLC Notification activated",
+      "FRA": "Notification PLC activée",
+      "ITA": "Notifica PLC attivata"
+    },
+    "operationLogs.actions.PlcNotificationDeactivated": {
+      "SPA": "Aviso PLC desactivado",
+      "ENG": "PLC Notification deactivated",
+      "FRA": "Notification PLC désactivée",
+      "ITA": "Notifica PLC disattivata"
+    },
+    "operationLogs.actions.PlcInfoActivated": {
+      "SPA": "Info PLC activada",
+      "ENG": "PLC Info activated",
+      "FRA": "Info PLC activée",
+      "ITA": "Info PLC attivata"
+    },
+    "operationLogs.actions.PlcInfoDeactivated": {
+      "SPA": "Info PLC desactivada",
+      "ENG": "PLC Info deactivated",
+      "FRA": "Info PLC désactivée",
+      "ITA": "Info PLC disattivata"
+    },
     "operationLogs.actions.ConfigWritePlc": {
       "SPA": "Config. escrita al PLC",
       "ENG": "Config written to PLC",
