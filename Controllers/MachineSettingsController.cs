@@ -611,7 +611,7 @@ namespace SW.PC.API.Backend.Controllers
                         changes.Add(new Dictionary<string, string> { 
                             {"name", setting?.Name ?? kvp.Key}, 
                             {"type", "bool"},
-                            {"old", oldValue ?? "(nuevo)"}, 
+                            {"old", oldValue ?? "null"}, 
                             {"new", newValue} 
                         });
                     }
@@ -633,7 +633,7 @@ namespace SW.PC.API.Backend.Controllers
                         changes.Add(new Dictionary<string, string> { 
                             {"name", setting?.Name ?? kvp.Key}, 
                             {"type", "int"},
-                            {"old", oldValue ?? "(nuevo)"}, 
+                            {"old", oldValue ?? "null"}, 
                             {"new", newValue} 
                         });
                     }
@@ -655,7 +655,7 @@ namespace SW.PC.API.Backend.Controllers
                         changes.Add(new Dictionary<string, string> { 
                             {"name", setting?.Name ?? kvp.Key}, 
                             {"type", "lreal"},
-                            {"old", oldValue ?? "(nuevo)"}, 
+                            {"old", oldValue ?? "null"}, 
                             {"new", newValue} 
                         });
                     }
@@ -677,7 +677,7 @@ namespace SW.PC.API.Backend.Controllers
                         changes.Add(new Dictionary<string, string> { 
                             {"name", setting?.Name ?? kvp.Key}, 
                             {"type", "lreal2"},
-                            {"old", oldValue ?? "(nuevo)"}, 
+                            {"old", oldValue ?? "null"}, 
                             {"new", newValue} 
                         });
                     }
