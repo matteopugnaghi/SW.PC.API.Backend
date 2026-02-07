@@ -71,13 +71,7 @@ public enum OperationAction
     TrainTypeEdit = 38,         // Editar tipo de tren
     TrainTypeDelete = 39,       // Eliminar tipo de tren
     
-    // Process (40-49)
-    ProcessStart = 40,
-    ProcessStop = 41,
-    ProcessPause = 42,
-    ProcessResume = 43,
-    ProcessModeChange = 44,
-    CommandExecute = 45,
+    // Process (40-49) - Modos manuales/semiautomáticos
     SemiautomaticToggle = 46,   // Toggle elemento en panel semiauto
     ManualModeToggle = 47,      // Toggle elemento en modo manual
     

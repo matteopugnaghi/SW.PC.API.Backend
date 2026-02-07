@@ -428,8 +428,6 @@ public class OperationLogsController : ControllerBase
     private static string GetActionLabel(OperationAction action) => action switch
     {
         OperationAction.ViewChange => "Cambio de vista",
-        OperationAction.ProcessStart => "Iniciar proceso",
-        OperationAction.ProcessStop => "Parar proceso",
         OperationAction.PlcAlarmActivated => "Alarma PLC activada",
         OperationAction.PlcAlarmDeactivated => "Alarma PLC desactivada",
         OperationAction.PlcNotificationActivated => "Notificación PLC activada",
@@ -465,12 +463,8 @@ public class OperationLogsController : ControllerBase
             OperationAction.TrainTypeWritePlcFromEditor
         },
         OperationCategory.Process => new[] {
-            OperationAction.ProcessStart,
-            OperationAction.ProcessStop,
-            OperationAction.ProcessPause,
-            OperationAction.ProcessResume,
-            OperationAction.ProcessModeChange,
-            OperationAction.CommandExecute
+            OperationAction.SemiautomaticToggle,
+            OperationAction.ManualModeToggle
         },
         OperationCategory.Statistics => new[] {
             OperationAction.StatisticsView,
@@ -558,8 +552,8 @@ public class OperationLogsController : ControllerBase
             var actions = new[] {
                 OperationAction.PlcAlarmActivated,
                 OperationAction.PlcAlarmDeactivated,
-                OperationAction.ProcessStart,
-                OperationAction.ProcessStop,
+                OperationAction.SemiautomaticToggle,
+                OperationAction.ManualModeToggle,
                 OperationAction.TrainTypeLoad,
                 OperationAction.ViewChange
             };
