@@ -37,10 +37,7 @@ public enum OperationCategory
     PlcCommand = 9,
     
     /// <summary>Historial de alarmas PLC (st_alarmHistPc)</summary>
-    PlcAlarmHistory = 10,
-    
-    /// <summary>Evento del sistema</summary>
-    System = 20
+    PlcAlarmHistory = 10
 }
 
 /// <summary>

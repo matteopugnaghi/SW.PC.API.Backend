@@ -385,7 +385,6 @@ public class OperationLogsController : ControllerBase
         OperationCategory.Statistics => "Estadísticas",
         OperationCategory.Configuration => "Configuración",
         OperationCategory.PlcAlarmHistory => "Historial Alarmas PLC",
-        OperationCategory.System => "Sistema",
         _ => category.ToString()
     };
 
@@ -397,7 +396,6 @@ public class OperationLogsController : ControllerBase
         OperationCategory.Statistics => "📊",
         OperationCategory.Configuration => "🔧",
         OperationCategory.PlcAlarmHistory => "🔔",
-        OperationCategory.System => "🖥️",
         _ => "📝"
     };
 
@@ -481,7 +479,6 @@ public class OperationLogsController : ControllerBase
             OperationAction.FastConfigWritePlc,
             OperationAction.FastConfigChange
         },
-        OperationCategory.System => Array.Empty<OperationAction>(), // System events in L1 (Audit Log)
         _ => Enum.GetValues<OperationAction>()
     };
 
