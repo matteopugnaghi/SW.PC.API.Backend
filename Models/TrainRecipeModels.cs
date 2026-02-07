@@ -631,6 +631,11 @@ namespace SW.PC.API.Backend.Models
         public string? TrainNameValue { get; set; }
         
         /// <summary>
+        /// Nombre traducido para mostrar en logs (ej: "Nombre del Tren")
+        /// </summary>
+        public string? TrainNameDisplayName { get; set; }
+        
+        /// <summary>
         /// Variable PLC para escribir el número de línea
         /// </summary>
         public string? LineNumberPlcVariable { get; set; }
@@ -639,6 +644,11 @@ namespace SW.PC.API.Backend.Models
         /// Número de línea a escribir al PLC
         /// </summary>
         public int? LineNumberValue { get; set; }
+        
+        /// <summary>
+        /// Nombre traducido para el número de línea (ej: "Línea")
+        /// </summary>
+        public string? LineNumberDisplayName { get; set; }
         
         /// <summary>
         /// Valores de parámetros booleanos a escribir
@@ -661,6 +671,11 @@ namespace SW.PC.API.Backend.Models
         public int? GantryTableCountValue { get; set; }
         
         /// <summary>
+        /// Nombre traducido para el contador de tablas (ej: "Número de Tablas")
+        /// </summary>
+        public string? GantryTableCountDisplayName { get; set; }
+        
+        /// <summary>
         /// Valores de parámetros de configuración del Gantry (columnas O-V del Excel)
         /// </summary>
         public List<GantryConfigValueDto> GantryConfigValues { get; set; } = new();
@@ -672,6 +687,7 @@ namespace SW.PC.API.Backend.Models
     public class GantryConfigValueDto
     {
         public string PlcVariable { get; set; } = string.Empty;
+        public string? Name { get; set; }
         public double Value { get; set; }
     }
     
@@ -681,6 +697,7 @@ namespace SW.PC.API.Backend.Models
     public class TrainRecipeBoolValueDto
     {
         public string PlcVariable { get; set; } = string.Empty;
+        public string? Name { get; set; }
         public bool Value { get; set; }
     }
     
@@ -690,6 +707,7 @@ namespace SW.PC.API.Backend.Models
     public class TrainRecipeDecimalValueDto
     {
         public string PlcVariable { get; set; } = string.Empty;
+        public string? Name { get; set; }
         public double Value { get; set; }
     }
     

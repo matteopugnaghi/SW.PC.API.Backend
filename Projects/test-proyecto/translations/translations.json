@@ -9627,6 +9627,12 @@
       "FRA": "Type de lavage écrit vers API",
       "ITA": "Tipo lavaggio scritto su PLC"
     },
+    "operationLogs.actions.WashTypeWritePlcFromEditor": {
+      "SPA": "Tipo lavado escrito al PLC (editor)",
+      "ENG": "Wash type written to PLC (editor)",
+      "FRA": "Type de lavage écrit vers API (éditeur)",
+      "ITA": "Tipo lavaggio scritto su PLC (editor)"
+    },
     "operationLogs.actions.WashTypeReadPlc": {
       "SPA": "Tipo lavado leído del PLC",
       "ENG": "Wash type read from PLC",
@@ -9680,6 +9686,18 @@
       "ENG": "Train type saved to DB from PLC",
       "FRA": "Type de train sauvegardé en BD depuis API",
       "ITA": "Tipo treno salvato in DB da PLC"
+    },
+    "operationLogs.actions.TrainTypeInterpolationWrite": {
+      "SPA": "Tabla interpolación escrita al PLC",
+      "ENG": "Interpolation table written to PLC",
+      "FRA": "Table d'interpolation écrite vers API",
+      "ITA": "Tabella interpolazione scritta su PLC"
+    },
+    "operationLogs.actions.TrainTypeWritePlcFromEditor": {
+      "SPA": "Tipo tren escrito al PLC (editor)",
+      "ENG": "Train type written to PLC (editor)",
+      "FRA": "Type de train écrit vers API (éditeur)",
+      "ITA": "Tipo treno scritto su PLC (editor)"
     },
     "operationLogs.actions.ManualModeToggle": {
       "SPA": "Modo manual",

@@ -7,6 +7,7 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Services;
 
@@ -21,17 +22,20 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IExcelConfigService _excelService;
         private readonly ITwinCATService _twinCatService;
         private readonly IProjectContextService _projectContext;
+        private readonly IOperationLogService _operationLog;
         
         public WashRecipeController(
             ILogger<WashRecipeController> logger,
             IExcelConfigService excelService,
             ITwinCATService twinCatService,
-            IProjectContextService projectContext)
+            IProjectContextService projectContext,
+            IOperationLogService operationLog)
         {
             _logger = logger;
             _excelService = excelService;
             _twinCatService = twinCatService;
             _projectContext = projectContext;
+            _operationLog = operationLog;
         }
         
         /// <summary>
@@ -319,14 +323,20 @@ namespace SW.PC.API.Backend.Controllers
                 _logger.LogInformation("🚿 Writing wash recipe values to PLC");
                 
                 var errors = new List<string>();
+                var writtenParams = new List<Dictionary<string, object>>(); // Para tracking de cambios
                 int processed = 0;
                 int failed = 0;
+                var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
                 
                 // Escribir nombre de la receta al PLC (si hay variable configurada)
                 if (!string.IsNullOrEmpty(request.RecipeNamePlcVariable) && request.RecipeNameValue != null)
                 {
                     try
                     {
+                        // Leer valor actual del PLC para comparar
+                        var currentValueObj = await _twinCatService.ReadVariableAsync(request.RecipeNamePlcVariable, typeof(string));
+                        var currentName = currentValueObj?.ToString() ?? "";
+                        
                         var success = await _twinCatService.WriteVariableAsync(
                             request.RecipeNamePlcVariable,
                             request.RecipeNameValue,
@@ -335,6 +345,13 @@ namespace SW.PC.API.Backend.Controllers
                         if (success)
                         {
                             processed++;
+                            // Solo registrar si el valor cambió
+                            if (currentName != request.RecipeNameValue)
+                            {
+                                writtenParams.Add(new Dictionary<string, object> { 
+                                    {"name", request.RecipeName ?? "RecipeName"}, {"old", currentName}, {"new", request.RecipeNameValue}, {"type", "string"} 
+                                });
+                            }
                             _logger.LogDebug("🚿 Recipe name written to PLC: {Name}", request.RecipeNameValue);
                         }
                         else
@@ -359,6 +376,10 @@ namespace SW.PC.API.Backend.Controllers
                         
                         try
                         {
+                            // Leer valor actual del PLC para comparar
+                            var currentValueObj = await _twinCatService.ReadVariableAsync(param.PlcVariable, typeof(bool));
+                            var currentBool = currentValueObj != null && Convert.ToBoolean(currentValueObj);
+                            
                             var success = await _twinCatService.WriteVariableAsync(
                                 param.PlcVariable, 
                                 param.Value, 
@@ -367,6 +388,13 @@ namespace SW.PC.API.Backend.Controllers
                             if (success)
                             {
                                 processed++;
+                                // Solo registrar si el valor cambió
+                                if (currentBool != param.Value)
+                                {
+                                    writtenParams.Add(new Dictionary<string, object> { 
+                                        {"name", param.Name ?? param.PlcVariable}, {"old", currentBool}, {"new", param.Value}, {"type", "bool"} 
+                                    });
+                                }
                             }
                             else
                             {
@@ -388,6 +416,10 @@ namespace SW.PC.API.Backend.Controllers
                         
                         try
                         {
+                            // Leer valor actual del PLC para comparar
+                            var currentValueObj = await _twinCatService.ReadVariableAsync(param.PlcVariable, typeof(int));
+                            var currentInt = currentValueObj != null ? Convert.ToInt32(currentValueObj) : 0;
+                            
                             var success = await _twinCatService.WriteVariableAsync(
                                 param.PlcVariable, 
                                 param.Value, 
@@ -396,6 +428,13 @@ namespace SW.PC.API.Backend.Controllers
                             if (success)
                             {
                                 processed++;
+                                // Solo registrar si el valor cambió
+                                if (currentInt != param.Value)
+                                {
+                                    writtenParams.Add(new Dictionary<string, object> { 
+                                        {"name", param.Name ?? param.PlcVariable}, {"old", currentInt}, {"new", param.Value}, {"type", "int"} 
+                                    });
+                                }
                             }
                             else
                             {
@@ -412,6 +451,22 @@ namespace SW.PC.API.Backend.Controllers
                 }
                 
                 _logger.LogInformation("🚿 Write to PLC completed: {Processed} OK, {Failed} failed", processed, failed);
+                
+                // 📋 Operation Log (L2) - Registrar escritura al PLC con detalles
+                if (writtenParams.Count > 0)
+                {
+                    var details = new Dictionary<string, object>
+                    {
+                        { "RecipeName", request.RecipeNameValue ?? "?" },
+                        { "Changes", writtenParams }
+                    };
+                    await _operationLog.LogAsync(
+                        OperationCategory.Recipe,
+                        OperationAction.WashTypeWritePlcFromEditor,
+                        $"{writtenParams.Count} parámetros escritos al PLC",
+                        username,
+                        details);
+                }
                 
                 return Ok(new WashRecipePlcOperationResult
                 {

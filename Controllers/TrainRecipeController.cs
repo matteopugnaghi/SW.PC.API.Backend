@@ -8,6 +8,7 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Services;
 
@@ -22,17 +23,20 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IExcelConfigService _excelService;
         private readonly ITwinCATService _twinCatService;
         private readonly IProjectContextService _projectContext;
+        private readonly IOperationLogService _operationLog;
         
         public TrainRecipeController(
             ILogger<TrainRecipeController> logger,
             IExcelConfigService excelService,
             ITwinCATService twinCatService,
-            IProjectContextService projectContext)
+            IProjectContextService projectContext,
+            IOperationLogService operationLog)
         {
             _logger = logger;
             _excelService = excelService;
             _twinCatService = twinCatService;
             _projectContext = projectContext;
+            _operationLog = operationLog;
         }
         
         /// <summary>
@@ -411,14 +415,20 @@ namespace SW.PC.API.Backend.Controllers
                 _logger.LogInformation("🚂 Writing train recipe values to PLC");
                 
                 var errors = new List<string>();
+                var writtenParams = new List<Dictionary<string, object>>(); // Para tracking de cambios
                 int processed = 0;
                 int failed = 0;
+                var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
                 
                 // Escribir nombre del tren al PLC (si hay variable configurada)
                 if (!string.IsNullOrEmpty(request.TrainNamePlcVariable) && request.TrainNameValue != null)
                 {
                     try
                     {
+                        // Leer valor actual del PLC para comparar
+                        var currentValueObj = await _twinCatService.ReadVariableAsync(request.TrainNamePlcVariable, typeof(string));
+                        var currentName = currentValueObj?.ToString() ?? "";
+                        
                         var success = await _twinCatService.WriteVariableAsync(
                             request.TrainNamePlcVariable,
                             request.TrainNameValue,
@@ -427,6 +437,13 @@ namespace SW.PC.API.Backend.Controllers
                         if (success)
                         {
                             processed++;
+                            // Solo registrar si el valor cambió
+                            if (currentName != request.TrainNameValue)
+                            {
+                                writtenParams.Add(new Dictionary<string, object> { 
+                                    {"name", request.TrainNameDisplayName ?? "TrainName"}, {"old", currentName}, {"new", request.TrainNameValue}, {"type", "string"} 
+                                });
+                            }
                             _logger.LogDebug("🚂 Train name written to PLC: {Name}", request.TrainNameValue);
                         }
                         else
@@ -442,39 +459,19 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
                 
-                // Escribir número de línea al PLC (si hay variable configurada)
-                if (!string.IsNullOrEmpty(request.LineNumberPlcVariable) && request.LineNumberValue.HasValue)
-                {
-                    try
-                    {
-                        var success = await _twinCatService.WriteVariableAsync(
-                            request.LineNumberPlcVariable,
-                            request.LineNumberValue.Value,
-                            typeof(int));
-                        
-                        if (success)
-                        {
-                            processed++;
-                            _logger.LogDebug("🚂 Line number written to PLC: {Value}", request.LineNumberValue.Value);
-                        }
-                        else
-                        {
-                            failed++;
-                            errors.Add($"LineNumber ({request.LineNumberPlcVariable}): Write failed");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        failed++;
-                        errors.Add($"LineNumber ({request.LineNumberPlcVariable}): {ex.Message}");
-                    }
-                }
+                // NOTA: LineNumber NO se escribe desde el editor de tipos de tren.
+                // Solo se escribe desde la página "Tipos de Trenes" (lista) cuando se selecciona un slot.
+                // Ver: TrainTypesController o endpoint específico para cambio de slot.
                 
                 // Escribir número de tablas del Gantry al PLC (si hay variable configurada)
                 if (!string.IsNullOrEmpty(request.GantryTableCountPlcVariable) && request.GantryTableCountValue.HasValue)
                 {
                     try
                     {
+                        // Leer valor actual del PLC para comparar
+                        var currentValueObj = await _twinCatService.ReadVariableAsync(request.GantryTableCountPlcVariable, typeof(int));
+                        var currentValue = currentValueObj != null ? Convert.ToInt32(currentValueObj) : 0;
+                        
                         var success = await _twinCatService.WriteVariableAsync(
                             request.GantryTableCountPlcVariable,
                             request.GantryTableCountValue.Value,
@@ -483,6 +480,13 @@ namespace SW.PC.API.Backend.Controllers
                         if (success)
                         {
                             processed++;
+                            // Solo registrar si el valor cambió
+                            if (currentValue != request.GantryTableCountValue.Value)
+                            {
+                                writtenParams.Add(new Dictionary<string, object> { 
+                                    {"name", request.GantryTableCountDisplayName ?? "GantryTableCount"}, {"old", currentValue}, {"new", request.GantryTableCountValue.Value}, {"type", "int"} 
+                                });
+                            }
                             _logger.LogDebug("🚂 Gantry table count written to PLC: {Value}", request.GantryTableCountValue.Value);
                         }
                         else
@@ -505,6 +509,12 @@ namespace SW.PC.API.Backend.Controllers
                     
                     try
                     {
+                        // Leer valor actual del PLC para comparar
+                        var currentValueObj = await _twinCatService.ReadVariableAsync(param.PlcVariable, typeof(double));
+                        var currentValue = currentValueObj != null ? Convert.ToDouble(currentValueObj) : (double?)null;
+                        var currentStr = currentValue?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?";
+                        var newStr = param.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        
                         var success = await _twinCatService.WriteVariableAsync(
                             param.PlcVariable, 
                             param.Value, 
@@ -513,6 +523,13 @@ namespace SW.PC.API.Backend.Controllers
                         if (success)
                         {
                             processed++;
+                            // Solo registrar si el valor cambió
+                            if (currentStr != newStr)
+                            {
+                                writtenParams.Add(new Dictionary<string, object> { 
+                                    {"name", param.Name ?? param.PlcVariable}, {"old", currentStr}, {"new", newStr}, {"type", "lreal"} 
+                                });
+                            }
                             _logger.LogDebug("🚂 GantryConfig {Var} = {Value}", param.PlcVariable, param.Value);
                         }
                         else
@@ -535,6 +552,10 @@ namespace SW.PC.API.Backend.Controllers
                     
                     try
                     {
+                        // Leer valor actual del PLC para comparar
+                        var currentValueObj = await _twinCatService.ReadVariableAsync(param.PlcVariable, typeof(bool));
+                        var currentBool = currentValueObj != null && Convert.ToBoolean(currentValueObj);
+                        
                         var success = await _twinCatService.WriteVariableAsync(
                             param.PlcVariable, 
                             param.Value, 
@@ -543,6 +564,13 @@ namespace SW.PC.API.Backend.Controllers
                         if (success)
                         {
                             processed++;
+                            // Solo registrar si el valor cambió
+                            if (currentBool != param.Value)
+                            {
+                                writtenParams.Add(new Dictionary<string, object> { 
+                                    {"name", param.Name ?? param.PlcVariable}, {"old", currentBool}, {"new", param.Value}, {"type", "bool"} 
+                                });
+                            }
                         }
                         else
                         {
@@ -564,6 +592,12 @@ namespace SW.PC.API.Backend.Controllers
                     
                     try
                     {
+                        // Leer valor actual del PLC para comparar
+                        var currentValueObj = await _twinCatService.ReadVariableAsync(param.PlcVariable, typeof(double));
+                        var currentValue = currentValueObj != null ? Convert.ToDouble(currentValueObj) : (double?)null;
+                        var currentStr = currentValue?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?";
+                        var newStr = param.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        
                         var success = await _twinCatService.WriteVariableAsync(
                             param.PlcVariable, 
                             param.Value, 
@@ -572,6 +606,13 @@ namespace SW.PC.API.Backend.Controllers
                         if (success)
                         {
                             processed++;
+                            // Solo registrar si el valor cambió
+                            if (currentStr != newStr)
+                            {
+                                writtenParams.Add(new Dictionary<string, object> { 
+                                    {"name", param.Name ?? param.PlcVariable}, {"old", currentStr}, {"new", newStr}, {"type", "lreal"} 
+                                });
+                            }
                         }
                         else
                         {
@@ -627,6 +668,22 @@ namespace SW.PC.API.Backend.Controllers
                 }
                 
                 _logger.LogInformation("🚂 Write to PLC completed: {Processed} OK, {Failed} failed", processed, failed);
+                
+                // 📋 Operation Log (L2) - Registrar escritura al PLC con detalles
+                if (writtenParams.Count > 0)
+                {
+                    var details = new Dictionary<string, object>
+                    {
+                        { "TrainName", request.TrainNameValue ?? "?" },
+                        { "Changes", writtenParams }
+                    };
+                    await _operationLog.LogAsync(
+                        OperationCategory.Recipe,
+                        OperationAction.TrainTypeWritePlcFromEditor,
+                        $"{writtenParams.Count} parámetros escritos al PLC",
+                        username,
+                        details);
+                }
                 
                 return Ok(new TrainRecipePlcOperationResult
                 {
@@ -912,29 +969,52 @@ namespace SW.PC.API.Backend.Controllers
                 int recipeSlot = request.SlotNumber > 0 ? request.SlotNumber : 1;
                 _logger.LogInformation("🚂 Using recipe slot {Slot} for interpolation write", recipeSlot);
                 
-                // Crear todas las tareas de escritura en paralelo
-                var writeTasks = new List<Task<(int lineNumber, int pointsWritten, int pointsFailed, string? error)>>();
+                // =====================================================
+                // PASO 1: Leer TODOS los puntos actuales del PLC (snapshot)
+                // Esto evita race conditions al comparar
+                // =====================================================
+                var enabledLines = request.Lines.Where(l => l.Enabled).OrderBy(l => l.LineNumber).ToList();
                 
-                foreach (var line in request.Lines)
+                // Determinar todos los índices de puntos únicos
+                var allPointIndices = new HashSet<int>();
+                foreach (var line in enabledLines)
                 {
-                    if (!line.Enabled)
-                        continue;
-                    
-                    writeTasks.Add(WriteLineToPlcAsync(table, line, recipeSlot));
+                    allPointIndices.Add(GantryInterpolationTable.GetStartPointIndex(line.LineNumber));
+                    allPointIndices.Add(GantryInterpolationTable.GetEndPointIndex(line.LineNumber));
                 }
                 
-                // Ejecutar todas las escrituras en paralelo
-                var results = await Task.WhenAll(writeTasks);
+                // Leer todos los puntos en paralelo
+                var snapshotTasks = new Dictionary<int, Task<(int funcType, double posX, double posY, double speedY)>>();
+                foreach (var pointIndex in allPointIndices)
+                {
+                    snapshotTasks[pointIndex] = ReadPointFromPlcAsync(table, pointIndex, recipeSlot);
+                }
+                await Task.WhenAll(snapshotTasks.Values);
                 
-                int totalPointsWritten = results.Sum(r => r.pointsWritten);
-                int totalPointsFailed = results.Sum(r => r.pointsFailed);
-                var errors = results.Where(r => r.error != null).Select(r => r.error!).ToList();
+                var snapshot = snapshotTasks.ToDictionary(kv => kv.Key, kv => kv.Value.Result);
+                _logger.LogInformation("🚂 Snapshot read: {PointCount} unique points", snapshot.Count);
+                
+                // =====================================================
+                // PASO 2: Comparar y escribir cada línea usando el snapshot
+                // =====================================================
+                var allChanges = new List<string>();
+                int totalPointsWritten = 0;
+                int totalPointsFailed = 0;
+                var errors = new List<string>();
+                
+                foreach (var line in enabledLines)
+                {
+                    var result = await WriteLineToPlcWithSnapshotAsync(table, line, recipeSlot, snapshot);
+                    totalPointsWritten += result.pointsWritten;
+                    totalPointsFailed += result.pointsFailed;
+                    if (result.error != null) errors.Add(result.error);
+                    allChanges.AddRange(result.changes);
+                }
                 
                 // Escribir min_height y max_height si están configurados
                 _logger.LogInformation("🚂 Checking min/max height - MinHeightVar: '{MinVar}', MaxHeightVar: '{MaxVar}'", 
                     table.MinHeightPlcVariable ?? "(null)", table.MaxHeightPlcVariable ?? "(null)");
                 
-                var enabledLines = request.Lines.Where(l => l.Enabled).OrderBy(l => l.LineNumber).ToList();
                 _logger.LogInformation("🚂 Enabled lines count: {Count}", enabledLines.Count);
                 
                 if (enabledLines.Count > 0)
@@ -993,7 +1073,29 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
                 
-                _logger.LogInformation("🚂 Written {PointsWritten} interpolation points to {TableId} (parallel)", totalPointsWritten, request.TableId);
+                _logger.LogInformation("🚂 Written {PointsWritten} interpolation points to {TableId} (parallel), {ChangeCount} changes detected", 
+                    totalPointsWritten, request.TableId, allChanges.Count);
+                
+                // 📋 Operation Log (L2) - Registrar escritura de tabla de interpolación SOLO si hubo cambios reales
+                if (allChanges.Count > 0)
+                {
+                    var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
+                    var details = new Dictionary<string, object>
+                    {
+                        { "TableId", request.TableId },
+                        { "SlotNumber", request.SlotNumber },
+                        { "PointsWritten", totalPointsWritten },
+                        { "Changes", allChanges }
+                    };
+                    // Formatear mensaje con todos los cambios
+                    var changesPreview = string.Join(", ", allChanges);
+                    await _operationLog.LogAsync(
+                        OperationCategory.Recipe,
+                        OperationAction.TrainTypeInterpolationWrite,
+                        $"{request.TableId}: {changesPreview}",
+                        username,
+                        details);
+                }
                 
                 return Ok(new GantryInterpolationWriteResponse
                 {
@@ -1020,9 +1122,42 @@ namespace SW.PC.API.Backend.Controllers
         }
         
         /// <summary>
-        /// Helper: Escribe una línea completa de interpolación al PLC (START + END) en paralelo
+        /// Helper: Lee un punto de interpolación del PLC
         /// </summary>
-        private async Task<(int lineNumber, int pointsWritten, int pointsFailed, string? error)> WriteLineToPlcAsync(GantryInterpolationTable table, GantryInterpolationLineDto line, int recipeSlot = 1)
+        private async Task<(int funcType, double posX, double posY, double speedY)> ReadPointFromPlcAsync(GantryInterpolationTable table, int pointIndex, int recipeSlot)
+        {
+            try
+            {
+                var tasks = new[]
+                {
+                    _twinCatService.ReadVariableAsync(table.GetFunctionTypePlcVariable(pointIndex, recipeSlot), typeof(sbyte)),
+                    _twinCatService.ReadVariableAsync(table.GetPositionXPlcVariable(pointIndex, recipeSlot), typeof(double)),
+                    _twinCatService.ReadVariableAsync(table.GetPositionYPlcVariable(pointIndex, recipeSlot), typeof(double)),
+                    _twinCatService.ReadVariableAsync(table.GetSpeedYPlcVariable(pointIndex, recipeSlot), typeof(double))
+                };
+                var results = await Task.WhenAll(tasks);
+                return (
+                    Convert.ToInt32(results[0] ?? 0),
+                    Convert.ToDouble(results[1] ?? 0.0),
+                    Convert.ToDouble(results[2] ?? 0.0),
+                    Convert.ToDouble(results[3] ?? 0.0)
+                );
+            }
+            catch
+            {
+                return (0, 0.0, 0.0, 0.0);
+            }
+        }
+        
+        /// <summary>
+        /// Helper: Escribe una línea de interpolación comparando contra snapshot previo
+        /// Solo registra cambios reales (comparando con el snapshot, no con el PLC actual)
+        /// </summary>
+        private async Task<(int lineNumber, int pointsWritten, int pointsFailed, string? error, List<string> changes)> WriteLineToPlcWithSnapshotAsync(
+            GantryInterpolationTable table, 
+            GantryInterpolationLineDto line, 
+            int recipeSlot,
+            Dictionary<int, (int funcType, double posX, double posY, double speedY)> snapshot)
         {
             int startIndex = GantryInterpolationTable.GetStartPointIndex(line.LineNumber);
             int endIndex = GantryInterpolationTable.GetEndPointIndex(line.LineNumber);
@@ -1030,29 +1165,99 @@ namespace SW.PC.API.Backend.Controllers
             int pointsWritten = 0;
             int pointsFailed = 0;
             string? error = null;
+            var changes = new List<string>();
             
             try
             {
-                // Escribir las 8 variables en paralelo (4 START + 4 END)
-                // Usar recipeSlot para direccionar a la receta correcta
-                var writeStartTasks = new[]
+                // Obtener valores del snapshot (estado ORIGINAL del PLC)
+                var startPoint = snapshot.GetValueOrDefault(startIndex);
+                var endPoint = snapshot.GetValueOrDefault(endIndex);
+                
+                // Helper para nombre de FunctionType
+                string GetFunctionTypeName(int ft) => ft switch
                 {
-                    _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(startIndex, recipeSlot), line.Start.FunctionType, typeof(sbyte)),
-                    _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(startIndex, recipeSlot), line.Start.PositionX, typeof(double)),
-                    _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(startIndex, recipeSlot), line.Start.PositionY, typeof(double)),
-                    _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(startIndex, recipeSlot), line.Start.SpeedY, typeof(double))
+                    0 => "—",
+                    1 => "Syncron",
+                    3 => "Polynom 3",
+                    5 => "Polynom 5",
+                    _ => $"Tipo {ft}"
                 };
                 
-                var writeEndTasks = new[]
-                {
-                    _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(endIndex, recipeSlot), line.End.FunctionType, typeof(sbyte)),
-                    _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(endIndex, recipeSlot), line.End.PositionX, typeof(double)),
-                    _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(endIndex, recipeSlot), line.End.PositionY, typeof(double)),
-                    _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(endIndex, recipeSlot), line.End.SpeedY, typeof(double))
-                };
+                const double tolerance = 0.0001;
+                bool hasChanges = false;
                 
-                await Task.WhenAll(writeStartTasks.Concat(writeEndTasks));
-                pointsWritten = 2; // START + END
+                // =====================================================
+                // Registrar cambio de TIPO de interpolación (FunctionType)
+                // a nivel de LÍNEA (comparando START, que representa la línea)
+                // =====================================================
+                if (startPoint.funcType != line.Start.FunctionType)
+                {
+                    changes.Add($"L{line.LineNumber}: {GetFunctionTypeName(startPoint.funcType)}→{GetFunctionTypeName(line.Start.FunctionType)}");
+                    hasChanges = true;
+                }
+                
+                // Registrar cambios de posiciones/velocidades START
+                if (Math.Abs(startPoint.posX - line.Start.PositionX) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} Start PosX: {startPoint.posX:F2}→{line.Start.PositionX:F2}");
+                    hasChanges = true;
+                }
+                if (Math.Abs(startPoint.posY - line.Start.PositionY) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} Start PosY: {startPoint.posY:F2}→{line.Start.PositionY:F2}");
+                    hasChanges = true;
+                }
+                if (Math.Abs(startPoint.speedY - line.Start.SpeedY) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} Start SpeedY: {startPoint.speedY:F2}→{line.Start.SpeedY:F2}");
+                    hasChanges = true;
+                }
+                
+                // Registrar cambios de posiciones/velocidades END
+                if (Math.Abs(endPoint.posX - line.End.PositionX) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} End PosX: {endPoint.posX:F2}→{line.End.PositionX:F2}");
+                    hasChanges = true;
+                }
+                if (Math.Abs(endPoint.posY - line.End.PositionY) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} End PosY: {endPoint.posY:F2}→{line.End.PositionY:F2}");
+                    hasChanges = true;
+                }
+                if (Math.Abs(endPoint.speedY - line.End.SpeedY) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} End SpeedY: {endPoint.speedY:F2}→{line.End.SpeedY:F2}");
+                    hasChanges = true;
+                }
+                
+                // FunctionType END (si es diferente al START)
+                if (endPoint.funcType != line.End.FunctionType && line.End.FunctionType != line.Start.FunctionType)
+                {
+                    hasChanges = true;
+                }
+                
+                // Solo escribir si hay cambios
+                if (hasChanges)
+                {
+                    var writeStartTasks = new[]
+                    {
+                        _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(startIndex, recipeSlot), line.Start.FunctionType, typeof(sbyte)),
+                        _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(startIndex, recipeSlot), line.Start.PositionX, typeof(double)),
+                        _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(startIndex, recipeSlot), line.Start.PositionY, typeof(double)),
+                        _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(startIndex, recipeSlot), line.Start.SpeedY, typeof(double))
+                    };
+                    
+                    var writeEndTasks = new[]
+                    {
+                        _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(endIndex, recipeSlot), line.End.FunctionType, typeof(sbyte)),
+                        _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(endIndex, recipeSlot), line.End.PositionX, typeof(double)),
+                        _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(endIndex, recipeSlot), line.End.PositionY, typeof(double)),
+                        _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(endIndex, recipeSlot), line.End.SpeedY, typeof(double))
+                    };
+                    
+                    await Task.WhenAll(writeStartTasks.Concat(writeEndTasks));
+                    pointsWritten = 2;
+                }
             }
             catch (Exception ex)
             {
@@ -1060,7 +1265,142 @@ namespace SW.PC.API.Backend.Controllers
                 pointsFailed = 2;
             }
             
-            return (line.LineNumber, pointsWritten, pointsFailed, error);
+            return (line.LineNumber, pointsWritten, pointsFailed, error, changes);
+        }
+        
+        /// <summary>
+        /// Helper: Escribe una línea completa de interpolación al PLC (START + END) en paralelo
+        /// Ahora también compara con valores actuales y retorna si hubo cambios
+        /// </summary>
+        private async Task<(int lineNumber, int pointsWritten, int pointsFailed, string? error, List<string> changes)> WriteLineToPlcAsync(GantryInterpolationTable table, GantryInterpolationLineDto line, int recipeSlot = 1)
+        {
+            int startIndex = GantryInterpolationTable.GetStartPointIndex(line.LineNumber);
+            int endIndex = GantryInterpolationTable.GetEndPointIndex(line.LineNumber);
+            
+            int pointsWritten = 0;
+            int pointsFailed = 0;
+            string? error = null;
+            var changes = new List<string>();
+            
+            try
+            {
+                // 1. Leer valores actuales del PLC para comparar
+                var readTasks = new[]
+                {
+                    // START
+                    _twinCatService.ReadVariableAsync(table.GetFunctionTypePlcVariable(startIndex, recipeSlot), typeof(sbyte)),
+                    _twinCatService.ReadVariableAsync(table.GetPositionXPlcVariable(startIndex, recipeSlot), typeof(double)),
+                    _twinCatService.ReadVariableAsync(table.GetPositionYPlcVariable(startIndex, recipeSlot), typeof(double)),
+                    _twinCatService.ReadVariableAsync(table.GetSpeedYPlcVariable(startIndex, recipeSlot), typeof(double)),
+                    // END
+                    _twinCatService.ReadVariableAsync(table.GetFunctionTypePlcVariable(endIndex, recipeSlot), typeof(sbyte)),
+                    _twinCatService.ReadVariableAsync(table.GetPositionXPlcVariable(endIndex, recipeSlot), typeof(double)),
+                    _twinCatService.ReadVariableAsync(table.GetPositionYPlcVariable(endIndex, recipeSlot), typeof(double)),
+                    _twinCatService.ReadVariableAsync(table.GetSpeedYPlcVariable(endIndex, recipeSlot), typeof(double))
+                };
+                
+                var currentValues = await Task.WhenAll(readTasks);
+                
+                // 2. Extraer valores actuales
+                var currStartFuncType = Convert.ToInt32(currentValues[0] ?? 0);
+                var currStartPosX = Convert.ToDouble(currentValues[1] ?? 0.0);
+                var currStartPosY = Convert.ToDouble(currentValues[2] ?? 0.0);
+                var currStartSpeedY = Convert.ToDouble(currentValues[3] ?? 0.0);
+                var currEndFuncType = Convert.ToInt32(currentValues[4] ?? 0);
+                var currEndPosX = Convert.ToDouble(currentValues[5] ?? 0.0);
+                var currEndPosY = Convert.ToDouble(currentValues[6] ?? 0.0);
+                var currEndSpeedY = Convert.ToDouble(currentValues[7] ?? 0.0);
+                
+                // Helper para nombre de FunctionType
+                string GetFunctionTypeName(int ft) => ft switch
+                {
+                    0 => "—",
+                    1 => "Syncron",
+                    3 => "Polynom 3",
+                    5 => "Polynom 5",
+                    _ => $"Tipo {ft}"
+                };
+                
+                // 3. Detectar cambios (con tolerancia para doubles)
+                const double tolerance = 0.0001;
+                bool hasChanges = false;
+                
+                // FunctionType START (importante!)
+                if (currStartFuncType != line.Start.FunctionType)
+                {
+                    changes.Add($"L{line.LineNumber} Start: {GetFunctionTypeName(currStartFuncType)}→{GetFunctionTypeName(line.Start.FunctionType)}");
+                    hasChanges = true;
+                }
+                // Posiciones START
+                if (Math.Abs(currStartPosX - line.Start.PositionX) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} Start PosX: {currStartPosX:F2}→{line.Start.PositionX:F2}");
+                    hasChanges = true;
+                }
+                if (Math.Abs(currStartPosY - line.Start.PositionY) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} Start PosY: {currStartPosY:F2}→{line.Start.PositionY:F2}");
+                    hasChanges = true;
+                }
+                if (Math.Abs(currStartSpeedY - line.Start.SpeedY) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} Start SpeedY: {currStartSpeedY:F2}→{line.Start.SpeedY:F2}");
+                    hasChanges = true;
+                }
+                
+                // FunctionType END (importante!)
+                if (currEndFuncType != line.End.FunctionType)
+                {
+                    changes.Add($"L{line.LineNumber} End: {GetFunctionTypeName(currEndFuncType)}→{GetFunctionTypeName(line.End.FunctionType)}");
+                    hasChanges = true;
+                }
+                // Posiciones END
+                if (Math.Abs(currEndPosX - line.End.PositionX) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} End PosX: {currEndPosX:F2}→{line.End.PositionX:F2}");
+                    hasChanges = true;
+                }
+                if (Math.Abs(currEndPosY - line.End.PositionY) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} End PosY: {currEndPosY:F2}→{line.End.PositionY:F2}");
+                    hasChanges = true;
+                }
+                if (Math.Abs(currEndSpeedY - line.End.SpeedY) > tolerance)
+                {
+                    changes.Add($"L{line.LineNumber} End SpeedY: {currEndSpeedY:F2}→{line.End.SpeedY:F2}");
+                    hasChanges = true;
+                }
+                
+                // 4. Solo escribir si hay cambios
+                if (hasChanges)
+                {
+                    var writeStartTasks = new[]
+                    {
+                        _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(startIndex, recipeSlot), line.Start.FunctionType, typeof(sbyte)),
+                        _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(startIndex, recipeSlot), line.Start.PositionX, typeof(double)),
+                        _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(startIndex, recipeSlot), line.Start.PositionY, typeof(double)),
+                        _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(startIndex, recipeSlot), line.Start.SpeedY, typeof(double))
+                    };
+                    
+                    var writeEndTasks = new[]
+                    {
+                        _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(endIndex, recipeSlot), line.End.FunctionType, typeof(sbyte)),
+                        _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(endIndex, recipeSlot), line.End.PositionX, typeof(double)),
+                        _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(endIndex, recipeSlot), line.End.PositionY, typeof(double)),
+                        _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(endIndex, recipeSlot), line.End.SpeedY, typeof(double))
+                    };
+                    
+                    await Task.WhenAll(writeStartTasks.Concat(writeEndTasks));
+                    pointsWritten = 2; // START + END
+                }
+            }
+            catch (Exception ex)
+            {
+                error = $"Error escribiendo línea {line.LineNumber}: {ex.Message}";
+                pointsFailed = 2;
+            }
+            
+            return (line.LineNumber, pointsWritten, pointsFailed, error, changes);
         }
         
         /// <summary>

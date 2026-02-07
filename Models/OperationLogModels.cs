@@ -137,11 +137,14 @@ public enum OperationAction
     TrainTypeWritePlc = 131,         // Escribir tipo de tren al PLC
     TrainTypeReadPlc = 132,          // Leer tipo de tren del PLC
     TrainTypeSaveFromPlc = 133,      // Guardar tipo de tren en DB desde PLC
+    TrainTypeInterpolationWrite = 134, // Escribir tabla de interpolación al PLC
+    TrainTypeWritePlcFromEditor = 135,   // Escribir tipo de tren al PLC desde editor receta
     
     // Wash Type specific (140-149)
     WashTypeLoad = 140,              // Seleccionar tipo de lavado
     WashTypeReadPlc = 141,           // Leer tipo de lavado del PLC
-    WashTypeSaveFromPlc = 142        // Guardar tipo de lavado en DB desde PLC
+    WashTypeSaveFromPlc = 142,       // Guardar tipo de lavado en DB desde PLC
+    WashTypeWritePlcFromEditor = 143 // Escribir tipo de lavado al PLC desde editor receta
     
     // ❌ System (200+) - ELIMINADO: Los eventos de sistema (Startup, Shutdown, Error)
     //    ya se registran en L1 (Audit Log) con AuditAction.SystemStart/SystemStop

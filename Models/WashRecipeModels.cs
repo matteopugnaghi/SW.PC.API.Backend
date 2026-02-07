@@ -283,12 +283,14 @@ namespace SW.PC.API.Backend.Models
     public class BoolParamValueDto
     {
         public string PlcVariable { get; set; } = string.Empty;
+        public string? Name { get; set; }
         public bool Value { get; set; }
     }
     
     public class IntParamValueDto
     {
         public string PlcVariable { get; set; } = string.Empty;
+        public string? Name { get; set; }
         public int Value { get; set; }
     }
     
