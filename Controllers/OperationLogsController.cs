@@ -492,9 +492,13 @@ public class OperationLogsController : ControllerBase
             OperationAction.PlcInfoActivated,
             OperationAction.PlcInfoDeactivated
         },
-        OperationCategory.System => new[] {
-            OperationAction.ConfigChange
+        OperationCategory.Configuration => new[] {
+            OperationAction.ConfigChange,
+            OperationAction.ConfigWritePlc,
+            OperationAction.FastConfigWritePlc,
+            OperationAction.FastConfigChange
         },
+        OperationCategory.System => Array.Empty<OperationAction>(), // System events in L1 (Audit Log)
         _ => Enum.GetValues<OperationAction>()
     };
 
