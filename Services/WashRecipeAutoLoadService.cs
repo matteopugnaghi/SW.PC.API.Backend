@@ -278,7 +278,7 @@ namespace SW.PC.API.Backend.Services
                     await operationLog.LogAsync(
                         OperationCategory.PlcCommand,
                         OperationAction.PlcCommandWashChange,
-                        $"Cambio de lavado automático desde {plcId}: Línea {lineNumber} → '{washType.Name}' ({parametersWritten} parámetros escritos)",
+                        $"{plcId}: L{lineNumber} → '{washType.Name}' ({parametersWritten})",
                         user: "PLC"
                     );
                 }

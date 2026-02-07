@@ -296,7 +296,7 @@ namespace SW.PC.API.Backend.Services
                     await operationLog.LogAsync(
                         OperationCategory.PlcCommand,
                         OperationAction.PlcCommandTrainChange,
-                        $"Cambio de tipo de tren automático desde {plcId}: Línea {lineNumber} → '{trainType.Name}' ({parametersWritten} parámetros escritos)",
+                        $"{plcId}: L{lineNumber} → '{trainType.Name}' ({parametersWritten})",
                         user: "PLC"
                     );
                 }
