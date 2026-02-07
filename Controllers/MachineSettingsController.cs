@@ -278,12 +278,14 @@ namespace SW.PC.API.Backend.Controllers
             {
                 var excelPath = _excelConfigService.GetExcelConfigPath();
                 var excelConfig = await _excelConfigService.LoadSettingsPageAsync(excelPath);
+                var user = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "System";
                 
                 int successCount = 0;
                 int errorCount = 0;
                 var errors = new List<string>();
+                var changes = new List<Dictionary<string, string>>();
 
-                // Escribir parámetros Bool
+                // Escribir parámetros Bool (con detección de cambios)
                 foreach (var kvp in request.BoolValues)
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
@@ -292,8 +294,24 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         try
                         {
+                            // Leer valor actual del PLC
+                            var currentValue = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(bool));
+                            var oldValueStr = currentValue?.ToString()?.ToLower() ?? "?";
+                            var newValueStr = kvp.Value.ToString().ToLower();
+                            
                             var success = await _twinCATService.WriteVariableAsync(setting.PlcVariable, kvp.Value, typeof(bool));
-                            if (success) successCount++;
+                            if (success)
+                            {
+                                successCount++;
+                                if (oldValueStr != newValueStr)
+                                {
+                                    changes.Add(new Dictionary<string, string> { 
+                                        {"name", setting.Name}, 
+                                        {"old", oldValueStr}, 
+                                        {"new", newValueStr} 
+                                    });
+                                }
+                            }
                             else
                             {
                                 errorCount++;
@@ -308,7 +326,7 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
-                // Escribir parámetros Int
+                // Escribir parámetros Int (con detección de cambios)
                 foreach (var kvp in request.IntValues)
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
@@ -317,8 +335,24 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         try
                         {
+                            // Leer valor actual del PLC
+                            var currentValue = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(int));
+                            var oldValueStr = currentValue?.ToString() ?? "?";
+                            var newValueStr = kvp.Value.ToString();
+                            
                             var success = await _twinCATService.WriteVariableAsync(setting.PlcVariable, kvp.Value, typeof(int));
-                            if (success) successCount++;
+                            if (success)
+                            {
+                                successCount++;
+                                if (oldValueStr != newValueStr)
+                                {
+                                    changes.Add(new Dictionary<string, string> { 
+                                        {"name", setting.Name}, 
+                                        {"old", oldValueStr}, 
+                                        {"new", newValueStr} 
+                                    });
+                                }
+                            }
                             else
                             {
                                 errorCount++;
@@ -333,7 +367,7 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
-                // Escribir parámetros LongReal
+                // Escribir parámetros LongReal (con detección de cambios)
                 foreach (var kvp in request.LongRealValues)
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
@@ -342,8 +376,24 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         try
                         {
+                            // Leer valor actual del PLC
+                            var currentValue = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(double));
+                            var oldValueStr = currentValue != null ? Convert.ToDouble(currentValue).ToString(CultureInfo.InvariantCulture) : "?";
+                            var newValueStr = kvp.Value.ToString(CultureInfo.InvariantCulture);
+                            
                             var success = await _twinCATService.WriteVariableAsync(setting.PlcVariable, kvp.Value, typeof(double));
-                            if (success) successCount++;
+                            if (success)
+                            {
+                                successCount++;
+                                if (oldValueStr != newValueStr)
+                                {
+                                    changes.Add(new Dictionary<string, string> { 
+                                        {"name", setting.Name}, 
+                                        {"old", oldValueStr}, 
+                                        {"new", newValueStr} 
+                                    });
+                                }
+                            }
                             else
                             {
                                 errorCount++;
@@ -358,7 +408,7 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
-                // Escribir parámetros LongReal2 (segunda sección)
+                // Escribir parámetros LongReal2 (segunda sección, con detección de cambios)
                 foreach (var kvp in request.LongReal2Values)
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
@@ -367,8 +417,24 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         try
                         {
+                            // Leer valor actual del PLC
+                            var currentValue = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(double));
+                            var oldValueStr = currentValue != null ? Convert.ToDouble(currentValue).ToString(CultureInfo.InvariantCulture) : "?";
+                            var newValueStr = kvp.Value.ToString(CultureInfo.InvariantCulture);
+                            
                             var success = await _twinCATService.WriteVariableAsync(setting.PlcVariable, kvp.Value, typeof(double));
-                            if (success) successCount++;
+                            if (success)
+                            {
+                                successCount++;
+                                if (oldValueStr != newValueStr)
+                                {
+                                    changes.Add(new Dictionary<string, string> { 
+                                        {"name", setting.Name}, 
+                                        {"old", oldValueStr}, 
+                                        {"new", newValueStr} 
+                                    });
+                                }
+                            }
                             else
                             {
                                 errorCount++;
@@ -383,21 +449,44 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
-                // Operation log (L2) - Configuración
+                // Crear descripción con los primeros cambios
+                string description;
+                if (changes.Count == 0)
+                {
+                    description = $"Sin cambios ({successCount} params escritos)";
+                }
+                else if (changes.Count <= 3)
+                {
+                    var changeList = string.Join(", ", changes.Select(c => $"{c["name"]} ({c["old"]}→{c["new"]})"));
+                    description = $"{changes.Count} cambios → PLC: {changeList}";
+                }
+                else
+                {
+                    var first3 = string.Join(", ", changes.Take(3).Select(c => c["name"]));
+                    description = $"{changes.Count} cambios → PLC: {first3}...";
+                }
+                
+                if (errorCount > 0)
+                {
+                    description += $" ({errorCount} errores)";
+                }
+
+                // Operation log (L2) - Configuración con detalles
                 await _operationLog.LogAsync(
                     OperationCategory.Configuration,
                     errorCount == 0 ? OperationAction.ConfigWritePlc : OperationAction.ConfigChange,
-                    $"{successCount} OK, {errorCount} ERR",
-                    User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "System");
+                    description,
+                    user,
+                    changes.Count > 0 ? new Dictionary<string, object> { { "changes", changes } } : null);
 
-                _logger.LogInformation("⚙️ Wrote {Success} values to PLC ({Errors} errors)", successCount, errorCount);
+                _logger.LogInformation("⚙️ Wrote {Success} values to PLC ({Changes} changes, {Errors} errors)", successCount, changes.Count, errorCount);
 
                 if (errorCount > 0)
                 {
-                    return Ok(new { success = true, successCount, errorCount, errors });
+                    return Ok(new { success = true, successCount, errorCount, changesCount = changes.Count, errors });
                 }
 
-                return Ok(new { success = true, successCount, errorCount = 0 });
+                return Ok(new { success = true, successCount, errorCount = 0, changesCount = changes.Count });
             }
             catch (Exception ex)
             {
@@ -500,13 +589,29 @@ namespace SW.PC.API.Backend.Controllers
                 var user = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "System";
                 var now = DateTime.UtcNow;
                 int count = 0;
+                var changes = new List<Dictionary<string, string>>();
+
+                // Leer valores actuales de la BD para comparar
+                var currentSettings = await _dbContext.MachineSettings.ToDictionaryAsync(s => s.ParameterId, s => s.Value);
 
                 // Guardar parámetros Bool
                 foreach (var kvp in request.BoolValues)
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.BoolSettings.Count ? excelConfig.BoolSettings[idx] : null;
-                    await SaveSettingToDb(kvp.Key, setting?.PlcVariable ?? "", "Bool", kvp.Value.ToString().ToLower(), user, now);
+                    var newValue = kvp.Value.ToString().ToLower();
+                    var oldValue = currentSettings.TryGetValue(kvp.Key, out var old) ? old : null;
+                    
+                    if (oldValue != newValue)
+                    {
+                        changes.Add(new Dictionary<string, string> { 
+                            {"name", setting?.Name ?? kvp.Key}, 
+                            {"old", oldValue ?? "(nuevo)"}, 
+                            {"new", newValue} 
+                        });
+                    }
+                    
+                    await SaveSettingToDb(kvp.Key, setting?.PlcVariable ?? "", "Bool", newValue, user, now);
                     count++;
                 }
 
@@ -515,7 +620,19 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.IntSettings.Count ? excelConfig.IntSettings[idx] : null;
-                    await SaveSettingToDb(kvp.Key, setting?.PlcVariable ?? "", "Int", kvp.Value.ToString(), user, now);
+                    var newValue = kvp.Value.ToString();
+                    var oldValue = currentSettings.TryGetValue(kvp.Key, out var old) ? old : null;
+                    
+                    if (oldValue != newValue)
+                    {
+                        changes.Add(new Dictionary<string, string> { 
+                            {"name", setting?.Name ?? kvp.Key}, 
+                            {"old", oldValue ?? "(nuevo)"}, 
+                            {"new", newValue} 
+                        });
+                    }
+                    
+                    await SaveSettingToDb(kvp.Key, setting?.PlcVariable ?? "", "Int", newValue, user, now);
                     count++;
                 }
 
@@ -524,8 +641,19 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.LongRealSettings.Count ? excelConfig.LongRealSettings[idx] : null;
-                    await SaveSettingToDb(kvp.Key, setting?.PlcVariable ?? "", "LongReal", 
-                        kvp.Value.ToString(CultureInfo.InvariantCulture), user, now);
+                    var newValue = kvp.Value.ToString(CultureInfo.InvariantCulture);
+                    var oldValue = currentSettings.TryGetValue(kvp.Key, out var old) ? old : null;
+                    
+                    if (oldValue != newValue)
+                    {
+                        changes.Add(new Dictionary<string, string> { 
+                            {"name", setting?.Name ?? kvp.Key}, 
+                            {"old", oldValue ?? "(nuevo)"}, 
+                            {"new", newValue} 
+                        });
+                    }
+                    
+                    await SaveSettingToDb(kvp.Key, setting?.PlcVariable ?? "", "LongReal", newValue, user, now);
                     count++;
                 }
 
@@ -534,23 +662,52 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.LongReal2Settings.Count ? excelConfig.LongReal2Settings[idx] : null;
-                    await SaveSettingToDb(kvp.Key, setting?.PlcVariable ?? "", "LongReal2", 
-                        kvp.Value.ToString(CultureInfo.InvariantCulture), user, now);
+                    var newValue = kvp.Value.ToString(CultureInfo.InvariantCulture);
+                    var oldValue = currentSettings.TryGetValue(kvp.Key, out var old) ? old : null;
+                    
+                    if (oldValue != newValue)
+                    {
+                        changes.Add(new Dictionary<string, string> { 
+                            {"name", setting?.Name ?? kvp.Key}, 
+                            {"old", oldValue ?? "(nuevo)"}, 
+                            {"new", newValue} 
+                        });
+                    }
+                    
+                    await SaveSettingToDb(kvp.Key, setting?.PlcVariable ?? "", "LongReal2", newValue, user, now);
                     count++;
                 }
 
                 await _dbContext.SaveChangesAsync();
 
-                // Operation log (L2) - Configuración
+                // Crear descripción con los primeros cambios
+                string description;
+                if (changes.Count == 0)
+                {
+                    description = $"Sin cambios ({count} params revisados)";
+                }
+                else if (changes.Count <= 3)
+                {
+                    var changeList = string.Join(", ", changes.Select(c => $"{c["name"]} ({c["old"]}→{c["new"]})"));
+                    description = $"{changes.Count} cambios → DB: {changeList}";
+                }
+                else
+                {
+                    var first3 = string.Join(", ", changes.Take(3).Select(c => c["name"]));
+                    description = $"{changes.Count} cambios → DB: {first3}...";
+                }
+
+                // Operation log (L2) - Configuración con detalles
                 await _operationLog.LogAsync(
                     OperationCategory.Configuration,
                     OperationAction.ConfigChange,
-                    $"{count} OK, 0 ERR",
-                    user);
+                    description,
+                    user,
+                    changes.Count > 0 ? new Dictionary<string, object> { { "changes", changes } } : null);
 
-                _logger.LogInformation("⚙️ Saved {Count} values to database", count);
+                _logger.LogInformation("⚙️ Saved {Count} values to database ({Changes} changes)", count, changes.Count);
 
-                return Ok(new { success = true, count });
+                return Ok(new { success = true, count, changesCount = changes.Count });
             }
             catch (Exception ex)
             {

@@ -233,12 +233,14 @@ namespace SW.PC.API.Backend.Controllers
             {
                 var excelPath = _excelConfigService.GetExcelConfigPath();
                 var excelConfig = await _excelConfigService.LoadFastConfigurationAsync(excelPath);
+                var user = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "System";
                 
                 int successCount = 0;
                 int errorCount = 0;
                 var errors = new List<string>();
+                var changes = new List<Dictionary<string, string>>();
 
-                // Escribir parámetros Bool
+                // Escribir parámetros Bool (con detección de cambios)
                 foreach (var kvp in request.BoolValues)
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
@@ -247,8 +249,24 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         try
                         {
+                            // Leer valor actual del PLC
+                            var currentValue = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(bool));
+                            var oldValueStr = currentValue?.ToString()?.ToLower() ?? "?";
+                            var newValueStr = kvp.Value.ToString().ToLower();
+                            
                             var success = await _twinCATService.WriteVariableAsync(setting.PlcVariable, kvp.Value, typeof(bool));
-                            if (success) successCount++;
+                            if (success)
+                            {
+                                successCount++;
+                                if (oldValueStr != newValueStr)
+                                {
+                                    changes.Add(new Dictionary<string, string> { 
+                                        {"name", setting.Description}, 
+                                        {"old", oldValueStr}, 
+                                        {"new", newValueStr} 
+                                    });
+                                }
+                            }
                             else
                             {
                                 errorCount++;
@@ -263,7 +281,7 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
-                // Escribir parámetros Int
+                // Escribir parámetros Int (con detección de cambios)
                 foreach (var kvp in request.IntValues)
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
@@ -272,8 +290,24 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         try
                         {
+                            // Leer valor actual del PLC
+                            var currentValue = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(int));
+                            var oldValueStr = currentValue?.ToString() ?? "?";
+                            var newValueStr = kvp.Value.ToString();
+                            
                             var success = await _twinCATService.WriteVariableAsync(setting.PlcVariable, kvp.Value, typeof(int));
-                            if (success) successCount++;
+                            if (success)
+                            {
+                                successCount++;
+                                if (oldValueStr != newValueStr)
+                                {
+                                    changes.Add(new Dictionary<string, string> { 
+                                        {"name", setting.Description}, 
+                                        {"old", oldValueStr}, 
+                                        {"new", newValueStr} 
+                                    });
+                                }
+                            }
                             else
                             {
                                 errorCount++;
@@ -288,7 +322,7 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
-                // Escribir parámetros LReal
+                // Escribir parámetros LReal (con detección de cambios)
                 foreach (var kvp in request.LRealValues)
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
@@ -297,8 +331,24 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         try
                         {
+                            // Leer valor actual del PLC
+                            var currentValue = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(double));
+                            var oldValueStr = currentValue != null ? Convert.ToDouble(currentValue).ToString(System.Globalization.CultureInfo.InvariantCulture) : "?";
+                            var newValueStr = kvp.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            
                             var success = await _twinCATService.WriteVariableAsync(setting.PlcVariable, kvp.Value, typeof(double));
-                            if (success) successCount++;
+                            if (success)
+                            {
+                                successCount++;
+                                if (oldValueStr != newValueStr)
+                                {
+                                    changes.Add(new Dictionary<string, string> { 
+                                        {"name", setting.Description}, 
+                                        {"old", oldValueStr}, 
+                                        {"new", newValueStr} 
+                                    });
+                                }
+                            }
                             else
                             {
                                 errorCount++;
@@ -313,20 +363,44 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
-                // Registrar operación
+                // Crear descripción con los primeros cambios
+                string description;
+                if (changes.Count == 0)
+                {
+                    description = $"Sin cambios ({successCount} params escritos)";
+                }
+                else if (changes.Count <= 3)
+                {
+                    var changeList = string.Join(", ", changes.Select(c => $"{c["name"]} ({c["old"]}→{c["new"]})"));
+                    description = $"{changes.Count} cambios → PLC: {changeList}";
+                }
+                else
+                {
+                    var first3 = string.Join(", ", changes.Take(3).Select(c => c["name"]));
+                    description = $"{changes.Count} cambios → PLC: {first3}...";
+                }
+                
+                if (errorCount > 0)
+                {
+                    description += $" ({errorCount} errores)";
+                }
+
+                // Registrar operación con detalles
                 await _operationLog.LogAsync(
                     OperationCategory.Configuration,
                     errorCount == 0 ? OperationAction.FastConfigWritePlc : OperationAction.FastConfigChange,
-                    $"{successCount} OK, {errorCount} ERR",
-                    User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "System");
+                    description,
+                    user,
+                    changes.Count > 0 ? new Dictionary<string, object> { { "changes", changes } } : null);
 
-                _logger.LogInformation("⚡ Wrote {Success} fast config values to PLC ({Errors} errors)", successCount, errorCount);
+                _logger.LogInformation("⚡ Wrote {Success} fast config values to PLC ({Changes} changes, {Errors} errors)", successCount, changes.Count, errorCount);
 
                 return Ok(new
                 {
                     success = errorCount == 0,
                     successCount,
                     errorCount,
+                    changesCount = changes.Count,
                     errors = errors.Take(10).ToList()
                 });
             }
