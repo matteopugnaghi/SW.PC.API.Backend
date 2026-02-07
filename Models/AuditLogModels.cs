@@ -112,15 +112,6 @@ namespace SW.PC.API.Backend.Models
         PlcProgramDownload,     // Descarga de programa al PLC
         PlcFirmwareUpdate,      // Actualización de firmware
         
-        // Alarmas 🔴
-        AlarmTriggered,         // Alarma activada (para log, no audit)
-        AlarmAcknowledge,       // Reconocimiento de alarma - CRÍTICO
-        AlarmReset,             // Reset de alarma
-        AlarmSilence,           // Silenciar alarmas
-        AlarmSilenceEnd,        // Fin de silencio
-        AlarmConfigChange,      // Cambio en configuración de alarmas
-        AlarmHistoryExport,     // Exportación de histórico
-        
         // Recetas 🔴
         RecipeCreate,           // Crear receta
         RecipeUpdate,           // Modificar receta

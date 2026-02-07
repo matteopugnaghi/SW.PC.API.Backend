@@ -430,8 +430,6 @@ public class OperationLogsController : ControllerBase
     private static string GetActionLabel(OperationAction action) => action switch
     {
         OperationAction.ViewChange => "Cambio de vista",
-        OperationAction.AlarmAcknowledge => "Reconocer alarma",
-        OperationAction.AlarmReset => "Reset alarma",
         OperationAction.RecipeLoad => "Cargar receta",
         OperationAction.RecipeExecute => "Ejecutar receta",
         OperationAction.SetpointChange => "Cambio setpoint",
@@ -453,13 +451,7 @@ public class OperationLogsController : ControllerBase
             OperationAction.MenuOpen, 
             OperationAction.MenuClose 
         },
-        OperationCategory.Alarm => new[] { 
-            OperationAction.AlarmView, 
-            OperationAction.AlarmAcknowledge, 
-            OperationAction.AlarmReset,
-            OperationAction.AlarmSilence,
-            OperationAction.AlarmExport
-        },
+        OperationCategory.Alarm => Array.Empty<OperationAction>(), // No longer used
         OperationCategory.Recipe => new[] {
             OperationAction.RecipeView,
             OperationAction.RecipeCreate,
@@ -564,15 +556,12 @@ public class OperationLogsController : ControllerBase
             
             var severities = Enum.GetValues<OperationSeverity>();
             var categories = new[] { 
-                OperationCategory.Alarm, 
                 OperationCategory.Process, 
                 OperationCategory.PlcAlarmHistory, 
                 OperationCategory.Recipe,
                 OperationCategory.Navigation
             };
             var actions = new[] {
-                OperationAction.AlarmView,
-                OperationAction.AlarmAcknowledge,
                 OperationAction.PlcAlarmActivated,
                 OperationAction.PlcAlarmDeactivated,
                 OperationAction.ProcessStart,

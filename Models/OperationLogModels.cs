@@ -65,13 +65,6 @@ public enum OperationAction
     MenuOpen = 1,
     MenuClose = 2,
     
-    // Alarm UI (10-19)
-    AlarmView = 10,
-    AlarmAcknowledge = 11,
-    AlarmReset = 12,
-    AlarmSilence = 13,
-    AlarmExport = 14,
-    
     // Recipe / Wash Types (20-39)
     RecipeView = 20,
     RecipeCreate = 21,
@@ -342,7 +335,6 @@ public class OperationLog
             OperationAction.PlcInfoActivated => OperationSeverity.Info,
             OperationAction.PlcInfoDeactivated => OperationSeverity.Info,
             OperationAction.SystemError => OperationSeverity.Critical,
-            OperationAction.AlarmAcknowledge => OperationSeverity.Notice,
             _ => OperationSeverity.Info
         };
     }
