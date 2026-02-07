@@ -383,7 +383,6 @@ public class OperationLogsController : ControllerBase
         OperationCategory.Alarm => "Alarmas Usuario",
         OperationCategory.Recipe => "Recetas",
         OperationCategory.Process => "Procesos",
-        OperationCategory.Setpoint => "Setpoints",
         OperationCategory.Statistics => "Estadísticas",
         OperationCategory.Export => "Exportaciones",
         OperationCategory.Backup => "Backup",
@@ -398,7 +397,6 @@ public class OperationLogsController : ControllerBase
         OperationCategory.Alarm => "🚨",
         OperationCategory.Recipe => "📋",
         OperationCategory.Process => "⚙️",
-        OperationCategory.Setpoint => "🎯",
         OperationCategory.Statistics => "📊",
         OperationCategory.Export => "📤",
         OperationCategory.Backup => "💾",
@@ -432,7 +430,6 @@ public class OperationLogsController : ControllerBase
         OperationAction.ViewChange => "Cambio de vista",
         OperationAction.RecipeLoad => "Cargar receta",
         OperationAction.RecipeExecute => "Ejecutar receta",
-        OperationAction.SetpointChange => "Cambio setpoint",
         OperationAction.ProcessStart => "Iniciar proceso",
         OperationAction.ProcessStop => "Parar proceso",
         OperationAction.PlcAlarmActivated => "Alarma PLC activada",
@@ -472,12 +469,6 @@ public class OperationLogsController : ControllerBase
             OperationAction.ProcessResume,
             OperationAction.ProcessModeChange,
             OperationAction.CommandExecute
-        },
-        OperationCategory.Setpoint => new[] {
-            OperationAction.SetpointView,
-            OperationAction.SetpointChange,
-            OperationAction.SetpointOverride,
-            OperationAction.LimitChange
         },
         OperationCategory.Statistics => new[] {
             OperationAction.StatisticsView,

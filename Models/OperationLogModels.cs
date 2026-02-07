@@ -30,9 +30,6 @@ public enum OperationCategory
     /// <summary>Control de proceso</summary>
     Process = 3,
     
-    /// <summary>Setpoints</summary>
-    Setpoint = 4,
-    
     /// <summary>Estadísticas</summary>
     Statistics = 5,
     
@@ -96,12 +93,6 @@ public enum OperationAction
     CommandExecute = 45,
     SemiautomaticToggle = 46,   // Toggle elemento en panel semiauto
     ManualModeToggle = 47,      // Toggle elemento en modo manual
-    
-    // Setpoint (50-59)
-    SetpointView = 50,
-    SetpointChange = 51,
-    SetpointOverride = 52,
-    LimitChange = 53,
     
     // Statistics (60-69)
     StatisticsView = 60,

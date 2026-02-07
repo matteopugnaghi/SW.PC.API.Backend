@@ -126,12 +126,6 @@ namespace SW.PC.API.Backend.Models
         RecipeExport,           // Exportar receta
         RecipeImport,           // Importar receta
         
-        // Setpoints/Consignas 🔴
-        SetpointChange,         // Cambio de setpoint - CRÍTICO
-        SetpointOverride,       // Override manual de setpoint
-        SetpointReset,          // Reset a valor default
-        LimitChange,            // Cambio de límites
-        
         // Control de Proceso 🔴
         ProcessStart,           // Arranque de proceso
         ProcessStop,            // Parada de proceso
