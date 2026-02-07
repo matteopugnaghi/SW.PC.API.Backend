@@ -33,9 +33,6 @@ public enum OperationCategory
     /// <summary>Estadísticas</summary>
     Statistics = 5,
     
-    /// <summary>Exportaciones</summary>
-    Export = 6,
-    
     /// <summary>Backup</summary>
     Backup = 7,
     
@@ -80,9 +77,6 @@ public enum OperationAction
     StatisticsExport = 61,
     ReportGenerate = 62,
     ReportExport = 63,
-    
-    // Export (70-79)
-    DataExport = 70,
     
     // Backup (80-89)
     BackupCreate = 80,

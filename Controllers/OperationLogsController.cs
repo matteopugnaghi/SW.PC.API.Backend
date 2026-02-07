@@ -384,7 +384,6 @@ public class OperationLogsController : ControllerBase
         OperationCategory.Recipe => "Recetas",
         OperationCategory.Process => "Procesos",
         OperationCategory.Statistics => "Estadísticas",
-        OperationCategory.Export => "Exportaciones",
         OperationCategory.Backup => "Backup",
         OperationCategory.PlcAlarmHistory => "Historial Alarmas PLC",
         OperationCategory.System => "Sistema",
@@ -398,7 +397,6 @@ public class OperationLogsController : ControllerBase
         OperationCategory.Recipe => "📋",
         OperationCategory.Process => "⚙️",
         OperationCategory.Statistics => "📊",
-        OperationCategory.Export => "📤",
         OperationCategory.Backup => "💾",
         OperationCategory.PlcAlarmHistory => "🔔",
         OperationCategory.System => "🖥️",
@@ -471,9 +469,6 @@ public class OperationLogsController : ControllerBase
             OperationAction.StatisticsExport,
             OperationAction.ReportGenerate,
             OperationAction.ReportExport
-        },
-        OperationCategory.Export => new[] { 
-            OperationAction.DataExport 
         },
         OperationCategory.Backup => new[] {
             OperationAction.BackupCreate,
