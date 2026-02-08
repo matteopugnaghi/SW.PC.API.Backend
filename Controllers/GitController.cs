@@ -41,14 +41,16 @@ public class GitController : ControllerBase
 {
     private readonly IGitOperationsService _gitService;
     private readonly IAuditLogService _auditLog;
+    private readonly ISoftwareIntegrityService _integrityService;
     private readonly ILogger<GitController> _logger;
     private static readonly string BackupLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "backup_log.json");
     private static readonly string DeploymentLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "deployment_certificates.json");
 
-    public GitController(IGitOperationsService gitService, IAuditLogService auditLog, ILogger<GitController> logger)
+    public GitController(IGitOperationsService gitService, IAuditLogService auditLog, ISoftwareIntegrityService integrityService, ILogger<GitController> logger)
     {
         _gitService = gitService;
         _auditLog = auditLog;
+        _integrityService = integrityService;
         _logger = logger;
     }
 
@@ -227,7 +229,7 @@ public class GitController : ControllerBase
         {
             await _auditLog.LogToAllProjectsAsync(
                 AuditCategory.Git,
-                AuditAction.GitCommit, // No hay acción específica de discard
+                AuditAction.GitDiscard,
                 AuditResult.Warning,
                 $"⚠️ Descartados cambios en {repoName}: {request?.FilePath ?? "TODOS los archivos"}",
                 null, "Operator");
@@ -249,7 +251,7 @@ public class GitController : ControllerBase
         // 📋 AUDIT LOG: Revert (Warning por ser operación crítica) - 🌐 Log a TODOS los proyectos
         await _auditLog.LogToAllProjectsAsync(
             AuditCategory.Git,
-            AuditAction.GitCommit,
+            AuditAction.GitRevert,
             result.Success ? AuditResult.Warning : AuditResult.Failure,
             $"⚠️ REVERT en {repoName} al commit {request.CommitHash}",
             null, "Operator");
@@ -264,33 +266,70 @@ public class GitController : ControllerBase
         var repoPaths = GetRepoPaths();
         var results = new Dictionary<string, GitOperationResult>();
         var status = await _gitService.GetAllRepositoriesStatusAsync();
+        var committedRepos = new List<string>();
+        
         foreach (var (name, repoStatus) in status.Repositories)
         {
             if (repoStatus.IsValid && repoStatus.HasChanges)
             {
                 var repoPath = repoPaths.GetValueOrDefault(name) ?? "";
-                if (!string.IsNullOrEmpty(repoPath)) results[name] = await _gitService.CommitAsync(repoPath, request.Message);
+                if (!string.IsNullOrEmpty(repoPath))
+                {
+                    results[name] = await _gitService.CommitAsync(repoPath, request.Message);
+                    if (results[name].Success) committedRepos.Add(name);
+                }
             }
             else if (!repoStatus.HasChanges) results[name] = new GitOperationResult { Success = true, Message = "No changes to commit" };
         }
+        
+        // 📋 AUDIT LOG: Commit All
+        if (committedRepos.Count > 0)
+        {
+            var author = ExtractAuthorFromMessage(request.Message);
+            await _auditLog.LogToAllProjectsAsync(
+                AuditCategory.Git,
+                AuditAction.GitCommit,
+                AuditResult.Success,
+                $"Commit ALL en [{string.Join(", ", committedRepos)}]: {request.Message}",
+                null, author);
+        }
+        
         return Ok(results);
     }
 
     [HttpPost("push-all")]
-    public async Task<ActionResult<Dictionary<string, GitOperationResult>>> PushAll()
+    public async Task<ActionResult<Dictionary<string, GitOperationResult>>> PushAll([FromQuery] string? operatorName = null)
     {
         var repoPaths = GetRepoPaths();
         var results = new Dictionary<string, GitOperationResult>();
         var status = await _gitService.GetAllRepositoriesStatusAsync();
+        var pushedRepos = new List<string>();
+        
         foreach (var (name, repoStatus) in status.Repositories)
         {
             if (repoStatus.IsValid && repoStatus.CommitsAhead > 0)
             {
                 var repoPath = repoPaths.GetValueOrDefault(name) ?? "";
-                if (!string.IsNullOrEmpty(repoPath)) results[name] = await _gitService.PushAsync(repoPath);
+                if (!string.IsNullOrEmpty(repoPath))
+                {
+                    results[name] = await _gitService.PushAsync(repoPath);
+                    if (results[name].Success) pushedRepos.Add(name);
+                }
             }
             else if (repoStatus.CommitsAhead == 0) results[name] = new GitOperationResult { Success = true, Message = "Nothing to push" };
         }
+        
+        // 📋 AUDIT LOG: Push All
+        if (pushedRepos.Count > 0)
+        {
+            await _auditLog.LogToAllProjectsAsync(
+                AuditCategory.Git,
+                AuditAction.GitPush,
+                AuditResult.Success,
+                $"Push ALL en [{string.Join(", ", pushedRepos)}] al remoto",
+                null, operatorName ?? "System");
+        }
+        
         return Ok(results);
     }
 
@@ -374,6 +413,14 @@ public class GitController : ControllerBase
         // Log the release
         await LogReleaseAsync(repoName, tagName, request.OperatorName ?? "System", message);
         
+        // 📋 AUDIT LOG: Create Release - 🌐 Log a TODOS los proyectos
+        await _auditLog.LogToAllProjectsAsync(
+            AuditCategory.Git,
+            AuditAction.GitRelease,
+            AuditResult.Success,
+            $"🌟 Release creado en {repoName}: {tagName}",
+            null, request.OperatorName ?? "System");
+        
         return Ok(new GitOperationResult 
         { 
             Success = true, 
@@ -418,6 +465,15 @@ public class GitController : ControllerBase
         
         _logger.LogInformation("?? Configuring SSH signing with key: {KeyPath}", request.KeyPath);
         var result = await _gitService.ConfigureSshSigningAsync(request.KeyPath);
+        
+        // 📋 AUDIT LOG: SSH Signing Enable
+        await _auditLog.LogAsync(
+            AuditCategory.Security,
+            result.Success ? AuditAction.SshSigningEnable : AuditAction.SshSigningEnable,
+            result.Success ? AuditResult.Success : AuditResult.Failure,
+            $"SSH signing configured: KeyPath={request.KeyPath} | Result: {result.Message}",
+            null, "System");
+        
         return Ok(result);
     }
 
@@ -489,6 +545,14 @@ public class GitController : ControllerBase
 
             _logger.LogInformation("?? Generated new SSH key for {Email}", request.Email);
 
+            // 📋 AUDIT LOG: SSH Key Generate
+            await _auditLog.LogAsync(
+                AuditCategory.Security,
+                AuditAction.SshKeyGenerate,
+                AuditResult.Success,
+                $"SSH Ed25519 key generated for {request.Email} | Path: {publicKeyPath}",
+                null, "System");
+
             return Ok(new GenerateSshKeyResult
             {
                 Success = true,
@@ -517,6 +581,15 @@ public class GitController : ControllerBase
     {
         _logger.LogInformation("?? Request to disable SSH signing");
         var result = await _gitService.DisableSshSigningAsync();
+        
+        // 📋 AUDIT LOG: SSH Signing Disable
+        await _auditLog.LogAsync(
+            AuditCategory.Security,
+            AuditAction.SshSigningDisable,
+            result.Success ? AuditResult.Success : AuditResult.Failure,
+            $"SSH signing disabled: {result.Message}",
+            null, "System");
+        
         return Ok(result);
     }
 
@@ -539,6 +612,15 @@ public class GitController : ControllerBase
     {
         _logger.LogInformation("??? Request to delete SSH keys");
         var result = await _gitService.DeleteSshKeysAsync();
+        
+        // 📋 AUDIT LOG: SSH Key Delete (CRITICAL)
+        await _auditLog.LogAsync(
+            AuditCategory.Security,
+            AuditAction.SshKeyDelete,
+            result.Success ? AuditResult.Success : AuditResult.Failure,
+            $"SSH keys deleted from system: {result.Message}",
+            null, "System");
+        
         return Ok(result);
     }
 
@@ -550,6 +632,15 @@ public class GitController : ControllerBase
     {
         _logger.LogInformation("?? Request to export SSH key");
         var result = await _gitService.ExportSshKeyAsync();
+        
+        // 📋 AUDIT LOG: SSH Key Export
+        await _auditLog.LogAsync(
+            AuditCategory.Security,
+            AuditAction.SshKeyExport,
+            result.Success ? AuditResult.Success : AuditResult.Failure,
+            $"SSH key exported: {(result.Success ? "Public key fingerprint available" : result.Message)}",
+            null, "System");
+        
         return Ok(result);
     }
 
@@ -564,6 +655,15 @@ public class GitController : ControllerBase
         
         _logger.LogInformation("?? Request to import SSH key");
         var result = await _gitService.ImportSshKeyAsync(request.PrivateKey, request.PublicKey);
+        
+        // 📋 AUDIT LOG: SSH Key Import (CRITICAL)
+        await _auditLog.LogAsync(
+            AuditCategory.Security,
+            AuditAction.SshKeyImport,
+            result.Success ? AuditResult.Success : AuditResult.Failure,
+            $"SSH key imported: {result.Message}",
+            null, "System");
+        
         return Ok(result);
     }
 
@@ -588,6 +688,15 @@ public class GitController : ControllerBase
         
         _logger.LogInformation("? Adding authorized key for {Owner}", request.OwnerName);
         var result = await _gitService.AddAuthorizedKeyAsync(request.Fingerprint, request.OwnerName, request.OwnerEmail ?? "");
+        
+        // 📋 AUDIT LOG: SSH Key Authorize (CRITICAL - who can modify software)
+        await _auditLog.LogAsync(
+            AuditCategory.Security,
+            AuditAction.SshKeyAuthorize,
+            result.Success ? AuditResult.Success : AuditResult.Failure,
+            $"SSH key authorized: Owner={request.OwnerName}, Email={request.OwnerEmail ?? "N/A"}, Fingerprint={request.Fingerprint?.Substring(0, Math.Min(20, request.Fingerprint?.Length ?? 0))}...",
+            null, "System");
+        
         return Ok(result);
     }
 
@@ -601,6 +710,15 @@ public class GitController : ControllerBase
         // URL decode the fingerprint (SHA256: gets encoded)
         var decodedFingerprint = Uri.UnescapeDataString(fingerprint);
         var result = await _gitService.RemoveAuthorizedKeyAsync(decodedFingerprint);
+        
+        // 📋 AUDIT LOG: SSH Key Revoke (CRITICAL - revoking software modification rights)
+        await _auditLog.LogAsync(
+            AuditCategory.Security,
+            AuditAction.SshKeyRevoke,
+            result.Success ? AuditResult.Success : AuditResult.Failure,
+            $"SSH key authorization revoked: Fingerprint={decodedFingerprint?.Substring(0, Math.Min(30, decodedFingerprint?.Length ?? 0))}...",
+            null, "System");
+        
         return Ok(result);
     }
 
@@ -631,8 +749,17 @@ public class GitController : ControllerBase
     [HttpPost("access-control")]
     public async Task<ActionResult<GitOperationResult>> SetAccessControlEnabled([FromBody] SetAccessControlRequest request)
     {
-        _logger.LogInformation("?? Setting access control to: {Enabled}", request.Enabled);
+        _logger.LogInformation("🔐 Setting access control to: {Enabled}", request.Enabled);
         var result = await _gitService.SetAccessControlEnabledAsync(request.Enabled);
+        
+        // 📋 AUDIT LOG: Access Control Change
+        await _auditLog.LogAsync(
+            AuditCategory.Security,
+            AuditAction.GitAccessControl,
+            result.Success ? AuditResult.Success : AuditResult.Failure,
+            $"Git Access Control {(request.Enabled ? "ACTIVADO" : "DESACTIVADO")}",
+            "Operator");
+        
         return Ok(result);
     }
 
@@ -675,7 +802,7 @@ public class GitController : ControllerBase
 
                 // 2. A�adir c�digo fuente (excluyendo basura)
                 var excludeFolders = GetExcludeFolders(repoName);
-                var excludeExtensions = new[] { ".exe", ".dll", ".pdb", ".cache", ".log" };
+                var excludeExtensions = new[] { ".exe", ".dll", ".pdb", ".cache", ".log", ".db", ".db-shm", ".db-wal", ".zip" };
                 
                 await AddDirectoryToZipAsync(archive, repoPath, $"source_{repoName}", excludeFolders, excludeExtensions);
             }
@@ -683,7 +810,7 @@ public class GitController : ControllerBase
             memoryStream.Position = 0;
             var fileName = $"backup_{repoName}_{machineId}_{DateTime.Now:yyyy-MM-dd_HHmmss}.zip";
             
-            // Registrar el backup en el log
+            // Registrar el backup en el log interno
             await LogBackupAsync(new BackupLogEntry
             {
                 Timestamp = DateTime.Now,
@@ -697,7 +824,16 @@ public class GitController : ControllerBase
                 Reason = repoStatus.CommitsAhead > 0 ? "Offline Backup (commits pendientes)" : "Manual Export"
             });
             
-            _logger.LogInformation("? Backup ZIP generated: {FileName}", fileName);
+            // 📋 Audit log unificado (EU CRA)
+            var commitShort = repoStatus.LastCommit?.Hash is { Length: >= 8 } h ? h[..8] : (repoStatus.LastCommit?.Hash ?? "unknown");
+            await _auditLog.LogAsync(
+                AuditCategory.Git,
+                AuditAction.GitBackupExport,
+                AuditResult.Success,
+                $"Git backup exported: {repoName.ToUpper()} - Branch: {repoStatus.CurrentBranch}, Commit: {commitShort}, Machine: {machineId}, File: {fileName}",
+                operatorName);
+            
+            _logger.LogInformation("✅ Backup ZIP generated: {FileName}", fileName);
             return File(memoryStream.ToArray(), "application/zip", fileName);
         }
         catch (Exception ex)
@@ -750,10 +886,10 @@ public class GitController : ControllerBase
     {
         return repoName.ToLower() switch
         {
-            "backend" => new[] { "bin", "obj", ".git", ".vs", "node_modules", "packages" },
+            "backend" => new[] { "bin", "obj", ".git", ".vs", "node_modules", "packages", "Data", "Projects", "backups", "publish", "wwwroot" },
             "frontend" => new[] { "node_modules", ".git", "build", "dist", ".cache", "coverage" },
             "twincat" => new[] { ".git", "_Boot", "_CompileInfo", "__Pou" },
-            _ => new[] { ".git", "bin", "obj", "node_modules" }
+            _ => new[] { ".git", "bin", "obj", "node_modules", "Data" }
         };
     }
 
@@ -878,21 +1014,69 @@ public class GitController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene el historial de certificados de deployment (generados en cada push)
+    /// Obtiene información de deployment: estado actual de componentes + historial de operaciones
     /// </summary>
     [HttpGet("deployment-certificates")]
-    public async Task<ActionResult<List<DeploymentCertificate>>> GetDeploymentCertificates([FromQuery] string? repository = null, [FromQuery] int count = 50)
+    public async Task<ActionResult<object>> GetDeploymentCertificates([FromQuery] string? repository = null, [FromQuery] int count = 50)
     {
+        // Obtener historial de operaciones (pushes/releases)
         var certificates = await LoadDeploymentCertificatesAsync();
         
         if (!string.IsNullOrEmpty(repository))
             certificates = certificates.Where(c => c.Repository.Equals(repository, StringComparison.OrdinalIgnoreCase)).ToList();
         
-        return Ok(certificates.OrderByDescending(c => c.Timestamp).Take(count).ToList());
+        // Obtener estado actual de componentes (de deploy-version.json o git en vivo)
+        var versionInfo = _integrityService.GetSoftwareVersionInfo();
+        
+        var currentState = new[]
+        {
+            new {
+                Repository = "backend",
+                Version = versionInfo.Backend?.Version ?? "N/A",
+                CommitSha = versionInfo.Backend?.CommitSha ?? "N/A",
+                Branch = versionInfo.Backend?.Branch ?? "N/A",
+                CommitDate = versionInfo.Backend?.CommitDate ?? "N/A",
+                CommitAuthor = versionInfo.Backend?.CommitAuthor ?? "N/A",
+                IsSigned = versionInfo.Backend?.IsSigned ?? false,
+                SignatureStatus = versionInfo.Backend?.SignatureStatus ?? "N/A",
+                Integrity = versionInfo.Backend?.Integrity ?? "unknown"
+            },
+            new {
+                Repository = "frontend",
+                Version = versionInfo.Frontend?.Version ?? "N/A",
+                CommitSha = versionInfo.Frontend?.CommitSha ?? "N/A",
+                Branch = versionInfo.Frontend?.Branch ?? "N/A",
+                CommitDate = versionInfo.Frontend?.CommitDate ?? "N/A",
+                CommitAuthor = versionInfo.Frontend?.CommitAuthor ?? "N/A",
+                IsSigned = versionInfo.Frontend?.IsSigned ?? false,
+                SignatureStatus = versionInfo.Frontend?.SignatureStatus ?? "N/A",
+                Integrity = versionInfo.Frontend?.Integrity ?? "unknown"
+            },
+            new {
+                Repository = "twincat",
+                Version = versionInfo.TwinCatPlc?.Version ?? "N/A",
+                CommitSha = versionInfo.TwinCatPlc?.CommitSha ?? "N/A",
+                Branch = versionInfo.TwinCatPlc?.Branch ?? "N/A",
+                CommitDate = versionInfo.TwinCatPlc?.CommitDate ?? "N/A",
+                CommitAuthor = versionInfo.TwinCatPlc?.CommitAuthor ?? "N/A",
+                IsSigned = versionInfo.TwinCatPlc?.IsSigned ?? false,
+                SignatureStatus = versionInfo.TwinCatPlc?.SignatureStatus ?? "N/A",
+                Integrity = versionInfo.TwinCatPlc?.Integrity ?? "unknown"
+            }
+        };
+        
+        return Ok(new 
+        {
+            CurrentState = currentState,
+            OperationHistory = certificates.OrderByDescending(c => c.Timestamp).Take(count).ToList(),
+            LastVerification = versionInfo.LastVerificationDate,
+            SystemStatus = versionInfo.SystemStatus
+        });
     }
 
     /// <summary>
-    /// Descarga todos los certificados de deployment como archivo JSON para auditor�a
+    /// Descarga información de deployment como archivo JSON para auditoría
+    /// Incluye estado actual de componentes + historial de operaciones
     /// </summary>
     [HttpGet("deployment-certificates/download")]
     public async Task<IActionResult> DownloadDeploymentCertificates([FromQuery] string? repository = null)
@@ -902,19 +1086,86 @@ public class GitController : ControllerBase
         if (!string.IsNullOrEmpty(repository))
             certificates = certificates.Where(c => c.Repository.Equals(repository, StringComparison.OrdinalIgnoreCase)).ToList();
         
+        // Obtener estado actual de componentes
+        var versionInfo = _integrityService.GetSoftwareVersionInfo();
+        
         var exportData = new
         {
             ExportedAt = DateTime.Now,
             MachineId = Environment.MachineName,
-            TotalCertificates = certificates.Count,
-            FilteredByRepository = repository ?? "ALL",
             LegalNotice = "EU Cyber Resilience Act - Deployment Audit Trail",
-            Certificates = certificates.OrderByDescending(c => c.Timestamp).ToList()
+            
+            // Estado actual de cada componente (de deploy-version.json o git en vivo)
+            CurrentState = new
+            {
+                LastVerification = versionInfo.LastVerificationDate,
+                SystemStatus = versionInfo.SystemStatus,
+                Components = new[]
+                {
+                    new {
+                        Name = "Backend",
+                        Version = versionInfo.Backend?.Version ?? "N/A",
+                        CommitSha = versionInfo.Backend?.CommitSha ?? "N/A",
+                        CommitShaFull = versionInfo.Backend?.CommitShaFull ?? "N/A",
+                        Branch = versionInfo.Backend?.Branch ?? "N/A",
+                        CommitDate = versionInfo.Backend?.CommitDate ?? "N/A",
+                        CommitAuthor = versionInfo.Backend?.CommitAuthor ?? "N/A",
+                        IsSigned = versionInfo.Backend?.IsSigned ?? false,
+                        SignatureStatus = versionInfo.Backend?.SignatureStatus ?? "N/A",
+                        Integrity = versionInfo.Backend?.Integrity ?? "unknown"
+                    },
+                    new {
+                        Name = "Frontend",
+                        Version = versionInfo.Frontend?.Version ?? "N/A",
+                        CommitSha = versionInfo.Frontend?.CommitSha ?? "N/A",
+                        CommitShaFull = versionInfo.Frontend?.CommitShaFull ?? "N/A",
+                        Branch = versionInfo.Frontend?.Branch ?? "N/A",
+                        CommitDate = versionInfo.Frontend?.CommitDate ?? "N/A",
+                        CommitAuthor = versionInfo.Frontend?.CommitAuthor ?? "N/A",
+                        IsSigned = versionInfo.Frontend?.IsSigned ?? false,
+                        SignatureStatus = versionInfo.Frontend?.SignatureStatus ?? "N/A",
+                        Integrity = versionInfo.Frontend?.Integrity ?? "unknown"
+                    },
+                    new {
+                        Name = "TwinCAT PLC",
+                        Version = versionInfo.TwinCatPlc?.Version ?? "N/A",
+                        CommitSha = versionInfo.TwinCatPlc?.CommitSha ?? "N/A",
+                        CommitShaFull = versionInfo.TwinCatPlc?.CommitShaFull ?? "N/A",
+                        Branch = versionInfo.TwinCatPlc?.Branch ?? "N/A",
+                        CommitDate = versionInfo.TwinCatPlc?.CommitDate ?? "N/A",
+                        CommitAuthor = versionInfo.TwinCatPlc?.CommitAuthor ?? "N/A",
+                        IsSigned = versionInfo.TwinCatPlc?.IsSigned ?? false,
+                        SignatureStatus = versionInfo.TwinCatPlc?.SignatureStatus ?? "N/A",
+                        Integrity = versionInfo.TwinCatPlc?.Integrity ?? "unknown"
+                    }
+                }
+            },
+            
+            // Historial de operaciones (pushes/releases)
+            OperationHistory = new
+            {
+                TotalOperations = certificates.Count,
+                FilteredByRepository = repository ?? "ALL",
+                Operations = certificates.OrderByDescending(c => c.Timestamp).ToList()
+            }
         };
         
         var json = JsonSerializer.Serialize(exportData, new JsonSerializerOptions { WriteIndented = true });
         var bytes = System.Text.Encoding.UTF8.GetBytes(json);
-        var fileName = $"deployment_certificates_{Environment.MachineName}_{DateTime.Now:yyyy-MM-dd}.json";
+        var fileName = $"deployment_info_{Environment.MachineName}_{DateTime.Now:yyyy-MM-dd}.json";
+        
+        // 📋 AUDIT LOG: Deployment Info Export (detallado)
+        var backendStatus = $"Backend: v{versionInfo.Backend?.Version ?? "N/A"} [{versionInfo.Backend?.Integrity ?? "?"}]";
+        var frontendStatus = $"Frontend: v{versionInfo.Frontend?.Version ?? "N/A"} [{versionInfo.Frontend?.Integrity ?? "?"}]";
+        var plcStatus = $"TwinCAT: v{versionInfo.TwinCatPlc?.Version ?? "N/A"} [{versionInfo.TwinCatPlc?.Integrity ?? "?"}]";
+        var signedCount = new[] { versionInfo.Backend?.IsSigned, versionInfo.Frontend?.IsSigned, versionInfo.TwinCatPlc?.IsSigned }.Count(s => s == true);
+        
+        await _auditLog.LogAsync(
+            AuditCategory.Certificate,
+            AuditAction.CertificateDownload,
+            AuditResult.Success,
+            $"Deployment info exported: {backendStatus}, {frontendStatus}, {plcStatus} | Signed: {signedCount}/3 | Operations: {certificates.Count} | File: {fileName}",
+            null, "System");
         
         return File(bytes, "application/json", fileName);
     }

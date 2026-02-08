@@ -16,6 +16,7 @@ namespace SW.PC.API.Backend.Models
         Configuration,  // Cambios de configuración
         Git,            // Operaciones Git
         Certificate,    // Gestión de certificados
+        Security,       // Seguridad: SSH signing, claves autorizadas
         System,         // Eventos del sistema
         
         // 🔴 PENDIENTES - Para implementar
@@ -86,10 +87,27 @@ namespace SW.PC.API.Backend.Models
         GitCommit,
         GitPush,
         GitPull,
+        GitBackupExport,        // Exportación manual de backup de código fuente (ZIP)
+        GitRelease,             // Creación de release/tag
+        GitDiscard,             // Descarte de cambios locales
+        GitRevert,              // Revert a commit anterior
+        GitAccessControl,       // Cambio en control de acceso Git
         
         // Certificados ✅
         CertificateGenerate,
+        CertificateDownload,
+        CertificateVerify,
         CertificateRevoke,
+        
+        // SSH Signing ✅ (EU CRA - Firma de código)
+        SshKeyGenerate,         // Generación de clave SSH
+        SshKeyDelete,           // Eliminación de clave SSH
+        SshKeyExport,           // Exportación de clave SSH
+        SshKeyImport,           // Importación de clave SSH
+        SshSigningEnable,       // Activación de firma SSH
+        SshSigningDisable,      // Desactivación de firma SSH
+        SshKeyAuthorize,        // Autorización de clave para modificar software
+        SshKeyRevoke,           // Revocación de clave autorizada
         
         // Sistema ✅ (parcial)
         SystemStart,

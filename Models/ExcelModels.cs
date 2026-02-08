@@ -1350,6 +1350,10 @@ namespace SW.PC.API.Backend.Models.Excel
     /// </summary>
     public class SoftwareVersionInfo
     {
+        // ===== IDENTIFICACIÓN DE MÁQUINA (EU CRA) =====
+        /// <summary>Nombre del PC donde se ejecuta el sistema</summary>
+        public string MachineName { get; set; } = Environment.MachineName;
+        
         // ===== COMPONENTES CON CONTROL DE VERSIONES GIT =====
         public GitVersionComponent Backend { get; set; } = new();
         public GitVersionComponent Frontend { get; set; } = new();

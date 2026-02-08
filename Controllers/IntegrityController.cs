@@ -68,6 +68,14 @@ namespace SW.PC.API.Backend.Controllers
             
             var result = await _integrityService.VerifyAllIntegrityAsync();
             var info = _integrityService.GetSoftwareVersionInfo();
+            
+            // 📋 AUDIT LOG: Manual Integrity Verification
+            await _auditLog.LogAsync(
+                AuditCategory.Integrity,
+                AuditAction.IntegrityVerify,
+                result ? AuditResult.Success : AuditResult.Warning,
+                $"Verificación manual de integridad por {verifiedBy}: {(result ? "PASADA" : "CON ADVERTENCIAS")}",
+                null, verifiedBy);
 
             return Ok(new
             {
@@ -134,14 +142,16 @@ namespace SW.PC.API.Backend.Controllers
             // 📋 AUDIT LOG: Certificate Download
             await _auditLog.LogAsync(
                 AuditCategory.Certificate,
-                AuditAction.CertificateGenerate,
+                AuditAction.CertificateDownload,
                 AuditResult.Success,
                 $"Certificado de integridad descargado para máquina {request.MachineId}",
                 null, request.OperatorName ?? "System");
 
+            // Usar las mismas opciones de serialización que la API global (camelCase)
             var json = JsonSerializer.Serialize(certificate, new JsonSerializerOptions
             {
-                WriteIndented = true
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             });
 
             var fileName = $"integrity_certificate_{request.MachineId}_{DateTime.Now:yyyyMMdd_HHmmss}.json";
@@ -166,7 +176,7 @@ namespace SW.PC.API.Backend.Controllers
             // 📋 AUDIT LOG: Certificate Verification
             await _auditLog.LogAsync(
                 AuditCategory.Certificate,
-                AuditAction.CertificateGenerate, // Usamos la misma acción ya que no hay una específica de verify
+                AuditAction.CertificateVerify,
                 isValid ? AuditResult.Success : AuditResult.Warning,
                 $"Verificación de certificado {certificate.CertificateId}: {(isValid ? "VÁLIDO" : "INVÁLIDO")}",
                 null, "System");
@@ -186,7 +196,7 @@ namespace SW.PC.API.Backend.Controllers
         /// Registrar verificación manual por administrador
         /// </summary>
         [HttpPost("admin-verify")]
-        public IActionResult RegisterAdminVerification([FromBody] AdminVerificationRequest request)
+        public async Task<IActionResult> RegisterAdminVerification([FromBody] AdminVerificationRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.AdminUser))
             {
@@ -195,6 +205,14 @@ namespace SW.PC.API.Backend.Controllers
 
             _integrityService.RegisterAdminVerification(request.AdminUser);
             var info = _integrityService.GetSoftwareVersionInfo();
+            
+            // 📋 AUDIT LOG: Admin Verification
+            await _auditLog.LogAsync(
+                AuditCategory.Integrity,
+                AuditAction.IntegrityVerify,
+                AuditResult.Success,
+                $"Verificación administrativa registrada por {request.AdminUser}",
+                null, request.AdminUser);
 
             return Ok(new
             {
