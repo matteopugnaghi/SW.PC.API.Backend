@@ -16,11 +16,13 @@ namespace SW.PC.API.Backend.Controllers;
 public class SbomController : ControllerBase
 {
     private readonly ISbomService _sbomService;
+    private readonly IAuditLogService _auditLog;
     private readonly ILogger<SbomController> _logger;
 
-    public SbomController(ISbomService sbomService, ILogger<SbomController> logger)
+    public SbomController(ISbomService sbomService, IAuditLogService auditLog, ILogger<SbomController> logger)
     {
         _sbomService = sbomService;
+        _auditLog = auditLog;
         _logger = logger;
     }
 
@@ -78,6 +80,14 @@ public class SbomController : ControllerBase
         var fileName = $"sbom-{DateTime.Now:yyyy-MM-dd}.json";
         var bytes = System.Text.Encoding.UTF8.GetBytes(sbomJson);
         
+        // 📋 AUDIT LOG: SBOM Export
+        await _auditLog.LogAsync(
+            AuditCategory.Sbom,
+            AuditAction.SbomExport,
+            AuditResult.Success,
+            $"SBOM exported: {fileName} ({bytes.Length} bytes)",
+            User.Identity?.Name ?? "Anonymous");
+        
         return File(bytes, "application/json", fileName);
     }
 
@@ -96,6 +106,8 @@ public class SbomController : ControllerBase
         _logger.LogInformation("🔄 POST /api/sbom/generate - Requested by: {RequestedBy}", request.RequestedBy);
         
         var result = await _sbomService.GenerateAsync(request);
+        
+        // Audit log ya está en SbomService.GenerateAsync()
         
         if (result.Success)
         {

@@ -1111,6 +1111,42 @@ namespace SW.PC.API.Backend.Models.Excel
         /// En producción debe estar en false.
         /// </summary>
         public bool ExposeLabelIds { get; set; } = false;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 📦 PRODUCT INFO - EU CRA SBOM (Información del Producto)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Nombre del producto/sistema para SBOM y documentación CRA.
+        /// Ejemplo: "SCADA Lavadora de Trenes", "Control Planta Tratamiento Aguas"
+        /// </summary>
+        public string ProductName { get; set; } = "Industrial Supervisor System";
+
+        /// <summary>
+        /// Versión del producto (semver o CalVer).
+        /// Se usará en el SBOM y certificados. Vacío = leer del último tag Git.
+        /// Ejemplo: "1.2.0", "2026.02.1"
+        /// </summary>
+        public string ProductVersion { get; set; } = "";
+
+        /// <summary>
+        /// Nombre del fabricante/desarrollador del producto.
+        /// Ejemplo: "Aquafrisch", "Cliente XYZ", "Nombre Empresa"
+        /// </summary>
+        public string ProductManufacturer { get; set; } = "Aquafrisch";
+
+        /// <summary>
+        /// Descripción breve del producto para documentación CRA.
+        /// Ejemplo: "Sistema SCADA/HMI 3D para control de lavadoras de trenes"
+        /// </summary>
+        public string ProductDescription { get; set; } = "Industrial SCADA/HMI System with 3D Visualization";
+
+        /// <summary>
+        /// URL de soporte/documentación del producto.
+        /// Requerido por EU CRA para contacto de vulnerabilidades.
+        /// NOTA: Para email de seguridad usa SupportEmail (ya existente)
+        /// </summary>
+        public string ProductSupportUrl { get; set; } = "";
     }
 
     /// <summary>
@@ -1509,6 +1545,44 @@ namespace SW.PC.API.Backend.Models.Excel
         
         /// <summary>Nombre de la tarea principal del PLC</summary>
         public string TaskName { get; set; } = "PlcTask";
+    }
+
+    /// <summary>
+    /// 🏭 Componente OT (Operational Technology) para SBOM
+    /// Leído desde hoja Excel "OT_Components"
+    /// EU CRA Compliance: Documenta firmware/hardware industrial
+    /// </summary>
+    public class OtComponent
+    {
+        /// <summary>Tipo: firewall, switch, router, plc, hmi, sensor, drive, gateway</summary>
+        public string Type { get; set; } = "device";
+        
+        /// <summary>Fabricante del dispositivo</summary>
+        public string Manufacturer { get; set; } = "";
+        
+        /// <summary>Modelo del dispositivo</summary>
+        public string Model { get; set; } = "";
+        
+        /// <summary>Versión de firmware/software</summary>
+        public string Version { get; set; } = "";
+        
+        /// <summary>Número de serie (opcional)</summary>
+        public string? SerialNumber { get; set; }
+        
+        /// <summary>Dirección IP del dispositivo (opcional)</summary>
+        public string? IpAddress { get; set; }
+        
+        /// <summary>Ubicación física (opcional)</summary>
+        public string? Location { get; set; }
+        
+        /// <summary>Descripción del dispositivo</summary>
+        public string? Description { get; set; }
+        
+        /// <summary>URL de soporte/documentación</summary>
+        public string? SupportUrl { get; set; }
+        
+        /// <summary>Fecha de última actualización de firmware</summary>
+        public DateTime? LastUpdate { get; set; }
     }
 
     /// <summary>

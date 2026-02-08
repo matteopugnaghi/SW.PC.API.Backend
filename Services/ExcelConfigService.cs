@@ -61,6 +61,9 @@ namespace SW.PC.API.Backend.Services
         
         // 📟 Sistema de PLC Info Panel (Variables WSTRING desde PLC)
         Task<PlcInfoPanelConfig> LoadPlcInfoPanelAsync(string filePath);
+        
+        // 🏭 Componentes OT para SBOM (EU CRA)
+        Task<List<OtComponent>> LoadOtComponentsAsync(string filePath);
     }
 
     /// <summary>
@@ -3215,6 +3218,51 @@ namespace SW.PC.API.Backend.Services
                                 _logger.LogDebug("🌐 ExposeLabelIds raw value: '{RawValue}' -> {Parsed}", paramValue, config.ExposeLabelIds);
                                 break;
 
+                            // ═══════════════════════════════════════════════════════════════
+                            // 📦 PRODUCT INFO - EU CRA SBOM Compliance
+                            // ═══════════════════════════════════════════════════════════════
+                            case "productname":
+                            case "product_name":
+                            case "nombreproducto":
+                            case "nombre_producto":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.ProductName = paramValue.Trim();
+                                break;
+
+                            case "productversion":
+                            case "product_version":
+                            case "versionproducto":
+                            case "version_producto":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.ProductVersion = paramValue.Trim();
+                                break;
+
+                            case "productmanufacturer":
+                            case "product_manufacturer":
+                            case "fabricante":
+                            case "manufacturer":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.ProductManufacturer = paramValue.Trim();
+                                break;
+
+                            case "productdescription":
+                            case "product_description":
+                            case "descripcionproducto":
+                            case "descripcion_producto":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.ProductDescription = paramValue.Trim();
+                                break;
+
+                            case "productsupporturl":
+                            case "product_support_url":
+                            case "urlsoporte":
+                            case "url_soporte":
+                            case "supporturl":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.ProductSupportUrl = paramValue.Trim();
+                                break;
+                            // NOTA: Para email de seguridad usa 'SupportEmail' (ya existente)
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
@@ -3244,6 +3292,10 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogInformation("  - 📷 CameraZoomFactor: {Factor}", config.CameraZoomFactor);
                     _logger.LogInformation("  - 🌐 i18n: DefaultLanguage={Lang}, ExposeLabelIds={Expose}", 
                         config.DefaultLanguage, config.ExposeLabelIds);
+                    _logger.LogInformation("  - 📦 Product: {Name} v{Version} by {Manufacturer}", 
+                        config.ProductName, 
+                        string.IsNullOrEmpty(config.ProductVersion) ? "(auto)" : config.ProductVersion,
+                        config.ProductManufacturer);
 
                     stopwatch.Stop();
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);
@@ -4932,6 +4984,95 @@ namespace SW.PC.API.Backend.Services
             }
             
             return await Task.FromResult(config);
+        }
+        
+        #endregion
+        
+        #region OT Components (EU CRA SBOM)
+        
+        /// <summary>
+        /// 🏭 Carga componentes OT (Operational Technology) desde hoja Excel "OT_Components"
+        /// Incluye: firewalls, switches, PLCs adicionales, HMIs, etc.
+        /// EU CRA Compliance: Documenta firmware/hardware industrial
+        /// 
+        /// Formato esperado:
+        /// | Type | Manufacturer | Model | Version | SerialNumber | IpAddress | Location | Description | SupportUrl | LastUpdate |
+        /// </summary>
+        public async Task<List<OtComponent>> LoadOtComponentsAsync(string filePath)
+        {
+            var components = new List<OtComponent>();
+            
+            try
+            {
+                using var package = new ExcelPackage(new FileInfo(filePath));
+                
+                var sheet = package.Workbook.Worksheets["OT_Components"]
+                         ?? package.Workbook.Worksheets["OT Components"]
+                         ?? package.Workbook.Worksheets["SBOM_OT"]
+                         ?? package.Workbook.Worksheets["Hardware"];
+                
+                if (sheet == null)
+                {
+                    _logger.LogDebug("🏭 Hoja 'OT_Components' no encontrada en Excel - no se cargan componentes OT manuales");
+                    return components;
+                }
+                
+                _logger.LogInformation("🏭 Loading OT Components from sheet: {SheetName}", sheet.Name);
+                
+                // Empezar desde fila 2 (fila 1 = headers)
+                int row = 2;
+                int consecutiveEmpty = 0;
+                
+                while (consecutiveEmpty < 5) // Stop after 5 empty rows
+                {
+                    var type = sheet.Cells[row, 1].Text?.Trim();
+                    var manufacturer = sheet.Cells[row, 2].Text?.Trim();
+                    var model = sheet.Cells[row, 3].Text?.Trim();
+                    
+                    if (!string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(manufacturer) && !string.IsNullOrEmpty(model))
+                    {
+                        var component = new OtComponent
+                        {
+                            Type = type.ToLower(),
+                            Manufacturer = manufacturer,
+                            Model = model,
+                            Version = sheet.Cells[row, 4].Text?.Trim() ?? "Unknown",
+                            SerialNumber = sheet.Cells[row, 5].Text?.Trim(),
+                            IpAddress = sheet.Cells[row, 6].Text?.Trim(),
+                            Location = sheet.Cells[row, 7].Text?.Trim(),
+                            Description = sheet.Cells[row, 8].Text?.Trim(),
+                            SupportUrl = sheet.Cells[row, 9].Text?.Trim()
+                        };
+                        
+                        // Parse LastUpdate date
+                        var lastUpdateText = sheet.Cells[row, 10].Text?.Trim();
+                        if (!string.IsNullOrEmpty(lastUpdateText) && DateTime.TryParse(lastUpdateText, out var lastUpdate))
+                        {
+                            component.LastUpdate = lastUpdate;
+                        }
+                        
+                        components.Add(component);
+                        _logger.LogDebug("🏭 OT Component: {Type} - {Manufacturer} {Model} v{Version}", 
+                            component.Type, component.Manufacturer, component.Model, component.Version);
+                        
+                        consecutiveEmpty = 0;
+                    }
+                    else
+                    {
+                        consecutiveEmpty++;
+                    }
+                    
+                    row++;
+                }
+                
+                _logger.LogInformation("🏭 Loaded {Count} OT components from Excel", components.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🏭 Error loading OT Components from Excel: {Path}", filePath);
+            }
+            
+            return await Task.FromResult(components);
         }
         
         #endregion

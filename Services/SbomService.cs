@@ -37,6 +37,8 @@ public class SbomService : ISbomService
     private readonly IWebHostEnvironment _environment;
     private readonly IAuditLogService _auditLogService;
     private readonly IProjectContextService _projectContext;
+    private readonly ITwinCATService _twinCATService;
+    private readonly IExcelConfigService _excelConfigService;
     
     // Paths
     private readonly string _backendProjectPath;
@@ -56,13 +58,17 @@ public class SbomService : ISbomService
         IConfiguration configuration,
         IWebHostEnvironment environment,
         IAuditLogService auditLogService,
-        IProjectContextService projectContext)
+        IProjectContextService projectContext,
+        ITwinCATService twinCATService,
+        IExcelConfigService excelConfigService)
     {
         _logger = logger;
         _configuration = configuration;
         _environment = environment;
         _auditLogService = auditLogService;
         _projectContext = projectContext;
+        _twinCATService = twinCATService;
+        _excelConfigService = excelConfigService;
         
         // Get paths from configuration or use defaults
         _contentRoot = environment.ContentRootPath;
@@ -210,6 +216,36 @@ public class SbomService : ISbomService
             
             _logger.LogInformation("🔄 Generating SBOM... Requested by: {RequestedBy}", request.RequestedBy);
             
+            // 📦 Load product info from Excel configuration
+            var productName = "SW.PC.SUPERVISOR.System";
+            var productVersion = "1.0.0";
+            var productDescription = "Industrial Supervisor System";
+            var productManufacturer = "Aquafrisch";
+            
+            try
+            {
+                var excelPath = _projectContext.ExcelConfigPath;
+                if (!string.IsNullOrEmpty(excelPath) && File.Exists(excelPath))
+                {
+                    var sysConfig = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
+                    if (!string.IsNullOrWhiteSpace(sysConfig.ProductName))
+                        productName = sysConfig.ProductName;
+                    if (!string.IsNullOrWhiteSpace(sysConfig.ProductVersion))
+                        productVersion = sysConfig.ProductVersion;
+                    if (!string.IsNullOrWhiteSpace(sysConfig.ProductDescription))
+                        productDescription = sysConfig.ProductDescription;
+                    if (!string.IsNullOrWhiteSpace(sysConfig.ProductManufacturer))
+                        productManufacturer = sysConfig.ProductManufacturer;
+                    
+                    _logger.LogInformation("📦 Product info from Excel: {Name} v{Version} by {Manufacturer}", 
+                        productName, productVersion, productManufacturer);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("⚠️ Could not load product info from Excel: {Message}. Using defaults.", ex.Message);
+            }
+            
             var sbom = new SbomDocument
             {
                 Metadata = new SbomMetadata
@@ -219,7 +255,7 @@ public class SbomService : ISbomService
                     {
                         new() 
                         { 
-                            Vendor = "Aquafrisch",
+                            Vendor = productManufacturer,
                             Name = "SW.PC.API.Backend SBOM Generator",
                             Version = "1.0.0"
                         }
@@ -227,13 +263,13 @@ public class SbomService : ISbomService
                     Component = new SbomComponent
                     {
                         Type = "application",
-                        Name = "SW.PC.SUPERVISOR.System",
-                        Version = "1.0.0",
-                        Description = "Industrial Supervisor System"
+                        Name = productName,
+                        Version = productVersion,
+                        Description = productDescription
                     },
                     Manufacture = new SbomOrganization
                     {
-                        Name = "Aquafrisch"
+                        Name = productManufacturer
                     }
                 },
                 Components = new List<SbomComponent>()
@@ -254,6 +290,11 @@ public class SbomService : ISbomService
                 sbom.Components.AddRange(npmComponents);
                 _logger.LogInformation("📦 Added {Count} npm packages", npmComponents.Count);
             }
+            
+            // Generate OT (Operational Technology) components - TwinCAT, IPC, etc.
+            var otComponents = await GetOtComponentsAsync();
+            sbom.Components.AddRange(otComponents);
+            _logger.LogInformation("🏭 Added {Count} OT components (TwinCAT, IPC, Excel)", otComponents.Count);
             
             // Serialize and save
             var sbomJson = JsonSerializer.Serialize(sbom, JsonOptions);
@@ -518,5 +559,160 @@ public class SbomService : ISbomService
         }
         
         return components;
+    }
+    
+    /// <summary>
+    /// Get OT (Operational Technology) components - TwinCAT, IPC, Excel config, etc.
+    /// These are hardware/firmware components in the industrial system
+    /// </summary>
+    private async Task<List<SbomComponent>> GetOtComponentsAsync()
+    {
+        var components = new List<SbomComponent>();
+        
+        try
+        {
+            // 1. TwinCAT Runtime (automático)
+            var tcVersion = _twinCATService.GetVersionInfo();
+            
+            components.Add(new SbomComponent
+            {
+                Type = "firmware",
+                BomRef = $"pkg:ot/beckhoff/twincat-runtime@{tcVersion.RuntimeVersion}",
+                Group = "OT-PLC",
+                Name = "TwinCAT Runtime",
+                Version = tcVersion.RuntimeVersion,
+                Description = $"Beckhoff TwinCAT PLC Runtime - Device: {tcVersion.DeviceName}",
+                Publisher = "Beckhoff Automation",
+                Purl = $"pkg:ot/beckhoff/twincat-runtime@{tcVersion.MajorVersion}.{tcVersion.MinorVersion}.{tcVersion.BuildNumber}",
+                ExternalReferences = new List<SbomExternalReference>
+                {
+                    new() { Type = "website", Url = "https://www.beckhoff.com/twincat3/" }
+                }
+            });
+            
+            // 2. TwinCAT ADS Client Library
+            components.Add(new SbomComponent
+            {
+                Type = "library",
+                BomRef = $"pkg:nuget/Beckhoff.TwinCAT.Ads@{tcVersion.AdsVersion}",
+                Group = "OT-PLC",
+                Name = "TwinCAT.Ads",
+                Version = tcVersion.AdsVersion,
+                Description = "Beckhoff TwinCAT ADS Communication Library",
+                Publisher = "Beckhoff Automation",
+                Purl = $"pkg:nuget/Beckhoff.TwinCAT.Ads@{tcVersion.AdsVersion}",
+                ExternalReferences = new List<SbomExternalReference>
+                {
+                    new() { Type = "website", Url = "https://www.nuget.org/packages/Beckhoff.TwinCAT.Ads" }
+                }
+            });
+            
+            // 3. IPC / Host System
+            var osVersion = Environment.OSVersion;
+            var machineName = Environment.MachineName;
+            
+            components.Add(new SbomComponent
+            {
+                Type = "operating-system",
+                BomRef = $"pkg:ot/microsoft/windows@{osVersion.Version}",
+                Group = "OT-IPC",
+                Name = "Windows IPC",
+                Version = osVersion.VersionString,
+                Description = $"Industrial PC Operating System - Machine: {machineName}",
+                Publisher = "Microsoft",
+                Purl = $"pkg:generic/microsoft/windows@{osVersion.Version}",
+                ExternalReferences = new List<SbomExternalReference>
+                {
+                    new() { Type = "website", Url = "https://www.microsoft.com/windows" }
+                }
+            });
+            
+            // 4. .NET Runtime
+            components.Add(new SbomComponent
+            {
+                Type = "framework",
+                BomRef = $"pkg:ot/microsoft/dotnet@{Environment.Version}",
+                Group = "OT-IPC",
+                Name = ".NET Runtime",
+                Version = Environment.Version.ToString(),
+                Description = "Microsoft .NET Runtime for Backend Application",
+                Publisher = "Microsoft",
+                Purl = $"pkg:generic/microsoft/dotnet@{Environment.Version}",
+                ExternalReferences = new List<SbomExternalReference>
+                {
+                    new() { Type = "website", Url = "https://dotnet.microsoft.com/" }
+                }
+            });
+            
+            _logger.LogDebug("🏭 OT Components: TwinCAT {TcVersion}, ADS {AdsVersion}, Windows {WinVersion}, .NET {NetVersion}",
+                tcVersion.RuntimeVersion, tcVersion.AdsVersion, osVersion.VersionString, Environment.Version);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error getting automatic OT components - some may be unavailable");
+        }
+        
+        // 5. Componentes OT desde Excel (Firewall, Switches, etc.)
+        try
+        {
+            var excelPath = _excelConfigService.GetExcelConfigPath();
+            if (!string.IsNullOrEmpty(excelPath) && File.Exists(excelPath))
+            {
+                var excelOtComponents = await _excelConfigService.LoadOtComponentsAsync(excelPath);
+                
+                foreach (var ot in excelOtComponents)
+                {
+                    var purl = $"pkg:ot/{ot.Manufacturer.ToLower().Replace(" ", "-")}/{ot.Model.ToLower().Replace(" ", "-")}@{ot.Version}";
+                    
+                    components.Add(new SbomComponent
+                    {
+                        Type = MapOtTypeToSbomType(ot.Type),
+                        BomRef = purl,
+                        Group = $"OT-{ot.Type.ToUpper()}",
+                        Name = $"{ot.Manufacturer} {ot.Model}",
+                        Version = ot.Version,
+                        Description = ot.Description ?? $"{ot.Type}: {ot.Manufacturer} {ot.Model}" + 
+                                     (string.IsNullOrEmpty(ot.Location) ? "" : $" @ {ot.Location}"),
+                        Publisher = ot.Manufacturer,
+                        Purl = purl,
+                        ExternalReferences = string.IsNullOrEmpty(ot.SupportUrl) ? null : new List<SbomExternalReference>
+                        {
+                            new() { Type = "website", Url = ot.SupportUrl }
+                        }
+                    });
+                }
+                
+                if (excelOtComponents.Count > 0)
+                {
+                    _logger.LogInformation("🏭 Added {Count} OT components from Excel (manual config)", excelOtComponents.Count);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error loading OT components from Excel");
+        }
+        
+        return components;
+    }
+    
+    /// <summary>
+    /// Mapea tipos OT del Excel a tipos SBOM estándar
+    /// </summary>
+    private static string MapOtTypeToSbomType(string otType)
+    {
+        return otType.ToLower() switch
+        {
+            "firewall" => "device",
+            "switch" => "device",
+            "router" => "device",
+            "gateway" => "device",
+            "plc" => "firmware",
+            "hmi" => "device",
+            "sensor" => "device",
+            "drive" => "firmware",
+            "ups" => "device",
+            _ => "device"
+        };
     }
 }
