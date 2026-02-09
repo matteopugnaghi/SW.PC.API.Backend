@@ -234,7 +234,8 @@ namespace SW.PC.API.Backend.Services
 
             // 🔐 Eventos críticos se escriben inmediatamente (seguridad)
             bool isCriticalEvent = category == AuditCategory.Authentication || 
-                                   category == AuditCategory.Backup;
+                                   category == AuditCategory.Backup ||
+                                   category == AuditCategory.System;
             
             // Flush si el cache está lleno, ha pasado el intervalo, o es evento crítico
             if (_cache.Count >= MAX_CACHE_SIZE || 

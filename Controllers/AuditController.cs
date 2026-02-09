@@ -92,11 +92,34 @@ namespace SW.PC.API.Backend.Controllers
                 var json = await _auditService.ExportLogsAsync(from, to, _projectContext.ProjectId);
                 
                 var fileName = $"audit_export_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+                
+                // 📋 Audit Log - EU CRA: Registrar exportación de logs
+                await _auditService.LogAsync(
+                    AuditCategory.Export,
+                    AuditAction.AuditExport,
+                    AuditResult.Success,
+                    $"Exported audit logs to {fileName} ({json.Length} bytes, from: {from?.ToString("yyyy-MM-dd") ?? "all"}, to: {to?.ToString("yyyy-MM-dd") ?? "all"})",
+                    userId: User.Identity?.Name ?? "Anonymous",
+                    affectedItemCount: json.Split('\n').Length,
+                    projectId: _projectContext.ProjectId
+                );
+                
                 return File(System.Text.Encoding.UTF8.GetBytes(json), "application/json", fileName);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ Error exporting audit logs");
+                
+                // 📋 Audit Log - Error
+                await _auditService.LogAsync(
+                    AuditCategory.Export,
+                    AuditAction.AuditExport,
+                    AuditResult.Error,
+                    $"Failed to export audit logs: {ex.Message}",
+                    userId: User.Identity?.Name ?? "Anonymous",
+                    projectId: _projectContext.ProjectId
+                );
+                
                 return StatusCode(500, new { error = "Error exporting logs", details = ex.Message });
             }
         }

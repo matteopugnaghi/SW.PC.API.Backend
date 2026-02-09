@@ -31,16 +31,13 @@ public class RolePermissionsService : IRolePermissionsService
     private readonly IDbContextFactory<AquafrischDbContext> _dbFactory;
     private readonly ILogger<RolePermissionsService> _logger;
     private readonly IRequestProjectContext _projectContext;
-    private readonly IAuditLogService _auditLog;
 
     public RolePermissionsService(
         IDbContextFactory<AquafrischDbContext> dbFactory,
         ILogger<RolePermissionsService> logger,
-        IRequestProjectContext projectContext,
-        IAuditLogService auditLog)
+        IRequestProjectContext projectContext)
     {
         _dbFactory = dbFactory;
-        _auditLog = auditLog;
         _logger = logger;
         _projectContext = projectContext;
     }
@@ -140,14 +137,6 @@ public class RolePermissionsService : IRolePermissionsService
 
             _logger.LogInformation("Permisos del rol {RoleName} actualizados por {UpdatedBy}", 
                 roleName, updatedBy);
-            
-            // 📝 Audit Log CRA - Registrar cambio de permisos
-            await _auditLog.LogAsync(
-                AuditCategory.Authentication,
-                AuditAction.PermissionUpdated,
-                AuditResult.Success,
-                $"Permisos del rol '{roleName}' actualizados por {updatedBy}",
-                null, updatedBy);
 
             return new PermissionsOperationResponse
             {

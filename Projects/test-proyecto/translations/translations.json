@@ -6141,6 +6141,101 @@
       "ITA": "▶ COMPATTO"
     },
 
+    "infoPanel.help.separator": {
+      "SPA": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "ENG": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "FRA": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "ITA": "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    },
+
+    "infoPanel.help.sistemas.backend_server_label": {
+      "SPA": "⬢ BACKEND SERVER:",
+      "ENG": "⬢ BACKEND SERVER:",
+      "FRA": "⬢ SERVEUR BACKEND:",
+      "ITA": "⬢ SERVER BACKEND:"
+    },
+    "infoPanel.help.sistemas.signalr_hub_label": {
+      "SPA": "◉ SIGNALR HUB:",
+      "ENG": "◉ SIGNALR HUB:",
+      "FRA": "◉ HUB SIGNALR:",
+      "ITA": "◉ HUB SIGNALR:"
+    },
+    "infoPanel.help.sistemas.plc_polling_label": {
+      "SPA": "⟳ SERVICIO DE POLLING PLC:",
+      "ENG": "⟳ PLC POLLING SERVICE:",
+      "FRA": "⟳ SERVICE DE POLLING PLC:",
+      "ITA": "⟳ SERVIZIO POLLING PLC:"
+    },
+    "infoPanel.help.sistemas.ipc_info_label": {
+      "SPA": "■ SERVICIO INFO IPC:",
+      "ENG": "■ IPC INFO SERVICE:",
+      "FRA": "■ SERVICE INFO IPC:",
+      "ITA": "■ SERVIZIO INFO IPC:"
+    },
+    "infoPanel.help.sistemas.babylon_renderer_label": {
+      "SPA": "▶ RENDERIZADOR BABYLON.JS:",
+      "ENG": "▶ BABYLON.JS RENDERER:",
+      "FRA": "▶ MOTEUR BABYLON.JS:",
+      "ITA": "▶ RENDERER BABYLON.JS:"
+    },
+
+    "infoPanel.help.alarmas.types_title": {
+      "SPA": "📊 TIPOS DE ALARMAS:",
+      "ENG": "📊 ALARM TYPES:",
+      "FRA": "📊 TYPES D'ALARMES:",
+      "ITA": "📊 TIPI DI ALLARMI:"
+    },
+
+    "infoPanel.help.servicios.twincat_label": {
+      "SPA": "◆ TWINCAT RUNTIME:",
+      "ENG": "◆ TWINCAT RUNTIME:",
+      "FRA": "◆ RUNTIME TWINCAT:",
+      "ITA": "◆ RUNTIME TWINCAT:"
+    },
+    "infoPanel.help.servicios.database_label": {
+      "SPA": "▣ BASE DE DATOS:",
+      "ENG": "▣ DATABASE:",
+      "FRA": "▣ BASE DE DONNÉES:",
+      "ITA": "▣ DATABASE:"
+    },
+    "infoPanel.help.servicios.cve_scanner_label": {
+      "SPA": "◐ ESCÁNER CVE:",
+      "ENG": "◐ CVE SCANNER:",
+      "FRA": "◐ SCANNER CVE:",
+      "ITA": "◐ SCANNER CVE:"
+    },
+    "infoPanel.help.servicios.vuln_reporter_label": {
+      "SPA": "📤 REPORTADOR DE VULNERABILIDADES:",
+      "ENG": "📤 VULN REPORTER:",
+      "FRA": "📤 RAPPORTEUR DE VULNÉRABILITÉS:",
+      "ITA": "📤 REPORTER VULNERABILITÀ:"
+    },
+
+    "infoPanel.help.craCompliance.sbom_label": {
+      "SPA": "✅ SBOM (Lista de Materiales de Software)",
+      "ENG": "✅ SBOM (Software Bill of Materials)",
+      "FRA": "✅ SBOM (Nomenclature Logicielle)",
+      "ITA": "✅ SBOM (Distinta dei Materiali Software)"
+    },
+    "infoPanel.help.craCompliance.cve_label": {
+      "SPA": "✅ CVE (Escáner de Vulnerabilidades)",
+      "ENG": "✅ CVE (Vulnerability Scanner)",
+      "FRA": "✅ CVE (Scanner de Vulnérabilités)",
+      "ITA": "✅ CVE (Scanner Vulnerabilità)"
+    },
+    "infoPanel.help.craCompliance.support_label": {
+      "SPA": "✅ PERÍODO DE SOPORTE",
+      "ENG": "✅ SUPPORT PERIOD",
+      "FRA": "✅ PÉRIODE DE SUPPORT",
+      "ITA": "✅ PERIODO DI SUPPORTO"
+    },
+    "infoPanel.help.craCompliance.security_label": {
+      "SPA": "✅ CONTACTO DE SEGURIDAD",
+      "ENG": "✅ SECURITY CONTACT",
+      "FRA": "✅ CONTACT SÉCURITÉ",
+      "ITA": "✅ CONTATTO SICUREZZA"
+    },
+
     "infoPanel.help.sistemas.title": {
       "SPA": "⚙️ SERVICIOS INTERNOS DEL BACKEND",
       "ENG": "⚙️ BACKEND INTERNAL SERVICES",
@@ -6445,16 +6540,16 @@
       "ITA": "DATE CHIAVE:"
     },
     "infoPanel.help.craCompliance.date_sept": {
-      "SPA": "11 Sept 2026: Notificación obligatoria de vulnerabilidades",
-      "ENG": "11 Sept 2026: Mandatory vulnerability notification",
-      "FRA": "11 Sept 2026: Notification obligatoire des vulnérabilités",
-      "ITA": "11 Sett 2026: Notifica obbligatoria delle vulnerabilità"
+      "SPA": "• 11 Sept 2026: Notificación obligatoria de vulnerabilidades",
+      "ENG": "• 11 Sept 2026: Mandatory vulnerability notification",
+      "FRA": "• 11 Sept 2026: Notification obligatoire des vulnérabilités",
+      "ITA": "• 11 Sett 2026: Notifica obbligatoria delle vulnerabilità"
     },
     "infoPanel.help.craCompliance.date_dec": {
-      "SPA": "11 Dic 2027: Aplicación TOTAL del Reglamento",
-      "ENG": "11 Dec 2027: FULL Regulation application",
-      "FRA": "11 Déc 2027: Application TOTALE du Règlement",
-      "ITA": "11 Dic 2027: Applicazione TOTALE del Regolamento"
+      "SPA": "• 11 Dic 2027: Aplicación TOTAL del Reglamento",
+      "ENG": "• 11 Dec 2027: FULL Regulation application",
+      "FRA": "• 11 Déc 2027: Application TOTALE du Règlement",
+      "ITA": "• 11 Dic 2027: Applicazione TOTALE del Regolamento"
     },
     "infoPanel.help.craCompliance.colors_title": {
       "SPA": "CÓDIGO DE COLORES:",
@@ -6531,10 +6626,10 @@
       "ITA": "📝 REGISTRO AUDIT - Eventi di Sicurezza (CRA)"
     },
     "infoPanel.help.auditLog.description": {
-      "SPA": "Registro de auditoría de seguridad (Nivel 1). Registra eventos de autenticación, autorización y cambios de configuración según CRA.",
-      "ENG": "Security audit log (Level 1). Records authentication, authorization, and configuration change events according to CRA.",
-      "FRA": "Journal d'audit de sécurité (Niveau 1). Enregistre les événements d'authentification, d'autorisation et de modification de configuration selon CRA.",
-      "ITA": "Registro di audit di sicurezza (Livello 1). Registra eventi di autenticazione, autorizzazione e modifiche configurazione secondo CRA."
+      "SPA": "Registro de auditoría de seguridad (Nivel 1). Registra 12 categorías de eventos: autenticación, integridad, SBOM, vulnerabilidades, Git, certificados, seguridad, configuración, backup, PLC, sistema y exportación según EU CRA.",
+      "ENG": "Security audit log (Level 1). Records 12 event categories: authentication, integrity, SBOM, vulnerabilities, Git, certificates, security, configuration, backup, PLC, system, and export according to EU CRA.",
+      "FRA": "Journal d'audit de sécurité (Niveau 1). Enregistre 12 catégories d'événements: authentification, intégrité, SBOM, vulnérabilités, Git, certificats, sécurité, configuration, sauvegarde, PLC, système et export selon EU CRA.",
+      "ITA": "Registro di audit di sicurezza (Livello 1). Registra 12 categorie di eventi: autenticazione, integrità, SBOM, vulnerabilità, Git, certificati, sicurezza, configurazione, backup, PLC, sistema ed esportazione secondo EU CRA."
     },
     "infoPanel.help.auditLog.integrity": {
       "SPA": "🔐 INTEGRIDAD: Cada entrada está firmada con SHA256 y encadenada para garantizar integridad y no repudio.",
@@ -6543,16 +6638,88 @@
       "ITA": "🔐 INTEGRITÀ: Ogni voce è firmata con SHA256 e concatenata per garantire integrità e non ripudio."
     },
     "infoPanel.help.auditLog.events": {
-      "SPA": "📋 EVENTOS REGISTRADOS: Login/Logout, Autenticación fallida, Cambios de permisos, Cambios de configuración, Inicio/Parada del sistema.",
-      "ENG": "📋 EVENTS LOGGED: Login/Logout, Failed authentication, Permission changes, Configuration changes, System startup/shutdown.",
-      "FRA": "📋 ÉVÉNEMENTS ENREGISTRÉS: Connexion/Déconnexion, Authentification échouée, Changements de permissions, Changements de configuration, Démarrage/Arrêt système.",
-      "ITA": "📋 EVENTI REGISTRATI: Login/Logout, Autenticazione fallita, Modifiche permessi, Modifiche configurazione, Avvio/Arresto sistema."
+      "SPA": "📋 EVENTOS REGISTRADOS (12 categorías): Autenticación (Login/Logout/Contraseña), Integridad, SBOM, Vulnerabilidades, Git (Commit/Push/Release), Certificados, Seguridad (SSH/Permisos), Configuración, Backup, PLC, Sistema (Inicio/Parada/TeamViewer/Restart), Exportación.",
+      "ENG": "📋 EVENTS LOGGED (12 categories): Authentication (Login/Logout/Password), Integrity, SBOM, Vulnerabilities, Git (Commit/Push/Release), Certificates, Security (SSH/Permissions), Configuration, Backup, PLC, System (Start/Stop/TeamViewer/Restart), Export.",
+      "FRA": "📋 ÉVÉNEMENTS ENREGISTRÉS (12 catégories): Authentification (Connexion/Déconnexion/Mot de passe), Intégrité, SBOM, Vulnérabilités, Git (Commit/Push/Release), Certificats, Sécurité (SSH/Permissions), Configuration, Sauvegarde, PLC, Système (Démarrage/Arrêt/TeamViewer/Restart), Export.",
+      "ITA": "📋 EVENTI REGISTRATI (12 categorie): Autenticazione (Login/Logout/Password), Integrità, SBOM, Vulnerabilità, Git (Commit/Push/Release), Certificati, Sicurezza (SSH/Permessi), Configurazione, Backup, PLC, Sistema (Avvio/Arresto/TeamViewer/Restart), Esportazione."
     },
     "infoPanel.help.auditLog.cra_compliance": {
       "SPA": "🇪🇺 CONFORMIDAD CRA: El CRA de la UE, Anexo I, Parte I, punto 2l requiere mantener registros de eventos de seguridad.",
       "ENG": "🇪🇺 CRA COMPLIANCE: EU CRA Annex I, Part I, point 2l requires maintaining security event logs.",
       "FRA": "🇪🇺 CONFORMITÉ CRA: Le CRA de l'UE, Annexe I, Partie I, point 2l exige de maintenir des journaux d'événements de sécurité.",
       "ITA": "🇪🇺 CONFORMITÀ CRA: Il CRA UE, Allegato I, Parte I, punto 2l richiede di mantenere registri di eventi di sicurezza."
+    },
+    "infoPanel.help.auditLog.cat_authentication": {
+      "SPA": "🔑 AUTENTICACIÓN: Registra inicios de sesión (Login), cierres de sesión (Logout), cambios de contraseña, bloqueos de cuenta por intentos fallidos, y desbloqueos de cuenta.",
+      "ENG": "🔑 AUTHENTICATION: Records logins, logouts, password changes, account lockouts due to failed attempts, and account unlocks.",
+      "FRA": "🔑 AUTHENTIFICATION: Enregistre les connexions, déconnexions, changements de mot de passe, blocages de compte pour tentatives échouées, et déblocages de compte.",
+      "ITA": "🔑 AUTENTICAZIONE: Registra accessi, disconnessioni, cambio password, blocchi account per tentativi falliti, e sblocchi account."
+    },
+    "infoPanel.help.auditLog.cat_integrity": {
+      "SPA": "🛡️ INTEGRIDAD: Verifica que los archivos del sistema no han sido modificados. Incluye verificaciones manuales y automáticas con firma SHA256.",
+      "ENG": "🛡️ INTEGRITY: Verifies that system files have not been modified. Includes manual and automatic verifications with SHA256 signature.",
+      "FRA": "🛡️ INTÉGRITÉ: Vérifie que les fichiers système n'ont pas été modifiés. Inclut les vérifications manuelles et automatiques avec signature SHA256.",
+      "ITA": "🛡️ INTEGRITÀ: Verifica che i file di sistema non siano stati modificati. Include verifiche manuali e automatiche con firma SHA256."
+    },
+    "infoPanel.help.auditLog.cat_sbom": {
+      "SPA": "📦 SBOM: Software Bill of Materials - Lista de componentes de software. Registra generación y exportación del SBOM para cumplimiento CRA.",
+      "ENG": "📦 SBOM: Software Bill of Materials - List of software components. Records generation and export of SBOM for CRA compliance.",
+      "FRA": "📦 SBOM: Software Bill of Materials - Liste des composants logiciels. Enregistre la génération et l'export du SBOM pour conformité CRA.",
+      "ITA": "📦 SBOM: Software Bill of Materials - Lista componenti software. Registra generazione ed esportazione SBOM per conformità CRA."
+    },
+    "infoPanel.help.auditLog.cat_vulnerability": {
+      "SPA": "🔍 VULNERABILIDADES: Escaneo de componentes contra bases de datos CVE. Requiere conexión a servidor externo (no disponible en modo air-gapped).",
+      "ENG": "🔍 VULNERABILITIES: Scanning components against CVE databases. Requires connection to external server (not available in air-gapped mode).",
+      "FRA": "🔍 VULNÉRABILITÉS: Analyse des composants contre les bases de données CVE. Nécessite connexion au serveur externe (non disponible en mode air-gapped).",
+      "ITA": "🔍 VULNERABILITÀ: Scansione componenti contro database CVE. Richiede connessione a server esterno (non disponibile in modalità air-gapped)."
+    },
+    "infoPanel.help.auditLog.cat_git": {
+      "SPA": "📚 GIT: Control de versiones del código. Registra commits (guardar cambios), push (enviar al repositorio), releases (versiones oficiales), descartes y reversiones.",
+      "ENG": "📚 GIT: Source code version control. Records commits (save changes), push (send to repository), releases (official versions), discards and reverts.",
+      "FRA": "📚 GIT: Contrôle de version du code. Enregistre commits (sauvegarder), push (envoyer au dépôt), releases (versions officielles), rejets et réversions.",
+      "ITA": "📚 GIT: Controllo versione codice. Registra commit (salvare), push (inviare al repository), release (versioni ufficiali), scarti e reversioni."
+    },
+    "infoPanel.help.auditLog.cat_certificate": {
+      "SPA": "🏛️ CERTIFICADOS: Gestión de certificados digitales para firma de código. Incluye generación, descarga y verificación de certificados.",
+      "ENG": "🏛️ CERTIFICATES: Digital certificate management for code signing. Includes generation, download and verification of certificates.",
+      "FRA": "🏛️ CERTIFICATS: Gestion des certificats numériques pour signature de code. Inclut génération, téléchargement et vérification des certificats.",
+      "ITA": "🏛️ CERTIFICATI: Gestione certificati digitali per firma codice. Include generazione, download e verifica certificati."
+    },
+    "infoPanel.help.auditLog.cat_security": {
+      "SPA": "🔒 SEGURIDAD: Gestión de claves SSH y permisos de usuarios. Registra creación/eliminación de claves SSH, cambios de permisos y denegaciones de acceso.",
+      "ENG": "🔒 SECURITY: SSH key and user permission management. Records SSH key creation/deletion, permission changes and access denials.",
+      "FRA": "🔒 SÉCURITÉ: Gestion des clés SSH et permissions utilisateurs. Enregistre création/suppression clés SSH, changements de permissions et refus d'accès.",
+      "ITA": "🔒 SICUREZZA: Gestione chiavi SSH e permessi utenti. Registra creazione/eliminazione chiavi SSH, modifiche permessi e rifiuti accesso."
+    },
+    "infoPanel.help.auditLog.cat_configuration": {
+      "SPA": "⚙️ CONFIGURACIÓN: Cambios en la configuración del sistema. Incluye modificaciones en Excel, parámetros de conexión PLC y ajustes generales.",
+      "ENG": "⚙️ CONFIGURATION: System configuration changes. Includes modifications to Excel, PLC connection parameters and general settings.",
+      "FRA": "⚙️ CONFIGURATION: Changements de configuration système. Inclut modifications Excel, paramètres de connexion PLC et réglages généraux.",
+      "ITA": "⚙️ CONFIGURAZIONE: Modifiche configurazione sistema. Include modifiche Excel, parametri connessione PLC e impostazioni generali."
+    },
+    "infoPanel.help.auditLog.cat_backup": {
+      "SPA": "💾 BACKUP: Copias de seguridad del proyecto. Registra creación, restauración y eliminación de backups con información del archivo.",
+      "ENG": "💾 BACKUP: Project backups. Records creation, restoration and deletion of backups with file information.",
+      "FRA": "💾 SAUVEGARDE: Sauvegardes du projet. Enregistre création, restauration et suppression des sauvegardes avec informations fichier.",
+      "ITA": "💾 BACKUP: Backup del progetto. Registra creazione, ripristino ed eliminazione backup con informazioni file."
+    },
+    "infoPanel.help.auditLog.cat_plc": {
+      "SPA": "🔌 PLC: Conexión con el controlador industrial (TwinCAT). Registra conexiones, desconexiones y cambios de configuración del PLC.",
+      "ENG": "🔌 PLC: Connection with industrial controller (TwinCAT). Records connections, disconnections and PLC configuration changes.",
+      "FRA": "🔌 PLC: Connexion avec le contrôleur industriel (TwinCAT). Enregistre connexions, déconnexions et changements de configuration PLC.",
+      "ITA": "🔌 PLC: Connessione con controller industriale (TwinCAT). Registra connessioni, disconnessioni e modifiche configurazione PLC."
+    },
+    "infoPanel.help.auditLog.cat_system": {
+      "SPA": "🖥️ SISTEMA: Eventos del sistema. Incluye inicio/parada del backend, lanzamiento de TeamViewer, reinicio de aplicación y herramientas personalizadas.",
+      "ENG": "🖥️ SYSTEM: System events. Includes backend start/stop, TeamViewer launch, application restart and custom tools.",
+      "FRA": "🖥️ SYSTÈME: Événements système. Inclut démarrage/arrêt backend, lancement TeamViewer, redémarrage application et outils personnalisés.",
+      "ITA": "🖥️ SISTEMA: Eventi di sistema. Include avvio/arresto backend, lancio TeamViewer, riavvio applicazione e strumenti personalizzati."
+    },
+    "infoPanel.help.auditLog.cat_export": {
+      "SPA": "📤 EXPORTACIÓN: Exportación de logs de auditoría. Registra cuando se descargan los registros en formato JSON para análisis externo.",
+      "ENG": "📤 EXPORT: Audit log export. Records when logs are downloaded in JSON format for external analysis.",
+      "FRA": "📤 EXPORTATION: Export des journaux d'audit. Enregistre quand les journaux sont téléchargés en format JSON pour analyse externe.",
+      "ITA": "📤 ESPORTAZIONE: Esportazione log audit. Registra quando i log vengono scaricati in formato JSON per analisi esterna."
     },
     "infoPanel.help.operationLog.title": {
       "SPA": "📋 OPERATION LOG - Acciones de Operador (L2)",

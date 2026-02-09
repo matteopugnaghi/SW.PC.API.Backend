@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Services;
 using System.Text.Json;
 
@@ -10,6 +9,7 @@ namespace SW.PC.API.Backend.Controllers
     /// Controller para gestionar la configuración del Tour Virtual (waypoints de cámara).
     /// Los waypoints se guardan en Projects/{projectId}/config/tour-waypoints.json
     /// Solo SuperAdmin puede modificar los waypoints (calibración).
+    /// NOTA: Tour es UI/UX, no requiere Audit Log L1 (no es security-critical).
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
@@ -17,18 +17,15 @@ namespace SW.PC.API.Backend.Controllers
     public class TourController : ControllerBase
     {
         private readonly IRequestProjectContext _projectContext;
-        private readonly IAuditLogService _auditLog;
         private readonly ILogger<TourController> _logger;
 
         private const string TOUR_WAYPOINTS_FILENAME = "tour-waypoints.json";
 
         public TourController(
             IRequestProjectContext projectContext,
-            IAuditLogService auditLog,
             ILogger<TourController> logger)
         {
             _projectContext = projectContext;
-            _auditLog = auditLog;
             _logger = logger;
         }
 
@@ -115,16 +112,6 @@ namespace SW.PC.API.Backend.Controllers
 
                 await System.IO.File.WriteAllTextAsync(filePath, json);
 
-                // Audit log
-                await _auditLog.LogAsync(
-                    AuditCategory.Configuration,
-                    AuditAction.ConfigChange,
-                    AuditResult.Success,
-                    $"Tour waypoints actualizados: {sanitizedWaypoints.Count} puntos guardados",
-                    _projectContext.ProjectId,
-                    User.Identity?.Name ?? "Unknown"
-                );
-
                 _logger.LogInformation("Saved {Count} tour waypoints for project {ProjectId} by user {User}", 
                     sanitizedWaypoints.Count, _projectContext.ProjectId, User.Identity?.Name);
 
@@ -137,16 +124,6 @@ namespace SW.PC.API.Backend.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving tour waypoints");
-                
-                await _auditLog.LogAsync(
-                    AuditCategory.Configuration,
-                    AuditAction.ConfigChange,
-                    AuditResult.Failure,
-                    $"Error al guardar tour waypoints: {ex.Message}",
-                    _projectContext.ProjectId,
-                    User.Identity?.Name ?? "Unknown"
-                );
-
                 return StatusCode(500, "Error saving tour waypoints");
             }
         }
@@ -168,15 +145,6 @@ namespace SW.PC.API.Backend.Controllers
                 if (System.IO.File.Exists(filePath))
                 {
                     System.IO.File.Delete(filePath);
-                    
-                    await _auditLog.LogAsync(
-                        AuditCategory.Configuration,
-                        AuditAction.ConfigChange,
-                        AuditResult.Success,
-                        "Tour waypoints eliminados",
-                        _projectContext.ProjectId,
-                        User.Identity?.Name ?? "Unknown"
-                    );
 
                     _logger.LogInformation("Deleted tour waypoints for project {ProjectId} by user {User}", 
                         _projectContext.ProjectId, User.Identity?.Name);

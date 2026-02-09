@@ -141,10 +141,10 @@ public class UsersController : ControllerBase
             if (!IsSuperAdmin() && request.Roles.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase))
             {
                 await _auditLog.LogAsync(
-                    AuditCategory.Authentication,
+                    AuditCategory.Security,
                     AuditAction.PermissionDenied,
                     AuditResult.Failure,
-                    $"Usuario {GetCurrentUsername()} intentó crear un SuperAdmin sin permisos",
+                    $"Usuario {GetCurrentUsername()} intentó crear usuario con rol protegido del sistema",
                     GetCurrentUserId().ToString(),
                     GetCurrentUsername(),
                     HttpContext.Connection.RemoteIpAddress?.ToString());
@@ -191,10 +191,10 @@ public class UsersController : ControllerBase
             if (!IsSuperAdmin() && targetUser.Roles.Contains("SuperAdmin"))
             {
                 await _auditLog.LogAsync(
-                    AuditCategory.Authentication,
+                    AuditCategory.Security,
                     AuditAction.PermissionDenied,
                     AuditResult.Failure,
-                    $"Usuario {GetCurrentUsername()} intentó modificar SuperAdmin {targetUser.Username}",
+                    $"Usuario {GetCurrentUsername()} intentó modificar usuario protegido del sistema",
                     GetCurrentUserId().ToString(),
                     GetCurrentUsername(),
                     HttpContext.Connection.RemoteIpAddress?.ToString());
@@ -206,10 +206,10 @@ public class UsersController : ControllerBase
             if (!IsSuperAdmin() && request.Roles?.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase) == true)
             {
                 await _auditLog.LogAsync(
-                    AuditCategory.Authentication,
+                    AuditCategory.Security,
                     AuditAction.PermissionDenied,
                     AuditResult.Failure,
-                    $"Usuario {GetCurrentUsername()} intentó asignar rol SuperAdmin sin permisos",
+                    $"Usuario {GetCurrentUsername()} intentó asignar rol protegido del sistema",
                     GetCurrentUserId().ToString(),
                     GetCurrentUsername(),
                     HttpContext.Connection.RemoteIpAddress?.ToString());
@@ -261,10 +261,10 @@ public class UsersController : ControllerBase
             if (!IsSuperAdmin() && targetUser.Roles.Contains("SuperAdmin"))
             {
                 await _auditLog.LogAsync(
-                    AuditCategory.Authentication,
+                    AuditCategory.Security,
                     AuditAction.PermissionDenied,
                     AuditResult.Failure,
-                    $"Usuario {GetCurrentUsername()} intentó eliminar SuperAdmin {targetUser.Username}",
+                    $"Usuario {GetCurrentUsername()} intentó eliminar usuario protegido del sistema",
                     GetCurrentUserId().ToString(),
                     GetCurrentUsername(),
                     HttpContext.Connection.RemoteIpAddress?.ToString());
@@ -465,7 +465,7 @@ public class UsersController : ControllerBase
                     roleName.Equals("Administrator", StringComparison.OrdinalIgnoreCase))
                 {
                     await _auditLog.LogAsync(
-                        AuditCategory.Configuration,
+                        AuditCategory.Security,
                         AuditAction.PermissionDenied,
                         AuditResult.Failure,
                         $"Usuario {GetCurrentUsername()} intentó modificar permisos del rol {roleName}",
@@ -486,8 +486,8 @@ public class UsersController : ControllerBase
             if (result.Success)
             {
                 await _auditLog.LogAsync(
-                    AuditCategory.Configuration,
-                    AuditAction.Modified,
+                    AuditCategory.Security,
+                    AuditAction.PermissionUpdated,
                     AuditResult.Success,
                     $"Permisos del rol {roleName} actualizados",
                     GetCurrentUserId().ToString(),
@@ -532,8 +532,8 @@ public class UsersController : ControllerBase
             if (result.Success)
             {
                 await _auditLog.LogAsync(
-                    AuditCategory.Configuration,
-                    AuditAction.Modified,
+                    AuditCategory.Security,
+                    AuditAction.PermissionUpdated,
                     AuditResult.Success,
                     $"Permisos del rol {roleName} restaurados a valores por defecto",
                     GetCurrentUserId().ToString(),

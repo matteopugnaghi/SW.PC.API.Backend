@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.Diagnostics;
 using System.Security.Claims;
 using SW.PC.API.Backend.Services;
+using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.Excel;
 
 namespace SW.PC.API.Backend.Controllers
@@ -26,6 +27,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IRequestProjectContext _projectContext;
         private readonly PlcPollingService _plcPollingService;
         private readonly ITwinCATService _twinCATService;
+        private readonly IAuditLogService _auditLogService;
 
         // Cache de configuración del sistema (por proyecto)
         private static readonly Dictionary<string, (SystemConfiguration Config, DateTime Timestamp)> _configCache = new();
@@ -38,7 +40,8 @@ namespace SW.PC.API.Backend.Controllers
             IWebHostEnvironment env,
             IRequestProjectContext projectContext,
             PlcPollingService plcPollingService,
-            ITwinCATService twinCATService)
+            ITwinCATService twinCATService,
+            IAuditLogService auditLogService)
         {
             _logger = logger;
             _configuration = configuration;
@@ -47,6 +50,7 @@ namespace SW.PC.API.Backend.Controllers
             _projectContext = projectContext;
             _plcPollingService = plcPollingService;
             _twinCATService = twinCATService;
+            _auditLogService = auditLogService;
         }
 
         /// <summary>
@@ -138,6 +142,31 @@ namespace SW.PC.API.Backend.Controllers
             // TODO: Guardar en base de datos de auditoría
         }
 
+        /// <summary>
+        /// Sanitiza el rol para ocultar SuperAdmin en logs públicos
+        /// SuperAdmin es un rol oculto de soporte - el cliente no debe saber que existe
+        /// </summary>
+        private string SanitizeRole(string role)
+        {
+            return role?.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) == true 
+                ? "Administrador" 
+                : role ?? "Unknown";
+        }
+
+        /// <summary>
+        /// Sanitiza el username para ocultar cuentas de soporte en logs públicos
+        /// </summary>
+        private string SanitizeUsername(string username)
+        {
+            if (string.IsNullOrEmpty(username)) return "Unknown";
+            
+            // Ocultar usuarios de soporte (superadmin, support, etc.)
+            var hiddenUsers = new[] { "superadmin", "superadministrador", "support", "soporte" };
+            return hiddenUsers.Any(u => username.Equals(u, StringComparison.OrdinalIgnoreCase))
+                ? "admin_sistema"
+                : username;
+        }
+
         // ========================================
         // POST: api/system/logout-windows
         // ========================================
@@ -160,6 +189,19 @@ namespace SW.PC.API.Backend.Controllers
             try
             {
                 LogSystemAction("logout-windows", request.Username, request.Role, true, "Initiating Windows logout");
+                
+                // 📋 Audit Log L1 - EU CRA: Logout Windows es crítico
+                await _auditLogService.LogAsync(
+                    AuditCategory.System,
+                    AuditAction.ServiceStart,
+                    AuditResult.Success,
+                    $"Windows logout initiated by {SanitizeUsername(request.Username)} (role: {SanitizeRole(request.Role)})",
+                    userId: request.Username,
+                    projectId: _projectContext.ProjectId
+                );
+                
+                // 🔒 Forzar flush antes del logout para no perder el log
+                await _auditLogService.FlushAsync();
                 
                 // Ejecutar comando de logout de Windows
                 var process = new Process
@@ -237,6 +279,16 @@ namespace SW.PC.API.Backend.Controllers
 
                 LogSystemAction("launch-teamviewer", request.Username, request.Role, true, $"Launching from: {foundPath}");
 
+                // 📋 Audit Log L1 - EU CRA: Acceso remoto es crítico
+                await _auditLogService.LogAsync(
+                    AuditCategory.System,
+                    AuditAction.ServiceStart,
+                    AuditResult.Success,
+                    $"TeamViewer launched by {SanitizeUsername(request.Username)} (role: {SanitizeRole(request.Role)}) from: {foundPath}",
+                    userId: request.Username,
+                    projectId: _projectContext.ProjectId
+                );
+
                 var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
@@ -263,7 +315,11 @@ namespace SW.PC.API.Backend.Controllers
         [HttpPost("restart-app")]
         public async Task<IActionResult> RestartApp([FromBody] SystemActionRequest request)
         {
+            _logger.LogWarning("🔄 restart-app llamado por {User} con rol {Role}", request?.Username ?? "null", request?.Role ?? "null");
+            
             var config = await GetSystemConfigAsync();
+            
+            _logger.LogWarning("🔄 Config AppRestartEnabled: {Enabled}", config.AppRestartEnabled);
             
             if (!config.AppRestartEnabled)
             {
@@ -278,7 +334,25 @@ namespace SW.PC.API.Backend.Controllers
 
             try
             {
+                _logger.LogWarning("🔄 restart-app: Iniciando proceso de reinicio...");
+                
                 LogSystemAction("restart-app", request.Username, request.Role, true, "Restarting application");
+
+                // 📋 Audit Log L1 - EU CRA: Restart es crítico
+                _logger.LogWarning("🔄 restart-app: Guardando audit log...");
+                await _auditLogService.LogAsync(
+                    AuditCategory.System,
+                    AuditAction.ServiceStart,
+                    AuditResult.Success,
+                    $"Application restart (backend + frontend) initiated by {SanitizeUsername(request.Username)} (role: {SanitizeRole(request.Role)})",
+                    userId: request.Username,
+                    projectId: _projectContext.ProjectId
+                );
+                
+                // 🔒 Forzar flush antes del reinicio para no perder el log
+                _logger.LogWarning("🔄 restart-app: Forzando flush de audit logs...");
+                await _auditLogService.FlushAsync();
+                _logger.LogWarning("🔄 restart-app: Flush completado, continuando con reinicio...");
 
                 // Prioridad: Excel > appsettings > rutas comunes
                 var browserPaths = new[]
@@ -352,7 +426,19 @@ namespace SW.PC.API.Backend.Controllers
                     startProcess.Start();
                 }
 
-                return Ok(new { success = true, message = "Aplicación reiniciada" });
+                // 🔄 Reiniciar backend (en producción el servicio Windows lo reiniciará automáticamente)
+                var envType = isDevelopment ? "DESARROLLO" : "PRODUCCIÓN";
+                _logger.LogWarning("🔄 {Env}: Reiniciando backend en 2 segundos...", envType);
+                
+                // Dar tiempo a que el navegador arranque y la respuesta se envíe
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(2000);
+                    _logger.LogWarning("🔄 Backend terminando para reinicio...");
+                    Environment.Exit(0); // En producción el servicio Windows lo reinicia automáticamente
+                });
+                
+                return Ok(new { success = true, message = "Aplicación reiniciando (backend + frontend)..." });
             }
             catch (Exception ex)
             {
@@ -637,6 +723,16 @@ namespace SW.PC.API.Backend.Controllers
 
                 LogSystemAction($"launch-{request.ToolId}", request.Username, request.Role, true, $"Launching: {toolPath}");
 
+                // 📋 Audit Log L1 - EU CRA: Ejecución de herramientas externas
+                await _auditLogService.LogAsync(
+                    AuditCategory.System,
+                    AuditAction.ServiceStart,
+                    AuditResult.Success,
+                    $"Custom tool '{toolName}' ({request.ToolId}) launched by {SanitizeUsername(request.Username)} (role: {SanitizeRole(request.Role)}). Path: {toolPath}",
+                    userId: request.Username,
+                    projectId: _projectContext.ProjectId
+                );
+
                 var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
@@ -726,9 +822,22 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
+                var username = User.Identity?.Name ?? "System";
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Unknown";
+                
                 _logger.LogInformation("🔄 Recargando configuración PLC desde Excel (petición manual)...");
                 
                 await _plcPollingService.ReloadExcelConfigurationAsync();
+
+                // 📋 Audit Log L1 - EU CRA: Cambio de configuración PLC
+                await _auditLogService.LogAsync(
+                    AuditCategory.Plc,
+                    AuditAction.ConfigChange,
+                    AuditResult.Success,
+                    $"PLC configuration reloaded from Excel by {SanitizeUsername(username)} (role: {SanitizeRole(userRole)})",
+                    userId: username,
+                    projectId: _projectContext.ProjectId
+                );
                 
                 return Ok(new { 
                     success = true, 

@@ -3,179 +3,128 @@ using System.Text.Json.Serialization;
 namespace SW.PC.API.Backend.Models
 {
     /// <summary>
-    /// 📋 EU CRA - Categorías de auditoría
-    /// Incluye todas las categorías para cumplimiento CRA/CADRA
+    /// 📋 EU CRA - Categorías de auditoría L1
+    /// Solo categorías implementadas y en uso
     /// </summary>
     public enum AuditCategory
     {
         // ✅ IMPLEMENTADAS
-        Integrity,      // Verificación de integridad
-        Sbom,           // Generación/consulta de SBOM
+        Authentication, // Login/Logout/Password
+        Integrity,      // Verificación de integridad del software
+        Sbom,           // Generación/exportación de SBOM
         Vulnerability,  // Escaneo de vulnerabilidades
-        Authentication, // Login/Logout
+        Git,            // Operaciones Git (commit, push, release)
+        Certificate,    // Certificados de integridad
+        Security,       // SSH signing, permisos de roles
         Configuration,  // Cambios de configuración
-        Git,            // Operaciones Git
-        Certificate,    // Gestión de certificados
-        Security,       // Seguridad: SSH signing, claves autorizadas
-        System,         // Eventos del sistema
+        Backup,         // Backup y restauración
+        Plc,            // Conexión/desconexión PLC
+        System,         // Acciones del sistema (restart, TeamViewer)
+        Export          // Exportación de datos de auditoría
         
-        // 🔴 PENDIENTES - Para implementar
-        Plc,            // Operaciones PLC (conexión, desconexión)
-        OtCommunication, // Comunicaciones OT externas (OPC UA, Modbus, MQTT)
-        Export,         // Exportación de datos de auditoría
-        Backup          // Backup y restauración
-        
-        // ⚠️ NOTA: Categorías operativas (Alarm, Recipe, Setpoint, Process, 
-        //    Statistics, Model3D, Maintenance) van a L2 Operation Log, NO aquí
+        // ⚠️ FUTURO: OtCommunication (OPC UA, Modbus, MQTT) - cuando se implemente
     }
 
     /// <summary>
-    /// 📋 EU CRA - Acciones auditables
-    /// Incluye todas las acciones para cumplimiento CRA/CADRA
-    /// ✅ = Implementada | 🔴 = Pendiente de implementar
+    /// 📋 EU CRA - Acciones auditables L1
+    /// Solo acciones implementadas y en uso
     /// </summary>
     public enum AuditAction
     {
         // ═══════════════════════════════════════════════════════════
-        // ✅ IMPLEMENTADAS - Ya registrando en AuditLog
+        // AUTENTICACIÓN
         // ═══════════════════════════════════════════════════════════
-        
-        // Integridad ✅
-        IntegrityVerify,
-        IntegrityAutoVerify,
-        
-        // SBOM ✅
-        SbomGenerate,
-        SbomExport,
-        SbomView,
-        
-        // Vulnerabilidades ✅
-        VulnerabilityScan,
-        VulnerabilityReport,
-        VulnerabilityExport,
-        
-        // Autenticación ✅
         Login,
         Logout,
         LoginFailed,
-        SupportUnlock,          // Desbloqueo de soporte Aquafrisch exitoso
-        SupportUnlockFailed,    // Desbloqueo de soporte fallido (código inválido)
+        LogoutAllSessions,
         AccountLocked,
         AccountUnlocked,
-        LogoutAllSessions,
         PasswordChanged,
         PasswordChangeFailed,
         PasswordReset,
+        SupportUnlock,
+        SupportUnlockFailed,
         
-        // Gestión de usuarios ✅
+        // ═══════════════════════════════════════════════════════════
+        // GESTIÓN DE USUARIOS
+        // ═══════════════════════════════════════════════════════════
         UserCreated,
         UserUpdated,
         UserDeleted,
         AdminCreated,
-        UserViewed,
-        UsersListed,
-        PermissionDenied,
         RoleChanged,
-        PermissionUpdated,  // ⭐ Actualización de permisos de rol
-        Modified,           // ⭐ Modificación genérica
+        PermissionUpdated,
+        PermissionDenied,
         
-        // Configuración ✅ (parcial)
-        ConfigChange,
-        ConfigLoad,
+        // ═══════════════════════════════════════════════════════════
+        // INTEGRIDAD Y SBOM
+        // ═══════════════════════════════════════════════════════════
+        IntegrityVerify,
+        IntegrityAutoVerify,
+        SbomGenerate,
+        SbomExport,
+        VulnerabilityScan,
         
-        // Git ✅
-        GitCommit,
-        GitPush,
-        GitPull,
-        GitBackupExport,        // Exportación manual de backup de código fuente (ZIP)
-        GitRelease,             // Creación de release/tag
-        GitDiscard,             // Descarte de cambios locales
-        GitRevert,              // Revert a commit anterior
-        GitAccessControl,       // Cambio en control de acceso Git
-        
-        // Certificados ✅
+        // ═══════════════════════════════════════════════════════════
+        // CERTIFICADOS
+        // ═══════════════════════════════════════════════════════════
         CertificateGenerate,
         CertificateDownload,
         CertificateVerify,
-        CertificateRevoke,
-        
-        // SSH Signing ✅ (EU CRA - Firma de código)
-        SshKeyGenerate,         // Generación de clave SSH
-        SshKeyDelete,           // Eliminación de clave SSH
-        SshKeyExport,           // Exportación de clave SSH
-        SshKeyImport,           // Importación de clave SSH
-        SshSigningEnable,       // Activación de firma SSH
-        SshSigningDisable,      // Desactivación de firma SSH
-        SshKeyAuthorize,        // Autorización de clave para modificar software
-        SshKeyRevoke,           // Revocación de clave autorizada
-        
-        // Sistema ✅ (parcial)
-        SystemStart,
-        SystemStop,
-        ServiceStart,
-        ServiceStop,
         
         // ═══════════════════════════════════════════════════════════
-        // 🔴 PENDIENTES - Para implementar con futuras funcionalidades
+        // SSH SIGNING (EU CRA - Firma de código)
         // ═══════════════════════════════════════════════════════════
+        SshKeyGenerate,
+        SshKeyDelete,
+        SshKeyExport,
+        SshKeyImport,
+        SshSigningEnable,
+        SshSigningDisable,
+        SshKeyAuthorize,
+        SshKeyRevoke,
         
-        // PLC Operations 🔴
-        PlcConnect,             // Conexión a PLC
-        PlcDisconnect,          // Desconexión de PLC
-        PlcConnectionLost,      // Pérdida de conexión
-        PlcVariableRead,        // Lectura de variable (solo si es sensible)
-        PlcVariableWrite,       // Escritura de variable - CRÍTICO
-        PlcModeChange,          // Cambio de modo RUN/STOP/CONFIG
-        PlcProgramDownload,     // Descarga de programa al PLC
-        PlcFirmwareUpdate,      // Actualización de firmware
+        // ═══════════════════════════════════════════════════════════
+        // GIT
+        // ═══════════════════════════════════════════════════════════
+        GitCommit,
+        GitPush,
+        GitBackupExport,
+        GitRelease,
+        GitDiscard,
+        GitRevert,
+        GitAccessControl,
         
-        // Exportación de Datos de Auditoría 🔴
-        AuditExport,            // Exportación de logs de auditoría
-        AuditArchive,           // Archivado de logs antiguos
+        // ═══════════════════════════════════════════════════════════
+        // CONFIGURACIÓN
+        // ═══════════════════════════════════════════════════════════
+        ConfigChange,
         
-        // Backup/Restore 🔴
-        BackupCreate,           // Creación de backup
-        BackupRestore,          // Restauración de backup - CRÍTICO
-        BackupSchedule,         // Programación de backup
-        BackupDelete,           // Eliminación de backup
+        // ═══════════════════════════════════════════════════════════
+        // BACKUP
+        // ═══════════════════════════════════════════════════════════
+        BackupCreate,
+        BackupRestore,
+        BackupDelete,
         
-        // ⚠️ NOTA: Acciones operativas (Recipe*, Process*, Statistics*, Model3D*,
-        //    Maintenance*) van a L2 Operation Log, NO al Audit Log L1
+        // ═══════════════════════════════════════════════════════════
+        // PLC
+        // ═══════════════════════════════════════════════════════════
+        PlcConnect,
+        PlcDisconnect,
         
-        // Comunicaciones OT/Externas 🔴 (para servicios externos de seguridad)
-        ExternalApiCall,        // Llamada a API externa
-        SignalRConnect,         // Conexión SignalR
-        SignalRDisconnect,      // Desconexión SignalR
+        // ═══════════════════════════════════════════════════════════
+        // SISTEMA
+        // ═══════════════════════════════════════════════════════════
+        SystemStart,    // Inicio de aplicación (Program.cs)
+        SystemStop,     // Detención de aplicación (Program.cs)
+        ServiceStart,   // TeamViewer, restart-app, custom-tool
         
-        // OPC UA 🔴 (futuro)
-        OpcUaConnect,           // Conexión a servidor OPC UA
-        OpcUaDisconnect,        // Desconexión de servidor OPC UA  
-        OpcUaConnectionLost,    // Pérdida de conexión OPC UA
-        OpcUaSubscribe,         // Suscripción a nodos OPC UA
-        OpcUaWrite,             // Escritura a nodo OPC UA - CRÍTICO
-        OpcUaSecurityChange,    // Cambio de política de seguridad OPC UA
-        
-        // Modbus TCP 🔴 (futuro)
-        ModbusConnect,          // Conexión Modbus TCP
-        ModbusDisconnect,       // Desconexión Modbus TCP
-        ModbusConnectionLost,   // Pérdida de conexión Modbus
-        ModbusWrite,            // Escritura registro Modbus - CRÍTICO
-        
-        // MQTT Industrial 🔴 (futuro)
-        MqttConnect,            // Conexión a broker MQTT
-        MqttDisconnect,         // Desconexión MQTT
-        MqttConnectionLost,     // Pérdida de conexión MQTT
-        MqttPublish,            // Publicación mensaje MQTT (solo si crítico)
-        
-        // SCADA/ERP Remoto 🔴 (futuro)
-        ScadaRemoteConnect,     // Conexión a SCADA remoto
-        ScadaRemoteDisconnect,  // Desconexión SCADA remoto
-        ErpIntegrationSync,     // Sincronización con ERP/MES
-        
-        // Excel Config 🔴 (para mejor trazabilidad)
-        ExcelConfigLoad,        // Carga de configuración Excel
-        ExcelConfigReload,      // Recarga de configuración
-        ExcelConfigError        // Error en configuración
+        // ═══════════════════════════════════════════════════════════
+        // EXPORTACIÓN
+        // ═══════════════════════════════════════════════════════════
+        AuditExport     // Exportación de logs de auditoría
     }
 
     /// <summary>
