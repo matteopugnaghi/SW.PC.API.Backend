@@ -208,7 +208,10 @@
         "alarms.filter.showing",
         "alarms.filter.of",
         "alarms.loading",
-        "alarms.no_active"
+        "alarms.no_active",
+        "alarms.history_button",
+        "alarms.history_modal_title",
+        "alarms.history_modal_subtitle"
       ]
     },
     "WASH_TYPES_VIEW": {
@@ -2136,6 +2139,24 @@
       "ENG": "No active alarms",
       "FRA": "Aucune alarme active",
       "ITA": "Nessun allarme attivo"
+    },
+    "alarms.history_button": {
+      "SPA": "Histórico",
+      "ENG": "History",
+      "FRA": "Historique",
+      "ITA": "Storico"
+    },
+    "alarms.history_modal_title": {
+      "SPA": "Histórico de Alarmas PLC",
+      "ENG": "PLC Alarm History",
+      "FRA": "Historique des Alarmes PLC",
+      "ITA": "Storico Allarmi PLC"
+    },
+    "alarms.history_modal_subtitle": {
+      "SPA": "Registro de activación/desactivación de alarmas",
+      "ENG": "Alarm activation/deactivation log",
+      "FRA": "Historique d'activation/désactivation des alarmes",
+      "ITA": "Registro attivazione/disattivazione allarmi"
     },
 
     "washTypes.title": {
@@ -9324,6 +9345,30 @@
       "ENG": "System",
       "FRA": "Système",
       "ITA": "Sistema"
+    },
+    "operationLogs.plcHistory.title": {
+      "SPA": "Historial de Alarmas PLC",
+      "ENG": "PLC Alarm History",
+      "FRA": "Historique des Alarmes PLC",
+      "ITA": "Storico Allarmi PLC"
+    },
+    "operationLogs.plcHistory.description": {
+      "SPA": "Registro histórico de activación/desactivación de alarmas, notificaciones e información del PLC.",
+      "ENG": "Historical log of PLC alarm, notification and info activation/deactivation.",
+      "FRA": "Historique d'activation/désactivation des alarmes, notifications et informations du PLC.",
+      "ITA": "Registro storico di attivazione/disattivazione di allarmi, notifiche e informazioni del PLC."
+    },
+    "operationLogs.noRecordsCategory": {
+      "SPA": "No hay registros de esta categoría",
+      "ENG": "No records in this category",
+      "FRA": "Aucun enregistrement dans cette catégorie",
+      "ITA": "Nessun record in questa categoria"
+    },
+    "operationLogs.noRecords": {
+      "SPA": "No hay registros de operación",
+      "ENG": "No operation records",
+      "FRA": "Aucun enregistrement d'opération",
+      "ITA": "Nessun record di operazione"
     },
 
     "operationLogs.action.ViewChange": {
