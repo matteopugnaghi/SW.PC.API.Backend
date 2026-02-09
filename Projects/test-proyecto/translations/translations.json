@@ -11245,6 +11245,48 @@
       "ENG": " to remote",
       "FRA": " vers le distant",
       "ITA": " al remoto"
+    },
+    "auditLog.details.backupCreatedManual": {
+      "SPA": "Backup creado: [{projectId}] Backup {date} {time} (Proyecto: {project}, Tamaño: {size})",
+      "ENG": "Backup created: [{projectId}] Backup {date} {time} (Project: {project}, Size: {size})",
+      "FRA": "Backup créé : [{projectId}] Backup {date} {time} (Projet : {project}, Taille : {size})",
+      "ITA": "Backup creato: [{projectId}] Backup {date} {time} (Progetto: {project}, Dimensione: {size})"
+    },
+    "auditLog.details.backupCreatedScheduled": {
+      "SPA": "Backup creado: [{projectId}] Backup programado {startDate} {startTime} - {endDate} {endTime} (Proyecto: {project}, Tamaño: {size})",
+      "ENG": "Backup created: [{projectId}] Scheduled Backup {startDate} {startTime} - {endDate} {endTime} (Project: {project}, Size: {size})",
+      "FRA": "Backup créé : [{projectId}] Backup planifié {startDate} {startTime} - {endDate} {endTime} (Projet : {project}, Taille : {size})",
+      "ITA": "Backup creato: [{projectId}] Backup programmato {startDate} {startTime} - {endDate} {endTime} (Progetto: {project}, Dimensione: {size})"
+    },
+    "auditLog.details.backupDeletedFile": {
+      "SPA": "Backup eliminado: backup_{projectId}_{dateCode}_{timeCode} (Proyecto: {project})",
+      "ENG": "Backup deleted: backup_{projectId}_{dateCode}_{timeCode} (Project: {project})",
+      "FRA": "Backup supprimé : backup_{projectId}_{dateCode}_{timeCode} (Projet : {project})",
+      "ITA": "Backup eliminato: backup_{projectId}_{dateCode}_{timeCode} (Progetto: {project})"
+    },
+    "auditLog.details.backupDeletedScheduled": {
+      "SPA": "Backup eliminado: [{projectId}] Backup programado {startDate} {startTime} - {endDate} {endTime} (Proyecto: {project})",
+      "ENG": "Backup deleted: [{projectId}] Scheduled Backup {startDate} {startTime} - {endDate} {endTime} (Project: {project})",
+      "FRA": "Backup supprimé : [{projectId}] Backup planifié {startDate} {startTime} - {endDate} {endTime} (Projet : {project})",
+      "ITA": "Backup eliminato: [{projectId}] Backup programmato {startDate} {startTime} - {endDate} {endTime} (Progetto: {project})"
+    },
+    "auditLog.details.backupDeletedManual": {
+      "SPA": "Backup eliminado: [{projectId}] Backup {date} {time} (Proyecto: {project})",
+      "ENG": "Backup deleted: [{projectId}] Backup {date} {time} (Project: {project})",
+      "FRA": "Backup supprimé : [{projectId}] Backup {date} {time} (Projet : {project})",
+      "ITA": "Backup eliminato: [{projectId}] Backup {date} {time} (Progetto: {project})"
+    },
+    "auditLog.details.vulnerabilityScanResult": {
+      "SPA": "Escaneados {packages} paquetes. Encontradas: {critical} críticas, {high} altas, {medium} medias, {low} bajas",
+      "ENG": "Scanned {packages} packages. Found: {critical} critical, {high} high, {medium} medium, {low} low",
+      "FRA": "Analysés {packages} paquets. Trouvées : {critical} critiques, {high} élevées, {medium} moyennes, {low} faibles",
+      "ITA": "Analizzati {packages} pacchetti. Trovate: {critical} critiche, {high} alte, {medium} medie, {low} basse"
+    },
+    "auditLog.details.vulnerabilityScanFailed": {
+      "SPA": "Escaneo de vulnerabilidades fallido: {error}",
+      "ENG": "Vulnerability scan failed: {error}",
+      "FRA": "Échec du scan de vulnérabilités : {error}",
+      "ITA": "Scansione vulnerabilità fallita: {error}"
     }
   }
 }
