@@ -9871,6 +9871,1356 @@
       "ENG": "No changes",
       "FRA": "Aucun changement",
       "ITA": "Nessuna modifica"
+    },
+
+    "auditLog.modal.total_events": {
+      "SPA": "Total Eventos",
+      "ENG": "Total Events",
+      "FRA": "Total Événements",
+      "ITA": "Totale Eventi"
+    },
+    "auditLog.modal.success": {
+      "SPA": "Éxito",
+      "ENG": "Success",
+      "FRA": "Succès",
+      "ITA": "Successo"
+    },
+    "auditLog.modal.warnings": {
+      "SPA": "Advertencias",
+      "ENG": "Warnings",
+      "FRA": "Avertissements",
+      "ITA": "Avvisi"
+    },
+    "auditLog.modal.failures_errors": {
+      "SPA": "Fallos/Errores",
+      "ENG": "Failures/Errors",
+      "FRA": "Échecs/Erreurs",
+      "ITA": "Fallimenti/Errori"
+    },
+    "auditLog.modal.export_json": {
+      "SPA": "📥 Exportar JSON",
+      "ENG": "📥 Export JSON",
+      "FRA": "📥 Exporter JSON",
+      "ITA": "📥 Esporta JSON"
+    },
+    "auditLog.modal.from": {
+      "SPA": "Desde:",
+      "ENG": "From:",
+      "FRA": "Du:",
+      "ITA": "Da:"
+    },
+    "auditLog.modal.by_user": {
+      "SPA": "por",
+      "ENG": "by",
+      "FRA": "par",
+      "ITA": "da"
+    },
+
+    "auditLog.category.authentication": {
+      "SPA": "Autenticación",
+      "ENG": "Authentication",
+      "FRA": "Authentification",
+      "ITA": "Autenticazione"
+    },
+    "auditLog.category.integrity": {
+      "SPA": "Integridad",
+      "ENG": "Integrity",
+      "FRA": "Intégrité",
+      "ITA": "Integrità"
+    },
+    "auditLog.category.sbom": {
+      "SPA": "SBOM",
+      "ENG": "SBOM",
+      "FRA": "SBOM",
+      "ITA": "SBOM"
+    },
+    "auditLog.category.vulnerability": {
+      "SPA": "Vulnerabilidades",
+      "ENG": "Vulnerabilities",
+      "FRA": "Vulnérabilités",
+      "ITA": "Vulnerabilità"
+    },
+    "auditLog.category.git": {
+      "SPA": "Git",
+      "ENG": "Git",
+      "FRA": "Git",
+      "ITA": "Git"
+    },
+    "auditLog.category.certificate": {
+      "SPA": "Certificados",
+      "ENG": "Certificates",
+      "FRA": "Certificats",
+      "ITA": "Certificati"
+    },
+    "auditLog.category.security": {
+      "SPA": "Seguridad",
+      "ENG": "Security",
+      "FRA": "Sécurité",
+      "ITA": "Sicurezza"
+    },
+    "auditLog.category.configuration": {
+      "SPA": "Configuración",
+      "ENG": "Configuration",
+      "FRA": "Configuration",
+      "ITA": "Configurazione"
+    },
+    "auditLog.category.backup": {
+      "SPA": "Backup",
+      "ENG": "Backup",
+      "FRA": "Sauvegarde",
+      "ITA": "Backup"
+    },
+    "auditLog.category.plc": {
+      "SPA": "PLC",
+      "ENG": "PLC",
+      "FRA": "API",
+      "ITA": "PLC"
+    },
+    "auditLog.category.system": {
+      "SPA": "Sistema",
+      "ENG": "System",
+      "FRA": "Système",
+      "ITA": "Sistema"
+    },
+    "auditLog.category.export": {
+      "SPA": "Exportación",
+      "ENG": "Export",
+      "FRA": "Exportation",
+      "ITA": "Esportazione"
+    },
+    "auditLog.category.otCommunication": {
+      "SPA": "OT/Comunicación",
+      "ENG": "OT/Communication",
+      "FRA": "OT/Communication",
+      "ITA": "OT/Comunicazione"
+    },
+
+    "auditLog.action.login": {
+      "SPA": "Inicio de sesión",
+      "ENG": "Login",
+      "FRA": "Connexion",
+      "ITA": "Accesso"
+    },
+    "auditLog.action.logout": {
+      "SPA": "Cierre de sesión",
+      "ENG": "Logout",
+      "FRA": "Déconnexion",
+      "ITA": "Disconnessione"
+    },
+    "auditLog.action.loginFailed": {
+      "SPA": "Login fallido",
+      "ENG": "Login Failed",
+      "FRA": "Échec connexion",
+      "ITA": "Accesso fallito"
+    },
+    "auditLog.action.logoutAllSessions": {
+      "SPA": "Cerrar todas las sesiones",
+      "ENG": "Logout All Sessions",
+      "FRA": "Déconnecter toutes les sessions",
+      "ITA": "Disconnetti tutte le sessioni"
+    },
+    "auditLog.action.accountLocked": {
+      "SPA": "Cuenta bloqueada",
+      "ENG": "Account Locked",
+      "FRA": "Compte verrouillé",
+      "ITA": "Account bloccato"
+    },
+    "auditLog.action.accountUnlocked": {
+      "SPA": "Cuenta desbloqueada",
+      "ENG": "Account Unlocked",
+      "FRA": "Compte déverrouillé",
+      "ITA": "Account sbloccato"
+    },
+    "auditLog.action.passwordChanged": {
+      "SPA": "Contraseña cambiada",
+      "ENG": "Password Changed",
+      "FRA": "Mot de passe modifié",
+      "ITA": "Password modificata"
+    },
+    "auditLog.action.passwordChangeFailed": {
+      "SPA": "Cambio de contraseña fallido",
+      "ENG": "Password Change Failed",
+      "FRA": "Échec changement mot de passe",
+      "ITA": "Cambio password fallito"
+    },
+    "auditLog.action.passwordReset": {
+      "SPA": "Contraseña restablecida",
+      "ENG": "Password Reset",
+      "FRA": "Mot de passe réinitialisé",
+      "ITA": "Password reimpostata"
+    },
+    "auditLog.action.supportUnlock": {
+      "SPA": "Desbloqueo por soporte",
+      "ENG": "Support Unlock",
+      "FRA": "Déverrouillage support",
+      "ITA": "Sblocco supporto"
+    },
+    "auditLog.action.supportUnlockFailed": {
+      "SPA": "Desbloqueo soporte fallido",
+      "ENG": "Support Unlock Failed",
+      "FRA": "Échec déverrouillage support",
+      "ITA": "Sblocco supporto fallito"
+    },
+    "auditLog.action.userCreated": {
+      "SPA": "Usuario creado",
+      "ENG": "User Created",
+      "FRA": "Utilisateur créé",
+      "ITA": "Utente creato"
+    },
+    "auditLog.action.userUpdated": {
+      "SPA": "Usuario actualizado",
+      "ENG": "User Updated",
+      "FRA": "Utilisateur mis à jour",
+      "ITA": "Utente aggiornato"
+    },
+    "auditLog.action.userDeleted": {
+      "SPA": "Usuario eliminado",
+      "ENG": "User Deleted",
+      "FRA": "Utilisateur supprimé",
+      "ITA": "Utente eliminato"
+    },
+    "auditLog.action.adminCreated": {
+      "SPA": "Administrador creado",
+      "ENG": "Admin Created",
+      "FRA": "Administrateur créé",
+      "ITA": "Amministratore creato"
+    },
+    "auditLog.action.roleChanged": {
+      "SPA": "Rol cambiado",
+      "ENG": "Role Changed",
+      "FRA": "Rôle modifié",
+      "ITA": "Ruolo modificato"
+    },
+    "auditLog.action.permissionUpdated": {
+      "SPA": "Permiso actualizado",
+      "ENG": "Permission Updated",
+      "FRA": "Permission mise à jour",
+      "ITA": "Permesso aggiornato"
+    },
+    "auditLog.action.permissionDenied": {
+      "SPA": "Permiso denegado",
+      "ENG": "Permission Denied",
+      "FRA": "Permission refusée",
+      "ITA": "Permesso negato"
+    },
+    "auditLog.action.integrityVerify": {
+      "SPA": "Verificar integridad",
+      "ENG": "Integrity Verify",
+      "FRA": "Vérifier intégrité",
+      "ITA": "Verifica integrità"
+    },
+    "auditLog.action.integrityAutoVerify": {
+      "SPA": "Auto-verificación integridad",
+      "ENG": "Integrity Auto-Verify",
+      "FRA": "Auto-vérification intégrité",
+      "ITA": "Auto-verifica integrità"
+    },
+    "auditLog.action.sbomGenerate": {
+      "SPA": "Generar SBOM",
+      "ENG": "Generate SBOM",
+      "FRA": "Générer SBOM",
+      "ITA": "Genera SBOM"
+    },
+    "auditLog.action.sbomExport": {
+      "SPA": "Exportar SBOM",
+      "ENG": "Export SBOM",
+      "FRA": "Exporter SBOM",
+      "ITA": "Esporta SBOM"
+    },
+    "auditLog.action.vulnerabilityScan": {
+      "SPA": "Escaneo vulnerabilidades",
+      "ENG": "Vulnerability Scan",
+      "FRA": "Scan vulnérabilités",
+      "ITA": "Scansione vulnerabilità"
+    },
+    "auditLog.action.certificateGenerate": {
+      "SPA": "Generar certificado",
+      "ENG": "Generate Certificate",
+      "FRA": "Générer certificat",
+      "ITA": "Genera certificato"
+    },
+    "auditLog.action.certificateDownload": {
+      "SPA": "Descargar certificado",
+      "ENG": "Download Certificate",
+      "FRA": "Télécharger certificat",
+      "ITA": "Scarica certificato"
+    },
+    "auditLog.action.certificateVerify": {
+      "SPA": "Verificar certificado",
+      "ENG": "Verify Certificate",
+      "FRA": "Vérifier certificat",
+      "ITA": "Verifica certificato"
+    },
+    "auditLog.action.sshKeyGenerate": {
+      "SPA": "Generar clave SSH",
+      "ENG": "Generate SSH Key",
+      "FRA": "Générer clé SSH",
+      "ITA": "Genera chiave SSH"
+    },
+    "auditLog.action.sshKeyDelete": {
+      "SPA": "Eliminar clave SSH",
+      "ENG": "Delete SSH Key",
+      "FRA": "Supprimer clé SSH",
+      "ITA": "Elimina chiave SSH"
+    },
+    "auditLog.action.sshKeyExport": {
+      "SPA": "Exportar clave SSH",
+      "ENG": "Export SSH Key",
+      "FRA": "Exporter clé SSH",
+      "ITA": "Esporta chiave SSH"
+    },
+    "auditLog.action.sshKeyImport": {
+      "SPA": "Importar clave SSH",
+      "ENG": "Import SSH Key",
+      "FRA": "Importer clé SSH",
+      "ITA": "Importa chiave SSH"
+    },
+    "auditLog.action.sshSigningEnable": {
+      "SPA": "Habilitar firma SSH",
+      "ENG": "Enable SSH Signing",
+      "FRA": "Activer signature SSH",
+      "ITA": "Abilita firma SSH"
+    },
+    "auditLog.action.sshSigningDisable": {
+      "SPA": "Deshabilitar firma SSH",
+      "ENG": "Disable SSH Signing",
+      "FRA": "Désactiver signature SSH",
+      "ITA": "Disabilita firma SSH"
+    },
+    "auditLog.action.sshKeyAuthorize": {
+      "SPA": "Autorizar clave SSH",
+      "ENG": "Authorize SSH Key",
+      "FRA": "Autoriser clé SSH",
+      "ITA": "Autorizza chiave SSH"
+    },
+    "auditLog.action.sshKeyRevoke": {
+      "SPA": "Revocar clave SSH",
+      "ENG": "Revoke SSH Key",
+      "FRA": "Révoquer clé SSH",
+      "ITA": "Revoca chiave SSH"
+    },
+    "auditLog.action.gitCommit": {
+      "SPA": "Commit Git",
+      "ENG": "Git Commit",
+      "FRA": "Commit Git",
+      "ITA": "Commit Git"
+    },
+    "auditLog.action.gitPush": {
+      "SPA": "Push Git",
+      "ENG": "Git Push",
+      "FRA": "Push Git",
+      "ITA": "Push Git"
+    },
+    "auditLog.action.gitBackupExport": {
+      "SPA": "Exportar backup Git",
+      "ENG": "Git Backup Export",
+      "FRA": "Export backup Git",
+      "ITA": "Esporta backup Git"
+    },
+    "auditLog.action.gitRelease": {
+      "SPA": "Release Git",
+      "ENG": "Git Release",
+      "FRA": "Release Git",
+      "ITA": "Release Git"
+    },
+    "auditLog.action.gitDiscard": {
+      "SPA": "Descartar cambios Git",
+      "ENG": "Git Discard",
+      "FRA": "Annuler changements Git",
+      "ITA": "Scarta modifiche Git"
+    },
+    "auditLog.action.gitRevert": {
+      "SPA": "Revertir Git",
+      "ENG": "Git Revert",
+      "FRA": "Réversion Git",
+      "ITA": "Ripristina Git"
+    },
+    "auditLog.action.gitAccessControl": {
+      "SPA": "Control de acceso Git",
+      "ENG": "Git Access Control",
+      "FRA": "Contrôle accès Git",
+      "ITA": "Controllo accesso Git"
+    },
+    "auditLog.action.configChange": {
+      "SPA": "Cambio de configuración",
+      "ENG": "Configuration Change",
+      "FRA": "Changement configuration",
+      "ITA": "Modifica configurazione"
+    },
+    "auditLog.action.backupCreate": {
+      "SPA": "Crear backup",
+      "ENG": "Create Backup",
+      "FRA": "Créer sauvegarde",
+      "ITA": "Crea backup"
+    },
+    "auditLog.action.backupRestore": {
+      "SPA": "Restaurar backup",
+      "ENG": "Restore Backup",
+      "FRA": "Restaurer sauvegarde",
+      "ITA": "Ripristina backup"
+    },
+    "auditLog.action.backupDelete": {
+      "SPA": "Eliminar backup",
+      "ENG": "Delete Backup",
+      "FRA": "Supprimer sauvegarde",
+      "ITA": "Elimina backup"
+    },
+    "auditLog.action.plcConnect": {
+      "SPA": "Conectar PLC",
+      "ENG": "PLC Connect",
+      "FRA": "Connexion API",
+      "ITA": "Connetti PLC"
+    },
+    "auditLog.action.plcDisconnect": {
+      "SPA": "Desconectar PLC",
+      "ENG": "PLC Disconnect",
+      "FRA": "Déconnexion API",
+      "ITA": "Disconnetti PLC"
+    },
+    "auditLog.action.systemStart": {
+      "SPA": "Inicio del sistema",
+      "ENG": "System Start",
+      "FRA": "Démarrage système",
+      "ITA": "Avvio sistema"
+    },
+    "auditLog.action.systemStop": {
+      "SPA": "Parada del sistema",
+      "ENG": "System Stop",
+      "FRA": "Arrêt système",
+      "ITA": "Arresto sistema"
+    },
+    "auditLog.action.serviceStart": {
+      "SPA": "Iniciar servicio",
+      "ENG": "Service Start",
+      "FRA": "Démarrer service",
+      "ITA": "Avvia servizio"
+    },
+    "auditLog.action.auditExport": {
+      "SPA": "Exportar auditoría",
+      "ENG": "Audit Export",
+      "FRA": "Exporter audit",
+      "ITA": "Esporta audit"
+    },
+
+    "auditLog.result.success": {
+      "SPA": "Éxito",
+      "ENG": "Success",
+      "FRA": "Succès",
+      "ITA": "Successo"
+    },
+    "auditLog.result.warning": {
+      "SPA": "Advertencia",
+      "ENG": "Warning",
+      "FRA": "Avertissement",
+      "ITA": "Avviso"
+    },
+    "auditLog.result.failure": {
+      "SPA": "Fallo",
+      "ENG": "Failure",
+      "FRA": "Échec",
+      "ITA": "Fallimento"
+    },
+    "auditLog.result.error": {
+      "SPA": "Error",
+      "ENG": "Error",
+      "FRA": "Erreur",
+      "ITA": "Errore"
+    },
+
+    "auditLog.grid.auth": {
+      "SPA": "Auth",
+      "ENG": "Auth",
+      "FRA": "Auth",
+      "ITA": "Auth"
+    },
+    "auditLog.grid.integrity": {
+      "SPA": "Integridad",
+      "ENG": "Integrity",
+      "FRA": "Intégrité",
+      "ITA": "Integrità"
+    },
+    "auditLog.grid.sbom": {
+      "SPA": "SBOM",
+      "ENG": "SBOM",
+      "FRA": "SBOM",
+      "ITA": "SBOM"
+    },
+    "auditLog.grid.vuln": {
+      "SPA": "Vuln",
+      "ENG": "Vuln",
+      "FRA": "Vuln",
+      "ITA": "Vuln"
+    },
+    "auditLog.grid.git": {
+      "SPA": "Git",
+      "ENG": "Git",
+      "FRA": "Git",
+      "ITA": "Git"
+    },
+    "auditLog.grid.security": {
+      "SPA": "Seguridad",
+      "ENG": "Security",
+      "FRA": "Sécurité",
+      "ITA": "Sicurezza"
+    },
+    "auditLog.grid.system": {
+      "SPA": "Sistema",
+      "ENG": "System",
+      "FRA": "Système",
+      "ITA": "Sistema"
+    },
+    "auditLog.grid.config": {
+      "SPA": "Config",
+      "ENG": "Config",
+      "FRA": "Config",
+      "ITA": "Config"
+    },
+    "auditLog.grid.cert": {
+      "SPA": "Cert",
+      "ENG": "Cert",
+      "FRA": "Cert",
+      "ITA": "Cert"
+    },
+    "auditLog.grid.backup": {
+      "SPA": "Backup",
+      "ENG": "Backup",
+      "FRA": "Sauvegarde",
+      "ITA": "Backup"
+    },
+    "auditLog.grid.plc": {
+      "SPA": "PLC",
+      "ENG": "PLC",
+      "FRA": "API",
+      "ITA": "PLC"
+    },
+    "auditLog.grid.otExt": {
+      "SPA": "OT/Ext",
+      "ENG": "OT/Ext",
+      "FRA": "OT/Ext",
+      "ITA": "OT/Ext"
+    },
+    "auditLog.grid.export": {
+      "SPA": "Export",
+      "ENG": "Export",
+      "FRA": "Export",
+      "ITA": "Export"
+    },
+
+    "auditLog.details.loginFailedUserNotFound": {
+      "SPA": "Login fallido - usuario '{username}' no encontrado",
+      "ENG": "Login failed - user '{username}' not found",
+      "FRA": "Connexion échouée - utilisateur '{username}' non trouvé",
+      "ITA": "Login fallito - utente '{username}' non trovato"
+    },
+    "auditLog.details.loginFailedAccountDisabled": {
+      "SPA": "Login fallido - cuenta '{username}' deshabilitada",
+      "ENG": "Login failed - account '{username}' disabled",
+      "FRA": "Connexion échouée - compte '{username}' désactivé",
+      "ITA": "Login fallito - account '{username}' disabilitato"
+    },
+    "auditLog.details.loginFailedWrongPassword": {
+      "SPA": "Login fallido para usuario {username} - contraseña incorrecta",
+      "ENG": "Login failed for user {username} - wrong password",
+      "FRA": "Connexion échouée pour l'utilisateur {username} - mot de passe incorrect",
+      "ITA": "Login fallito per utente {username} - password errata"
+    },
+    "auditLog.details.loginSuccess": {
+      "SPA": "Usuario {username} inició sesión exitosamente desde {ip}",
+      "ENG": "User {username} logged in successfully from {ip}",
+      "FRA": "Utilisateur {username} connecté avec succès depuis {ip}",
+      "ITA": "Utente {username} ha effettuato l'accesso con successo da {ip}"
+    },
+    "auditLog.details.accountLocked": {
+      "SPA": "Cuenta {username} bloqueada por {attempts} intentos fallidos",
+      "ENG": "Account {username} locked after {attempts} failed attempts",
+      "FRA": "Compte {username} verrouillé après {attempts} tentatives échouées",
+      "ITA": "Account {username} bloccato dopo {attempts} tentativi falliti"
+    },
+    "auditLog.details.userExpelled": {
+      "SPA": "Usuario {oldUser} expulsado por login de {newUser} (rol único: {role})",
+      "ENG": "User {oldUser} expelled by login of {newUser} (single role: {role})",
+      "FRA": "Utilisateur {oldUser} expulsé par connexion de {newUser} (rôle unique : {role})",
+      "ITA": "Utente {oldUser} espulso dal login di {newUser} (ruolo unico: {role})"
+    },
+    "auditLog.details.loginError": {
+      "SPA": "Error durante login de {username}: {error}",
+      "ENG": "Error during login for {username}: {error}",
+      "FRA": "Erreur lors de la connexion de {username} : {error}",
+      "ITA": "Errore durante il login di {username}: {error}"
+    },
+    "auditLog.details.logoutSuccess": {
+      "SPA": "Logout exitoso",
+      "ENG": "Logout successful",
+      "FRA": "Déconnexion réussie",
+      "ITA": "Logout riuscito"
+    },
+    "auditLog.details.passwordChanged": {
+      "SPA": "Contraseña cambiada correctamente",
+      "ENG": "Password changed successfully",
+      "FRA": "Mot de passe modifié avec succès",
+      "ITA": "Password cambiata con successo"
+    },
+    "auditLog.details.accountUnlocked": {
+      "SPA": "Cuenta desbloqueada",
+      "ENG": "Account unlocked",
+      "FRA": "Compte déverrouillé",
+      "ITA": "Account sbloccato"
+    },
+    "auditLog.details.sessionClosedInactivity": {
+      "SPA": "Sesión cerrada por inactividad del frontend ({minutes} min sin actividad)",
+      "ENG": "Session closed due to frontend inactivity ({minutes} min without activity)",
+      "FRA": "Session fermée pour inactivité du frontend ({minutes} min sans activité)",
+      "ITA": "Sessione chiusa per inattività del frontend ({minutes} min senza attività)"
+    },
+    "auditLog.details.userLogout": {
+      "SPA": "Usuario {username} cerró sesión",
+      "ENG": "User {username} logged out",
+      "FRA": "Utilisateur {username} s'est déconnecté",
+      "ITA": "Utente {username} ha effettuato il logout"
+    },
+    "auditLog.details.userLogoutVoluntary": {
+      "SPA": "Usuario {username} cerró sesión voluntariamente",
+      "ENG": "User {username} logged out voluntarily",
+      "FRA": "Utilisateur {username} s'est déconnecté volontairement",
+      "ITA": "Utente {username} ha effettuato il logout volontariamente"
+    },
+    "auditLog.details.userChangedPassword": {
+      "SPA": "Usuario {username} cambió su contraseña exitosamente",
+      "ENG": "User {username} changed their password successfully",
+      "FRA": "Utilisateur {username} a changé son mot de passe avec succès",
+      "ITA": "Utente {username} ha cambiato la password con successo"
+    },
+    "auditLog.details.allSessionsClosedPasswordChange": {
+      "SPA": "Todas las sesiones del usuario {username} fueron cerradas: Cambio de contraseña",
+      "ENG": "All sessions of user {username} were closed: Password change",
+      "FRA": "Toutes les sessions de l'utilisateur {username} ont été fermées : Changement de mot de passe",
+      "ITA": "Tutte le sessioni dell'utente {username} sono state chiuse: Cambio password"
+    },
+    "auditLog.details.allSessionsClosedPasswordReset": {
+      "SPA": "Todas las sesiones del usuario {username} fueron cerradas: Reset de contraseña",
+      "ENG": "All sessions of user {username} were closed: Password reset",
+      "FRA": "Toutes les sessions de l'utilisateur {username} ont été fermées : Réinitialisation du mot de passe",
+      "ITA": "Tutte le sessioni dell'utente {username} sono state chiuse: Reset password"
+    },
+    "auditLog.details.allSessionsClosedAquafrischReset": {
+      "SPA": "Todas las sesiones del usuario {username} fueron cerradas: Reset de contraseña vía código Aquafrisch",
+      "ENG": "All sessions of user {username} were closed: Password reset via Aquafrisch code",
+      "FRA": "Toutes les sessions de l'utilisateur {username} ont été fermées : Réinitialisation via code Aquafrisch",
+      "ITA": "Tutte le sessioni dell'utente {username} sono state chiuse: Reset password tramite codice Aquafrisch"
+    },
+    "auditLog.details.allSessionsClosedUserDeleted": {
+      "SPA": "Todas las sesiones del usuario {username} fueron cerradas: Usuario eliminado",
+      "ENG": "All sessions of user {username} were closed: User deleted",
+      "FRA": "Toutes les sessions de l'utilisateur {username} ont été fermées : Utilisateur supprimé",
+      "ITA": "Tutte le sessioni dell'utente {username} sono state chiuse: Utente eliminato"
+    },
+    "auditLog.details.passwordResetByAdmin": {
+      "SPA": "Contraseña de {username} reseteada por {admin}",
+      "ENG": "Password of {username} reset by {admin}",
+      "FRA": "Mot de passe de {username} réinitialisé par {admin}",
+      "ITA": "Password di {username} resettata da {admin}"
+    },
+    "auditLog.details.passwordResetAquafrisch": {
+      "SPA": "Contraseña reseteada con código de recuperación Aquafrisch para usuario {username}",
+      "ENG": "Password reset with Aquafrisch recovery code for user {username}",
+      "FRA": "Mot de passe réinitialisé avec le code de récupération Aquafrisch pour l'utilisateur {username}",
+      "ITA": "Password resettata con codice di recupero Aquafrisch per utente {username}"
+    },
+    "auditLog.details.passwordResetAquafrischAlt": {
+      "SPA": "Contraseña de {username} reseteada usando código de recuperación Aquafrisch",
+      "ENG": "Password of {username} reset using Aquafrisch recovery code",
+      "FRA": "Mot de passe de {username} réinitialisé avec le code de récupération Aquafrisch",
+      "ITA": "Password di {username} resettata usando codice di recupero Aquafrisch"
+    },
+    "auditLog.details.rolesChanged": {
+      "SPA": "Roles de '{username}' cambiados: [{oldRoles}] → [{newRoles}] por {admin}",
+      "ENG": "Roles of '{username}' changed: [{oldRoles}] → [{newRoles}] by {admin}",
+      "FRA": "Rôles de '{username}' modifiés : [{oldRoles}] → [{newRoles}] par {admin}",
+      "ITA": "Ruoli di '{username}' cambiati: [{oldRoles}] → [{newRoles}] da {admin}"
+    },
+    "auditLog.details.userModified": {
+      "SPA": "Usuario {username} modificado por {admin}",
+      "ENG": "User {username} modified by {admin}",
+      "FRA": "Utilisateur {username} modifié par {admin}",
+      "ITA": "Utente {username} modificato da {admin}"
+    },
+    "auditLog.details.userCreated": {
+      "SPA": "Usuario {username} creado por {admin}",
+      "ENG": "User {username} created by {admin}",
+      "FRA": "Utilisateur {username} créé par {admin}",
+      "ITA": "Utente {username} creato da {admin}"
+    },
+    "auditLog.details.userDeleted": {
+      "SPA": "Usuario {username} eliminado por {admin}",
+      "ENG": "User {username} deleted by {admin}",
+      "FRA": "Utilisateur {username} supprimé par {admin}",
+      "ITA": "Utente {username} eliminato da {admin}"
+    },
+    "auditLog.details.integrityVerify": {
+      "SPA": "Verificación de integridad: {status}",
+      "ENG": "Integrity verification: {status}",
+      "FRA": "Vérification d'intégrité : {status}",
+      "ITA": "Verifica integrità: {status}"
+    },
+    "auditLog.details.integrityAutoVerify": {
+      "SPA": "Auto-verificación de integridad: {status}",
+      "ENG": "Auto-integrity verification: {status}",
+      "FRA": "Auto-vérification d'intégrité : {status}",
+      "ITA": "Auto-verifica integrità: {status}"
+    },
+    "auditLog.details.integrityAutoWarnings": {
+      "SPA": "Verificación automática de integridad CON ADVERTENCIAS - Backend: {backendStatus} ({backendFiles} archivos) | Frontend: {frontendStatus} ({frontendFiles} archivos) | TwinCAT: {twincatStatus}",
+      "ENG": "Automatic integrity verification with WARNINGS - Backend: {backendStatus} ({backendFiles} files) | Frontend: {frontendStatus} ({frontendFiles} files) | TwinCAT: {twincatStatus}",
+      "FRA": "Vérification automatique d'intégrité avec AVERTISSEMENTS - Backend : {backendStatus} ({backendFiles} fichiers) | Frontend : {frontendStatus} ({frontendFiles} fichiers) | TwinCAT : {twincatStatus}",
+      "ITA": "Verifica automatica integrità con AVVERTENZE - Backend: {backendStatus} ({backendFiles} file) | Frontend: {frontendStatus} ({frontendFiles} file) | TwinCAT: {twincatStatus}"
+    },
+    "auditLog.details.integrityAutoPassed": {
+      "SPA": "Verificación automática de integridad APROBADA - Backend: {backendStatus} | Frontend: {frontendStatus} | TwinCAT: {twincatStatus}",
+      "ENG": "Automatic integrity verification PASSED - Backend: {backendStatus} | Frontend: {frontendStatus} | TwinCAT: {twincatStatus}",
+      "FRA": "Vérification automatique d'intégrité RÉUSSIE - Backend : {backendStatus} | Frontend : {frontendStatus} | TwinCAT : {twincatStatus}",
+      "ITA": "Verifica automatica integrità SUPERATA - Backend: {backendStatus} | Frontend: {frontendStatus} | TwinCAT: {twincatStatus}"
+    },
+    "auditLog.details.integrityManualVerify": {
+      "SPA": "Verificación manual de integridad por {user}: {result}",
+      "ENG": "Manual integrity verification by {user}: {result}",
+      "FRA": "Vérification manuelle d'intégrité par {user} : {result}",
+      "ITA": "Verifica manuale integrità da {user}: {result}"
+    },
+    "auditLog.status.modified": {
+      "SPA": "MODIFICADO",
+      "ENG": "MODIFIED",
+      "FRA": "MODIFIÉ",
+      "ITA": "MODIFICATO"
+    },
+    "auditLog.status.unknown": {
+      "SPA": "DESCONOCIDO",
+      "ENG": "UNKNOWN",
+      "FRA": "INCONNU",
+      "ITA": "SCONOSCIUTO"
+    },
+    "auditLog.status.unknownLower": {
+      "SPA": "desconocido",
+      "ENG": "unknown",
+      "FRA": "inconnu",
+      "ITA": "sconosciuto"
+    },
+    "auditLog.status.verified": {
+      "SPA": "verificado",
+      "ENG": "verified",
+      "FRA": "vérifié",
+      "ITA": "verificato"
+    },
+    "auditLog.status.withWarnings": {
+      "SPA": "CON ADVERTENCIAS",
+      "ENG": "WITH WARNINGS",
+      "FRA": "AVEC AVERTISSEMENTS",
+      "ITA": "CON AVVERTENZE"
+    },
+    "auditLog.status.passed": {
+      "SPA": "APROBADA",
+      "ENG": "PASSED",
+      "FRA": "RÉUSSIE",
+      "ITA": "SUPERATA"
+    },
+    "auditLog.status.repoNotFound": {
+      "SPA": "(repositorio no encontrado)",
+      "ENG": "(repo not found)",
+      "FRA": "(dépôt non trouvé)",
+      "ITA": "(repository non trovato)"
+    },
+    "auditLog.status.unknownRepoNotFound": {
+      "SPA": "DESCONOCIDO (repositorio no encontrado)",
+      "ENG": "UNKNOWN (repo not found)",
+      "FRA": "INCONNU (dépôt non trouvé)",
+      "ITA": "SCONOSCIUTO (repository non trovato)"
+    },
+    "auditLog.status.modified": {
+      "SPA": "MODIFICADO",
+      "ENG": "MODIFIED",
+      "FRA": "MODIFIÉ",
+      "ITA": "MODIFICATO"
+    },
+    "auditLog.status.unknown": {
+      "SPA": "DESCONOCIDO",
+      "ENG": "UNKNOWN",
+      "FRA": "INCONNU",
+      "ITA": "SCONOSCIUTO"
+    },
+    "auditLog.status.unknownLower": {
+      "SPA": "desconocido",
+      "ENG": "unknown",
+      "FRA": "inconnu",
+      "ITA": "sconosciuto"
+    },
+    "auditLog.status.verified": {
+      "SPA": "verificado",
+      "ENG": "verified",
+      "FRA": "vérifié",
+      "ITA": "verificato"
+    },
+    "auditLog.status.withWarnings": {
+      "SPA": "CON ADVERTENCIAS",
+      "ENG": "WITH WARNINGS",
+      "FRA": "AVEC AVERTISSEMENTS",
+      "ITA": "CON AVVERTENZE"
+    },
+    "auditLog.status.passed": {
+      "SPA": "APROBADA",
+      "ENG": "PASSED",
+      "FRA": "RÉUSSIE",
+      "ITA": "SUPERATA"
+    },
+    "auditLog.status.repoNotFound": {
+      "SPA": "(repositorio no encontrado)",
+      "ENG": "(repo not found)",
+      "FRA": "(dépôt non trouvé)",
+      "ITA": "(repository non trovato)"
+    },
+    "auditLog.status.unknownRepoNotFound": {
+      "SPA": "DESCONOCIDO (repositorio no encontrado)",
+      "ENG": "UNKNOWN (repo not found)",
+      "FRA": "INCONNU (dépôt non trouvé)",
+      "ITA": "SCONOSCIUTO (repository non trovato)"
+    },
+    "auditLog.status.modifiedLower": {
+      "SPA": "modificado",
+      "ENG": "modified",
+      "FRA": "modifié",
+      "ITA": "modificato"
+    },
+    "auditLog.status.verifiedUpper": {
+      "SPA": "VERIFICADO",
+      "ENG": "VERIFIED",
+      "FRA": "VÉRIFIÉ",
+      "ITA": "VERIFICATO"
+    },
+    "auditLog.status.valid": {
+      "SPA": "VÁLIDO",
+      "ENG": "VALID",
+      "FRA": "VALIDE",
+      "ITA": "VALIDO"
+    },
+    "auditLog.status.invalid": {
+      "SPA": "INVÁLIDO",
+      "ENG": "INVALID",
+      "FRA": "INVALIDE",
+      "ITA": "NON VALIDO"
+    },
+    "auditLog.status.activado": {
+      "SPA": "ACTIVADO",
+      "ENG": "ACTIVATED",
+      "FRA": "ACTIVÉ",
+      "ITA": "ATTIVATO"
+    },
+    "auditLog.status.desactivado": {
+      "SPA": "DESACTIVADO",
+      "ENG": "DEACTIVATED",
+      "FRA": "DÉSACTIVÉ",
+      "ITA": "DISATTIVATO"
+    },
+    "auditLog.details.sbomGenerated": {
+      "SPA": "SBOM generado: {count} componentes",
+      "ENG": "SBOM generated: {count} components",
+      "FRA": "SBOM généré : {count} composants",
+      "ITA": "SBOM generato: {count} componenti"
+    },
+    "auditLog.details.sbomGeneratedFull": {
+      "SPA": "SBOM generado con {total} componentes (Backend: {backend}, Frontend: {frontend})",
+      "ENG": "Generated SBOM with {total} components (Backend: {backend}, Frontend: {frontend})",
+      "FRA": "SBOM généré avec {total} composants (Backend : {backend}, Frontend : {frontend})",
+      "ITA": "SBOM generato con {total} componenti (Backend: {backend}, Frontend: {frontend})"
+    },
+    "auditLog.details.sbomExported": {
+      "SPA": "SBOM exportado",
+      "ENG": "SBOM exported",
+      "FRA": "SBOM exporté",
+      "ITA": "SBOM esportato"
+    },
+    "auditLog.details.sbomExportedFile": {
+      "SPA": "SBOM exportado: {filename} ({size} bytes)",
+      "ENG": "SBOM exported: {filename} ({size} bytes)",
+      "FRA": "SBOM exporté : {filename} ({size} octets)",
+      "ITA": "SBOM esportato: {filename} ({size} byte)"
+    },
+    "auditLog.details.backupCreated": {
+      "SPA": "Backup creado: {name}",
+      "ENG": "Backup created: {name}",
+      "FRA": "Sauvegarde créée : {name}",
+      "ITA": "Backup creato: {name}"
+    },
+    "auditLog.details.backupRestored": {
+      "SPA": "Backup restaurado: {name}",
+      "ENG": "Backup restored: {name}",
+      "FRA": "Sauvegarde restaurée : {name}",
+      "ITA": "Backup ripristinato: {name}"
+    },
+    "auditLog.details.backupDeleted": {
+      "SPA": "Backup eliminado: {name}",
+      "ENG": "Backup deleted: {name}",
+      "FRA": "Sauvegarde supprimée : {name}",
+      "ITA": "Backup eliminato: {name}"
+    },
+    "auditLog.details.plcConnected": {
+      "SPA": "Conectado al PLC {address}",
+      "ENG": "Connected to PLC {address}",
+      "FRA": "Connecté à l'API {address}",
+      "ITA": "Connesso al PLC {address}"
+    },
+    "auditLog.details.plcDisconnected": {
+      "SPA": "Desconectado del PLC",
+      "ENG": "Disconnected from PLC",
+      "FRA": "Déconnecté de l'API",
+      "ITA": "Disconnesso dal PLC"
+    },
+    "auditLog.details.plcConnectionError": {
+      "SPA": "Error de conexión PLC: {error}",
+      "ENG": "PLC connection error: {error}",
+      "FRA": "Erreur de connexion API : {error}",
+      "ITA": "Errore connessione PLC: {error}"
+    },
+    "auditLog.details.gitCommit": {
+      "SPA": "Commit Git: {message}",
+      "ENG": "Git commit: {message}",
+      "FRA": "Commit Git : {message}",
+      "ITA": "Commit Git: {message}"
+    },
+    "auditLog.details.gitPush": {
+      "SPA": "Push exitoso a {remote}",
+      "ENG": "Successful push to {remote}",
+      "FRA": "Push réussi vers {remote}",
+      "ITA": "Push riuscito a {remote}"
+    },
+    "auditLog.details.gitRelease": {
+      "SPA": "Release Git: {version}",
+      "ENG": "Git release: {version}",
+      "FRA": "Release Git : {version}",
+      "ITA": "Release Git: {version}"
+    },
+    "auditLog.details.systemStarted": {
+      "SPA": "Sistema iniciado",
+      "ENG": "System started",
+      "FRA": "Système démarré",
+      "ITA": "Sistema avviato"
+    },
+    "auditLog.details.systemStartedVersion": {
+      "SPA": "Sistema iniciado - Versión {version}, Entorno: {environment}",
+      "ENG": "System started - Version {version}, Environment: {environment}",
+      "FRA": "Système démarré - Version {version}, Environnement : {environment}",
+      "ITA": "Sistema avviato - Versione {version}, Ambiente: {environment}"
+    },
+    "environment.Development": {
+      "SPA": "Desarrollo",
+      "ENG": "Development",
+      "FRA": "Développement",
+      "ITA": "Sviluppo"
+    },
+    "environment.Production": {
+      "SPA": "Producción",
+      "ENG": "Production",
+      "FRA": "Production",
+      "ITA": "Produzione"
+    },
+    "auditLog.details.systemStopped": {
+      "SPA": "Sistema detenido",
+      "ENG": "System stopped",
+      "FRA": "Système arrêté",
+      "ITA": "Sistema fermato"
+    },
+    "auditLog.details.systemStoppedNormally": {
+      "SPA": "Sistema detenido normalmente",
+      "ENG": "System stopped normally",
+      "FRA": "Système arrêté normalement",
+      "ITA": "Sistema fermato normalmente"
+    },
+    "auditLog.details.applicationRestart": {
+      "SPA": "Reinicio de aplicación (backend + frontend) iniciado por {username} (rol: {role})",
+      "ENG": "Application restart (backend + frontend) initiated by {username} (role: {role})",
+      "FRA": "Redémarrage de l'application (backend + frontend) initié par {username} (rôle : {role})",
+      "ITA": "Riavvio applicazione (backend + frontend) avviato da {username} (ruolo: {role})"
+    },
+    "auditLog.details.teamviewerLaunched": {
+      "SPA": "TeamViewer iniciado por {username} (rol: {role}) desde: {path}",
+      "ENG": "TeamViewer launched by {username} (role: {role}) from: {path}",
+      "FRA": "TeamViewer lancé par {username} (rôle : {role}) depuis : {path}",
+      "ITA": "TeamViewer avviato da {username} (ruolo: {role}) da: {path}"
+    },
+    "auditLog.details.serviceStarted": {
+      "SPA": "Servicio iniciado: {service}",
+      "ENG": "Service started: {service}",
+      "FRA": "Service démarré : {service}",
+      "ITA": "Servizio avviato: {service}"
+    },
+    "auditLog.details.certificateGenerated": {
+      "SPA": "Certificado generado",
+      "ENG": "Certificate generated",
+      "FRA": "Certificat généré",
+      "ITA": "Certificato generato"
+    },
+    "auditLog.details.certificateDownloaded": {
+      "SPA": "Certificado descargado",
+      "ENG": "Certificate downloaded",
+      "FRA": "Certificat téléchargé",
+      "ITA": "Certificato scaricato"
+    },
+    "auditLog.details.integrityCertGenerated": {
+      "SPA": "Certificado de integridad generado para máquina {machineId}",
+      "ENG": "Integrity certificate generated for machine {machineId}",
+      "FRA": "Certificat d'intégrité généré pour la machine {machineId}",
+      "ITA": "Certificato di integrità generato per la macchina {machineId}"
+    },
+    "auditLog.details.integrityCertDownloaded": {
+      "SPA": "Certificado de integridad descargado para máquina {machineId}",
+      "ENG": "Integrity certificate downloaded for machine {machineId}",
+      "FRA": "Certificat d'intégrité téléchargé pour la machine {machineId}",
+      "ITA": "Certificato di integrità scaricato per la macchina {machineId}"
+    },
+    "auditLog.details.certificateVerification": {
+      "SPA": "Verificación de certificado {certificateId}: {result}",
+      "ENG": "Certificate verification {certificateId}: {result}",
+      "FRA": "Vérification du certificat {certificateId} : {result}",
+      "ITA": "Verifica del certificato {certificateId}: {result}"
+    },
+    "auditLog.details.deploymentInfoExported": {
+      "SPA": "Información de despliegue exportada: Backend: v{backendVersion} [{backendIntegrity}], Frontend: v{frontendVersion} [{frontendIntegrity}], TwinCAT: v{twincatVersion} [{twincatIntegrity}] | Firmados: {signedCount}/3 | Operaciones: {operationsCount} | Archivo: {fileName}",
+      "ENG": "Deployment info exported: Backend: v{backendVersion} [{backendIntegrity}], Frontend: v{frontendVersion} [{frontendIntegrity}], TwinCAT: v{twincatVersion} [{twincatIntegrity}] | Signed: {signedCount}/3 | Operations: {operationsCount} | File: {fileName}",
+      "FRA": "Infos de déploiement exportées : Backend : v{backendVersion} [{backendIntegrity}], Frontend : v{frontendVersion} [{frontendIntegrity}], TwinCAT : v{twincatVersion} [{twincatIntegrity}] | Signés : {signedCount}/3 | Opérations : {operationsCount} | Fichier : {fileName}",
+      "ITA": "Informazioni di distribuzione esportate: Backend: v{backendVersion} [{backendIntegrity}], Frontend: v{frontendVersion} [{frontendIntegrity}], TwinCAT: v{twincatVersion} [{twincatIntegrity}] | Firmati: {signedCount}/3 | Operazioni: {operationsCount} | File: {fileName}"
+    },
+    "auditLog.details.auditExported": {
+      "SPA": "Audit log exportado",
+      "ENG": "Audit log exported",
+      "FRA": "Journal d'audit exporté",
+      "ITA": "Audit log esportato"
+    },
+    "auditLog.details.recordsExported": {
+      "SPA": "{count} registros exportados",
+      "ENG": "{count} records exported",
+      "FRA": "{count} enregistrements exportés",
+      "ITA": "{count} record esportati"
+    },
+    "auditLog.details.auditLogsExported": {
+      "SPA": "Logs de auditoría exportados a {fileName} ({bytes} bytes, desde: {fromDate}, hasta: {toDate})",
+      "ENG": "Audit logs exported to {fileName} ({bytes} bytes, from: {fromDate}, to: {toDate})",
+      "FRA": "Logs d'audit exportés vers {fileName} ({bytes} octets, de : {fromDate}, à : {toDate})",
+      "ITA": "Log di audit esportati in {fileName} ({bytes} byte, da: {fromDate}, a: {toDate})"
+    },
+    "auditLog.details.auditExportFailed": {
+      "SPA": "Error al exportar logs de auditoría: {error}",
+      "ENG": "Failed to export audit logs: {error}",
+      "FRA": "Échec de l'export des logs d'audit : {error}",
+      "ITA": "Errore nell'esportazione dei log di audit: {error}"
+    },
+    "auditLog.dateFilter.all": {
+      "SPA": "todos",
+      "ENG": "all",
+      "FRA": "tous",
+      "ITA": "tutti"
+    },
+    "auditLog.action.alarmHistoryExport": {
+      "SPA": "Exportación histórico alarmas",
+      "ENG": "Alarm history export",
+      "FRA": "Export historique alarmes",
+      "ITA": "Esportazione storico allarmi"
+    },
+    "auditLog.action.statisticsExport": {
+      "SPA": "Exportación estadísticas",
+      "ENG": "Statistics export",
+      "FRA": "Export statistiques",
+      "ITA": "Esportazione statistiche"
+    },
+    "auditLog.action.recipeExport": {
+      "SPA": "Exportación recetas",
+      "ENG": "Recipe export",
+      "FRA": "Export recettes",
+      "ITA": "Esportazione ricette"
+    },
+    "auditLog.action.configurationExport": {
+      "SPA": "Exportación configuración",
+      "ENG": "Configuration export",
+      "FRA": "Export configuration",
+      "ITA": "Esportazione configurazione"
+    },
+    "auditLog.details.alarmHistoryExported": {
+      "SPA": "Histórico de alarmas exportado: {count} registros, periodo: {fromDate} a {toDate}",
+      "ENG": "Alarm history exported: {count} records, period: {fromDate} to {toDate}",
+      "FRA": "Historique des alarmes exporté : {count} enregistrements, période : {fromDate} à {toDate}",
+      "ITA": "Storico allarmi esportato: {count} record, periodo: {fromDate} a {toDate}"
+    },
+    "auditLog.details.statisticsExported": {
+      "SPA": "Estadísticas exportadas: {count} registros, periodo: {fromDate} a {toDate}",
+      "ENG": "Statistics exported: {count} records, period: {fromDate} to {toDate}",
+      "FRA": "Statistiques exportées : {count} enregistrements, période : {fromDate} à {toDate}",
+      "ITA": "Statistiche esportate: {count} record, periodo: {fromDate} a {toDate}"
+    },
+    "auditLog.details.recipeExported": {
+      "SPA": "Receta exportada: {recipeName}",
+      "ENG": "Recipe exported: {recipeName}",
+      "FRA": "Recette exportée : {recipeName}",
+      "ITA": "Ricetta esportata: {recipeName}"
+    },
+    "auditLog.details.configurationExported": {
+      "SPA": "Configuración exportada: {configType}",
+      "ENG": "Configuration exported: {configType}",
+      "FRA": "Configuration exportée : {configType}",
+      "ITA": "Configurazione esportata: {configType}"
+    },
+    "auditLog.details.sshKeyGenerated": {
+      "SPA": "Clave SSH generada",
+      "ENG": "SSH key generated",
+      "FRA": "Clé SSH générée",
+      "ITA": "Chiave SSH generata"
+    },
+    "auditLog.details.permissionsUpdated": {
+      "SPA": "Permisos actualizados para rol '{role}'",
+      "ENG": "Permissions updated for role '{role}'",
+      "FRA": "Permissions mises à jour pour le rôle '{role}'",
+      "ITA": "Permessi aggiornati per ruolo '{role}'"
+    },
+    "auditLog.details.rolePermissionsUpdated": {
+      "SPA": "Permisos del rol {role} actualizados",
+      "ENG": "Role {role} permissions updated",
+      "FRA": "Permissions du rôle {role} mises à jour",
+      "ITA": "Permessi del ruolo {role} aggiornati"
+    },
+    "auditLog.details.rolePermissionsReset": {
+      "SPA": "Permisos del rol {role} restaurados a valores por defecto",
+      "ENG": "Role {role} permissions reset to default values",
+      "FRA": "Permissions du rôle {role} réinitialisées aux valeurs par défaut",
+      "ITA": "Permessi del ruolo {role} ripristinati ai valori predefiniti"
+    },
+    "auditLog.details.attemptCreateProtectedRole": {
+      "SPA": "Usuario {username} intentó crear usuario con rol protegido del sistema",
+      "ENG": "User {username} attempted to create user with protected system role",
+      "FRA": "Utilisateur {username} a tenté de créer un utilisateur avec un rôle protégé du système",
+      "ITA": "Utente {username} ha tentato di creare utente con ruolo protetto del sistema"
+    },
+    "auditLog.details.attemptModifyProtectedUser": {
+      "SPA": "Usuario {username} intentó modificar usuario protegido del sistema",
+      "ENG": "User {username} attempted to modify protected system user",
+      "FRA": "Utilisateur {username} a tenté de modifier un utilisateur protégé du système",
+      "ITA": "Utente {username} ha tentato di modificare utente protetto del sistema"
+    },
+    "auditLog.details.attemptAssignProtectedRole": {
+      "SPA": "Usuario {username} intentó asignar rol protegido del sistema",
+      "ENG": "User {username} attempted to assign protected system role",
+      "FRA": "Utilisateur {username} a tenté d'attribuer un rôle protégé du système",
+      "ITA": "Utente {username} ha tentato di assegnare ruolo protetto del sistema"
+    },
+    "auditLog.details.attemptDeleteProtectedUser": {
+      "SPA": "Usuario {username} intentó eliminar usuario protegido del sistema",
+      "ENG": "User {username} attempted to delete protected system user",
+      "FRA": "Utilisateur {username} a tenté de supprimer un utilisateur protégé du système",
+      "ITA": "Utente {username} ha tentato di eliminare utente protetto del sistema"
+    },
+    "auditLog.details.attemptModifyRolePermissions": {
+      "SPA": "Usuario {username} intentó modificar permisos del rol {role}",
+      "ENG": "User {username} attempted to modify role {role} permissions",
+      "FRA": "Utilisateur {username} a tenté de modifier les permissions du rôle {role}",
+      "ITA": "Utente {username} ha tentato di modificare i permessi del ruolo {role}"
+    },
+    "auditLog.details.sshSigningConfigured": {
+      "SPA": "Firma SSH configurada: Ruta={keyPath} | Resultado: {result}",
+      "ENG": "SSH signing configured: KeyPath={keyPath} | Result: {result}",
+      "FRA": "Signature SSH configurée : Chemin={keyPath} | Résultat : {result}",
+      "ITA": "Firma SSH configurata: Percorso={keyPath} | Risultato: {result}"
+    },
+    "auditLog.details.sshKeyGeneratedFull": {
+      "SPA": "Clave SSH Ed25519 generada para {email} | Ruta: {path}",
+      "ENG": "SSH Ed25519 key generated for {email} | Path: {path}",
+      "FRA": "Clé SSH Ed25519 générée pour {email} | Chemin : {path}",
+      "ITA": "Chiave SSH Ed25519 generata per {email} | Percorso: {path}"
+    },
+    "auditLog.details.sshSigningDisabled": {
+      "SPA": "Firma SSH desactivada: {message}",
+      "ENG": "SSH signing disabled: {message}",
+      "FRA": "Signature SSH désactivée : {message}",
+      "ITA": "Firma SSH disattivata: {message}"
+    },
+    "auditLog.details.sshKeysDeleted": {
+      "SPA": "Claves SSH eliminadas del sistema: {message}",
+      "ENG": "SSH keys deleted from system: {message}",
+      "FRA": "Clés SSH supprimées du système : {message}",
+      "ITA": "Chiavi SSH eliminate dal sistema: {message}"
+    },
+    "auditLog.details.sshKeyExported": {
+      "SPA": "Clave SSH exportada: {message}",
+      "ENG": "SSH key exported: {message}",
+      "FRA": "Clé SSH exportée : {message}",
+      "ITA": "Chiave SSH esportata: {message}"
+    },
+    "auditLog.details.sshKeyImported": {
+      "SPA": "Clave SSH importada: {message}",
+      "ENG": "SSH key imported: {message}",
+      "FRA": "Clé SSH importée : {message}",
+      "ITA": "Chiave SSH importata: {message}"
+    },
+    "auditLog.details.sshKeyAuthorized": {
+      "SPA": "Clave SSH autorizada: Propietario={owner}, Email={email}, Huella={fingerprint}",
+      "ENG": "SSH key authorized: Owner={owner}, Email={email}, Fingerprint={fingerprint}",
+      "FRA": "Clé SSH autorisée : Propriétaire={owner}, Email={email}, Empreinte={fingerprint}",
+      "ITA": "Chiave SSH autorizzata: Proprietario={owner}, Email={email}, Impronta={fingerprint}"
+    },
+    "auditLog.details.sshKeyRevoked": {
+      "SPA": "Autorización de clave SSH revocada: Huella={fingerprint}",
+      "ENG": "SSH key authorization revoked: Fingerprint={fingerprint}",
+      "FRA": "Autorisation de clé SSH révoquée : Empreinte={fingerprint}",
+      "ITA": "Autorizzazione chiave SSH revocata: Impronta={fingerprint}"
+    },
+    "auditLog.details.gitAccessControl": {
+      "SPA": "Control de acceso Git {status}",
+      "ENG": "Git Access Control {status}",
+      "FRA": "Contrôle d'accès Git {status}",
+      "ITA": "Controllo accesso Git {status}"
+    },
+    "auditLog.status.activado": {
+      "SPA": "ACTIVADO",
+      "ENG": "ENABLED",
+      "FRA": "ACTIVÉ",
+      "ITA": "ATTIVATO"
+    },
+    "auditLog.status.desactivado": {
+      "SPA": "DESACTIVADO",
+      "ENG": "DISABLED",
+      "FRA": "DÉSACTIVÉ",
+      "ITA": "DISATTIVATO"
+    },
+    "auditLog.message.sshKeysDeletedSigning": {
+      "SPA": "Claves SSH eliminadas: id_ed25519. Firma SSH desactivada.",
+      "ENG": "SSH keys deleted: id_ed25519. SSH signing disabled.",
+      "FRA": "Clés SSH supprimées : id_ed25519. Signature SSH désactivée.",
+      "ITA": "Chiavi SSH eliminate: id_ed25519. Firma SSH disattivata."
+    },
+    "auditLog.message.sshSigningDisabledCommits": {
+      "SPA": "Firma SSH desactivada. Los commits ya no serán firmados.",
+      "ENG": "SSH signing disabled. Commits will no longer be signed.",
+      "FRA": "Signature SSH désactivée. Les commits ne seront plus signés.",
+      "ITA": "Firma SSH disattivata. I commit non saranno più firmati."
+    },
+    "auditLog.message.publicKeyAvailable": {
+      "SPA": "Huella de clave pública disponible",
+      "ENG": "Public key fingerprint available",
+      "FRA": "Empreinte de clé publique disponible",
+      "ITA": "Impronta chiave pubblica disponibile"
+    },
+    "auditLog.message.sshSigningConfiguredSuccess": {
+      "SPA": "Firma SSH configurada exitosamente con clave: {keyPath}",
+      "ENG": "SSH signing configured successfully with key: {keyPath}",
+      "FRA": "Signature SSH configurée avec succès avec la clé : {keyPath}",
+      "ITA": "Firma SSH configurata con successo con chiave: {keyPath}"
+    },
+    "auditLog.message.sshKeysDeleted": {
+      "SPA": "Claves SSH eliminadas:",
+      "ENG": "SSH keys deleted:",
+      "FRA": "Clés SSH supprimées :",
+      "ITA": "Chiavi SSH eliminate:"
+    },
+    "auditLog.message.sshSigningDisabled": {
+      "SPA": "Firma SSH desactivada.",
+      "ENG": "SSH signing disabled.",
+      "FRA": "Signature SSH désactivée.",
+      "ITA": "Firma SSH disattivata."
+    },
+    "auditLog.details.configurationSaved": {
+      "SPA": "Configuración guardada: {configName}",
+      "ENG": "Configuration saved: {configName}",
+      "FRA": "Configuration enregistrée : {configName}",
+      "ITA": "Configurazione salvata: {configName}"
+    },
+    "auditLog.details.configurationLoaded": {
+      "SPA": "Configuración cargada: {configName}",
+      "ENG": "Configuration loaded: {configName}",
+      "FRA": "Configuration chargée : {configName}",
+      "ITA": "Configurazione caricata: {configName}"
+    },
+    "auditLog.details.plcConnected": {
+      "SPA": "Conectado al PLC en {netId}:{port} - Dispositivo: {device}",
+      "ENG": "Connected to PLC at {netId}:{port} - Device: {device}",
+      "FRA": "Connecté au PLC à {netId}:{port} - Appareil : {device}",
+      "ITA": "Connesso al PLC su {netId}:{port} - Dispositivo: {device}"
+    },
+    "auditLog.details.plcDisconnected": {
+      "SPA": "Desconectado del PLC en {netId}:{port}",
+      "ENG": "Disconnected from PLC at {netId}:{port}",
+      "FRA": "Déconnecté du PLC à {netId}:{port}",
+      "ITA": "Disconnesso dal PLC su {netId}:{port}"
+    },
+    "auditLog.details.plcNotInRun": {
+      "SPA": "PLC en {netId}:{port} no está en estado RUN: {state}",
+      "ENG": "PLC at {netId}:{port} not in RUN state: {state}",
+      "FRA": "PLC à {netId}:{port} n'est pas en état RUN : {state}",
+      "ITA": "PLC su {netId}:{port} non in stato RUN: {state}"
+    },
+    "auditLog.details.plcNotResponding": {
+      "SPA": "PLC en {netId}:{port} no responde - Error: {error}",
+      "ENG": "PLC at {netId}:{port} not responding - Error: {error}",
+      "FRA": "PLC à {netId}:{port} ne répond pas - Erreur : {error}",
+      "ITA": "PLC su {netId}:{port} non risponde - Errore: {error}"
+    },
+    "auditLog.details.plcCannotConnect": {
+      "SPA": "No se puede conectar al PLC en {netId}:{port} - {error}",
+      "ENG": "Cannot connect to PLC at {netId}:{port} - {error}",
+      "FRA": "Impossible de se connecter au PLC à {netId}:{port} - {error}",
+      "ITA": "Impossibile connettersi al PLC su {netId}:{port} - {error}"
+    },
+    "auditLog.details.gitCommitRepo": {
+      "SPA": "Commit en {repo}: {message}",
+      "ENG": "Commit in {repo}: {message}",
+      "FRA": "Commit dans {repo} : {message}",
+      "ITA": "Commit in {repo}: {message}"
+    },
+    "auditLog.details.gitCommitPush": {
+      "SPA": "Commit+Push en {repo}: {message}",
+      "ENG": "Commit+Push in {repo}: {message}",
+      "FRA": "Commit+Push dans {repo} : {message}",
+      "ITA": "Commit+Push in {repo}: {message}"
+    },
+    "auditLog.details.gitCommitAll": {
+      "SPA": "Commit en todos [{repos}]: {message}",
+      "ENG": "Commit to all [{repos}]: {message}",
+      "FRA": "Commit dans tous [{repos}] : {message}",
+      "ITA": "Commit in tutti [{repos}]: {message}"
+    },
+    "auditLog.details.gitPushRepo": {
+      "SPA": "Push en {repo} al remoto",
+      "ENG": "Push in {repo} to remote",
+      "FRA": "Push dans {repo} vers le distant",
+      "ITA": "Push in {repo} al remoto"
+    },
+    "auditLog.details.gitForcePush": {
+      "SPA": "⚠️ FORCE PUSH en {repo} - Operación forzada",
+      "ENG": "⚠️ FORCE PUSH in {repo} - Forced operation",
+      "FRA": "⚠️ FORCE PUSH dans {repo} - Opération forcée",
+      "ITA": "⚠️ FORCE PUSH in {repo} - Operazione forzata"
+    },
+    "auditLog.details.gitPushAll": {
+      "SPA": "Push en todos [{repos}] al remoto",
+      "ENG": "Push to all [{repos}] to remote",
+      "FRA": "Push dans tous [{repos}] vers le distant",
+      "ITA": "Push in tutti [{repos}] al remoto"
+    },
+    "auditLog.details.gitDiscard": {
+      "SPA": "⚠️ Descartados cambios en {repo}: {files}",
+      "ENG": "⚠️ Discarded changes in {repo}: {files}",
+      "FRA": "⚠️ Modifications annulées dans {repo} : {files}",
+      "ITA": "⚠️ Modifiche scartate in {repo}: {files}"
+    },
+    "auditLog.details.gitRevert": {
+      "SPA": "⚠️ REVERT en {repo} al commit {hash}",
+      "ENG": "⚠️ REVERT in {repo} to commit {hash}",
+      "FRA": "⚠️ REVERT dans {repo} au commit {hash}",
+      "ITA": "⚠️ REVERT in {repo} al commit {hash}"
+    },
+    "auditLog.details.gitReleaseCreated": {
+      "SPA": "🌟 Release creado en {repo}: {version}",
+      "ENG": "🌟 Release created in {repo}: {version}",
+      "FRA": "🌟 Release créé dans {repo} : {version}",
+      "ITA": "🌟 Release creato in {repo}: {version}"
+    },
+    "auditLog.details.gitBackupExported": {
+      "SPA": "Backup Git exportado: {repo} - Rama: {branch}, Commit: {commit}, Máquina: {machine}, Archivo: {file}",
+      "ENG": "Git backup exported: {repo} - Branch: {branch}, Commit: {commit}, Machine: {machine}, File: {file}",
+      "FRA": "Backup Git exporté : {repo} - Branche : {branch}, Commit : {commit}, Machine : {machine}, Fichier : {file}",
+      "ITA": "Backup Git esportato: {repo} - Ramo: {branch}, Commit: {commit}, Macchina: {machine}, File: {file}"
     }
   }
 }

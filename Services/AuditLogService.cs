@@ -201,6 +201,14 @@ namespace SW.PC.API.Backend.Services
             string? projectId = null)
         {
             if (!_isEnabled) return;
+            
+            // 🔐 SuperAdmin aparece como "Administrator" en logs (oculta nombre real)
+            // Enmascarar tanto userId como userName
+            if (IsSuperAdminIdentity(userName, userId))
+            {
+                userName = "Administrator";
+                userId = "Administrator";
+            }
 
             var entry = new AuditLogEntry
             {
@@ -829,6 +837,30 @@ namespace SW.PC.API.Backend.Services
             }
 
             return allEntries;
+        }
+        
+        /// <summary>
+        /// 🔐 Detecta si el usuario es SuperAdmin para enmascararlo como "Administrator"
+        /// SuperAdmin aparece en los registros pero con nombre genérico
+        /// </summary>
+        private static bool IsSuperAdminIdentity(string? userName, string? userId)
+        {
+            // Detectar por nombre de usuario
+            if (!string.IsNullOrEmpty(userName))
+            {
+                var nameLower = userName.ToLowerInvariant();
+                if (nameLower == "superadmin" || nameLower == "super_admin" || nameLower == "super admin")
+                    return true;
+            }
+            
+            // Detectar por ID de usuario (ID 1 es siempre SuperAdmin)
+            if (!string.IsNullOrEmpty(userId))
+            {
+                if (userId == "1" || userId.ToLowerInvariant() == "superadmin")
+                    return true;
+            }
+            
+            return false;
         }
     }
 }

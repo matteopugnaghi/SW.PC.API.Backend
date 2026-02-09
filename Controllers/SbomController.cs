@@ -2,6 +2,7 @@
 // EU CRA Compliance: Endpoints for SBOM generation and retrieval
 
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Services;
 
@@ -13,6 +14,7 @@ namespace SW.PC.API.Backend.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class SbomController : ControllerBase
 {
     private readonly ISbomService _sbomService;

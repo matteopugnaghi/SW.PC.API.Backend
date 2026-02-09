@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using SW.PC.API.Backend.Services;
 using SW.PC.API.Backend.Models;
 
@@ -11,6 +12,7 @@ namespace SW.PC.API.Backend.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class AuditController : ControllerBase
     {
         private readonly IAuditLogService _auditService;

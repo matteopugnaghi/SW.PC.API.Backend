@@ -16,7 +16,6 @@ namespace SW.PC.API.Backend.Models
         Git,            // Operaciones Git (commit, push, release)
         Certificate,    // Certificados de integridad
         Security,       // SSH signing, permisos de roles
-        Configuration,  // Cambios de configuración
         Backup,         // Backup y restauración
         Plc,            // Conexión/desconexión PLC
         System,         // Acciones del sistema (restart, TeamViewer)
@@ -124,7 +123,11 @@ namespace SW.PC.API.Backend.Models
         // ═══════════════════════════════════════════════════════════
         // EXPORTACIÓN
         // ═══════════════════════════════════════════════════════════
-        AuditExport     // Exportación de logs de auditoría
+        AuditExport,            // Exportación de logs de auditoría
+        AlarmHistoryExport,     // Exportación de histórico de alarmas
+        StatisticsExport,       // Exportación de estadísticas
+        RecipeExport,           // Exportación de recetas
+        ConfigurationExport     // Exportación de configuraciones
     }
 
     /// <summary>

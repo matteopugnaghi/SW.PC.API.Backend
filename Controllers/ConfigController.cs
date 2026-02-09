@@ -81,14 +81,6 @@ namespace SW.PC.API.Backend.Controllers
                 
                 var success = await _configurationService.UpdateConfigurationAsync(configuration);
                 
-                // 📋 AUDIT LOG: Configuration Change
-                await _auditLog.LogAsync(
-                    AuditCategory.Configuration,
-                    AuditAction.ConfigChange,
-                    success ? AuditResult.Success : AuditResult.Failure,
-                    $"Actualización de configuración general del sistema",
-                    null, User.Identity?.Name ?? "System");
-                
                 if (!success)
                 {
                     return StatusCode(500, "Failed to update configuration");
@@ -122,14 +114,6 @@ namespace SW.PC.API.Backend.Controllers
                 }
                 
                 var success = await _configurationService.UpdateColorConfigurationAsync(colorConfig);
-                
-                // 📋 AUDIT LOG: Color Configuration Change
-                await _auditLog.LogAsync(
-                    AuditCategory.Configuration,
-                    AuditAction.ConfigChange,
-                    success ? AuditResult.Success : AuditResult.Failure,
-                    $"Actualización de configuración de colores",
-                    null, User.Identity?.Name ?? "System");
                 
                 if (!success)
                 {
