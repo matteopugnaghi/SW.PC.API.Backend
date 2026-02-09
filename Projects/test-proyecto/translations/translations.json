@@ -11221,6 +11221,30 @@
       "ENG": "Git backup exported: {repo} - Branch: {branch}, Commit: {commit}, Machine: {machine}, File: {file}",
       "FRA": "Backup Git exporté : {repo} - Branche : {branch}, Commit : {commit}, Machine : {machine}, Fichier : {file}",
       "ITA": "Backup Git esportato: {repo} - Ramo: {branch}, Commit: {commit}, Macchina: {machine}, File: {file}"
+    },
+    "auditLog.word.author": {
+      "SPA": "Autor",
+      "ENG": "Author",
+      "FRA": "Auteur",
+      "ITA": "Autore"
+    },
+    "auditLog.word.commitIn": {
+      "SPA": "Commit en ",
+      "ENG": "Commit in ",
+      "FRA": "Commit dans ",
+      "ITA": "Commit in "
+    },
+    "auditLog.word.pushIn": {
+      "SPA": "Push en ",
+      "ENG": "Push in ",
+      "FRA": "Push dans ",
+      "ITA": "Push in "
+    },
+    "auditLog.word.toRemote": {
+      "SPA": " al remoto",
+      "ENG": " to remote",
+      "FRA": " vers le distant",
+      "ITA": " al remoto"
     }
   }
 }

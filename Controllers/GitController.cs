@@ -125,13 +125,13 @@ public class GitController : ControllerBase
         var result = await _gitService.CommitAsync(repoPath, request.Message);
         
         // 📋 AUDIT LOG: Git Commit - 🌐 Log a TODOS los proyectos
-        var author = ExtractAuthorFromMessage(request.Message);
+        var loggedUser = GetLoggedUserName();
         await _auditLog.LogToAllProjectsAsync(
             AuditCategory.Git,
             AuditAction.GitCommit,
             result.Success ? AuditResult.Success : AuditResult.Failure,
             $"Commit en {repoName}: {request.Message}",
-            null, author);
+            null, loggedUser);
         
         return result.Success ? Ok(result) : BadRequest(result);
     }
@@ -151,12 +151,12 @@ public class GitController : ControllerBase
             AuditAction.GitPush,
             result.Success ? AuditResult.Success : AuditResult.Failure,
             $"Push en {repoName} al remoto",
-            null, operatorName ?? "System");
+            null, GetLoggedUserName());
         
-        // Generar certificado autom�tico despu�s de push exitoso
+        // Generar certificado automático después de push exitoso
         if (result.Success)
         {
-            await GenerateDeploymentCertificateAsync(repoName, repoPath, operatorName ?? "System", "Push to remote");
+            await GenerateDeploymentCertificateAsync(repoName, repoPath, GetLoggedUserName(), "Push to remote");
         }
         
         return result.Success ? Ok(result) : BadRequest(result);
@@ -177,12 +177,12 @@ public class GitController : ControllerBase
             AuditAction.GitPush,
             result.Success ? AuditResult.Warning : AuditResult.Failure,
             $"⚠️ FORCE PUSH en {repoName} - Operación forzada",
-            null, operatorName ?? "System");
+            null, GetLoggedUserName());
         
-        // Generar certificado autom�tico despu�s de force push exitoso
+        // Generar certificado automático después de force push exitoso
         if (result.Success)
         {
-            await GenerateDeploymentCertificateAsync(repoName, repoPath, operatorName ?? "System", "Force Push (sync after revert)");
+            await GenerateDeploymentCertificateAsync(repoName, repoPath, GetLoggedUserName(), "Force Push (sync after revert)");
         }
         
         return result.Success ? Ok(result) : BadRequest(result);
@@ -200,9 +200,9 @@ public class GitController : ControllerBase
         var pushResult = await _gitService.PushAsync(repoPath);
         if (!pushResult.Success) return BadRequest(new GitOperationResult { Success = false, Message = $"Commit succeeded but push failed: {pushResult.Message}" });
         
-        // Extraer nombre del autor del mensaje de commit [Autor: XXX]
-        var operatorName = ExtractAuthorFromMessage(request.Message);
-        await GenerateDeploymentCertificateAsync(repoName, repoPath, operatorName, $"Commit+Push: {request.Message}");
+        // Usar usuario logueado para el certificado y audit log
+        var loggedUser = GetLoggedUserName();
+        await GenerateDeploymentCertificateAsync(repoName, repoPath, loggedUser, $"Commit+Push: {request.Message}");
         
         // 📋 AUDIT LOG: Commit + Push - 🌐 Log a TODOS los proyectos
         await _auditLog.LogToAllProjectsAsync(
@@ -210,7 +210,7 @@ public class GitController : ControllerBase
             AuditAction.GitCommit,
             AuditResult.Success,
             $"Commit+Push en {repoName}: {request.Message}",
-            null, operatorName);
+            null, loggedUser);
         
         return Ok(new GitOperationResult { Success = true, Message = "Commit and push completed successfully. Deployment certificate generated." });
     }
@@ -232,7 +232,7 @@ public class GitController : ControllerBase
                 AuditAction.GitDiscard,
                 AuditResult.Warning,
                 $"⚠️ Descartados cambios en {repoName}: {request?.FilePath ?? "TODOS los archivos"}",
-                null, "Operator");
+                null, GetLoggedUserName());
         }
         
         return result.Success ? Ok(result) : BadRequest(result);
@@ -254,7 +254,7 @@ public class GitController : ControllerBase
             AuditAction.GitRevert,
             result.Success ? AuditResult.Warning : AuditResult.Failure,
             $"⚠️ REVERT en {repoName} al commit {request.CommitHash}",
-            null, "Operator");
+            null, GetLoggedUserName());
         
         return result.Success ? Ok(result) : BadRequest(result);
     }
@@ -285,13 +285,12 @@ public class GitController : ControllerBase
         // 📋 AUDIT LOG: Commit All
         if (committedRepos.Count > 0)
         {
-            var author = ExtractAuthorFromMessage(request.Message);
             await _auditLog.LogToAllProjectsAsync(
                 AuditCategory.Git,
                 AuditAction.GitCommit,
                 AuditResult.Success,
                 $"Commit ALL en [{string.Join(", ", committedRepos)}]: {request.Message}",
-                null, author);
+                null, GetLoggedUserName());
         }
         
         return Ok(results);
@@ -327,7 +326,7 @@ public class GitController : ControllerBase
                 AuditAction.GitPush,
                 AuditResult.Success,
                 $"Push ALL en [{string.Join(", ", pushedRepos)}] al remoto",
-                null, operatorName ?? "System");
+                null, GetLoggedUserName());
         }
         
         return Ok(results);
@@ -411,7 +410,7 @@ public class GitController : ControllerBase
             });
         
         // Log the release
-        await LogReleaseAsync(repoName, tagName, request.OperatorName ?? "System", message);
+        await LogReleaseAsync(repoName, tagName, GetLoggedUserName(), message);
         
         // 📋 AUDIT LOG: Create Release - 🌐 Log a TODOS los proyectos
         await _auditLog.LogToAllProjectsAsync(
@@ -419,7 +418,7 @@ public class GitController : ControllerBase
             AuditAction.GitRelease,
             AuditResult.Success,
             $"🌟 Release creado en {repoName}: {tagName}",
-            null, request.OperatorName ?? "System");
+            null, GetLoggedUserName());
         
         return Ok(new GitOperationResult 
         { 
@@ -758,7 +757,7 @@ public class GitController : ControllerBase
             AuditAction.GitAccessControl,
             result.Success ? AuditResult.Success : AuditResult.Failure,
             $"Git Access Control {(request.Enabled ? "ACTIVADO" : "DESACTIVADO")}",
-            "Operator");
+            GetLoggedUserName());
         
         return Ok(result);
     }
@@ -831,7 +830,7 @@ public class GitController : ControllerBase
                 AuditAction.GitBackupExport,
                 AuditResult.Success,
                 $"Git backup exported: {repoName.ToUpper()} - Branch: {repoStatus.CurrentBranch}, Commit: {commitShort}, Machine: {machineId}, File: {fileName}",
-                operatorName);
+                GetLoggedUserName());
             
             _logger.LogInformation("✅ Backup ZIP generated: {FileName}", fileName);
             return File(memoryStream.ToArray(), "application/zip", fileName);
@@ -955,6 +954,14 @@ public class GitController : ControllerBase
     {
         var match = Regex.Match(message, @"\[Autor:\s*([^\]]+)\]");
         return match.Success ? match.Groups[1].Value.Trim() : "System";
+    }
+    
+    /// <summary>
+    /// Obtiene el nombre del usuario logueado (JWT) para audit logs
+    /// </summary>
+    private string GetLoggedUserName()
+    {
+        return User.Identity?.Name ?? "System";
     }
 
     /// <summary>
