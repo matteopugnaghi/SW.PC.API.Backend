@@ -116,7 +116,9 @@ namespace SW.PC.API.Backend.Services
 
             if (query != null)
             {
-                if (query.MinLevel.HasValue)
+                if (query.ExactLevel.HasValue)
+                    entries = entries.Where(e => e.Level == query.ExactLevel.Value);
+                else if (query.MinLevel.HasValue)
                     entries = entries.Where(e => e.Level >= query.MinLevel.Value);
 
                 if (query.Source.HasValue)

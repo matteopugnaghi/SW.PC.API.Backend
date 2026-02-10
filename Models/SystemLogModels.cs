@@ -76,6 +76,9 @@ namespace SW.PC.API.Backend.Models
         /// <summary>Minimum log level to return (default: Warning = show all)</summary>
         public SystemLogLevel? MinLevel { get; set; }
 
+        /// <summary>Filter by exact log level (takes priority over MinLevel if set)</summary>
+        public SystemLogLevel? ExactLevel { get; set; }
+
         /// <summary>Filter by source (Backend/Frontend/null=all)</summary>
         public SystemLogSource? Source { get; set; }
 
