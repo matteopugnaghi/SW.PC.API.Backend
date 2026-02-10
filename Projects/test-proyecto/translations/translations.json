@@ -8059,11 +8059,17 @@
       "FRA": "Buffer",
       "ITA": "Buffer"
     },
+    "infoPanel.modal.level": {
+      "SPA": "Nivel",
+      "ENG": "Level",
+      "FRA": "Niveau",
+      "ITA": "Livello"
+    },
     "infoPanel.modal.source": {
-      "SPA": "Src",
-      "ENG": "Src",
-      "FRA": "Src",
-      "ITA": "Src"
+      "SPA": "Origen",
+      "ENG": "Source",
+      "FRA": "Source",
+      "ITA": "Origine"
     },
     "infoPanel.modal.time": {
       "SPA": "Hora",
@@ -8082,6 +8088,48 @@
       "ENG": "RAM buffer (max. 1000 entries). Resets when the backend restarts. For persistent logs use the Audit Log (L1) or the Operation Log (L2).",
       "FRA": "Buffer en mémoire RAM (max. 1000 entrées). Se réinitialise au redémarrage du backend. Pour des logs persistants, utilisez le Journal d'Audit (L1) ou le Journal d'Opérations (L2).",
       "ITA": "Buffer in memoria RAM (max. 1000 voci). Si reimposta al riavvio del backend. Per log persistenti usare il Registro Audit (L1) o il Registro Operazioni (L2)."
+    },
+    "infoPanel.modal.filter_total": {
+      "SPA": "Total",
+      "ENG": "Total",
+      "FRA": "Total",
+      "ITA": "Totale"
+    },
+    "infoPanel.modal.filter_critical": {
+      "SPA": "Crítico",
+      "ENG": "Critical",
+      "FRA": "Critique",
+      "ITA": "Critico"
+    },
+    "infoPanel.modal.filter_error": {
+      "SPA": "Error",
+      "ENG": "Error",
+      "FRA": "Erreur",
+      "ITA": "Errore"
+    },
+    "infoPanel.modal.filter_warning": {
+      "SPA": "Advertencia",
+      "ENG": "Warning",
+      "FRA": "Avertissement",
+      "ITA": "Avviso"
+    },
+    "infoPanel.modal.level_crit": {
+      "SPA": "CRÍT",
+      "ENG": "CRIT",
+      "FRA": "CRIT",
+      "ITA": "CRIT"
+    },
+    "infoPanel.modal.level_err": {
+      "SPA": "ERR",
+      "ENG": "ERR",
+      "FRA": "ERR",
+      "ITA": "ERR"
+    },
+    "infoPanel.modal.level_warn": {
+      "SPA": "ADV",
+      "ENG": "WARN",
+      "FRA": "AVERT",
+      "ITA": "AVV"
     },
 
     "git.title": {
