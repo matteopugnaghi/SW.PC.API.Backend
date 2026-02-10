@@ -217,7 +217,14 @@ namespace SW.PC.API.Backend.Services
                             foreach (var file in configFiles)
                             {
                                 var relativePath = Path.GetRelativePath(projectPaths.ProjectRoot, file);
-                                var entry = zipArchive.CreateEntryFromFile(file, relativePath);
+                                
+                                // Usar FileShare.ReadWrite para copiar archivos que pueden estar en uso (ej: Excel abierto por EPPlus)
+                                var entry = zipArchive.CreateEntry(relativePath);
+                                using (var sourceStream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                                using (var entryStream = entry.Open())
+                                {
+                                    await sourceStream.CopyToAsync(entryStream);
+                                }
                                 
                                 manifest.Files.Add(new BackupFileEntry
                                 {
@@ -244,7 +251,7 @@ namespace SW.PC.API.Backend.Services
                             foreach (var file in allModelFiles)
                             {
                                 var relativePath = Path.GetRelativePath(projectPaths.ProjectRoot, file);
-                                zipArchive.CreateEntryFromFile(file, relativePath);
+                                await AddFileToZipAsync(zipArchive, file, relativePath);
                                 
                                 manifest.Files.Add(new BackupFileEntry
                                 {
@@ -279,7 +286,7 @@ namespace SW.PC.API.Backend.Services
                                     await sourceStream.CopyToAsync(destStream);
                                 }
                                 
-                                zipArchive.CreateEntryFromFile(tempDbPath, relativePath);
+                                await AddFileToZipAsync(zipArchive, tempDbPath, relativePath);
                                 
                                 var dbFileInfo = new FileInfo(tempDbPath);
                                 manifest.Files.Add(new BackupFileEntry
@@ -308,7 +315,7 @@ namespace SW.PC.API.Backend.Services
                     if (File.Exists(deployVersionPath))
                     {
                         var relativePath = "deploy-version.json";
-                        zipArchive.CreateEntryFromFile(deployVersionPath, relativePath);
+                        await AddFileToZipAsync(zipArchive, deployVersionPath, relativePath);
                         
                         manifest.Files.Add(new BackupFileEntry
                         {
@@ -326,7 +333,7 @@ namespace SW.PC.API.Backend.Services
                     if (File.Exists(readmePath))
                     {
                         var relativePath = "README.md";
-                        zipArchive.CreateEntryFromFile(readmePath, relativePath);
+                        await AddFileToZipAsync(zipArchive, readmePath, relativePath);
                         
                         manifest.Files.Add(new BackupFileEntry
                         {
@@ -345,7 +352,7 @@ namespace SW.PC.API.Backend.Services
                         foreach (var sbomFile in sbomFiles)
                         {
                             var relativePath = Path.Combine("sbom", Path.GetRelativePath(sbomPath, sbomFile));
-                            zipArchive.CreateEntryFromFile(sbomFile, relativePath);
+                            await AddFileToZipAsync(zipArchive, sbomFile, relativePath);
                             
                             manifest.Files.Add(new BackupFileEntry
                             {
@@ -373,7 +380,7 @@ namespace SW.PC.API.Backend.Services
                         foreach (var auditFile in auditFiles)
                         {
                             var relativePath = Path.Combine("audit", Path.GetRelativePath(auditPath, auditFile));
-                            zipArchive.CreateEntryFromFile(auditFile, relativePath);
+                            await AddFileToZipAsync(zipArchive, auditFile, relativePath);
                             
                             manifest.Files.Add(new BackupFileEntry
                             {
@@ -398,7 +405,7 @@ namespace SW.PC.API.Backend.Services
                         foreach (var transFile in translationFiles)
                         {
                             var relativePath = Path.Combine("translations", Path.GetRelativePath(translationsPath, transFile));
-                            zipArchive.CreateEntryFromFile(transFile, relativePath);
+                            await AddFileToZipAsync(zipArchive, transFile, relativePath);
                             
                             manifest.Files.Add(new BackupFileEntry
                             {
@@ -1173,10 +1180,24 @@ namespace SW.PC.API.Backend.Services
             }
         }
 
+        /// <summary>
+        /// Agrega un archivo al ZIP usando FileShare.ReadWrite para evitar IOException cuando
+        /// el archivo está en uso por otro proceso (ej: ExcelConfigService tiene ProjectConfig.xlsm abierto).
+        /// Reemplaza a zipArchive.CreateEntryFromFile() que abre en modo exclusivo.
+        /// </summary>
+        private static async Task AddFileToZipAsync(ZipArchive zipArchive, string sourceFilePath, string entryName)
+        {
+            var entry = zipArchive.CreateEntry(entryName);
+            using var sourceStream = new FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var entryStream = entry.Open();
+            await sourceStream.CopyToAsync(entryStream);
+        }
+
         private static async Task<string> ComputeFileHashAsync(string filePath)
         {
             using var sha256 = SHA256.Create();
-            using var stream = File.OpenRead(filePath);
+            // Usar FileShare.ReadWrite para no fallar si el archivo está en uso (ej: Excel abierto por EPPlus)
+            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             var hash = await sha256.ComputeHashAsync(stream);
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
