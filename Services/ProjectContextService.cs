@@ -74,6 +74,12 @@ namespace SW.PC.API.Backend.Services
         /// Recarga la configuración del proyecto activo desde active-project.json
         /// </summary>
         void ReloadActiveProject();
+
+        /// <summary>
+        /// Cambia el proyecto activo escribiendo active-project.json y recargando.
+        /// Solo debe usarse en Development.
+        /// </summary>
+        bool SetActiveProject(string projectId);
     }
     
     /// <summary>
@@ -304,6 +310,39 @@ Copiar el archivo ProjectConfig.xlsm a la carpeta config/ y configurar según ne
         public void ReloadActiveProject()
         {
             LoadActiveProject();
+        }
+
+        public bool SetActiveProject(string projectId)
+        {
+            try
+            {
+                // Validar que el proyecto existe (o es "default")
+                if (projectId != "default" && !ProjectExists(projectId))
+                {
+                    _logger.LogWarning("Cannot set active project: {ProjectId} does not exist", projectId);
+                    return false;
+                }
+
+                var config = new
+                {
+                    activeProject = projectId,
+                    description = "Identificador del proyecto activo. Debe coincidir con una carpeta en Projects/"
+                };
+
+                var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(_activeProjectFilePath, json);
+
+                _logger.LogInformation("\u2705 active-project.json updated to: {ProjectId}", projectId);
+
+                // Recargar para que el singleton refleje el cambio
+                LoadActiveProject();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error setting active project to {ProjectId}", projectId);
+                return false;
+            }
         }
         
         private void LoadActiveProject()

@@ -17,17 +17,20 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IProjectContextService _globalContext;
         private readonly IRequestProjectContext _requestContext;
         private readonly IExcelConfigService _excelConfigService;
+        private readonly IWebHostEnvironment _environment;
         private readonly ILogger<ProjectsController> _logger;
         
         public ProjectsController(
             IProjectContextService globalContext,
             IRequestProjectContext requestContext,
             IExcelConfigService excelConfigService,
+            IWebHostEnvironment environment,
             ILogger<ProjectsController> logger)
         {
             _globalContext = globalContext;
             _requestContext = requestContext;
             _excelConfigService = excelConfigService;
+            _environment = environment;
             _logger = logger;
         }
         
@@ -206,6 +209,44 @@ namespace SW.PC.API.Backend.Controllers
             {
                 _logger.LogError(ex, "Error getting switch instructions for: {ProjectId}", projectId);
                 return StatusCode(500, new { error = "Error getting instructions", details = ex.Message });
+            }
+        }
+        
+        /// <summary>
+        /// Activa un proyecto escribiendo active-project.json y recargando el contexto.
+        /// SOLO disponible en Development — en Production devuelve 403.
+        /// </summary>
+        [HttpPost("{projectId}/activate")]
+        public ActionResult<object> ActivateProject(string projectId)
+        {
+            try
+            {
+                if (!_environment.IsDevelopment())
+                {
+                    return StatusCode(403, new { error = "Project activation via API is only available in Development mode. Edit active-project.json manually and restart." });
+                }
+                
+                var previousProject = _globalContext.ActiveProjectId;
+                
+                var success = _globalContext.SetActiveProject(projectId);
+                if (!success)
+                {
+                    return BadRequest(new { error = $"Failed to activate project '{projectId}'. Does it exist?" });
+                }
+                
+                return Ok(new
+                {
+                    success = true,
+                    previousProject,
+                    activeProject = _globalContext.ActiveProjectId,
+                    message = $"Project switched from '{previousProject}' to '{projectId}'. active-project.json updated.",
+                    note = "Background services (backup scheduler, etc.) will now use this project."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error activating project: {ProjectId}", projectId);
+                return StatusCode(500, new { error = "Error activating project", details = ex.Message });
             }
         }
         
