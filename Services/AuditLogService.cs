@@ -535,7 +535,10 @@ namespace SW.PC.API.Backend.Services
                     {
                         try
                         {
-                            var json = await File.ReadAllTextAsync(filePath);
+                            // Usar FileShare.ReadWrite para no conflictar con BackupService que puede estar leyendo
+                            using var readStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                            using var reader = new StreamReader(readStream);
+                            var json = await reader.ReadToEndAsync();
                             // Solo deserializar si el archivo tiene contenido válido
                             if (!string.IsNullOrWhiteSpace(json) && json.Trim().StartsWith("["))
                             {
@@ -555,11 +558,21 @@ namespace SW.PC.API.Backend.Services
                     if (existingEntries.Count > _maxEntriesPerFile)
                     {
                         var archivePath = Path.Combine(auditPath, $"audit_{today}_{DateTime.Now:HHmmss}.json");
-                        await File.WriteAllTextAsync(archivePath, JsonSerializer.Serialize(existingEntries, JsonOptions));
+                        var archiveJson = JsonSerializer.Serialize(existingEntries, JsonOptions);
+                        using (var writeStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                        using (var writer = new StreamWriter(writeStream))
+                        {
+                            await writer.WriteAsync(archiveJson);
+                        }
                         existingEntries = new List<AuditLogEntry>();
                     }
 
-                    await File.WriteAllTextAsync(filePath, JsonSerializer.Serialize(existingEntries, JsonOptions));
+                    var outputJson = JsonSerializer.Serialize(existingEntries, JsonOptions);
+                    using (var writeStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                    using (var writer = new StreamWriter(writeStream))
+                    {
+                        await writer.WriteAsync(outputJson);
+                    }
                     
                     _logger.LogDebug("📋 Flushed {Count} audit entries to {File} (project: {Project})", 
                         projectEntries.Count, filePath, projectId);
@@ -788,7 +801,13 @@ namespace SW.PC.API.Backend.Services
             {
                 try
                 {
-                    var json = await File.ReadAllTextAsync(file);
+                    // Usar FileShare.ReadWrite para no conflictar con FlushCacheAsync
+                    string json;
+                    using (var readStream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var reader = new StreamReader(readStream))
+                    {
+                        json = await reader.ReadToEndAsync();
+                    }
                     
                     // Verificar si el archivo está vacío o contiene solo whitespace
                     if (string.IsNullOrWhiteSpace(json))
