@@ -556,6 +556,29 @@ namespace SW.PC.API.Backend.Hubs
         }
         
         #endregion
+
+        #region System Logs (L3) - Real-time diagnostics
+
+        /// <summary>
+        /// Subscribe to real-time system log entries (Warning/Error/Critical).
+        /// Entries are pushed via "SystemLogEntry" event while subscribed.
+        /// </summary>
+        public async Task SubscribeToSystemLogs()
+        {
+            _logger.LogInformation("📋 Client {ConnectionId} subscribed to system logs", Context.ConnectionId);
+            await Groups.AddToGroupAsync(Context.ConnectionId, "system_logs");
+        }
+
+        /// <summary>
+        /// Unsubscribe from system log entries.
+        /// </summary>
+        public async Task UnsubscribeFromSystemLogs()
+        {
+            _logger.LogInformation("📋 Client {ConnectionId} unsubscribed from system logs", Context.ConnectionId);
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, "system_logs");
+        }
+
+        #endregion
         
         private Type GetTypeFromString(string typeName)
         {

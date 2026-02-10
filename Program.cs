@@ -177,6 +177,7 @@ builder.Services.AddScoped<IVulnerabilityService, VulnerabilityService>(); // �
 builder.Services.AddSingleton<IIpcInfoService, IpcInfoService>(); // 💻 IPC System Info
 builder.Services.AddSingleton<IAuditLogService, AuditLogService>(); // 📋 Audit Log (Nivel 1) - EU CRA Compliance
 builder.Services.AddSingleton<IOperationLogService, OperationLogService>(); // 📋 Operation Log (Nivel 2) - Acciones de operador
+builder.Services.AddSingleton<ISystemLogService, SystemLogService>(); // 📋 System Log (Nivel 3) - In-memory diagnostic buffer
 builder.Services.AddSingleton<IESIParserService, ESIParserService>(); // 🌐 ESI Parser - EtherCAT Slave Info files
 builder.Services.AddSingleton<IEtherCATDiagnosticsService, EtherCATDiagnosticsService>(); // 🌐 EtherCAT Topology Diagnostics
 
@@ -223,7 +224,14 @@ builder.Services.AddLogging(logging =>
 var app = builder.Build();
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 📁 MULTI-PROJECT: Initialize Project Context Service
+// � L3 SYSTEM LOGS: Connect ILogger pipeline to in-memory buffer
+// ═══════════════════════════════════════════════════════════════════════════════
+var systemLogService = app.Services.GetRequiredService<ISystemLogService>();
+var loggerFactory = app.Services.GetRequiredService<ILoggerFactory>();
+loggerFactory.AddProvider(new SystemLogBufferProvider(systemLogService));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// �📁 MULTI-PROJECT: Initialize Project Context Service
 // ═══════════════════════════════════════════════════════════════════════════════
 {
     var projectContext = app.Services.GetRequiredService<IProjectContextService>();

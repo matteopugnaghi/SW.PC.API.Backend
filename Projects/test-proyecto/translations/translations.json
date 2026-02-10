@@ -7999,6 +7999,91 @@
       "ITA": "Nessun evento di sistema"
     },
 
+    "infoPanel.expanded.system_log_title": {
+      "SPA": "REGISTRO DEL SISTEMA",
+      "ENG": "SYSTEM LOG",
+      "FRA": "JOURNAL SYSTÈME",
+      "ITA": "LOG DI SISTEMA"
+    },
+    "infoPanel.expanded.system_entries": {
+      "SPA": "ENTRADAS DEL SISTEMA",
+      "ENG": "SYSTEM ENTRIES",
+      "FRA": "ENTRÉES SYSTÈME",
+      "ITA": "VOCI DI SISTEMA"
+    },
+    "infoPanel.expanded.in_memory": {
+      "SPA": "RAM",
+      "ENG": "RAM",
+      "FRA": "RAM",
+      "ITA": "RAM"
+    },
+    "infoPanel.expanded.no_issues": {
+      "SPA": "Sin advertencias ni errores",
+      "ENG": "No warnings or errors",
+      "FRA": "Aucun avertissement ni erreur",
+      "ITA": "Nessun avviso o errore"
+    },
+    "infoPanel.modal.system_log_title": {
+      "SPA": "Registro del Sistema",
+      "ENG": "System Log",
+      "FRA": "Journal Système",
+      "ITA": "Log di Sistema"
+    },
+    "infoPanel.modal.system_log_desc": {
+      "SPA": "Nivel 3 - Diagnóstico del sistema (Warning/Error/Critical)",
+      "ENG": "Level 3 - System diagnostics (Warning/Error/Critical)",
+      "FRA": "Niveau 3 - Diagnostic système (Warning/Error/Critical)",
+      "ITA": "Livello 3 - Diagnostica di sistema (Warning/Error/Critical)"
+    },
+    "infoPanel.modal.system_log_name": {
+      "SPA": "System Log",
+      "ENG": "System Log",
+      "FRA": "Journal Système",
+      "ITA": "Log di Sistema"
+    },
+    "infoPanel.modal.system_log_info": {
+      "SPA": "muestra Warning, Error y Critical del backend .NET y errores selectivos del frontend. Buffer circular en memoria RAM (máx. 1000 entradas).",
+      "ENG": "shows Warning, Error and Critical from the .NET backend and selective frontend errors. Circular buffer in RAM (max. 1000 entries).",
+      "FRA": "affiche Warning, Error et Critical du backend .NET et les erreurs sélectives du frontend. Buffer circulaire en RAM (max. 1000 entrées).",
+      "ITA": "mostra Warning, Error e Critical dal backend .NET ed errori selettivi del frontend. Buffer circolare in RAM (max. 1000 voci)."
+    },
+    "infoPanel.modal.entries": {
+      "SPA": "entradas",
+      "ENG": "entries",
+      "FRA": "entrées",
+      "ITA": "voci"
+    },
+    "infoPanel.modal.buffer_capacity": {
+      "SPA": "Buffer",
+      "ENG": "Buffer",
+      "FRA": "Buffer",
+      "ITA": "Buffer"
+    },
+    "infoPanel.modal.source": {
+      "SPA": "Src",
+      "ENG": "Src",
+      "FRA": "Src",
+      "ITA": "Src"
+    },
+    "infoPanel.modal.time": {
+      "SPA": "Hora",
+      "ENG": "Time",
+      "FRA": "Heure",
+      "ITA": "Ora"
+    },
+    "infoPanel.modal.no_system_issues": {
+      "SPA": "Sistema funcionando correctamente. No hay warnings, errores ni eventos críticos.",
+      "ENG": "System running correctly. No warnings, errors or critical events.",
+      "FRA": "Système fonctionnant correctement. Aucun avertissement, erreur ou événement critique.",
+      "ITA": "Sistema funzionante correttamente. Nessun avviso, errore o evento critico."
+    },
+    "infoPanel.modal.system_log_note": {
+      "SPA": "Buffer en memoria RAM (máx. 1000 entradas). Se reinicia al reiniciar el backend. Para logs persistentes use el Registro de Auditoría (L1) o el Registro de Operaciones (L2).",
+      "ENG": "RAM buffer (max. 1000 entries). Resets when the backend restarts. For persistent logs use the Audit Log (L1) or the Operation Log (L2).",
+      "FRA": "Buffer en mémoire RAM (max. 1000 entrées). Se réinitialise au redémarrage du backend. Pour des logs persistants, utilisez le Journal d'Audit (L1) ou le Journal d'Opérations (L2).",
+      "ITA": "Buffer in memoria RAM (max. 1000 voci). Si reimposta al riavvio del backend. Per log persistenti usare il Registro Audit (L1) o il Registro Operazioni (L2)."
+    },
+
     "git.title": {
       "SPA": "Gestión Git",
       "ENG": "Git Management",
