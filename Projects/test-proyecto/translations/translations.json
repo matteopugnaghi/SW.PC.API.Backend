@@ -11527,6 +11527,30 @@
       "FRA": "Backup supprimé : [{projectId}] Backup {date} {time} (Projet : {project})",
       "ITA": "Backup eliminato: [{projectId}] Backup {date} {time} (Progetto: {project})"
     },
+    "auditLog.details.backupCreatedGeneric": {
+      "SPA": "Backup creado: {name} (Proyecto: {project}, Tamaño: {size})",
+      "ENG": "Backup created: {name} (Project: {project}, Size: {size})",
+      "FRA": "Backup créé : {name} (Projet : {project}, Taille : {size})",
+      "ITA": "Backup creato: {name} (Progetto: {project}, Dimensione: {size})"
+    },
+    "auditLog.details.backupRestoredGeneric": {
+      "SPA": "Backup restaurado: {name} (Proyecto: {project})",
+      "ENG": "Backup restored: {name} (Project: {project})",
+      "FRA": "Backup restauré : {name} (Projet : {project})",
+      "ITA": "Backup ripristinato: {name} (Progetto: {project})"
+    },
+    "auditLog.details.backupImported": {
+      "SPA": "Backup importado: {fileName} (Proyecto: {project})",
+      "ENG": "Backup imported: {fileName} (Project: {project})",
+      "FRA": "Backup importé : {fileName} (Projet : {project})",
+      "ITA": "Backup importato: {fileName} (Progetto: {project})"
+    },
+    "auditLog.details.backupDeletedGeneric": {
+      "SPA": "Backup eliminado: {name} (Proyecto: {project})",
+      "ENG": "Backup deleted: {name} (Project: {project})",
+      "FRA": "Backup supprimé : {name} (Projet : {project})",
+      "ITA": "Backup eliminato: {name} (Progetto: {project})"
+    },
     "auditLog.details.vulnerabilityScanResult": {
       "SPA": "Escaneados {packages} paquetes. Encontradas: {critical} críticas, {high} altas, {medium} medias, {low} bajas",
       "ENG": "Scanned {packages} packages. Found: {critical} critical, {high} high, {medium} medium, {low} low",
