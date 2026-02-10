@@ -170,6 +170,8 @@ namespace SW.PC.API.Backend.Controllers
         /// Importar un backup desde archivo
         /// </summary>
         [HttpPost("import")]
+        [DisableRequestSizeLimit]
+        [RequestFormLimits(MultipartBodyLengthLimit = 524288000)] // 500 MB
         public async Task<ActionResult<BackupOperationResponse>> ImportBackup(IFormFile file)
         {
             var projectId = _requestProjectContext.ProjectId;
