@@ -131,6 +131,12 @@ public class OperationLogService : IOperationLogService
         string? ipAddress = null, 
         string? sessionId = null)
     {
+        // 🔐 SuperAdmin aparece como "Administrator" en logs (oculta nombre real)
+        if (IsSuperAdminIdentity(user))
+        {
+            user = "Administrator";
+        }
+
         var entry = new OperationLog
         {
             Timestamp = DateTime.Now,
@@ -850,6 +856,17 @@ public class OperationLogService : IOperationLogService
                 _tableVerified = true;
             }
         }
+    }
+
+    /// <summary>
+    /// 🔐 Detecta si el usuario es SuperAdmin para enmascararlo como "Administrator"
+    /// SuperAdmin aparece en los registros pero con nombre genérico
+    /// </summary>
+    private static bool IsSuperAdminIdentity(string? userName)
+    {
+        if (string.IsNullOrEmpty(userName)) return false;
+        var nameLower = userName.ToLowerInvariant();
+        return nameLower == "superadmin" || nameLower == "super_admin" || nameLower == "super admin";
     }
 }
 

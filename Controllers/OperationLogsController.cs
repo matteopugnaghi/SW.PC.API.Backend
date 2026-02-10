@@ -14,6 +14,8 @@ using Microsoft.EntityFrameworkCore;
 using SW.PC.API.Backend.Data;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Services;
+using OfficeOpenXml;
+using System.Text.Json;
 
 namespace SW.PC.API.Backend.Controllers;
 
@@ -25,13 +27,19 @@ namespace SW.PC.API.Backend.Controllers;
 public class OperationLogsController : ControllerBase
 {
     private readonly IOperationLogService _operationLogService;
+    private readonly IAuditLogService _auditLogService;
+    private readonly IProjectContextService _projectContext;
     private readonly ILogger<OperationLogsController> _logger;
 
     public OperationLogsController(
         IOperationLogService operationLogService,
+        IAuditLogService auditLogService,
+        IProjectContextService projectContext,
         ILogger<OperationLogsController> logger)
     {
         _operationLogService = operationLogService;
+        _auditLogService = auditLogService;
+        _projectContext = projectContext;
         _logger = logger;
     }
 
@@ -199,6 +207,348 @@ public class OperationLogsController : ControllerBase
             _logger.LogError(ex, "Error acknowledging logs batch");
             return StatusCode(500, new { error = "Error acknowledging logs" });
         }
+    }
+
+    /// <summary>
+    /// Exportar logs de operación a Excel o JSON
+    /// </summary>
+    /// <param name="format">Formato: excel o json</param>
+    /// <param name="categories">Categorías a exportar (PlcAlarm,PlcNotification,PlcInfo,Recipe,Configuration,etc) o "all"</param>
+    /// <param name="startDate">Fecha inicio</param>
+    /// <param name="endDate">Fecha fin</param>
+    /// <param name="lang">Idioma para traducciones (SPA, ENG, FRA, ITA)</param>
+    [HttpGet("export")]
+    [Authorize]
+    public async Task<IActionResult> ExportLogs(
+        [FromQuery] string format = "excel",
+        [FromQuery] string categories = "all",
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] string lang = "SPA")
+    {
+        try
+        {
+            var userName = User.Identity?.Name ?? "unknown";
+            var userId = User.FindFirst("sub")?.Value ?? User.FindFirst("id")?.Value;
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            
+            // Parse categories (normalize to lowercase for comparison)
+            var categoryList = categories?.ToLower() == "all" 
+                ? new List<string>() 
+                : categories?.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(c => c.Trim().ToLower())
+                    .ToList() ?? new List<string>();
+            
+            // Default date range: last week
+            var end = endDate ?? DateTime.Now;
+            var start = startDate ?? end.AddDays(-7);
+            
+            // Get logs with filters
+            var filter = new OperationLogFilter
+            {
+                Page = 1,
+                PageSize = 10000, // Max export
+                FromDate = start,
+                ToDate = end,
+                Language = lang?.ToUpperInvariant() ?? "SPA"
+            };
+            
+            var result = await _operationLogService.GetLogsAsync(filter);
+            var logs = result.Items ?? new List<OperationLogDto>();
+            
+            // Filter by categories if specified
+            if (categoryList.Any())
+            {
+                logs = logs.Where(l => 
+                {
+                    // Map category + alarmType to filter categories
+                    var catKey = l.Category?.ToLower() ?? "";
+                    if (catKey == "plcalarmhistory")
+                    {
+                        var type = l.AlarmType?.ToLower() ?? "";
+                        if (type == "alarm" && categoryList.Contains("plcalarm")) return true;
+                        if (type == "notification" && categoryList.Contains("plcnotification")) return true;
+                        if (type == "info" && categoryList.Contains("plcinfo")) return true;
+                        return false;
+                    }
+                    return categoryList.Contains(catKey);
+                }).ToList();
+            }
+            
+            // Load translations
+            var translations = await LoadTranslationsAsync(lang?.ToUpperInvariant() ?? "SPA");
+            
+            // Determine audit action based on categories
+            var alarmOnlyCategories = new HashSet<string> { "plcalarm" };
+            var isAlarmHistoryOnly = categoryList.Any() && categoryList.All(c => alarmOnlyCategories.Contains(c));
+            var auditAction = isAlarmHistoryOnly ? AuditAction.AlarmHistoryExport : AuditAction.OperationLogExport;
+            
+            // Log export to L1 Audit
+            var exportDetails = JsonSerializer.Serialize(new
+            {
+                Format = format,
+                Categories = categoryList.Any() ? string.Join(",", categoryList) : "all",
+                StartDate = start.ToString("yyyy-MM-dd"),
+                EndDate = end.ToString("yyyy-MM-dd"),
+                RecordCount = logs.Count,
+                Language = lang
+            });
+            
+            await _auditLogService.LogAsync(
+                AuditCategory.Export,
+                auditAction,
+                AuditResult.Success,
+                exportDetails,
+                userId,
+                userName,
+                ipAddress,
+                logs.Count);
+            
+            _logger.LogInformation("📤 Export operation logs: {Count} records, format={Format}, categories={Categories}, by {User}", 
+                logs.Count, format, categories, userName);
+            
+            if (format?.ToLower() == "json")
+            {
+                return ExportAsJson(logs, translations, start, end, lang ?? "SPA");
+            }
+            else
+            {
+                return await ExportAsExcelAsync(logs, translations, start, end, lang ?? "SPA");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error exporting operation logs");
+            
+            // Log failure to L1 Audit
+            await _auditLogService.LogAsync(
+                AuditCategory.Export,
+                AuditAction.OperationLogExport,
+                AuditResult.Failure,
+                $"Error: {ex.Message}",
+                User.FindFirst("sub")?.Value,
+                User.Identity?.Name ?? "unknown");
+            
+            return StatusCode(500, new { error = "Error exporting operation logs", details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Export logs as JSON file
+    /// </summary>
+    private IActionResult ExportAsJson(List<OperationLogDto> logs, Dictionary<string, string> translations, DateTime start, DateTime end, string lang)
+    {
+        var exportData = new
+        {
+            metadata = new
+            {
+                exportDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                dateRange = new { from = start.ToString("yyyy-MM-dd"), to = end.ToString("yyyy-MM-dd") },
+                recordCount = logs.Count,
+                language = lang,
+                version = "1.0"
+            },
+            records = logs.Select(l => new
+            {
+                l.Id,
+                timestamp = l.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"),
+                category = TranslateCategory(l.Category, l.AlarmType, translations),
+                categoryKey = l.Category,
+                action = TranslateAction(l.Action, translations),
+                actionKey = l.Action,
+                alarmType = l.AlarmType,
+                alarmIndex = l.AlarmIndex,
+                user = l.User,
+                description = l.Message ?? l.Description,
+                severity = l.Severity,
+                acknowledged = l.IsAcknowledged,
+                acknowledgedBy = l.AcknowledgedBy,
+                acknowledgedAt = l.AcknowledgedAt?.ToString("yyyy-MM-dd HH:mm:ss")
+            }).ToList()
+        };
+        
+        var json = JsonSerializer.Serialize(exportData, new JsonSerializerOptions { WriteIndented = true });
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+        var fileName = $"operation_logs_{start:yyyyMMdd}_{end:yyyyMMdd}_{lang}.json";
+        
+        return File(bytes, "application/json", fileName);
+    }
+
+    /// <summary>
+    /// Export logs as Excel file
+    /// </summary>
+    private async Task<IActionResult> ExportAsExcelAsync(List<OperationLogDto> logs, Dictionary<string, string> translations, DateTime start, DateTime end, string lang)
+    {
+        ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+        
+        using var package = new ExcelPackage();
+        var worksheet = package.Workbook.Worksheets.Add(GetTranslation(translations, "export.sheet.operationLogs", "Operation Logs"));
+        
+        // Header row with translations
+        var headers = new[]
+        {
+            GetTranslation(translations, "export.column.dateTime", "Date/Time"),
+            GetTranslation(translations, "export.column.category", "Category"),
+            GetTranslation(translations, "export.column.action", "Action"),
+            GetTranslation(translations, "export.column.user", "User"),
+            GetTranslation(translations, "export.column.description", "Description"),
+            GetTranslation(translations, "export.column.alarmIndex", "Alarm Index"),
+            GetTranslation(translations, "export.column.severity", "Severity"),
+            GetTranslation(translations, "export.column.acknowledged", "Acknowledged"),
+            GetTranslation(translations, "export.column.acknowledgedBy", "Acknowledged By"),
+            GetTranslation(translations, "export.column.acknowledgedAt", "Acknowledged At")
+        };
+        
+        for (int i = 0; i < headers.Length; i++)
+        {
+            worksheet.Cells[1, i + 1].Value = headers[i];
+            worksheet.Cells[1, i + 1].Style.Font.Bold = true;
+            worksheet.Cells[1, i + 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+            worksheet.Cells[1, i + 1].Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(23, 162, 184));
+            worksheet.Cells[1, i + 1].Style.Font.Color.SetColor(System.Drawing.Color.White);
+        }
+        
+        // Data rows
+        int row = 2;
+        foreach (var log in logs)
+        {
+            worksheet.Cells[row, 1].Value = log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
+            worksheet.Cells[row, 2].Value = TranslateCategory(log.Category, log.AlarmType, translations);
+            worksheet.Cells[row, 3].Value = TranslateAction(log.Action, translations);
+            worksheet.Cells[row, 4].Value = log.User;
+            worksheet.Cells[row, 5].Value = log.Message ?? log.Description;
+            worksheet.Cells[row, 6].Value = log.AlarmIndex;
+            worksheet.Cells[row, 7].Value = log.Severity;
+            worksheet.Cells[row, 8].Value = log.IsAcknowledged ? GetTranslation(translations, "export.yes", "Yes") : GetTranslation(translations, "export.no", "No");
+            worksheet.Cells[row, 9].Value = log.AcknowledgedBy;
+            worksheet.Cells[row, 10].Value = log.AcknowledgedAt?.ToString("yyyy-MM-dd HH:mm:ss");
+            
+            // Color code by category
+            var color = GetCategoryColor(log.Category, log.AlarmType);
+            worksheet.Cells[row, 2].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+            worksheet.Cells[row, 2].Style.Fill.BackgroundColor.SetColor(color);
+            
+            row++;
+        }
+        
+        // Auto-fit columns
+        worksheet.Cells.AutoFitColumns();
+        
+        // Add metadata sheet
+        var metaSheet = package.Workbook.Worksheets.Add(GetTranslation(translations, "export.sheet.metadata", "Metadata"));
+        metaSheet.Cells[1, 1].Value = GetTranslation(translations, "export.metadata.exportDate", "Export Date");
+        metaSheet.Cells[1, 2].Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        metaSheet.Cells[2, 1].Value = GetTranslation(translations, "export.metadata.dateRange", "Date Range");
+        metaSheet.Cells[2, 2].Value = $"{start:yyyy-MM-dd} - {end:yyyy-MM-dd}";
+        metaSheet.Cells[3, 1].Value = GetTranslation(translations, "export.metadata.recordCount", "Record Count");
+        metaSheet.Cells[3, 2].Value = logs.Count;
+        metaSheet.Cells[4, 1].Value = GetTranslation(translations, "export.metadata.language", "Language");
+        metaSheet.Cells[4, 2].Value = lang;
+        metaSheet.Cells.AutoFitColumns();
+        
+        var bytes = await package.GetAsByteArrayAsync();
+        var fileName = $"operation_logs_{start:yyyyMMdd}_{end:yyyyMMdd}_{lang}.xlsx";
+        
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+    }
+
+    /// <summary>
+    /// Load translations from project translations.json
+    /// </summary>
+    private async Task<Dictionary<string, string>> LoadTranslationsAsync(string lang)
+    {
+        var translations = new Dictionary<string, string>();
+        
+        try
+        {
+            // Translations are at Projects/{projectId}/translations/translations.json
+            var translationsFile = Path.Combine(_projectContext.ProjectBasePath, "translations", "translations.json");
+            
+            if (System.IO.File.Exists(translationsFile))
+            {
+                var json = await System.IO.File.ReadAllTextAsync(translationsFile);
+                using var doc = JsonDocument.Parse(json);
+                
+                // Navigate to the labels and extract translations for the specified language
+                if (doc.RootElement.TryGetProperty("labels", out var labels) ||
+                    doc.RootElement.EnumerateObject().Any())
+                {
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    {
+                        if (prop.Value.ValueKind == JsonValueKind.Object && 
+                            prop.Value.TryGetProperty(lang, out var translation))
+                        {
+                            translations[prop.Name] = translation.GetString() ?? prop.Name;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load translations, using defaults");
+        }
+        
+        return translations;
+    }
+
+    /// <summary>
+    /// Get translation with fallback
+    /// </summary>
+    private string GetTranslation(Dictionary<string, string> translations, string key, string fallback)
+    {
+        return translations.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    /// <summary>
+    /// Translate category name
+    /// </summary>
+    private string TranslateCategory(string? category, string? alarmType, Dictionary<string, string> translations)
+    {
+        if (category?.ToLower() == "plcalarmhistory")
+        {
+            var type = alarmType?.ToLower() ?? "";
+            if (type == "alarm") return GetTranslation(translations, "operationLogs.category.plcAlarm", "PLC Alarm");
+            if (type == "notification") return GetTranslation(translations, "operationLogs.category.plcNotification", "PLC Notification");
+            if (type == "info") return GetTranslation(translations, "operationLogs.category.plcInfo", "PLC Info");
+            return "PLC";
+        }
+        
+        var key = $"operationLogs.category.{category?.ToLower() ?? "unknown"}";
+        return GetTranslation(translations, key, category ?? "Unknown");
+    }
+
+    /// <summary>
+    /// Translate action name
+    /// </summary>
+    private string TranslateAction(string? action, Dictionary<string, string> translations)
+    {
+        var key = $"operationLogs.action.{action ?? "Unknown"}";
+        return GetTranslation(translations, key, action ?? "Unknown");
+    }
+
+    /// <summary>
+    /// Get color for category (for Excel)
+    /// </summary>
+    private System.Drawing.Color GetCategoryColor(string? category, string? alarmType)
+    {
+        if (category?.ToLower() == "plcalarmhistory")
+        {
+            var type = alarmType?.ToLower() ?? "";
+            if (type == "alarm") return System.Drawing.Color.FromArgb(220, 53, 69); // Red
+            if (type == "notification") return System.Drawing.Color.FromArgb(255, 193, 7); // Yellow
+            if (type == "info") return System.Drawing.Color.FromArgb(23, 162, 184); // Cyan
+        }
+        
+        return category?.ToLower() switch
+        {
+            "recipe" => System.Drawing.Color.FromArgb(32, 201, 151),
+            "process" => System.Drawing.Color.FromArgb(40, 167, 69),
+            "configuration" => System.Drawing.Color.FromArgb(156, 39, 176),
+            "plccommand" => System.Drawing.Color.FromArgb(233, 30, 99),
+            "statistics" => System.Drawing.Color.FromArgb(111, 66, 193),
+            _ => System.Drawing.Color.FromArgb(108, 117, 125)
+        };
     }
 
     /// <summary>

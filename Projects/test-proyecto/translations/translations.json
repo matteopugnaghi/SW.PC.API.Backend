@@ -9918,6 +9918,49 @@
       "ITA": "Nessuna modifica"
     },
 
+    "operationLogs.export.title": {
+      "SPA": "Exportar Registro de Operaciones",
+      "ENG": "Export Operation Logs",
+      "FRA": "Exporter les journaux d'opérations",
+      "ITA": "Esporta registro operazioni"
+    },
+    "operationLogs.export.button": {
+      "SPA": "Exportar",
+      "ENG": "Export",
+      "FRA": "Exporter",
+      "ITA": "Esporta"
+    },
+    "operationLogs.export.format": {
+      "SPA": "Formato",
+      "ENG": "Format",
+      "FRA": "Format",
+      "ITA": "Formato"
+    },
+    "operationLogs.export.categories": {
+      "SPA": "Categorías a exportar",
+      "ENG": "Categories to export",
+      "FRA": "Catégories à exporter",
+      "ITA": "Categorie da esportare"
+    },
+    "operationLogs.export.selectAll": {
+      "SPA": "Todas",
+      "ENG": "All",
+      "FRA": "Toutes",
+      "ITA": "Tutte"
+    },
+    "operationLogs.export.selectNone": {
+      "SPA": "Ninguna",
+      "ENG": "None",
+      "FRA": "Aucune",
+      "ITA": "Nessuna"
+    },
+    "operationLogs.export.error": {
+      "SPA": "Error al exportar",
+      "ENG": "Export error",
+      "FRA": "Erreur d'exportation",
+      "ITA": "Errore di esportazione"
+    },
+
     "auditLog.modal.total_events": {
       "SPA": "Total Eventos",
       "ENG": "Total Events",
@@ -10967,6 +11010,12 @@
       "FRA": "Export historique alarmes",
       "ITA": "Esportazione storico allarmi"
     },
+    "auditLog.action.operationLogExport": {
+      "SPA": "Exportación logs de operación",
+      "ENG": "Operation log export",
+      "FRA": "Export journal d'opérations",
+      "ITA": "Esportazione log operazioni"
+    },
     "auditLog.action.statisticsExport": {
       "SPA": "Exportación estadísticas",
       "ENG": "Statistics export",
@@ -10990,6 +11039,12 @@
       "ENG": "Alarm history exported: {count} records, period: {fromDate} to {toDate}",
       "FRA": "Historique des alarmes exporté : {count} enregistrements, période : {fromDate} à {toDate}",
       "ITA": "Storico allarmi esportato: {count} record, periodo: {fromDate} a {toDate}"
+    },
+    "auditLog.details.operationLogExported": {
+      "SPA": "Logs de operación exportados: {count} registros, categorías: {categories}, periodo: {fromDate} a {toDate}",
+      "ENG": "Operation logs exported: {count} records, categories: {categories}, period: {fromDate} to {toDate}",
+      "FRA": "Journal d'opérations exporté : {count} enregistrements, catégories : {categories}, période : {fromDate} à {toDate}",
+      "ITA": "Log operazioni esportati: {count} record, categorie: {categories}, periodo: {fromDate} a {toDate}"
     },
     "auditLog.details.statisticsExported": {
       "SPA": "Estadísticas exportadas: {count} registros, periodo: {fromDate} a {toDate}",

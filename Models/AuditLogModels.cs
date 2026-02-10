@@ -125,6 +125,7 @@ namespace SW.PC.API.Backend.Models
         // ═══════════════════════════════════════════════════════════
         AuditExport,            // Exportación de logs de auditoría
         AlarmHistoryExport,     // Exportación de histórico de alarmas
+        OperationLogExport,     // Exportación de logs de operación (L2)
         StatisticsExport,       // Exportación de estadísticas
         RecipeExport,           // Exportación de recetas
         ConfigurationExport     // Exportación de configuraciones
