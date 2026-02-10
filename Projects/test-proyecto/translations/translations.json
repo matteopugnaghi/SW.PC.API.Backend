@@ -7704,6 +7704,18 @@
       "FRA": "sur",
       "ITA": "di"
     },
+    "infoPanel.modal.loaded": {
+      "SPA": "cargados",
+      "ENG": "loaded",
+      "FRA": "chargés",
+      "ITA": "caricati"
+    },
+    "infoPanel.modal.max_per_period": {
+      "SPA": "Máx 2000 por periodo",
+      "ENG": "Max 2000 per period",
+      "FRA": "Max 2000 par période",
+      "ITA": "Max 2000 per periodo"
+    },
     "infoPanel.modal.records": {
       "SPA": "registros",
       "ENG": "records",
