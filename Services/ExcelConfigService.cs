@@ -2042,20 +2042,64 @@ namespace SW.PC.API.Backend.Services
                     var variableNames = new HashSet<string>(); // Usar HashSet para evitar duplicados
                     var variablesBySheet = new Dictionary<string, int>(); // Para logging
                     
+                    // 🎯 Cargar SystemConfig para saber qué features están habilitadas
+                    // Si una feature está deshabilitada, no leemos su hoja → no genera warnings falsos
+                    var skippedSheets = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        "Variable_Views" // Siempre excluir: contiene patrones, no variables reales
+                    };
+                    
+                    try
+                    {
+                        var systemConfig = await LoadSystemConfigurationAsync(filePath);
+                        if (systemConfig != null)
+                        {
+                            if (!systemConfig.SemiautomaticEnabled)
+                            {
+                                skippedSheets.Add("Semiautomatic_Mode");
+                                _logger.LogInformation("   ⏭️ Semiautomatic_Mode deshabilitado en SystemConfig → hoja excluida del escaneo");
+                            }
+                            if (!systemConfig.FastConfigurationEnabled)
+                            {
+                                skippedSheets.Add("Fast_Configuration");
+                                _logger.LogInformation("   ⏭️ Fast_Configuration deshabilitado en SystemConfig → hoja excluida del escaneo");
+                            }
+                            if (!systemConfig.WashRecipeEnabled)
+                            {
+                                skippedSheets.Add("WashRecipe");
+                                _logger.LogInformation("   ⏭️ WashRecipe deshabilitado en SystemConfig → hoja excluida del escaneo");
+                            }
+                            if (!systemConfig.TrainRecipeEnabled)
+                            {
+                                skippedSheets.Add("TrainRecipe");
+                                _logger.LogInformation("   ⏭️ TrainRecipe deshabilitado en SystemConfig → hoja excluida del escaneo");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "   ⚠️ No se pudo cargar SystemConfig para determinar features habilitadas, escaneando todas las hojas");
+                    }
+                    
                     _logger.LogInformation("════════════════════════════════════════════════════════════════════");
                     _logger.LogInformation("🔍 ESCANEO AUTOMÁTICO DE VARIABLES PLC");
                     _logger.LogInformation("   Buscando 'MAIN.fbMachine' en TODAS las hojas del Excel...");
+                    if (skippedSheets.Count > 1) // > 1 because Variable_Views is always there
+                    {
+                        _logger.LogInformation("   ⏭️ Hojas excluidas por features deshabilitadas: {Sheets}", 
+                            string.Join(", ", skippedSheets.Where(s => !s.Equals("Variable_Views", StringComparison.OrdinalIgnoreCase))));
+                    }
                     _logger.LogInformation("────────────────────────────────────────────────────────────────────");
 
-                    // 🔄 Escanear TODAS las hojas del Excel
+                    // 🔄 Escanear TODAS las hojas del Excel (excepto las excluidas)
                     foreach (var worksheet in package.Workbook.Worksheets)
                     {
                         if (worksheet.Dimension == null) continue;
                         
-                        // ⚠️ EXCLUIR hoja Variable_Views - contiene PATRONES, no variables reales
-                        if (worksheet.Name.Equals("Variable_Views", StringComparison.OrdinalIgnoreCase))
+                        // ⚠️ EXCLUIR hojas deshabilitadas o que no contienen variables reales
+                        if (skippedSheets.Contains(worksheet.Name))
                         {
-                            _logger.LogDebug("   ⏭️ Saltando hoja 'Variable_Views' (contiene patrones, no variables)");
+                            _logger.LogDebug("   ⏭️ Saltando hoja '{SheetName}' (excluida)", worksheet.Name);
                             continue;
                         }
                         
