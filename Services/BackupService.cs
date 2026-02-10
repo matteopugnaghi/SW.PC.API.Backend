@@ -1164,6 +1164,9 @@ namespace SW.PC.API.Backend.Services
                 backupInfo.FilePath = zipPath;
                 backupInfo.SizeBytes = new FileInfo(zipPath).Length;
                 
+                // Siempre usar el nombre del archivo ZIP como ID (garantiza unicidad tras import/rename)
+                backupInfo.Id = Path.GetFileNameWithoutExtension(zipPath);
+                
                 // Verificar si tiene certificado
                 var certEntry = zipArchive.GetEntry("backup_certificate.json");
                 backupInfo.IsSigned = certEntry != null;
