@@ -1304,10 +1304,10 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogInformation("   📋 {Model}: {DisplayType}, {ButtonCount} botones, {SlotCount} slots",
                         config.ModelName, config.DisplayType, config.Buttons.Count, config.Slots.Count);
                     
-                    // Si no hay slots, mostrar warning
+                    // Si no hay slots ni botones, es normal para ciertos displayType (attached-label, etc.)
                     if (config.Slots.Count == 0 && config.Buttons.Count == 0)
                     {
-                        _logger.LogWarning("   ⚠️ {Model}: Sin botones ni slots configurados", config.ModelName);
+                        _logger.LogDebug("   ℹ️ {Model}: Sin botones ni slots configurados (displayType: {DisplayType})", config.ModelName, config.DisplayType);
                     }
                     
                     // Listar variables PLC para integración con Variable_Views

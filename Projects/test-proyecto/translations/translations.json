@@ -8131,6 +8131,12 @@
       "FRA": "AVERT",
       "ITA": "AVV"
     },
+    "infoPanel.modal.clear_logs": {
+      "SPA": "Limpiar",
+      "ENG": "Clear",
+      "FRA": "Effacer",
+      "ITA": "Pulisci"
+    },
 
     "git.title": {
       "SPA": "Gestión Git",
