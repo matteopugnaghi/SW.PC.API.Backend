@@ -28,6 +28,7 @@ namespace SW.PC.API.Backend.Services
         public string ExcelConfigPath { get; set; } = "";
         public string SbomPath { get; set; } = "";      // EU CRA Compliance
         public string AuditPath { get; set; } = "";     // EU CRA Compliance
+        public string TranslationsPath { get; set; } = ""; // Translations per project
     }
 
     public interface IBackupService
@@ -119,7 +120,8 @@ namespace SW.PC.API.Backend.Services
                     DatabasePath = Path.Combine(contentRoot, "Data", "Aquafrisch.db"),
                     ExcelConfigPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm"),
                     SbomPath = Path.Combine(webRoot, "sbom"),           // Legacy: wwwroot/sbom
-                    AuditPath = Path.Combine(webRoot, "audit")          // Legacy: wwwroot/audit
+                    AuditPath = Path.Combine(webRoot, "audit"),          // Legacy: wwwroot/audit
+                    TranslationsPath = Path.Combine(contentRoot, "translations") // Legacy: root/translations
                 };
             }
             
@@ -136,7 +138,8 @@ namespace SW.PC.API.Backend.Services
                 DatabasePath = Path.Combine(projectRoot, "data", "project.db"),
                 ExcelConfigPath = Path.Combine(projectRoot, "config", "ProjectConfig.xlsm"),
                 SbomPath = Path.Combine(projectRoot, "sbom"),           // Multi-proyecto: Projects/{id}/sbom
-                AuditPath = Path.Combine(projectRoot, "audit")          // Multi-proyecto: Projects/{id}/audit
+                AuditPath = Path.Combine(projectRoot, "audit"),          // Multi-proyecto: Projects/{id}/audit
+                TranslationsPath = Path.Combine(projectRoot, "translations") // Multi-proyecto: Projects/{id}/translations
             };
         }
 
@@ -384,6 +387,31 @@ namespace SW.PC.API.Backend.Services
                         if (auditFiles.Length > 0)
                         {
                             _logger.LogInformation("✅ Audit logs incluidos en backup ({Count} archivos - EU CRA Compliance)", auditFiles.Length);
+                        }
+                    }
+                    
+                    // Agregar Translations (traducciones del proyecto)
+                    var translationsPath = projectPaths.TranslationsPath;
+                    if (Directory.Exists(translationsPath))
+                    {
+                        var translationFiles = Directory.GetFiles(translationsPath, "*.*", SearchOption.AllDirectories);
+                        foreach (var transFile in translationFiles)
+                        {
+                            var relativePath = Path.Combine("translations", Path.GetRelativePath(translationsPath, transFile));
+                            zipArchive.CreateEntryFromFile(transFile, relativePath);
+                            
+                            manifest.Files.Add(new BackupFileEntry
+                            {
+                                RelativePath = relativePath,
+                                Hash = await ComputeFileHashAsync(transFile),
+                                SizeBytes = new FileInfo(transFile).Length,
+                                ModifiedAt = File.GetLastWriteTimeUtc(transFile)
+                            });
+                        }
+                        
+                        if (translationFiles.Length > 0)
+                        {
+                            _logger.LogInformation("✅ Translations incluidas en backup ({Count} archivos)", translationFiles.Length);
                         }
                     }
                     

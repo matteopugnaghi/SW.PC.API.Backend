@@ -57,22 +57,22 @@ namespace SW.PC.API.Backend.Services
             var projectContext = scope.ServiceProvider.GetRequiredService<IProjectContextService>();
             var backupService = scope.ServiceProvider.GetRequiredService<IBackupService>();
             
-            // Obtener todos los proyectos disponibles
-            var projects = projectContext.GetAvailableProjects().Select(p => p.Id).ToList();
+            // Solo hacer backup del proyecto activo (no de todos los disponibles)
+            var activeProjectId = projectContext.ActiveProjectId;
             
-            foreach (var projectId in projects)
+            if (string.IsNullOrEmpty(activeProjectId))
             {
-                if (stoppingToken.IsCancellationRequested)
-                    break;
-                
-                try
-                {
-                    await CheckProjectBackupAsync(projectId, backupService);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error checking backup for project {ProjectId}", projectId);
-                }
+                _logger.LogWarning("No active project configured, skipping scheduled backup");
+                return;
+            }
+            
+            try
+            {
+                await CheckProjectBackupAsync(activeProjectId, backupService);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking backup for active project {ProjectId}", activeProjectId);
             }
         }
 
