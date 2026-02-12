@@ -285,9 +285,9 @@ public class Document
     /// <summary>Estado en el ciclo de vida</summary>
     public DocumentStatus Status { get; set; } = DocumentStatus.Draft;
     
-    // === CRA / Compliance ===
+    // === Cumplimiento Normativo ===
     
-    /// <summary>¿Es relevante para cumplimiento CRA?</summary>
+    /// <summary>¿Es relevante para cumplimiento CRA (Cyber Resilience Act)?</summary>
     public bool CraRelevant { get; set; }
     
     /// <summary>Artículo CRA aplicable (ej: "Art. 13.2", "Anexo VII")</summary>
@@ -296,6 +296,20 @@ public class Document
     
     /// <summary>Plazo CRA para tener este documento listo</summary>
     public DateTime? CraDeadline { get; set; }
+    
+    /// <summary>¿Es relevante para ISO 27001?</summary>
+    public bool Iso27001Relevant { get; set; }
+    
+    /// <summary>Referencia ISO 27001 (ej: "A.8.2", "A.9.1.2")</summary>
+    [MaxLength(100)]
+    public string? Iso27001Article { get; set; }
+    
+    /// <summary>¿Es relevante para IEC 62443?</summary>
+    public bool Iec62443Relevant { get; set; }
+    
+    /// <summary>Referencia IEC 62443 (ej: "3-3 SR 1.1", "4-2 CR 1.1")</summary>
+    [MaxLength(100)]
+    public string? Iec62443Article { get; set; }
     
     /// <summary>Usuario que aprobó el documento</summary>
     [MaxLength(100)]
@@ -420,6 +434,20 @@ public class CreateDocumentRequest
     [MaxLength(100)]
     public string? CraArticle { get; set; }
     
+    /// <summary>¿Es relevante para ISO 27001?</summary>
+    public bool Iso27001Relevant { get; set; }
+    
+    /// <summary>Referencia ISO 27001 (ej: "A.8.2", "A.9.1.2")</summary>
+    [MaxLength(100)]
+    public string? Iso27001Article { get; set; }
+    
+    /// <summary>¿Es relevante para IEC 62443?</summary>
+    public bool Iec62443Relevant { get; set; }
+    
+    /// <summary>Referencia IEC 62443 (ej: "3-3 SR 1.1", "4-2 CR 1.1")</summary>
+    [MaxLength(100)]
+    public string? Iec62443Article { get; set; }
+    
     /// <summary>Nombre del fichero (opcional — si no se da, se genera del título)</summary>
     [MaxLength(200)]
     public string? FileName { get; set; }
@@ -464,6 +492,16 @@ public class UpdateDocumentRequest
     
     [MaxLength(100)]
     public string? CraArticle { get; set; }
+    
+    public bool? Iso27001Relevant { get; set; }
+    
+    [MaxLength(100)]
+    public string? Iso27001Article { get; set; }
+    
+    public bool? Iec62443Relevant { get; set; }
+    
+    [MaxLength(100)]
+    public string? Iec62443Article { get; set; }
 }
 
 /// <summary>
@@ -481,6 +519,8 @@ public class DocumentFilter
     public DocumentStatus? Status { get; set; }
     public DocumentAccessLevel? MaxAccessLevel { get; set; }
     public bool? CraRelevant { get; set; }
+    public bool? Iso27001Relevant { get; set; }
+    public bool? Iec62443Relevant { get; set; }
     public string? SearchQuery { get; set; }
     public string? Tag { get; set; }
     public int Page { get; set; } = 1;
@@ -510,6 +550,10 @@ public class DocumentInfo
     public DocumentStatus Status { get; set; }
     public bool CraRelevant { get; set; }
     public string? CraArticle { get; set; }
+    public bool Iso27001Relevant { get; set; }
+    public string? Iso27001Article { get; set; }
+    public bool Iec62443Relevant { get; set; }
+    public string? Iec62443Article { get; set; }
     public DateTime? CraDeadline { get; set; }
     public string CreatedBy { get; set; } = "";
     public DateTime CreatedAt { get; set; }

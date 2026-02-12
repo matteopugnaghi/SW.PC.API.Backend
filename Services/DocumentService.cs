@@ -278,6 +278,10 @@ public class DocumentService : IDocumentService
                 Status = DocumentStatus.Draft,
                 CraRelevant = request.CraRelevant,
                 CraArticle = request.CraArticle,
+                Iso27001Relevant = request.Iso27001Relevant,
+                Iso27001Article = request.Iso27001Article,
+                Iec62443Relevant = request.Iec62443Relevant,
+                Iec62443Article = request.Iec62443Article,
                 CreatedBy = userName,
                 CreatedAt = DateTime.UtcNow,
                 SearchContent = ExtractSearchContent(content)
@@ -349,6 +353,10 @@ public class DocumentService : IDocumentService
             if (request.Tags != null) doc.Tags = JsonSerializer.Serialize(request.Tags);
             if (request.CraRelevant.HasValue) doc.CraRelevant = request.CraRelevant.Value;
             if (request.CraArticle != null) doc.CraArticle = request.CraArticle;
+            if (request.Iso27001Relevant.HasValue) doc.Iso27001Relevant = request.Iso27001Relevant.Value;
+            if (request.Iso27001Article != null) doc.Iso27001Article = request.Iso27001Article;
+            if (request.Iec62443Relevant.HasValue) doc.Iec62443Relevant = request.Iec62443Relevant.Value;
+            if (request.Iec62443Article != null) doc.Iec62443Article = request.Iec62443Article;
 
             // Actualizar contenido del fichero si se proporcionó
             if (request.Content != null)
@@ -1432,6 +1440,10 @@ public class DocumentService : IDocumentService
         Status = doc.Status,
         CraRelevant = doc.CraRelevant,
         CraArticle = doc.CraArticle,
+        Iso27001Relevant = doc.Iso27001Relevant,
+        Iso27001Article = doc.Iso27001Article,
+        Iec62443Relevant = doc.Iec62443Relevant,
+        Iec62443Article = doc.Iec62443Article,
         CraDeadline = doc.CraDeadline,
         CreatedBy = doc.CreatedBy,
         CreatedAt = doc.CreatedAt,

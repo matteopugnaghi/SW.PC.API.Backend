@@ -1004,6 +1004,15 @@ public static class AquafrischDbContextFactory
             // Migrar Documents: añadir ClassificationId si no existe
             try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN ClassificationId INTEGER NOT NULL DEFAULT 0"); }
             catch { /* columna ya existe */ }
+            // Migrar Documents: añadir campos cumplimiento normativo ISO 27001 + IEC 62443
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN Iso27001Relevant INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN Iso27001Article TEXT"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN Iec62443Relevant INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN Iec62443Article TEXT"); }
+            catch { /* columna ya existe */ }
             await context.Database.ExecuteSqlRawAsync(@"
                 CREATE TABLE IF NOT EXISTS Documents (
                     Id TEXT PRIMARY KEY,
@@ -1025,6 +1034,10 @@ public static class AquafrischDbContextFactory
                     CraRelevant INTEGER NOT NULL DEFAULT 0,
                     CraArticle TEXT,
                     CraDeadline TEXT,
+                    Iso27001Relevant INTEGER NOT NULL DEFAULT 0,
+                    Iso27001Article TEXT,
+                    Iec62443Relevant INTEGER NOT NULL DEFAULT 0,
+                    Iec62443Article TEXT,
                     ApprovedBy TEXT,
                     ApprovedAt TEXT,
                     CreatedBy TEXT NOT NULL DEFAULT 'System',
