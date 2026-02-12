@@ -272,7 +272,8 @@ public class DocumentService : IDocumentService
                 Category = request.Category,
                 Tags = request.Tags != null ? JsonSerializer.Serialize(request.Tags) : null,
                 AccessLevel = request.AccessLevel,
-                MinimumRole = AccessLevelToRole.GetValueOrDefault(request.AccessLevel, "Viewer"),
+                MinimumRole = request.MinimumRole ?? AccessLevelToRole.GetValueOrDefault(request.AccessLevel, "Visualizador"),
+                ClassificationId = request.ClassificationId ?? 0,
                 Version = "1.0",
                 Status = DocumentStatus.Draft,
                 CraRelevant = request.CraRelevant,
@@ -335,10 +336,14 @@ public class DocumentService : IDocumentService
             if (request.Title != null) doc.Title = request.Title;
             if (request.Description != null) doc.Description = request.Description;
             if (request.Version != null) doc.Version = request.Version;
+            if (request.MinimumRole != null) doc.MinimumRole = request.MinimumRole;
+            if (request.ClassificationId.HasValue) doc.ClassificationId = request.ClassificationId.Value;
             if (request.AccessLevel.HasValue)
             {
                 doc.AccessLevel = request.AccessLevel.Value;
-                doc.MinimumRole = AccessLevelToRole.GetValueOrDefault(request.AccessLevel.Value, "Viewer");
+                // Solo sobrescribir MinimumRole desde AccessLevel si no se proporcionó MinimumRole explícitamente
+                if (request.MinimumRole == null)
+                    doc.MinimumRole = AccessLevelToRole.GetValueOrDefault(request.AccessLevel.Value, "Visualizador");
             }
             if (request.Status.HasValue) doc.Status = request.Status.Value;
             if (request.Tags != null) doc.Tags = JsonSerializer.Serialize(request.Tags);
@@ -1422,6 +1427,7 @@ public class DocumentService : IDocumentService
         Tags = ParseTags(doc.Tags),
         ClassificationId = doc.ClassificationId,
         AccessLevel = doc.AccessLevel,
+        MinimumRole = doc.MinimumRole,
         Version = doc.Version,
         Status = doc.Status,
         CraRelevant = doc.CraRelevant,

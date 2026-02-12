@@ -401,6 +401,10 @@ public class CreateDocumentRequest
     /// <summary>Clasificación de información (FK a DocumentClassificationLevels). Hereda de categoría.</summary>
     public int? ClassificationId { get; set; }
 
+    /// <summary>Rol mínimo para acceder al documento (ISO 27001 A.9.1)</summary>
+    [MaxLength(50)]
+    public string? MinimumRole { get; set; }
+
     public DocumentAccessLevel AccessLevel { get; set; } = DocumentAccessLevel.Public;
     
     /// <summary>Contenido Markdown inicial (opcional)</summary>
@@ -445,6 +449,10 @@ public class UpdateDocumentRequest
     
     /// <summary>Clasificación de información (FK a DocumentClassificationLevels)</summary>
     public int? ClassificationId { get; set; }
+
+    /// <summary>Rol mínimo para acceder al documento (ISO 27001 A.9.1)</summary>
+    [MaxLength(50)]
+    public string? MinimumRole { get; set; }
 
     public DocumentAccessLevel? AccessLevel { get; set; }
     
@@ -497,6 +505,7 @@ public class DocumentInfo
     public string? ClassificationName { get; set; }
     public string? ClassificationColor { get; set; }
     public string? ClassificationIcon { get; set; }    public DocumentAccessLevel AccessLevel { get; set; }
+    public string MinimumRole { get; set; } = "Visualizador";
     public string Version { get; set; } = "";
     public DocumentStatus Status { get; set; }
     public bool CraRelevant { get; set; }
