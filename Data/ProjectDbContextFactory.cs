@@ -221,7 +221,7 @@ public class ProjectDbContextFactory : IProjectDbContextFactory
         }
         
         var optionsBuilder = new DbContextOptionsBuilder<AquafrischDbContext>();
-        optionsBuilder.UseSqlite($"Data Source={dbPath}");
+        optionsBuilder.UseSqlite($"Data Source={dbPath};Foreign Keys=False");
         
         return new AquafrischDbContext(optionsBuilder.Options);
     }

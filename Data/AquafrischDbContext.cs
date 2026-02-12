@@ -388,6 +388,20 @@ public class AquafrischDbContext : DbContext
         });
 
         // ============================================
+        // Configuración de Document + Classification (sin FK automática)
+        // ============================================
+        modelBuilder.Entity<Document>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            // ClassificationId se gestiona manualmente, NO es FK
+        });
+
+        modelBuilder.Entity<DocumentClassificationLevel>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+        });
+
+        // ============================================
         // Seed Data - Roles del Sistema
         // ============================================
         SeedRoles(modelBuilder);

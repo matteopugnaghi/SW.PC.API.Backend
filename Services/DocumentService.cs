@@ -212,6 +212,7 @@ public class DocumentService : IDocumentService
 
     public async Task<DocumentOperationResponse> CreateDocumentAsync(CreateDocumentRequest request, string userName, string userRole)
     {
+        string absolutePath = "";
         try
         {
             // Validaciones
@@ -238,7 +239,7 @@ public class DocumentService : IDocumentService
                 relativePath = $"{scopePrefix}/{categoryFolder}/{fileName}".Replace('\\', '/');
 
             var docsPath = _requestContext.DocsPath;
-            var absolutePath = Path.Combine(docsPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            absolutePath = Path.Combine(docsPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
 
             // Verificar que no exista ya
             if (File.Exists(absolutePath))
@@ -315,8 +316,11 @@ public class DocumentService : IDocumentService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creando documento: {Title}", request.Title);
-            return new DocumentOperationResponse { Success = false, Message = $"Error creando documento: {ex.Message}" };
+            _logger.LogError(ex, "Error creando documento: {Title}. Inner: {Inner}", request.Title, ex.InnerException?.Message);
+            // Limpiar fichero huérfano si se creó en disco pero falló la DB
+            try { if (File.Exists(absolutePath)) File.Delete(absolutePath); } catch { }
+            var innerMsg = ex.InnerException?.Message ?? ex.Message;
+            return new DocumentOperationResponse { Success = false, Message = $"Error creando documento: {innerMsg}" };
         }
     }
 
