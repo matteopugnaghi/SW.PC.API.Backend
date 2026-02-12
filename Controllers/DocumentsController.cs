@@ -520,6 +520,102 @@ public class DocumentsController : ControllerBase
             return StatusCode(500, new { error = ex.Message });
         }
     }
+
+    #region Clasificación + Acceso (ISO 27001)
+
+    // ═══ Niveles de Clasificación (ISO 27001 A.8.2) ═══
+
+    /// <summary>Obtener todos los niveles de clasificación</summary>
+    [HttpGet("classification-levels")]
+    public async Task<IActionResult> GetClassificationLevels()
+    {
+        var levels = await _documentService.GetClassificationLevelsAsync();
+        return Ok(levels);
+    }
+
+    /// <summary>Crear nivel de clasificación (solo SuperAdmin)</summary>
+    [HttpPost("classification-levels")]
+    public async Task<IActionResult> CreateClassificationLevel([FromBody] DocumentClassificationLevel level)
+    {
+        if (UserRole != "SuperAdmin")
+            return Forbid();
+
+        var created = await _documentService.CreateClassificationLevelAsync(level, UserName);
+        return Ok(created);
+    }
+
+    /// <summary>Actualizar nivel de clasificación (solo SuperAdmin)</summary>
+    [HttpPut("classification-levels/{id}")]
+    public async Task<IActionResult> UpdateClassificationLevel(int id, [FromBody] DocumentClassificationLevel level)
+    {
+        if (UserRole != "SuperAdmin")
+            return Forbid();
+
+        var updated = await _documentService.UpdateClassificationLevelAsync(id, level, UserName);
+        if (updated == null) return NotFound();
+        return Ok(updated);
+    }
+
+    /// <summary>Eliminar nivel de clasificación (solo SuperAdmin, no del sistema)</summary>
+    [HttpDelete("classification-levels/{id}")]
+    public async Task<IActionResult> DeleteClassificationLevel(int id)
+    {
+        if (UserRole != "SuperAdmin")
+            return Forbid();
+
+        var deleted = await _documentService.DeleteClassificationLevelAsync(id);
+        if (!deleted) return BadRequest(new { error = "No se puede eliminar: es del sistema o no existe" });
+        return Ok(new { message = "Nivel eliminado" });
+    }
+
+    // ═══ Matriz de Acceso: Categoría × Rol (ISO 27001 A.9.1) ═══
+
+    /// <summary>Obtener la matriz completa de acceso (todas las categorías y roles)</summary>
+    [HttpGet("category-access")]
+    public async Task<IActionResult> GetCategoryAccessMatrix()
+    {
+        var matrix = await _documentService.GetCategoryAccessMatrixAsync();
+        var roles = DocumentService.SystemRoles;
+        return Ok(new { matrix, roles });
+    }
+
+    /// <summary>Obtener accesos de una categoría específica</summary>
+    [HttpGet("category-access/{categoryId}")]
+    public async Task<IActionResult> GetCategoryAccess(int categoryId)
+    {
+        var access = await _documentService.GetCategoryAccessAsync(categoryId);
+        return Ok(access);
+    }
+
+    /// <summary>Actualizar acceso de un rol a una categoría (solo SuperAdmin)</summary>
+    [HttpPut("category-access/{categoryId}/{roleName}")]
+    public async Task<IActionResult> SetCategoryAccess(int categoryId, string roleName, [FromBody] SetAccessRequest request)
+    {
+        if (UserRole != "SuperAdmin")
+            return Forbid();
+
+        var result = await _documentService.SetCategoryAccessAsync(categoryId, roleName, request.CanRead, UserName);
+        return Ok(result);
+    }
+
+    /// <summary>Actualizar accesos bulk de una categoría (solo SuperAdmin)</summary>
+    [HttpPut("category-access/{categoryId}/bulk")]
+    public async Task<IActionResult> SetCategoryAccessBulk(int categoryId, [FromBody] Dictionary<string, bool> roleAccess)
+    {
+        if (UserRole != "SuperAdmin")
+            return Forbid();
+
+        var result = await _documentService.SetCategoryAccessBulkAsync(categoryId, roleAccess, UserName);
+        return Ok(result);
+    }
+
+    #endregion
+}
+
+/// <summary>Request para SetCategoryAccess individual</summary>
+public class SetAccessRequest
+{
+    public bool CanRead { get; set; }
 }
 
 /// <summary>

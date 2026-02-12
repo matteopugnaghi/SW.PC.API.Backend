@@ -84,4 +84,32 @@ public interface IDocumentService
     
     /// <summary>Eliminar una categoría personalizada (no del sistema)</summary>
     Task<bool> DeleteCategoryAsync(int id);
+
+    // === Niveles de Clasificación (ISO 27001 A.8.2) ===
+
+    /// <summary>Obtener todos los niveles de clasificación</summary>
+    Task<List<DocumentClassificationLevel>> GetClassificationLevelsAsync();
+
+    /// <summary>Crear un nuevo nivel de clasificación</summary>
+    Task<DocumentClassificationLevel> CreateClassificationLevelAsync(DocumentClassificationLevel level, string userName);
+
+    /// <summary>Actualizar un nivel de clasificación existente</summary>
+    Task<DocumentClassificationLevel?> UpdateClassificationLevelAsync(int id, DocumentClassificationLevel level, string userName);
+
+    /// <summary>Eliminar un nivel de clasificación (no del sistema)</summary>
+    Task<bool> DeleteClassificationLevelAsync(int id);
+
+    // === Matriz de Acceso: Categoría × Rol (ISO 27001 A.9.1) ===
+
+    /// <summary>Obtener toda la matriz de acceso</summary>
+    Task<List<DocumentCategoryAccess>> GetCategoryAccessMatrixAsync();
+
+    /// <summary>Obtener accesos de una categoría específica</summary>
+    Task<List<DocumentCategoryAccess>> GetCategoryAccessAsync(int categoryId);
+
+    /// <summary>Actualizar acceso de un rol a una categoría</summary>
+    Task<DocumentCategoryAccess> SetCategoryAccessAsync(int categoryId, string roleName, bool canRead, string userName);
+
+    /// <summary>Actualizar toda la matriz de acceso de una categoría de golpe</summary>
+    Task<List<DocumentCategoryAccess>> SetCategoryAccessBulkAsync(int categoryId, Dictionary<string, bool> roleAccess, string userName);
 }

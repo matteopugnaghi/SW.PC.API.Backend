@@ -82,32 +82,91 @@ public class DocumentCategoryConfig
     /// <summary>Descripción breve de la categoría</summary>
     [MaxLength(500)]
     public string? Description { get; set; }
-    
+
+    /// <summary>Clasificación por defecto para docs nuevos en esta categoría (FK a DocumentClassificationLevels).
+    /// Los documentos heredan este valor pero solo pueden SUBIR, nunca bajar.</summary>
+    public int DefaultClassificationId { get; set; } = 0; // 0 = Public por defecto
+
+    /// <summary>Rol mínimo por defecto para docs nuevos en esta categoría.
+    /// Override configurable via DocumentCategoryAccess (matriz rol×categoría).</summary>
+    [MaxLength(50)]
+    public string DefaultMinimumRole { get; set; } = "Visualizador";
+
     public string? CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>
-/// Nivel de acceso mínimo para un documento
-/// Se combina con el sistema RBAC existente (ModulePermissions.DocumentsView)
-/// El acceso efectivo = canView('DocumentsView') AND userRole >= MinimumRole
+/// Nivel de clasificación de información — ISO 27001 Anexo A.8.2
+/// Dinámico: gestionable desde la DB (tabla DocumentClassificationLevels).
+/// Determina la SENSIBILIDAD del documento, no quién puede verlo (eso es DocumentCategoryAccess).
 /// </summary>
+public class DocumentClassificationLevel
+{
+    public int Id { get; set; }
+
+    /// <summary>Nombre visible (ej: "Público", "Interno", "Confidencial")</summary>
+    [Required, MaxLength(100)]
+    public string Name { get; set; } = "";
+
+    /// <summary>Código slug para uso interno (ej: "public", "internal", "confidential")</summary>
+    [Required, MaxLength(50)]
+    public string Code { get; set; } = "";
+
+    /// <summary>Nivel ordinal de severidad (0=menor, mayor=más sensible). Herencia solo sube.</summary>
+    public int Level { get; set; }
+
+    [MaxLength(10)]
+    public string Icon { get; set; } = "🏷️";
+
+    [MaxLength(20)]
+    public string Color { get; set; } = "#6b7280";
+
+    /// <summary>Descripción para el responsable de calidad</summary>
+    [MaxLength(500)]
+    public string? Description { get; set; }
+
+    /// <summary>True = nivel del sistema (no se puede eliminar, solo renombrar)</summary>
+    public bool IsSystem { get; set; }
+
+    public int SortOrder { get; set; }
+
+    public string? CreatedBy { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Matriz de acceso: qué roles pueden LEER documentos de cada categoría.
+/// Configurable por SuperAdmin desde la UI.
+/// ISO 27001 A.9.1: Control de acceso basado en necesidad de conocer.
+/// </summary>
+public class DocumentCategoryAccess
+{
+    public int Id { get; set; }
+
+    /// <summary>FK a DocumentCategoryConfig</summary>
+    public int CategoryId { get; set; }
+
+    /// <summary>Nombre del rol del sistema ("Administrador", "Operador", "Mantenimiento", "Visualizador", "Auditor")</summary>
+    [Required, MaxLength(50)]
+    public string RoleName { get; set; } = "";
+
+    /// <summary>¿El rol puede LEER documentos de esta categoría?</summary>
+    public bool CanRead { get; set; }
+
+    public string? UpdatedBy { get; set; }
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+// Mantener compatibilidad con código legacy que referencia el enum
+// TODO: Eliminar cuando se complete la migración
 public enum DocumentAccessLevel
 {
-    /// <summary>Cualquier usuario autenticado con acceso a DocumentsView</summary>
-    Public,
-    
-    /// <summary>Operador y roles superiores</summary>
-    Operator,
-    
-    /// <summary>Mantenimiento y roles superiores</summary>
-    Maintenance,
-    
-    /// <summary>Solo Admin/SuperAdmin</summary>
-    Admin,
-    
-    /// <summary>Solo SuperAdmin (documentación interna Aquafrisch)</summary>
-    Internal
+    Public = 0,
+    Operator = 1,
+    Maintenance = 2,
+    Admin = 3,
+    Internal = 4
 }
 
 /// <summary>
@@ -204,14 +263,18 @@ public class Document
     [MaxLength(1000)]
     public string? Tags { get; set; }
     
-    // === Control de acceso ===
+    // === Control de acceso (ISO 27001 A.8.2 + A.9.1) ===
     
-    /// <summary>Nivel de acceso mínimo requerido</summary>
+    /// <summary>Clasificación de información — FK a DocumentClassificationLevels.
+    /// Hereda de la categoría, solo puede subir, nunca bajar.</summary>
+    public int ClassificationId { get; set; } = 0; // 0 = Public
+
+    /// <summary>Nivel de acceso legacy (mantener para compatibilidad DB). Mapea desde ClassificationId.</summary>
     public DocumentAccessLevel AccessLevel { get; set; } = DocumentAccessLevel.Public;
     
-    /// <summary>Rol mínimo del sistema requerido (complementa AccessLevel)</summary>
+    /// <summary>Rol mínimo del sistema requerido. Heredado de categoría o configurado manualmente.</summary>
     [MaxLength(50)]
-    public string MinimumRole { get; set; } = "Viewer";
+    public string MinimumRole { get; set; } = "Visualizador";
     
     // === Versionado ===
     
@@ -335,6 +398,9 @@ public class CreateDocumentRequest
     
     public DocumentScope Scope { get; set; } = DocumentScope.Project;
     
+    /// <summary>Clasificación de información (FK a DocumentClassificationLevels). Hereda de categoría.</summary>
+    public int? ClassificationId { get; set; }
+
     public DocumentAccessLevel AccessLevel { get; set; } = DocumentAccessLevel.Public;
     
     /// <summary>Contenido Markdown inicial (opcional)</summary>
@@ -377,6 +443,9 @@ public class UpdateDocumentRequest
     [MaxLength(20)]
     public string? Version { get; set; }
     
+    /// <summary>Clasificación de información (FK a DocumentClassificationLevels)</summary>
+    public int? ClassificationId { get; set; }
+
     public DocumentAccessLevel? AccessLevel { get; set; }
     
     public DocumentStatus? Status { get; set; }
@@ -424,8 +493,10 @@ public class DocumentInfo
     public DocumentScope Scope { get; set; }
     public int Category { get; set; }
     public string? SubCategory { get; set; }
-    public List<string> Tags { get; set; } = new();
-    public DocumentAccessLevel AccessLevel { get; set; }
+    public List<string> Tags { get; set; } = new();    public int ClassificationId { get; set; }
+    public string? ClassificationName { get; set; }
+    public string? ClassificationColor { get; set; }
+    public string? ClassificationIcon { get; set; }    public DocumentAccessLevel AccessLevel { get; set; }
     public string Version { get; set; } = "";
     public DocumentStatus Status { get; set; }
     public bool CraRelevant { get; set; }

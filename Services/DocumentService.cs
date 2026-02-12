@@ -29,23 +29,27 @@ public class DocumentService : IDocumentService
     // (CategoryFolders estático eliminado — las carpetas se resuelven dinámicamente desde la DB)
 
     // Orden de roles de menor a mayor privilegio
+    // Incluye nombres en español (sistema actual) + inglés (legacy)
     private static readonly Dictionary<string, int> RoleHierarchy = new(StringComparer.OrdinalIgnoreCase)
     {
-        { "Viewer", 0 },
-        { "Operator", 1 },
+        { "Viewer", 0 }, { "Visualizador", 0 },
+        { "Operator", 1 }, { "Operador", 1 },
         { "Auditor", 2 },
-        { "Maintenance", 3 },
-        { "Administrator", 4 },
+        { "Maintenance", 3 }, { "Mantenimiento", 3 },
+        { "Administrator", 4 }, { "Administrador", 4 },
         { "SuperAdmin", 5 }
     };
 
-    // Mapeo AccessLevel → rol mínimo requerido
+    // Roles del sistema para la matriz de acceso (sin SuperAdmin — tiene acceso implícito)
+    public static readonly string[] SystemRoles = { "Administrador", "Operador", "Mantenimiento", "Visualizador", "Auditor" };
+
+    // Mapeo AccessLevel → rol mínimo requerido (legacy, mantener para compatibilidad)
     private static readonly Dictionary<DocumentAccessLevel, string> AccessLevelToRole = new()
     {
-        { DocumentAccessLevel.Public, "Viewer" },
-        { DocumentAccessLevel.Operator, "Operator" },
-        { DocumentAccessLevel.Maintenance, "Maintenance" },
-        { DocumentAccessLevel.Admin, "Administrator" },
+        { DocumentAccessLevel.Public, "Visualizador" },
+        { DocumentAccessLevel.Operator, "Operador" },
+        { DocumentAccessLevel.Maintenance, "Mantenimiento" },
+        { DocumentAccessLevel.Admin, "Administrador" },
         { DocumentAccessLevel.Internal, "SuperAdmin" }
     };
 
@@ -1414,6 +1418,7 @@ public class DocumentService : IDocumentService
         Category = doc.Category,
         SubCategory = doc.SubCategory,
         Tags = ParseTags(doc.Tags),
+        ClassificationId = doc.ClassificationId,
         AccessLevel = doc.AccessLevel,
         Version = doc.Version,
         Status = doc.Status,
@@ -1434,13 +1439,43 @@ public class DocumentService : IDocumentService
         // SuperAdmin ve todo
         if (roleLevel >= 5) return query;
 
-        // Filtrar por AccessLevel compatible con el rol del usuario
+        // Filtrar por AccessLevel compatible con el rol del usuario (legacy)
+        // TODO: Migrar a sistema de matriz categoría×rol cuando esté completamente activo
         return query.Where(d =>
             (d.AccessLevel == DocumentAccessLevel.Public) ||
             (d.AccessLevel == DocumentAccessLevel.Operator && roleLevel >= 1) ||
             (d.AccessLevel == DocumentAccessLevel.Maintenance && roleLevel >= 3) ||
             (d.AccessLevel == DocumentAccessLevel.Admin && roleLevel >= 4) ||
             (d.AccessLevel == DocumentAccessLevel.Internal && roleLevel >= 5));
+    }
+
+    /// <summary>
+    /// Filtrar documentos usando la matriz de acceso categoría×rol (ISO 27001 A.9.1).
+    /// Usa la tabla DocumentCategoryAccess para determinar qué categorías puede ver el rol.
+    /// </summary>
+    private async Task<IQueryable<Document>> ApplyAccessFilterWithMatrixAsync(
+        AquafrischDbContext db, IQueryable<Document> query, string userRole)
+    {
+        var roleLevel = RoleHierarchy.GetValueOrDefault(userRole, 0);
+        
+        // SuperAdmin ve todo
+        if (roleLevel >= 5) return query;
+
+        // Obtener las categorías que este rol puede leer
+        var allowedCategoryIds = await db.DocumentCategoryAccess
+            .Where(a => a.RoleName == userRole && a.CanRead)
+            .Select(a => a.CategoryId)
+            .ToListAsync();
+
+        // Si no hay configuración de acceso (tabla vacía), usar filtro legacy
+        if (allowedCategoryIds.Count == 0)
+        {
+            _logger.LogWarning("No hay configuración de acceso para rol '{Role}', usando filtro legacy", userRole);
+            return ApplyAccessFilter(query, userRole);
+        }
+
+        // Filtrar: solo documentos de categorías permitidas
+        return query.Where(d => allowedCategoryIds.Contains(d.Category));
     }
 
     private bool HasAccessToDocument(Document doc, string userRole)
@@ -1634,6 +1669,188 @@ public class DocumentService : IDocumentService
         DocumentFileType.Json => "📊",
         _ => "📄"
     };
+
+    #endregion
+
+    #region Clasificación + Acceso (ISO 27001)
+
+    // ═══ Niveles de Clasificación (ISO 27001 A.8.2) ═══
+
+    public async Task<List<DocumentClassificationLevel>> GetClassificationLevelsAsync()
+    {
+        try
+        {
+            using var db = _dbFactory.CreateDbContext();
+            return await db.DocumentClassificationLevels
+                .OrderBy(l => l.SortOrder)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo niveles de clasificación");
+            return new List<DocumentClassificationLevel>();
+        }
+    }
+
+    public async Task<DocumentClassificationLevel> CreateClassificationLevelAsync(DocumentClassificationLevel level, string userName)
+    {
+        using var db = _dbFactory.CreateDbContext();
+
+        // Auto-generar ID (siguiente disponible)
+        var maxId = await db.DocumentClassificationLevels.MaxAsync(l => (int?)l.Id) ?? -1;
+        level.Id = maxId + 1;
+        level.IsSystem = false;
+        level.CreatedBy = userName;
+        level.CreatedAt = DateTime.UtcNow;
+
+        if (string.IsNullOrWhiteSpace(level.Code))
+            level.Code = GenerateFolderName(level.Name);
+
+        db.DocumentClassificationLevels.Add(level);
+        await db.SaveChangesAsync();
+
+        _logger.LogInformation("Nivel de clasificación '{Name}' creado por {User}", level.Name, userName);
+        return level;
+    }
+
+    public async Task<DocumentClassificationLevel?> UpdateClassificationLevelAsync(int id, DocumentClassificationLevel level, string userName)
+    {
+        using var db = _dbFactory.CreateDbContext();
+        var existing = await db.DocumentClassificationLevels.FindAsync(id);
+        if (existing == null) return null;
+
+        existing.Name = level.Name;
+        existing.Icon = level.Icon;
+        existing.Color = level.Color;
+        existing.Description = level.Description;
+        existing.Level = level.Level;
+        existing.SortOrder = level.SortOrder;
+
+        if (!existing.IsSystem && !string.IsNullOrWhiteSpace(level.Code))
+            existing.Code = level.Code;
+
+        await db.SaveChangesAsync();
+        _logger.LogInformation("Nivel de clasificación '{Name}' (ID={Id}) actualizado por {User}", existing.Name, id, userName);
+        return existing;
+    }
+
+    public async Task<bool> DeleteClassificationLevelAsync(int id)
+    {
+        using var db = _dbFactory.CreateDbContext();
+        var level = await db.DocumentClassificationLevels.FindAsync(id);
+        if (level == null || level.IsSystem) return false;
+
+        db.DocumentClassificationLevels.Remove(level);
+        await db.SaveChangesAsync();
+        _logger.LogInformation("Nivel de clasificación '{Name}' (ID={Id}) eliminado", level.Name, id);
+        return true;
+    }
+
+    // ═══ Matriz de Acceso: Categoría × Rol (ISO 27001 A.9.1) ═══
+
+    public async Task<List<DocumentCategoryAccess>> GetCategoryAccessMatrixAsync()
+    {
+        try
+        {
+            using var db = _dbFactory.CreateDbContext();
+            return await db.DocumentCategoryAccess
+                .OrderBy(a => a.CategoryId)
+                .ThenBy(a => a.RoleName)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo matriz de acceso");
+            return new List<DocumentCategoryAccess>();
+        }
+    }
+
+    public async Task<List<DocumentCategoryAccess>> GetCategoryAccessAsync(int categoryId)
+    {
+        try
+        {
+            using var db = _dbFactory.CreateDbContext();
+            return await db.DocumentCategoryAccess
+                .Where(a => a.CategoryId == categoryId)
+                .OrderBy(a => a.RoleName)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo accesos de categoría {CategoryId}", categoryId);
+            return new List<DocumentCategoryAccess>();
+        }
+    }
+
+    public async Task<DocumentCategoryAccess> SetCategoryAccessAsync(int categoryId, string roleName, bool canRead, string userName)
+    {
+        using var db = _dbFactory.CreateDbContext();
+
+        var existing = await db.DocumentCategoryAccess
+            .FirstOrDefaultAsync(a => a.CategoryId == categoryId && a.RoleName == roleName);
+
+        if (existing != null)
+        {
+            existing.CanRead = canRead;
+            existing.UpdatedBy = userName;
+            existing.UpdatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            existing = new DocumentCategoryAccess
+            {
+                CategoryId = categoryId,
+                RoleName = roleName,
+                CanRead = canRead,
+                UpdatedBy = userName,
+                UpdatedAt = DateTime.UtcNow
+            };
+            db.DocumentCategoryAccess.Add(existing);
+        }
+
+        await db.SaveChangesAsync();
+        _logger.LogInformation("Acceso categoría {CatId} / rol '{Role}' = CanRead:{CanRead} por {User}",
+            categoryId, roleName, canRead, userName);
+        return existing;
+    }
+
+    public async Task<List<DocumentCategoryAccess>> SetCategoryAccessBulkAsync(
+        int categoryId, Dictionary<string, bool> roleAccess, string userName)
+    {
+        using var db = _dbFactory.CreateDbContext();
+        var result = new List<DocumentCategoryAccess>();
+
+        foreach (var (roleName, canRead) in roleAccess)
+        {
+            var existing = await db.DocumentCategoryAccess
+                .FirstOrDefaultAsync(a => a.CategoryId == categoryId && a.RoleName == roleName);
+
+            if (existing != null)
+            {
+                existing.CanRead = canRead;
+                existing.UpdatedBy = userName;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                existing = new DocumentCategoryAccess
+                {
+                    CategoryId = categoryId,
+                    RoleName = roleName,
+                    CanRead = canRead,
+                    UpdatedBy = userName,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                db.DocumentCategoryAccess.Add(existing);
+            }
+            result.Add(existing);
+        }
+
+        await db.SaveChangesAsync();
+        _logger.LogInformation("Acceso bulk categoría {CatId}: {Count} roles actualizados por {User}",
+            categoryId, roleAccess.Count, userName);
+        return result;
+    }
 
     #endregion
 }

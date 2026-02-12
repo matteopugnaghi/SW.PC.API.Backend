@@ -68,6 +68,21 @@ public class AquafrischDbContext : DbContext
     /// <summary>Configuración de topología EtherCAT guardada</summary>
     public DbSet<Models.EtherCAT.EtherCATSavedConfiguration> EtherCATSavedConfigurations { get; set; } = null!;
 
+    /// <summary>Documentos del DMS (Document Management System)</summary>
+    public DbSet<Document> Documents { get; set; } = null!;
+
+    /// <summary>Historial de cambios de documentos</summary>
+    public DbSet<DocumentHistory> DocumentHistories { get; set; } = null!;
+
+    /// <summary>Categorías de documentos (configuración dinámica)</summary>
+    public DbSet<DocumentCategoryConfig> DocumentCategories { get; set; } = null!;
+
+    /// <summary>Niveles de clasificación de información (ISO 27001 A.8.2)</summary>
+    public DbSet<DocumentClassificationLevel> DocumentClassificationLevels { get; set; } = null!;
+
+    /// <summary>Matriz de acceso: roles × categorías (ISO 27001 A.9.1)</summary>
+    public DbSet<DocumentCategoryAccess> DocumentCategoryAccess { get; set; } = null!;
+
     #endregion
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -618,6 +633,9 @@ public static class AquafrischDbContextFactory
         
         // Crear tabla EtherCATSavedConfigurations para configuración guardada
         await EnsureEtherCATSavedConfigurationsTableAsync(context);
+        
+        // Crear tablas Documents y DocumentHistory para el DMS
+        await EnsureDocumentsTablesAsync(context);
     }
     
     /// <summary>
@@ -859,6 +877,198 @@ public static class AquafrischDbContextFactory
         catch (Exception)
         {
             // Tabla ya existe o error menor - ignorar
+        }
+    }
+    
+    /// <summary>
+    /// Crear tablas Documents y DocumentHistory para el DMS (Document Management System)
+    /// EU CRA: Trazabilidad documental completa
+    /// </summary>
+    private static async Task EnsureDocumentsTablesAsync(AquafrischDbContext context)
+    {
+        try
+        {
+            // Tabla DocumentCategories (Categorías dinámicas de documentos)
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS DocumentCategories (
+                    Id INTEGER PRIMARY KEY,
+                    Name TEXT NOT NULL,
+                    Icon TEXT NOT NULL DEFAULT '📄',
+                    Color TEXT NOT NULL DEFAULT '#6b7280',
+                    FolderName TEXT NOT NULL DEFAULT '',
+                    SortOrder INTEGER NOT NULL DEFAULT 100,
+                    IsSystem INTEGER NOT NULL DEFAULT 0,
+                    ParentId INTEGER,
+                    Description TEXT,
+                    CreatedBy TEXT NOT NULL DEFAULT 'System',
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+                )");
+
+            // Migrar tablas existentes: añadir ParentId si no existe
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE DocumentCategories ADD COLUMN ParentId INTEGER"); }
+            catch { /* columna ya existe */ }
+
+            // Seed categorías del sistema con INSERT OR IGNORE (idempotente)
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
+                VALUES (0, 'Compliance CRA', '📋', '#ef4444', 'compliance', 0, 1, 'Documentación de cumplimiento normativo CRA', 'System', datetime('now'))");
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
+                VALUES (1, 'CRA Genérico (SW)', '🇪🇺', '#3b82f6', 'cra-generic', 1, 1, 'Documentación CRA genérica de software', 'System', datetime('now'))");
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
+                VALUES (2, 'Manuales de Usuario', '📖', '#10b981', 'user-guides', 2, 1, 'Manuales y guías de usuario', 'System', datetime('now'))");
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
+                VALUES (3, 'Documentación Técnica', '🔧', '#f59e0b', 'technical', 3, 1, 'Documentación técnica del sistema', 'System', datetime('now'))");
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
+                VALUES (4, 'Esquemas Eléctricos', '⚡', '#8b5cf6', 'electrical', 4, 1, 'Esquemas y documentación eléctrica', 'System', datetime('now'))");
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
+                VALUES (5, 'Mantenimiento', '🔩', '#06b6d4', 'maintenance', 5, 1, 'Documentación de mantenimiento', 'System', datetime('now'))");
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
+                VALUES (6, 'Interno', '🔒', '#64748b', 'internal', 6, 1, 'Documentación interna confidencial', 'System', datetime('now'))");
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
+                VALUES (7, 'Otros', '📄', '#9ca3af', '', 7, 1, 'Documentación general no categorizada', 'System', datetime('now'))");
+
+            // Migrar DocumentCategories: añadir campos de clasificación por defecto
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE DocumentCategories ADD COLUMN DefaultClassificationId INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE DocumentCategories ADD COLUMN DefaultMinimumRole TEXT NOT NULL DEFAULT 'Visualizador'"); }
+            catch { /* columna ya existe */ }
+
+            // ═══ Tabla DocumentClassificationLevels (ISO 27001 A.8.2) ═══
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS DocumentClassificationLevels (
+                    Id INTEGER PRIMARY KEY,
+                    Name TEXT NOT NULL,
+                    Code TEXT NOT NULL UNIQUE,
+                    Level INTEGER NOT NULL DEFAULT 0,
+                    Icon TEXT NOT NULL DEFAULT '🏷️',
+                    Color TEXT NOT NULL DEFAULT '#6b7280',
+                    Description TEXT,
+                    IsSystem INTEGER NOT NULL DEFAULT 0,
+                    SortOrder INTEGER NOT NULL DEFAULT 0,
+                    CreatedBy TEXT NOT NULL DEFAULT 'System',
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+                )");
+
+            // Seed niveles de clasificación ISO 27001 (los nombres se pueden cambiar luego)
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentClassificationLevels (Id, Name, Code, Level, Icon, Color, Description, IsSystem, SortOrder, CreatedBy, CreatedAt)
+                VALUES (0, 'Público', 'public', 0, '🟢', '#22c55e', 'Información de acceso libre. Manuales de usuario, fichas comerciales.', 1, 0, 'System', datetime('now'))");
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentClassificationLevels (Id, Name, Code, Level, Icon, Color, Description, IsSystem, SortOrder, CreatedBy, CreatedAt)
+                VALUES (1, 'Interno', 'internal', 1, '🔵', '#3b82f6', 'Solo para personal autorizado. Procedimientos, configuraciones.', 1, 1, 'System', datetime('now'))");
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentClassificationLevels (Id, Name, Code, Level, Icon, Color, Description, IsSystem, SortOrder, CreatedBy, CreatedAt)
+                VALUES (2, 'Confidencial', 'confidential', 2, '🟠', '#f59e0b', 'Información sensible. Esquemas eléctricos, recetas, credenciales PLC.', 1, 2, 'System', datetime('now'))");
+            await context.Database.ExecuteSqlRawAsync(@"
+                INSERT OR IGNORE INTO DocumentClassificationLevels (Id, Name, Code, Level, Icon, Color, Description, IsSystem, SortOrder, CreatedBy, CreatedAt)
+                VALUES (3, 'Restringido', 'restricted', 3, '🔴', '#ef4444', 'Máxima sensibilidad. Vulnerabilidades, pen-test, informes de seguridad.', 1, 3, 'System', datetime('now'))");
+
+            // ═══ Tabla DocumentCategoryAccess (Matriz roles × categorías — ISO 27001 A.9.1) ═══
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS DocumentCategoryAccess (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    CategoryId INTEGER NOT NULL,
+                    RoleName TEXT NOT NULL,
+                    CanRead INTEGER NOT NULL DEFAULT 1,
+                    UpdatedBy TEXT,
+                    UpdatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    UNIQUE(CategoryId, RoleName),
+                    FOREIGN KEY (CategoryId) REFERENCES DocumentCategories(Id) ON DELETE CASCADE
+                )");
+            
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_DocumentCategoryAccess_CategoryId ON DocumentCategoryAccess(CategoryId)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_DocumentCategoryAccess_RoleName ON DocumentCategoryAccess(RoleName)");
+
+            // Seed acceso por defecto: todas las categorías del sistema accesibles por todos los roles
+            // El SuperAdmin tiene acceso implícito a todo (no necesita entradas en esta tabla)
+            var systemRoles = new[] { "Administrador", "Operador", "Mantenimiento", "Visualizador", "Auditor" };
+            for (int catId = 0; catId <= 7; catId++)
+            {
+                foreach (var role in systemRoles)
+                {
+                    // Por defecto: todos leen todo excepto categoría 6 (Interno) que solo es Administrador
+                    bool canRead = catId != 6 || role == "Administrador";
+                    await context.Database.ExecuteSqlRawAsync($@"
+                        INSERT OR IGNORE INTO DocumentCategoryAccess (CategoryId, RoleName, CanRead, UpdatedBy, UpdatedAt)
+                        VALUES ({catId}, '{role}', {(canRead ? 1 : 0)}, 'System', datetime('now'))");
+                }
+            }
+
+            // Migrar Documents: añadir ClassificationId si no existe
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN ClassificationId INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS Documents (
+                    Id TEXT PRIMARY KEY,
+                    Slug TEXT NOT NULL UNIQUE,
+                    Title TEXT NOT NULL,
+                    Description TEXT,
+                    FilePath TEXT NOT NULL,
+                    FileType INTEGER NOT NULL DEFAULT 0,
+                    ContentHash TEXT,
+                    FileSize INTEGER NOT NULL DEFAULT 0,
+                    Scope INTEGER NOT NULL DEFAULT 1,
+                    Category INTEGER NOT NULL DEFAULT 7,
+                    SubCategory TEXT,
+                    Tags TEXT,
+                    AccessLevel INTEGER NOT NULL DEFAULT 0,
+                    MinimumRole TEXT NOT NULL DEFAULT 'Viewer',
+                    Version TEXT NOT NULL DEFAULT '1.0',
+                    Status INTEGER NOT NULL DEFAULT 0,
+                    CraRelevant INTEGER NOT NULL DEFAULT 0,
+                    CraArticle TEXT,
+                    CraDeadline TEXT,
+                    ApprovedBy TEXT,
+                    ApprovedAt TEXT,
+                    CreatedBy TEXT NOT NULL DEFAULT 'System',
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedBy TEXT,
+                    UpdatedAt TEXT,
+                    ParentDocId TEXT,
+                    RelatedDocIds TEXT,
+                    SearchContent TEXT
+                )");
+            
+            // Índices para Documents
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_Documents_Slug ON Documents(Slug)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_Category ON Documents(Category)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_Scope ON Documents(Scope)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_Status ON Documents(Status)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_AccessLevel ON Documents(AccessLevel, MinimumRole)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_CraRelevant ON Documents(CraRelevant)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_FilePath ON Documents(FilePath)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_CreatedAt ON Documents(CreatedAt)");
+            
+            // Tabla DocumentHistory (Historial de cambios)
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS DocumentHistories (
+                    Id TEXT PRIMARY KEY,
+                    DocumentId TEXT NOT NULL,
+                    Version TEXT NOT NULL,
+                    Action TEXT NOT NULL,
+                    ChangedBy TEXT NOT NULL,
+                    ChangedAt TEXT NOT NULL,
+                    CommitHash TEXT,
+                    ContentHash TEXT,
+                    ChangeNote TEXT,
+                    FOREIGN KEY (DocumentId) REFERENCES Documents(Id) ON DELETE CASCADE
+                )");
+            
+            // Índices para DocumentHistory
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_DocumentHistories_DocumentId ON DocumentHistories(DocumentId)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_DocumentHistories_ChangedAt ON DocumentHistories(ChangedAt)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_DocumentHistories_Action ON DocumentHistories(Action)");
+        }
+        catch (Exception)
+        {
+            // Tablas ya existen o error menor - ignorar
         }
     }
 }
