@@ -1225,6 +1225,8 @@ public class DocumentService : IDocumentService
         existing.Description = updated.Description;
         existing.SortOrder = updated.SortOrder;
         existing.ParentId = updated.ParentId;
+        existing.DefaultClassificationId = updated.DefaultClassificationId;
+        existing.DefaultMinimumRole = updated.DefaultMinimumRole;
         
         // Solo permitir cambiar FolderName si no es categoría del sistema
         if (!existing.IsSystem && !string.IsNullOrWhiteSpace(updated.FolderName))
