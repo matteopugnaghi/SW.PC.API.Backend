@@ -275,6 +275,65 @@ public class DocumentsController : ControllerBase
     // Sincronización
     // ═══════════════════════════════════════════════════════════════════
 
+    // ═══════════════════════════════════════════════════════════════════
+    // Upload / Download de ficheros
+    // ═══════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Subir un fichero (PDF, DOCX, imagen, etc.) al DMS
+    /// POST /api/documents/upload
+    /// </summary>
+    [HttpPost("upload")]
+    [RequestSizeLimit(52_428_800)] // 50 MB
+    public async Task<IActionResult> UploadFile(
+        IFormFile file,
+        [FromForm] int category,
+        [FromForm] string? description = null,
+        [FromForm] string? minimumRole = null,
+        [FromForm] int? classificationId = null)
+    {
+        try
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest(new { success = false, message = "No se proporcionó fichero" });
+
+            using var stream = file.OpenReadStream();
+            var result = await _documentService.UploadFileAsync(
+                stream, file.FileName, file.Length,
+                category, description, minimumRole, classificationId,
+                UserName, UserRole);
+
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error en POST /api/documents/upload");
+            return StatusCode(500, new { error = "Error subiendo fichero", details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Descargar fichero de un documento
+    /// GET /api/documents/{id}/download
+    /// </summary>
+    [HttpGet("{id}/download")]
+    public async Task<IActionResult> DownloadFile(string id)
+    {
+        try
+        {
+            var result = await _documentService.DownloadFileAsync(id, UserRole);
+            if (result == null || result.Value.FileStream == null)
+                return NotFound(new { message = "Fichero no encontrado o sin acceso" });
+
+            return File(result.Value.FileStream, result.Value.ContentType ?? "application/octet-stream", result.Value.FileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error en GET /api/documents/{Id}/download", id);
+            return StatusCode(500, new { error = "Error descargando fichero", details = ex.Message });
+        }
+    }
+
     /// <summary>
     /// Sincronizar filesystem → DB (escanea docs/ y registra ficheros nuevos)
     /// POST /api/documents/sync

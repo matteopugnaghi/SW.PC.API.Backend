@@ -112,4 +112,12 @@ public interface IDocumentService
 
     /// <summary>Actualizar toda la matriz de acceso de una categoría de golpe</summary>
     Task<List<DocumentCategoryAccess>> SetCategoryAccessBulkAsync(int categoryId, Dictionary<string, bool> roleAccess, string userName);
+
+    // === Upload / Download de ficheros ===
+
+    /// <summary>Subir un fichero (PDF, DOCX, imagen, etc.) al DMS</summary>
+    Task<DocumentOperationResponse> UploadFileAsync(Stream fileStream, string fileName, long fileSize, int category, string? description, string? minimumRole, int? classificationId, string userName, string userRole);
+
+    /// <summary>Obtener el stream de un fichero para descarga</summary>
+    Task<(Stream? FileStream, string? ContentType, string? FileName)?> DownloadFileAsync(string documentId, string userRole);
 }

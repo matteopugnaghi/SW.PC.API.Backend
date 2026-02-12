@@ -2010,4 +2010,198 @@ public class DocumentService : IDocumentService
     }
 
     #endregion
+
+    #region Upload / Download de ficheros
+
+    // Extensión → DocumentFileType
+    private static readonly Dictionary<string, DocumentFileType> ExtToFileType = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { ".md", DocumentFileType.Markdown },
+        { ".pdf", DocumentFileType.Pdf },
+        { ".docx", DocumentFileType.Docx },
+        { ".doc", DocumentFileType.Docx },
+        { ".png", DocumentFileType.Image },
+        { ".jpg", DocumentFileType.Image },
+        { ".jpeg", DocumentFileType.Image },
+        { ".gif", DocumentFileType.Image },
+        { ".svg", DocumentFileType.Image },
+        { ".webp", DocumentFileType.Image },
+        { ".bmp", DocumentFileType.Image },
+        { ".json", DocumentFileType.Json },
+    };
+
+    // Extensión → Content-Type MIME
+    private static readonly Dictionary<string, string> ExtToMime = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { ".md", "text/markdown" },
+        { ".pdf", "application/pdf" },
+        { ".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+        { ".doc", "application/msword" },
+        { ".png", "image/png" },
+        { ".jpg", "image/jpeg" },
+        { ".jpeg", "image/jpeg" },
+        { ".gif", "image/gif" },
+        { ".svg", "image/svg+xml" },
+        { ".webp", "image/webp" },
+        { ".bmp", "image/bmp" },
+        { ".json", "application/json" },
+        { ".txt", "text/plain" },
+        { ".csv", "text/csv" },
+        { ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+        { ".xls", "application/vnd.ms-excel" },
+    };
+
+    // Tamaño máximo permitido (50 MB)
+    private const long MaxFileSize = 50 * 1024 * 1024;
+
+    public async Task<DocumentOperationResponse> UploadFileAsync(
+        Stream fileStream, string fileName, long fileSize,
+        int category, string? description, string? minimumRole, int? classificationId,
+        string userName, string userRole)
+    {
+        string absolutePath = "";
+        try
+        {
+            if (fileSize > MaxFileSize)
+                return new DocumentOperationResponse { Success = false, Message = $"El fichero excede el tamaño máximo permitido ({MaxFileSize / 1024 / 1024} MB)" };
+
+            var ext = Path.GetExtension(fileName).ToLower();
+            var fileType = ExtToFileType.GetValueOrDefault(ext, DocumentFileType.Other);
+            var title = Path.GetFileNameWithoutExtension(fileName);
+            var slug = GenerateSlug(title);
+
+            // Nombre único (evitar colisiones)
+            var safeFileName = $"{slug}{ext}";
+
+            // Resolver carpeta de categoría
+            using var dbForPath = _dbFactory.CreateDbContext();
+            var categoryFolder = await BuildCategoryFolderPathAsync(dbForPath, category);
+
+            var scopePrefix = "AQSdocs_project";
+            string relativePath;
+            if (string.IsNullOrEmpty(categoryFolder))
+                relativePath = $"{scopePrefix}/{safeFileName}";
+            else
+                relativePath = $"{scopePrefix}/{categoryFolder}/{safeFileName}".Replace('\\', '/');
+
+            var docsPath = _requestContext.DocsPath;
+            absolutePath = Path.Combine(docsPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+            // Verificar que no exista ya
+            if (File.Exists(absolutePath))
+            {
+                // Agregar timestamp para unicidad
+                safeFileName = $"{slug}_{DateTime.UtcNow:yyyyMMddHHmmss}{ext}";
+                if (string.IsNullOrEmpty(categoryFolder))
+                    relativePath = $"{scopePrefix}/{safeFileName}";
+                else
+                    relativePath = $"{scopePrefix}/{categoryFolder}/{safeFileName}".Replace('\\', '/');
+                absolutePath = Path.Combine(docsPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            }
+
+            // Crear directorio si no existe
+            var dir = Path.GetDirectoryName(absolutePath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            // Escribir fichero a disco
+            using var memStream = new MemoryStream();
+            await fileStream.CopyToAsync(memStream);
+            var fileBytes = memStream.ToArray();
+            await File.WriteAllBytesAsync(absolutePath, fileBytes);
+
+            var hash = ComputeSha256(fileBytes);
+
+            // Crear registro en DB
+            using var db2 = _dbFactory.CreateDbContext();
+            slug = GenerateUniqueSlug(db2, title);
+
+            var doc = new Document
+            {
+                Id = Guid.NewGuid().ToString(),
+                Slug = slug,
+                Title = title,
+                Description = description,
+                FilePath = relativePath,
+                FileType = fileType,
+                ContentHash = hash,
+                FileSize = fileBytes.Length,
+                Scope = DocumentScope.Project,
+                Category = category,
+                AccessLevel = DocumentAccessLevel.Public,
+                MinimumRole = minimumRole ?? "Visualizador",
+                ClassificationId = classificationId ?? 0,
+                Version = "1.0",
+                Status = DocumentStatus.Draft,
+                CreatedBy = userName,
+                CreatedAt = DateTime.UtcNow,
+                SearchContent = $"{title} {description ?? ""} {fileName}"
+            };
+
+            db2.Documents.Add(doc);
+
+            db2.DocumentHistories.Add(new DocumentHistory
+            {
+                DocumentId = doc.Id,
+                Version = doc.Version,
+                Action = "created",
+                ChangedBy = userName,
+                ChangedAt = DateTime.UtcNow,
+                ContentHash = hash,
+                ChangeNote = $"Fichero subido: {fileName} ({fileBytes.Length / 1024} KB)"
+            });
+
+            await db2.SaveChangesAsync();
+
+            _logger.LogInformation("📎 Fichero subido: {FileName} ({Size} KB) por {User} → {Path}",
+                fileName, fileBytes.Length / 1024, userName, relativePath);
+
+            return new DocumentOperationResponse
+            {
+                Success = true,
+                Message = $"Fichero '{fileName}' subido correctamente ({fileBytes.Length / 1024} KB)",
+                Document = MapToInfo(doc)
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error subiendo fichero {FileName}", fileName);
+            try { if (File.Exists(absolutePath)) File.Delete(absolutePath); } catch { }
+            return new DocumentOperationResponse { Success = false, Message = $"Error subiendo fichero: {ex.Message}" };
+        }
+    }
+
+    public async Task<(Stream? FileStream, string? ContentType, string? FileName)?> DownloadFileAsync(string documentId, string userRole)
+    {
+        try
+        {
+            using var db = _dbFactory.CreateDbContext();
+            var doc = await db.Documents.FirstOrDefaultAsync(d => d.Id == documentId);
+            if (doc == null) return null;
+
+            if (!HasAccessToDocument(doc, userRole)) return null;
+
+            var absolutePath = ResolveDocFilePath(doc.FilePath);
+            if (absolutePath == null || !File.Exists(absolutePath))
+            {
+                _logger.LogWarning("Fichero no encontrado en disco: {FilePath}", doc.FilePath);
+                return null;
+            }
+
+            var ext = Path.GetExtension(doc.FilePath).ToLower();
+            var contentType = ExtToMime.GetValueOrDefault(ext, "application/octet-stream");
+            var originalFileName = Path.GetFileName(doc.FilePath);
+
+            // Abrir stream de lectura (el controller se encargará de cerrarlo)
+            var stream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return (stream, contentType, originalFileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error descargando fichero {DocumentId}", documentId);
+            return null;
+        }
+    }
+
+    #endregion
 }
