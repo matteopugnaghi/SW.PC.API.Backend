@@ -1235,6 +1235,17 @@ public class DocumentService : IDocumentService
         var existing = await db.DocumentCategories.FindAsync(id);
         if (existing == null) return null;
 
+        // Detectar si cambió ParentId o FolderName → necesitamos mover carpeta + actualizar FilePaths
+        var parentChanged = existing.ParentId != updated.ParentId;
+        var folderNameChanged = !existing.IsSystem && !string.IsNullOrWhiteSpace(updated.FolderName) && existing.FolderName != updated.FolderName;
+        
+        // Calcular ruta VIEJA antes de cambiar nada en DB
+        string oldFolderPath = "";
+        if (parentChanged || folderNameChanged)
+        {
+            oldFolderPath = await BuildCategoryFolderPathAsync(db, id);
+        }
+
         // Actualizar campos permitidos
         existing.Name = updated.Name;
         existing.Icon = updated.Icon;
@@ -1252,7 +1263,15 @@ public class DocumentService : IDocumentService
         }
 
         await db.SaveChangesAsync();
-        _logger.LogInformation("Categoría actualizada: {Name} (ID: {Id}) por {User}", existing.Name, id, userName);
+
+        // Si cambió la jerarquía, reorganizar carpetas y ficheros
+        if (parentChanged || folderNameChanged)
+        {
+            await ReorganizeCategoryFilesAsync(db, id, oldFolderPath);
+        }
+
+        _logger.LogInformation("Categoría actualizada: {Name} (ID: {Id}, Parent: {Parent}) por {User}", 
+            existing.Name, id, existing.ParentId, userName);
         return existing;
     }
 
@@ -1367,6 +1386,114 @@ public class DocumentService : IDocumentService
             Directory.CreateDirectory(fullPath);
             _logger.LogInformation("📁 Carpeta creada para categoría: {Path}", fullPath);
         }
+    }
+
+    /// <summary>
+    /// Reorganiza las carpetas y ficheros cuando una categoría cambia de padre o de FolderName.
+    /// 1. Calcula la nueva ruta de carpeta
+    /// 2. Mueve los ficheros de la carpeta vieja a la nueva
+    /// 3. Actualiza FilePath en la DB para todos los documentos afectados (categoría + subcategorías)
+    /// 4. Limpia la carpeta vieja si quedó vacía
+    /// </summary>
+    private async Task ReorganizeCategoryFilesAsync(AquafrischDbContext db, int categoryId, string oldFolderPath)
+    {
+        try
+        {
+            var docsPath = _requestContext.DocsPath;
+            if (string.IsNullOrEmpty(docsPath)) return;
+
+            // Calcular nueva ruta con la jerarquía ya actualizada en DB
+            var newFolderPath = await BuildCategoryFolderPathAsync(db, categoryId);
+            
+            _logger.LogInformation("📦 Reorganizando categoría {Id}: '{OldPath}' → '{NewPath}'", categoryId, oldFolderPath, newFolderPath);
+
+            // Si las rutas son iguales, no hay nada que mover
+            if (oldFolderPath == newFolderPath) return;
+
+            const string scopePrefix = "AQSdocs_project";
+            
+            // Crear la nueva carpeta
+            if (!string.IsNullOrEmpty(newFolderPath))
+            {
+                var newAbsPath = Path.Combine(docsPath, scopePrefix, newFolderPath.Replace('/', Path.DirectorySeparatorChar));
+                if (!Directory.Exists(newAbsPath))
+                    Directory.CreateDirectory(newAbsPath);
+            }
+
+            // Mover ficheros de esta categoría
+            await MoveDocumentsForCategoryAsync(db, categoryId, oldFolderPath, newFolderPath, scopePrefix, docsPath);
+
+            // Mover ficheros de subcategorías hijas (recursivo)
+            var childCategories = await db.DocumentCategories.Where(c => c.ParentId == categoryId).ToListAsync();
+            foreach (var child in childCategories)
+            {
+                // La ruta vieja de la hija era: oldFolderPath/childFolderName
+                var childOldPath = string.IsNullOrEmpty(oldFolderPath) 
+                    ? child.FolderName 
+                    : $"{oldFolderPath}/{child.FolderName}";
+                await ReorganizeCategoryFilesAsync(db, child.Id, childOldPath);
+            }
+
+            // Limpiar carpeta vieja si quedó vacía
+            if (!string.IsNullOrEmpty(oldFolderPath))
+            {
+                var oldAbsPath = Path.Combine(docsPath, scopePrefix, oldFolderPath.Replace('/', Path.DirectorySeparatorChar));
+                if (Directory.Exists(oldAbsPath) && !Directory.EnumerateFileSystemEntries(oldAbsPath).Any())
+                {
+                    Directory.Delete(oldAbsPath, false);
+                    _logger.LogInformation("🗑️ Carpeta vacía eliminada: {Path}", oldAbsPath);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "⚠️ Error reorganizando ficheros de categoría {Id}. Los documentos pueden necesitar re-sync.", categoryId);
+        }
+    }
+
+    /// <summary>
+    /// Mueve los ficheros físicos de una categoría y actualiza su FilePath en DB.
+    /// </summary>
+    private async Task MoveDocumentsForCategoryAsync(AquafrischDbContext db, int categoryId, 
+        string oldFolderPath, string newFolderPath, string scopePrefix, string docsPath)
+    {
+        var docs = await db.Documents.Where(d => d.Category == categoryId && d.Scope == DocumentScope.Project).ToListAsync();
+        
+        foreach (var doc in docs)
+        {
+            try
+            {
+                // Construir nueva ruta relativa
+                var fileName = Path.GetFileName(doc.FilePath);
+                var newRelativePath = string.IsNullOrEmpty(newFolderPath)
+                    ? $"{scopePrefix}/{fileName}"
+                    : $"{scopePrefix}/{newFolderPath}/{fileName}";
+
+                var oldAbsPath = Path.Combine(docsPath, doc.FilePath.Replace('/', Path.DirectorySeparatorChar));
+                var newAbsPath = Path.Combine(docsPath, newRelativePath.Replace('/', Path.DirectorySeparatorChar));
+
+                // Crear directorio destino si no existe
+                var destDir = Path.GetDirectoryName(newAbsPath);
+                if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                    Directory.CreateDirectory(destDir);
+
+                // Mover fichero físico
+                if (File.Exists(oldAbsPath) && oldAbsPath != newAbsPath)
+                {
+                    File.Move(oldAbsPath, newAbsPath, overwrite: false);
+                    _logger.LogInformation("📄 Movido: {Old} → {New}", doc.FilePath, newRelativePath);
+                }
+
+                // Actualizar ruta en DB
+                doc.FilePath = newRelativePath;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ No se pudo mover fichero de doc {Id}: {Path}", doc.Id, doc.FilePath);
+            }
+        }
+
+        await db.SaveChangesAsync();
     }
 
     #endregion

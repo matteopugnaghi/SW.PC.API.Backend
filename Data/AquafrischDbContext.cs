@@ -401,6 +401,19 @@ public class AquafrischDbContext : DbContext
             entity.HasKey(e => e.Id);
         });
 
+        // DocumentCategoryConfig — defaults SQL para que los INSERT OR IGNORE del seed funcionen
+        modelBuilder.Entity<DocumentCategoryConfig>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.DefaultClassificationId).HasDefaultValue(0);
+            entity.Property(e => e.DefaultMinimumRole).HasDefaultValue("Visualizador");
+            entity.Property(e => e.Icon).HasDefaultValue("📄");
+            entity.Property(e => e.Color).HasDefaultValue("#6b7280");
+            entity.Property(e => e.FolderName).HasDefaultValue("");
+            entity.Property(e => e.IsSystem).HasDefaultValue(false);
+            entity.Property(e => e.SortOrder).HasDefaultValue(100);
+        });
+
         // ============================================
         // Seed Data - Roles del Sistema
         // ============================================
@@ -578,8 +591,14 @@ public static class AquafrischDbContextFactory
         // Crear base de datos si no existe
         await context.Database.EnsureCreatedAsync();
         
-        // Asegurar que la tabla OperationLogs existe (EnsureCreated no actualiza tablas existentes)
+        // Asegurar que TODAS las tablas auxiliares existen y tienen seed data
+        // (OperationLogs, MachineSettings, WashTypes, TrainTypes, EtherCAT, Documents, Categories, etc.)
         await EnsureOperationLogsTableAsync(context);
+        await EnsureMachineSettingsTableAsync(context);
+        await EnsureWashTypesTablesAsync(context);
+        await EnsureTrainTypesTablesAsync(context);
+        await EnsureEtherCATSavedConfigurationsTableAsync(context);
+        await EnsureDocumentsTablesAsync(context);
     }
     
     /// <summary>
@@ -923,30 +942,33 @@ public static class AquafrischDbContextFactory
             catch { /* columna ya existe */ }
 
             // Seed categorías del sistema con INSERT OR IGNORE (idempotente)
-            await context.Database.ExecuteSqlRawAsync(@"
-                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
-                VALUES (0, 'Compliance CRA', '📋', '#ef4444', 'compliance', 0, 1, 'Documentación de cumplimiento normativo CRA', 'System', datetime('now'))");
-            await context.Database.ExecuteSqlRawAsync(@"
-                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
-                VALUES (1, 'CRA Genérico (SW)', '🇪🇺', '#3b82f6', 'cra-generic', 1, 1, 'Documentación CRA genérica de software', 'System', datetime('now'))");
-            await context.Database.ExecuteSqlRawAsync(@"
-                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
-                VALUES (2, 'Manuales de Usuario', '📖', '#10b981', 'user-guides', 2, 1, 'Manuales y guías de usuario', 'System', datetime('now'))");
-            await context.Database.ExecuteSqlRawAsync(@"
-                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
-                VALUES (3, 'Documentación Técnica', '🔧', '#f59e0b', 'technical', 3, 1, 'Documentación técnica del sistema', 'System', datetime('now'))");
-            await context.Database.ExecuteSqlRawAsync(@"
-                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
-                VALUES (4, 'Esquemas Eléctricos', '⚡', '#8b5cf6', 'electrical', 4, 1, 'Esquemas y documentación eléctrica', 'System', datetime('now'))");
-            await context.Database.ExecuteSqlRawAsync(@"
-                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
-                VALUES (5, 'Mantenimiento', '🔩', '#06b6d4', 'maintenance', 5, 1, 'Documentación de mantenimiento', 'System', datetime('now'))");
-            await context.Database.ExecuteSqlRawAsync(@"
-                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
-                VALUES (6, 'Interno', '🔒', '#64748b', 'internal', 6, 1, 'Documentación interna confidencial', 'System', datetime('now'))");
-            await context.Database.ExecuteSqlRawAsync(@"
-                INSERT OR IGNORE INTO DocumentCategories (Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt)
-                VALUES (7, 'Otros', '📄', '#9ca3af', '', 7, 1, 'Documentación general no categorizada', 'System', datetime('now'))");
+            // IMPORTANTE: Incluir DefaultClassificationId y DefaultMinimumRole porque EnsureCreatedAsync()
+            // crea las columnas NOT NULL sin DEFAULT en SQL, y INSERT OR IGNORE falla silenciosamente
+            var seedCols = "Id, Name, Icon, Color, FolderName, SortOrder, IsSystem, Description, CreatedBy, CreatedAt, DefaultClassificationId, DefaultMinimumRole";
+            await context.Database.ExecuteSqlRawAsync($@"
+                INSERT OR IGNORE INTO DocumentCategories ({seedCols})
+                VALUES (0, 'Compliance CRA', '📋', '#ef4444', 'compliance', 0, 1, 'Documentación de cumplimiento normativo CRA', 'System', datetime('now'), 0, 'Visualizador')");
+            await context.Database.ExecuteSqlRawAsync($@"
+                INSERT OR IGNORE INTO DocumentCategories ({seedCols})
+                VALUES (1, 'CRA Genérico (SW)', '🇪🇺', '#3b82f6', 'cra-generic', 1, 1, 'Documentación CRA genérica de software', 'System', datetime('now'), 0, 'Visualizador')");
+            await context.Database.ExecuteSqlRawAsync($@"
+                INSERT OR IGNORE INTO DocumentCategories ({seedCols})
+                VALUES (2, 'Manuales de Usuario', '📖', '#10b981', 'user-guides', 2, 1, 'Manuales y guías de usuario', 'System', datetime('now'), 0, 'Visualizador')");
+            await context.Database.ExecuteSqlRawAsync($@"
+                INSERT OR IGNORE INTO DocumentCategories ({seedCols})
+                VALUES (3, 'Documentación Técnica', '🔧', '#f59e0b', 'technical', 3, 1, 'Documentación técnica del sistema', 'System', datetime('now'), 0, 'Visualizador')");
+            await context.Database.ExecuteSqlRawAsync($@"
+                INSERT OR IGNORE INTO DocumentCategories ({seedCols})
+                VALUES (4, 'Esquemas Eléctricos', '⚡', '#8b5cf6', 'electrical', 4, 1, 'Esquemas y documentación eléctrica', 'System', datetime('now'), 0, 'Visualizador')");
+            await context.Database.ExecuteSqlRawAsync($@"
+                INSERT OR IGNORE INTO DocumentCategories ({seedCols})
+                VALUES (5, 'Mantenimiento', '🔩', '#06b6d4', 'maintenance', 5, 1, 'Documentación de mantenimiento', 'System', datetime('now'), 0, 'Visualizador')");
+            await context.Database.ExecuteSqlRawAsync($@"
+                INSERT OR IGNORE INTO DocumentCategories ({seedCols})
+                VALUES (6, 'Interno', '🔒', '#64748b', 'internal', 6, 1, 'Documentación interna confidencial', 'System', datetime('now'), 2, 'Administrador')");
+            await context.Database.ExecuteSqlRawAsync($@"
+                INSERT OR IGNORE INTO DocumentCategories ({seedCols})
+                VALUES (7, 'Otros', '📄', '#9ca3af', '', 7, 1, 'Documentación general no categorizada', 'System', datetime('now'), 0, 'Visualizador')");
 
             // Migrar DocumentCategories: añadir campos de clasificación por defecto
             try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE DocumentCategories ADD COLUMN DefaultClassificationId INTEGER NOT NULL DEFAULT 0"); }

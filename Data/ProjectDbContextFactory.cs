@@ -154,62 +154,12 @@ public class ProjectDbContextFactory : IProjectDbContextFactory
             _logger.LogDebug("📁 Base de datos ya existe: {Path}", dbPath);
         }
         
-        // 🔧 Siempre asegurar que la tabla OperationLogs existe (para bases de datos existentes)
-        await EnsureOperationLogsTableAsync(context);
+        // 🔧 Siempre asegurar que TODAS las tablas extra existen y tienen seed data
+        // (OperationLogs, Documents, DocumentCategories, DocumentClassificationLevels, etc.)
+        await AquafrischDbContextFactory.EnsureDatabaseCreatedAsync(context);
     }
     
-    /// <summary>
-    /// Crear tabla OperationLogs si no existe (para bases de datos existentes que no la tienen)
-    /// </summary>
-    private async Task EnsureOperationLogsTableAsync(AquafrischDbContext context)
-    {
-        try
-        {
-            // Crear tabla si no existe
-            await context.Database.ExecuteSqlRawAsync(@"
-                CREATE TABLE IF NOT EXISTS OperationLogs (
-                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Timestamp TEXT NOT NULL,
-                    Category INTEGER NOT NULL,
-                    Action INTEGER NOT NULL,
-                    Severity INTEGER NOT NULL DEFAULT 0,
-                    User TEXT NOT NULL DEFAULT 'System',
-                    Description TEXT NOT NULL DEFAULT '',
-                    PlcVariable TEXT,
-                    AlarmIndex INTEGER,
-                    AlarmCode TEXT,
-                    AlarmType TEXT,
-                    ActionKey TEXT,
-                    OldValue TEXT,
-                    NewValue TEXT,
-                    IpAddress TEXT,
-                    SessionId TEXT,
-                    DetailsJson TEXT,
-                    IsAcknowledged INTEGER NOT NULL DEFAULT 0,
-                    AcknowledgedBy TEXT,
-                    AcknowledgedAt TEXT
-                )");
-            
-            // Añadir columna ActionKey si no existe (migración para tablas antiguas)
-            try
-            {
-                await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE OperationLogs ADD COLUMN ActionKey TEXT");
-            }
-            catch { /* Columna ya existe */ }
-            
-            // Crear índices
-            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Timestamp ON OperationLogs(Timestamp)");
-            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Category ON OperationLogs(Category)");
-            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Action ON OperationLogs(Action)");
-            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_IsAcknowledged ON OperationLogs(IsAcknowledged)");
-            
-            _logger.LogInformation("✅ Tabla OperationLogs verificada/creada correctamente");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "⚠️ Error verificando tabla OperationLogs (puede que ya exista)");
-        }
-    }
+    // (EnsureOperationLogsTableAsync eliminado — AquafrischDbContextFactory.EnsureDatabaseCreatedAsync ya cubre todas las tablas)
 
     private AquafrischDbContext CreateDbContextForPath(string dbPath)
     {
