@@ -606,16 +606,65 @@ public class DocumentTreeNode
 /// </summary>
 public class DocumentStats
 {
+    // ═══ General ═══
     public int TotalDocuments { get; set; }
     public int TotalByScope_Software { get; set; }
     public int TotalByScope_Project { get; set; }
+    public long TotalSizeBytes { get; set; }
+    public DateTime? LastUpdated { get; set; }
+    public string? LastUpdatedDocument { get; set; }
+    public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
+
+    // ═══ Desglose ═══
     public Dictionary<string, int> ByCategory { get; set; } = new();
     public Dictionary<string, int> ByStatus { get; set; } = new();
+    public Dictionary<string, int> ByFileType { get; set; } = new();
+    public Dictionary<string, int> ByMinimumRole { get; set; } = new();
+
+    // ═══ Clasificación ISO 27001 (niveles de información) ═══
+    public Dictionary<string, int> ByClassification { get; set; } = new();
+
+    // ═══ EU CRA 2024/2847 ═══
     public int CraRelevantTotal { get; set; }
     public int CraRelevantApproved { get; set; }
     public int CraRelevantPending { get; set; }
+    public int CraRelevantDraft { get; set; }
     public double CraCompliancePercent { get; set; }
-    public DateTime? LastUpdated { get; set; }
+    public Dictionary<string, int> CraByArticle { get; set; } = new();
+
+    // ═══ ISO 27001 ═══
+    public int Iso27001RelevantTotal { get; set; }
+    public int Iso27001RelevantApproved { get; set; }
+    public int Iso27001RelevantPending { get; set; }
+    public double Iso27001CompliancePercent { get; set; }
+    public Dictionary<string, int> Iso27001ByArticle { get; set; } = new();
+
+    // ═══ IEC 62443 ═══
+    public int Iec62443RelevantTotal { get; set; }
+    public int Iec62443RelevantApproved { get; set; }
+    public int Iec62443RelevantPending { get; set; }
+    public double Iec62443CompliancePercent { get; set; }
+    public Dictionary<string, int> Iec62443ByArticle { get; set; } = new();
+
+    // ═══ Actividad reciente ═══
+    public List<RecentDocActivity> RecentActivity { get; set; } = new();
+
+    // ═══ Resumen de auditoría ═══
+    public int DocsWithVersionHistory { get; set; }
+    public int TotalVersionEntries { get; set; }
+    public int DocsWithTags { get; set; }
+    public int DocsWithClassification { get; set; }
+    public int DocsExpired { get; set; }
+}
+
+public class RecentDocActivity
+{
+    public string Id { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Status { get; set; } = "";
+    public DateTime Date { get; set; }
+    public string? Author { get; set; }
+    public string? Version { get; set; }
 }
 
 /// <summary>

@@ -727,29 +727,128 @@ public class DocumentService : IDocumentService
         {
             using var db = _dbFactory.CreateDbContext();
             var docs = await db.Documents.ToListAsync();
+            var classifications = await db.DocumentClassificationLevels.ToListAsync();
+            var categories = await db.DocumentCategories.ToListAsync();
+
+            var lastDoc = docs.OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt).FirstOrDefault();
 
             var stats = new DocumentStats
             {
+                // ═══ General ═══
                 TotalDocuments = docs.Count,
                 TotalByScope_Software = docs.Count(d => d.Scope == DocumentScope.Software),
                 TotalByScope_Project = docs.Count(d => d.Scope == DocumentScope.Project),
+                TotalSizeBytes = docs.Sum(d => d.FileSize),
+                LastUpdated = lastDoc != null ? (lastDoc.UpdatedAt ?? lastDoc.CreatedAt) : null,
+                LastUpdatedDocument = lastDoc?.Title,
+                GeneratedAt = DateTime.UtcNow,
+
+                // ═══ EU CRA 2024/2847 ═══
                 CraRelevantTotal = docs.Count(d => d.CraRelevant),
                 CraRelevantApproved = docs.Count(d => d.CraRelevant && d.Status == DocumentStatus.Approved),
-                CraRelevantPending = docs.Count(d => d.CraRelevant && d.Status != DocumentStatus.Approved),
-                LastUpdated = docs.Max(d => d.UpdatedAt ?? d.CreatedAt)
+                CraRelevantPending = docs.Count(d => d.CraRelevant && d.Status == DocumentStatus.Review),
+                CraRelevantDraft = docs.Count(d => d.CraRelevant && d.Status == DocumentStatus.Draft),
+
+                // ═══ ISO 27001 ═══
+                Iso27001RelevantTotal = docs.Count(d => d.Iso27001Relevant),
+                Iso27001RelevantApproved = docs.Count(d => d.Iso27001Relevant && d.Status == DocumentStatus.Approved),
+                Iso27001RelevantPending = docs.Count(d => d.Iso27001Relevant && d.Status != DocumentStatus.Approved),
+
+                // ═══ IEC 62443 ═══
+                Iec62443RelevantTotal = docs.Count(d => d.Iec62443Relevant),
+                Iec62443RelevantApproved = docs.Count(d => d.Iec62443Relevant && d.Status == DocumentStatus.Approved),
+                Iec62443RelevantPending = docs.Count(d => d.Iec62443Relevant && d.Status != DocumentStatus.Approved),
+
+                // ═══ Auditoría ═══
+                DocsWithTags = docs.Count(d => !string.IsNullOrEmpty(d.Tags)),
+                DocsWithClassification = docs.Count(d => d.ClassificationId > 0),
             };
 
-            stats.CraCompliancePercent = stats.CraRelevantTotal > 0 
-                ? Math.Round((double)stats.CraRelevantApproved / stats.CraRelevantTotal * 100, 1) 
+            // Compliance percentages
+            stats.CraCompliancePercent = stats.CraRelevantTotal > 0
+                ? Math.Round((double)stats.CraRelevantApproved / stats.CraRelevantTotal * 100, 1)
+                : 0;
+            stats.Iso27001CompliancePercent = stats.Iso27001RelevantTotal > 0
+                ? Math.Round((double)stats.Iso27001RelevantApproved / stats.Iso27001RelevantTotal * 100, 1)
+                : 0;
+            stats.Iec62443CompliancePercent = stats.Iec62443RelevantTotal > 0
+                ? Math.Round((double)stats.Iec62443RelevantApproved / stats.Iec62443RelevantTotal * 100, 1)
                 : 0;
 
-            // Por categoría
+            // ═══ Por categoría (usando nombre de la categoría) ═══
+            var catMap = categories.ToDictionary(c => c.Id, c => $"{c.Icon} {c.Name}");
             foreach (var group in docs.GroupBy(d => d.Category))
-                stats.ByCategory[group.Key.ToString()] = group.Count();
+            {
+                var label = catMap.TryGetValue(group.Key, out var name) ? name : $"Cat {group.Key}";
+                stats.ByCategory[label] = group.Count();
+            }
 
-            // Por estado
+            // ═══ Por estado ═══
+            var statusLabels = new Dictionary<string, string> {
+                ["Draft"] = "📝 Borrador", ["Review"] = "🔍 En Revisión", ["Approved"] = "✅ Aprobado",
+                ["Obsolete"] = "⚠️ Obsoleto", ["Archived"] = "📦 Archivado"
+            };
             foreach (var group in docs.GroupBy(d => d.Status))
-                stats.ByStatus[group.Key.ToString()] = group.Count();
+            {
+                var label = statusLabels.TryGetValue(group.Key.ToString(), out var name) ? name : group.Key.ToString();
+                stats.ByStatus[label] = group.Count();
+            }
+
+            // ═══ Por tipo de fichero ═══
+            var ftLabels = new Dictionary<string, string> {
+                ["Markdown"] = "📝 Markdown", ["PDF"] = "📕 PDF", ["Image"] = "🖼️ Imagen",
+                ["Binary"] = "📦 Binario", ["Excel"] = "📊 Excel", ["Word"] = "📘 Word",
+                ["Text"] = "📄 Texto", ["Unknown"] = "❓ Otro"
+            };
+            foreach (var group in docs.GroupBy(d => d.FileType))
+            {
+                var label = ftLabels.TryGetValue(group.Key.ToString(), out var name) ? name : group.Key.ToString();
+                stats.ByFileType[label] = group.Count();
+            }
+
+            // ═══ Por MinimumRole ═══
+            foreach (var group in docs.GroupBy(d => d.MinimumRole ?? "Visualizador"))
+                stats.ByMinimumRole[group.Key] = group.Count();
+
+            // ═══ Por clasificación ISO 27001 ═══
+            var classMap = classifications.ToDictionary(c => c.Id, c => $"{c.Icon} {c.Name}");
+            classMap[0] = "🌐 Público";
+            foreach (var group in docs.GroupBy(d => d.ClassificationId))
+            {
+                var label = classMap.TryGetValue(group.Key, out var name) ? name : $"Nivel {group.Key}";
+                stats.ByClassification[label] = group.Count();
+            }
+
+            // ═══ CRA por artículo ═══
+            foreach (var group in docs.Where(d => d.CraRelevant && !string.IsNullOrEmpty(d.CraArticle)).GroupBy(d => d.CraArticle!))
+                stats.CraByArticle[group.Key] = group.Count();
+
+            // ═══ ISO 27001 por artículo ═══
+            foreach (var group in docs.Where(d => d.Iso27001Relevant && !string.IsNullOrEmpty(d.Iso27001Article)).GroupBy(d => d.Iso27001Article!))
+                stats.Iso27001ByArticle[group.Key] = group.Count();
+
+            // ═══ IEC 62443 por artículo ═══
+            foreach (var group in docs.Where(d => d.Iec62443Relevant && !string.IsNullOrEmpty(d.Iec62443Article)).GroupBy(d => d.Iec62443Article!))
+                stats.Iec62443ByArticle[group.Key] = group.Count();
+
+            // ═══ Historial de versiones ═══
+            var versionCounts = await db.DocumentHistories.GroupBy(v => v.DocumentId).Select(g => new { DocId = g.Key, Count = g.Count() }).ToListAsync();
+            stats.DocsWithVersionHistory = versionCounts.Count;
+            stats.TotalVersionEntries = versionCounts.Sum(v => v.Count);
+
+            // ═══ Actividad reciente (últimos 10 docs modificados) ═══
+            stats.RecentActivity = docs
+                .OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt)
+                .Take(10)
+                .Select(d => new RecentDocActivity
+                {
+                    Id = d.Id,
+                    Title = d.Title,
+                    Status = d.Status.ToString(),
+                    Date = d.UpdatedAt ?? d.CreatedAt,
+                    Author = d.CreatedBy,
+                    Version = d.Version
+                }).ToList();
 
             return stats;
         }
