@@ -29,6 +29,7 @@ namespace SW.PC.API.Backend.Services
         public string SbomPath { get; set; } = "";      // EU CRA Compliance
         public string AuditPath { get; set; } = "";     // EU CRA Compliance
         public string TranslationsPath { get; set; } = ""; // Translations per project
+        public string DocsPath { get; set; } = "";       // DMS: Document Management System
     }
 
     public interface IBackupService
@@ -121,7 +122,8 @@ namespace SW.PC.API.Backend.Services
                     ExcelConfigPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm"),
                     SbomPath = Path.Combine(webRoot, "sbom"),           // Legacy: wwwroot/sbom
                     AuditPath = Path.Combine(webRoot, "audit"),          // Legacy: wwwroot/audit
-                    TranslationsPath = Path.Combine(contentRoot, "translations") // Legacy: root/translations
+                    TranslationsPath = Path.Combine(contentRoot, "translations"), // Legacy: root/translations
+                    DocsPath = Path.Combine(contentRoot, "docs")          // Legacy: root/docs
                 };
             }
             
@@ -139,7 +141,8 @@ namespace SW.PC.API.Backend.Services
                 ExcelConfigPath = Path.Combine(projectRoot, "config", "ProjectConfig.xlsm"),
                 SbomPath = Path.Combine(projectRoot, "sbom"),           // Multi-proyecto: Projects/{id}/sbom
                 AuditPath = Path.Combine(projectRoot, "audit"),          // Multi-proyecto: Projects/{id}/audit
-                TranslationsPath = Path.Combine(projectRoot, "translations") // Multi-proyecto: Projects/{id}/translations
+                TranslationsPath = Path.Combine(projectRoot, "translations"), // Multi-proyecto: Projects/{id}/translations
+                DocsPath = Path.Combine(projectRoot, "docs")              // Multi-proyecto: Projects/{id}/docs
             };
         }
 

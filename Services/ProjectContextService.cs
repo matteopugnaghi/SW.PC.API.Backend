@@ -54,6 +54,11 @@ namespace SW.PC.API.Backend.Services
         /// o la estructura legacy (ExcelConfigs/, wwwroot/models/, Data/)
         /// </summary>
         bool IsMultiProjectMode { get; }
+
+        /// <summary>
+        /// Ruta a la carpeta de documentación del proyecto (DMS)
+        /// </summary>
+        string DocsPath { get; }
         
         /// <summary>
         /// Lista todos los proyectos disponibles en la carpeta Projects/
@@ -191,6 +196,10 @@ namespace SW.PC.API.Backend.Services
             ? Path.Combine(DataPath, "project.db")
             : Path.Combine(_legacyDataPath, "Aquafrisch.db");
         
+        public string DocsPath => _isMultiProjectMode
+            ? Path.Combine(ProjectBasePath, "docs")
+            : Path.Combine(_contentRootPath, "docs");
+        
         public bool IsMultiProjectMode => _isMultiProjectMode;
         
         public IEnumerable<ProjectInfo> GetAvailableProjects()
@@ -276,6 +285,17 @@ namespace SW.PC.API.Backend.Services
                 Directory.CreateDirectory(Path.Combine(projectPath, "data"));
                 Directory.CreateDirectory(Path.Combine(projectPath, "backups"));
                 
+                // DMS: Estructura documental del proyecto
+                var docsPath = Path.Combine(projectPath, "docs");
+                Directory.CreateDirectory(docsPath);
+                Directory.CreateDirectory(Path.Combine(docsPath, "compliance"));
+                Directory.CreateDirectory(Path.Combine(docsPath, "cra-generic"));
+                Directory.CreateDirectory(Path.Combine(docsPath, "user-guides"));
+                Directory.CreateDirectory(Path.Combine(docsPath, "technical"));
+                Directory.CreateDirectory(Path.Combine(docsPath, "electrical"));
+                Directory.CreateDirectory(Path.Combine(docsPath, "maintenance"));
+                Directory.CreateDirectory(Path.Combine(docsPath, "_attachments"));
+                
                 // Crear archivo README
                 var readmePath = Path.Combine(projectPath, "README.md");
                 await File.WriteAllTextAsync(readmePath, $@"# Proyecto: {projectId}
@@ -286,6 +306,14 @@ namespace SW.PC.API.Backend.Services
 - **models/**: Modelos 3D (.glb, .gltf)
 - **data/**: Base de datos SQLite (project.db)
 - **backups/**: Copias de seguridad automáticas y manuales
+- **docs/**: Documentación del proyecto (DMS)
+  - compliance/ - Documentación CRA específica de esta instalación
+  - cra-generic/ - Documentación CRA genérica del SW (copia por versión)
+  - user-guides/ - Manuales de usuario y operador
+  - technical/ - Documentación técnica del proyecto
+  - electrical/ - Esquemas eléctricos (wrappers MD + PDFs adjuntos)
+  - maintenance/ - Procedimientos de mantenimiento
+  - _attachments/ - Archivos binarios adjuntos (PDF, imágenes)
 
 ## Creado
 
@@ -440,6 +468,17 @@ Copiar el archivo ProjectConfig.xlsm a la carpeta config/ y configurar según ne
                         Directory.CreateDirectory(Path.Combine(templatePath, "models"));
                         Directory.CreateDirectory(Path.Combine(templatePath, "data"));
                         Directory.CreateDirectory(Path.Combine(templatePath, "backups"));
+                        
+                        // DMS: Estructura documental template
+                        var templateDocsPath = Path.Combine(templatePath, "docs");
+                        Directory.CreateDirectory(templateDocsPath);
+                        Directory.CreateDirectory(Path.Combine(templateDocsPath, "compliance"));
+                        Directory.CreateDirectory(Path.Combine(templateDocsPath, "cra-generic"));
+                        Directory.CreateDirectory(Path.Combine(templateDocsPath, "user-guides"));
+                        Directory.CreateDirectory(Path.Combine(templateDocsPath, "technical"));
+                        Directory.CreateDirectory(Path.Combine(templateDocsPath, "electrical"));
+                        Directory.CreateDirectory(Path.Combine(templateDocsPath, "maintenance"));
+                        Directory.CreateDirectory(Path.Combine(templateDocsPath, "_attachments"));
                         
                         // Crear README en template
                         File.WriteAllText(Path.Combine(templatePath, "README.md"), @"# Plantilla de Proyecto

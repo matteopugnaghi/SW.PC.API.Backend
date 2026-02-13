@@ -963,9 +963,7 @@ public static class AquafrischDbContextFactory
             await context.Database.ExecuteSqlRawAsync($@"
                 INSERT OR IGNORE INTO DocumentCategories ({seedCols})
                 VALUES (5, 'Mantenimiento', '🔩', '#06b6d4', 'maintenance', 5, 1, 'Documentación de mantenimiento', 'System', datetime('now'), 0, 'Visualizador')");
-            await context.Database.ExecuteSqlRawAsync($@"
-                INSERT OR IGNORE INTO DocumentCategories ({seedCols})
-                VALUES (6, 'Interno', '🔒', '#64748b', 'internal', 6, 1, 'Documentación interna confidencial', 'System', datetime('now'), 2, 'Administrador')");
+            // ID 6 "Interno" eliminado — generaba confusión con Clasificación ISO "Interno"
             await context.Database.ExecuteSqlRawAsync($@"
                 INSERT OR IGNORE INTO DocumentCategories ({seedCols})
                 VALUES (7, 'Otros', '📄', '#9ca3af', '', 7, 1, 'Documentación general no categorizada', 'System', datetime('now'), 0, 'Visualizador')");
@@ -1022,15 +1020,27 @@ public static class AquafrischDbContextFactory
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_DocumentCategoryAccess_CategoryId ON DocumentCategoryAccess(CategoryId)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_DocumentCategoryAccess_RoleName ON DocumentCategoryAccess(RoleName)");
 
-            // Seed acceso por defecto: todas las categorías del sistema accesibles por todos los roles
-            // El SuperAdmin tiene acceso implícito a todo (no necesita entradas en esta tabla)
-            var systemRoles = new[] { "Administrador", "Operador", "Mantenimiento", "Visualizador", "Auditor" };
+            // Seed acceso por defecto (ISO 27001 A.9.1 — Principio de menor privilegio)
+            // SuperAdmin tiene acceso implícito (no necesita entradas)
+            // Administrador: acceso total. Otros roles: acceso limitado según función.
+            var defaultAccess = new Dictionary<string, HashSet<int>>
+            {
+                // Administrador: TODAS las categorías
+                { "Administrador", new() { 0, 1, 2, 3, 4, 5, 7 } },
+                // Mantenimiento: Manuales(2), Técnica(3), Eléctricos(4), Mantenimiento(5), Otros(7)
+                { "Mantenimiento", new() { 2, 3, 4, 5, 7 } },
+                // Auditor: Compliance(0), CRA(1), Manuales(2), Técnica(3), Otros(7)
+                { "Auditor", new() { 0, 1, 2, 3, 7 } },
+                // Operador: Manuales(2), Otros(7)
+                { "Operador", new() { 2, 7 } },
+                // Visualizador: Manuales(2), Otros(7)
+                { "Visualizador", new() { 2, 7 } },
+            };
             for (int catId = 0; catId <= 7; catId++)
             {
-                foreach (var role in systemRoles)
+                foreach (var (role, allowedCats) in defaultAccess)
                 {
-                    // Por defecto: todos leen todo excepto categoría 6 (Interno) que solo es Administrador
-                    bool canRead = catId != 6 || role == "Administrador";
+                    bool canRead = allowedCats.Contains(catId);
                     await context.Database.ExecuteSqlRawAsync($@"
                         INSERT OR IGNORE INTO DocumentCategoryAccess (CategoryId, RoleName, CanRead, UpdatedBy, UpdatedAt)
                         VALUES ({catId}, '{role}', {(canRead ? 1 : 0)}, 'System', datetime('now'))");

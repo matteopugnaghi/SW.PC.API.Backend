@@ -313,6 +313,34 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
+    /// Importar un fichero a un documento existente.
+    /// Para docs Markdown: acepta .docx (convierte a MD), .md, .txt
+    /// Para otros: reemplaza el fichero con uno del mismo tipo
+    /// POST /api/documents/{id}/import
+    /// </summary>
+    [HttpPost("{id}/import")]
+    [RequestSizeLimit(52_428_800)] // 50 MB
+    public async Task<IActionResult> ImportFile(string id, IFormFile file)
+    {
+        try
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest(new { success = false, message = "No se proporcionó fichero" });
+
+            using var stream = file.OpenReadStream();
+            var result = await _documentService.ImportFileAsync(
+                id, stream, file.FileName, file.Length, UserName, UserRole);
+
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error en POST /api/documents/{Id}/import", id);
+            return StatusCode(500, new { error = "Error importando fichero", details = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Descargar fichero de un documento (opcionalmente convertido a PDF o DOCX)
     /// GET /api/documents/{id}/download?format=pdf|docx
     /// </summary>
@@ -568,7 +596,6 @@ public class DocumentsController : ControllerBase
     /// GET /api/documents/diag/categories
     /// </summary>
     [HttpGet("diag/categories")]
-    [AllowAnonymous]
     public async Task<IActionResult> DiagCategories()
     {
         try
@@ -687,6 +714,24 @@ public class DocumentsController : ControllerBase
 
         var result = await _documentService.SetCategoryAccessBulkAsync(categoryId, roleAccess, UserName);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Resetear matriz de acceso a defaults ISO 27001 (menor privilegio).
+    /// Solo SuperAdmin. Sobrescribe TODOS los valores existentes.
+    /// POST /api/documents/category-access/reset-defaults
+    /// </summary>
+    [HttpPost("category-access/reset-defaults")]
+    public async Task<IActionResult> ResetCategoryAccessDefaults()
+    {
+        if (UserRole != "SuperAdmin")
+            return Forbid();
+
+        var count = await _documentService.ResetCategoryAccessToDefaultsAsync(UserName);
+        return Ok(new { 
+            message = $"Matriz reseteada a defaults ISO 27001: {count} entradas actualizadas",
+            updatedEntries = count
+        });
     }
 
     #endregion

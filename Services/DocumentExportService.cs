@@ -51,6 +51,9 @@ public interface IDocumentExportService
 
     /// <summary>Convertir un stream DOCX a HTML para previsualización inline.</summary>
     string ConvertDocxToHtml(Stream docxStream);
+
+    /// <summary>Convertir un stream DOCX a Markdown para importación.</summary>
+    string ConvertDocxToMarkdown(Stream docxStream);
 }
 
 /// <summary>
@@ -821,5 +824,139 @@ public class DocumentExportService : IDocumentExportService
             isFirstRow = false;
         }
         sb.AppendLine("</table>");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // DOCX → Markdown (importación)
+    // ═══════════════════════════════════════════════════════════════════
+
+    public string ConvertDocxToMarkdown(Stream docxStream)
+    {
+        try
+        {
+            using var doc = WordprocessingDocument.Open(docxStream, false);
+            var body = doc.MainDocumentPart?.Document.Body;
+            if (body == null) return "";
+
+            var sb = new StringBuilder();
+            foreach (var element in body.Elements())
+            {
+                switch (element)
+                {
+                    case Paragraph para:
+                        RenderDocxParaToMarkdown(sb, para);
+                        break;
+                    case OxTable table:
+                        RenderDocxTableToMarkdown(sb, table);
+                        break;
+                }
+            }
+            return sb.ToString().TrimEnd();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error convirtiendo DOCX stream a Markdown");
+            throw;
+        }
+    }
+
+    private void RenderDocxParaToMarkdown(StringBuilder sb, Paragraph para)
+    {
+        // Detectar heading por styleId
+        var styleId = para.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
+        int headingLevel = 0;
+        if (!string.IsNullOrEmpty(styleId))
+        {
+            var lower = styleId.ToLower();
+            if (lower.StartsWith("heading") || lower.StartsWith("ttulo"))
+            {
+                var lastChar = lower[^1];
+                if (char.IsDigit(lastChar) && lastChar >= '1' && lastChar <= '6')
+                    headingLevel = lastChar - '0';
+            }
+        }
+
+        // Detectar lista
+        var numId = para.ParagraphProperties?.NumberingProperties?.NumberingId?.Val?.Value;
+        var ilvl = para.ParagraphProperties?.NumberingProperties?.NumberingLevelReference?.Val?.Value;
+        bool isList = numId != null;
+
+        var runs = para.Elements<OxRun>().ToList();
+        if (runs.Count == 0)
+        {
+            sb.AppendLine();
+            return;
+        }
+
+        // Construir texto con formato inline
+        var textSb = new StringBuilder();
+        foreach (var run in runs)
+        {
+            var text = run.InnerText;
+            if (string.IsNullOrEmpty(text)) continue;
+
+            var rp = run.RunProperties;
+            bool isBold = rp?.GetFirstChild<OxBold>() != null;
+            bool isItalic = rp?.GetFirstChild<OxItalic>() != null;
+            var fontFamily = rp?.GetFirstChild<RunFonts>()?.Ascii?.Value;
+            bool isCode = fontFamily != null && (fontFamily.Contains("Consolas") || fontFamily.Contains("Courier"));
+
+            if (isCode) textSb.Append('`');
+            if (isBold && isItalic) textSb.Append("***");
+            else if (isBold) textSb.Append("**");
+            else if (isItalic) textSb.Append('*');
+
+            textSb.Append(text);
+
+            if (isBold && isItalic) textSb.Append("***");
+            else if (isBold) textSb.Append("**");
+            else if (isItalic) textSb.Append('*');
+            if (isCode) textSb.Append('`');
+        }
+
+        var lineText = textSb.ToString();
+        if (string.IsNullOrWhiteSpace(lineText))
+        {
+            sb.AppendLine();
+            return;
+        }
+
+        if (headingLevel > 0)
+        {
+            sb.Append(new string('#', headingLevel));
+            sb.Append(' ');
+            sb.AppendLine(lineText);
+            sb.AppendLine();
+        }
+        else if (isList)
+        {
+            var indent = new string(' ', (ilvl ?? 0) * 2);
+            sb.AppendLine($"{indent}- {lineText}");
+        }
+        else
+        {
+            sb.AppendLine(lineText);
+            sb.AppendLine();
+        }
+    }
+
+    private void RenderDocxTableToMarkdown(StringBuilder sb, OxTable table)
+    {
+        var rows = table.Elements<OxTableRow>().ToList();
+        if (rows.Count == 0) return;
+
+        sb.AppendLine();
+        bool isFirstRow = true;
+        foreach (var row in rows)
+        {
+            var cells = row.Elements<OxTableCell>().Select(c => c.InnerText.Trim()).ToList();
+            sb.AppendLine("| " + string.Join(" | ", cells) + " |");
+            if (isFirstRow)
+            {
+                sb.AppendLine("| " + string.Join(" | ", cells.Select(_ => "---")) + " |");
+                isFirstRow = false;
+            }
+        }
+        sb.AppendLine();
     }
 }

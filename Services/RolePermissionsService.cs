@@ -70,11 +70,16 @@ public class RolePermissionsService : IRolePermissionsService
                 var permissions = JsonSerializer.Deserialize<ModulePermissions>(
                     role.PermissionsJson, 
                     PermissionsJsonOptions.Options);
+                
+                // Mergear con defaults: si un módulo nuevo no existía en el JSON guardado,
+                // hereda los permisos por defecto del rol (evita que módulos nuevos queden en false)
+                var mergedPermissions = MergeWithDefaults(permissions ?? new ModulePermissions(), roleName);
+                
                 return new RolePermissions
                 {
                     RoleId = role.Id,
                     RoleName = role.Name,
-                    Modules = permissions ?? new ModulePermissions()
+                    Modules = mergedPermissions
                 };
             }
             catch (JsonException ex)
@@ -257,6 +262,13 @@ public class RolePermissionsService : IRolePermissionsService
                 Description = "Control manual de elementos del sistema",
                 Icon = "🎮",
                 Category = "Operación"
+            },
+            new() { 
+                Key = "DocumentsView", 
+                Name = "Documentación", 
+                Description = "Gestión documental del proyecto (DMS)",
+                Icon = "📄",
+                Category = "Documentación"
             }
         };
     }
@@ -320,6 +332,40 @@ public class RolePermissionsService : IRolePermissionsService
     {
         var systemRole = Enum.TryParse<SystemRole>(roleName, out var sr) ? sr : SystemRole.Viewer;
         return DefaultRolePermissions.GetDefaultPermissions(systemRole);
+    }
+
+    /// <summary>
+    /// Mergea permisos deserializados con los defaults del rol.
+    /// Si un módulo nuevo fue añadido al código pero no existía en el JSON guardado en DB,
+    /// hereda los permisos por defecto del rol en lugar de quedar todo en false.
+    /// </summary>
+    private ModulePermissions MergeWithDefaults(ModulePermissions saved, string roleName)
+    {
+        var defaults = GetDefaultPermissionsForRole(roleName).Modules;
+        if (defaults == null) return saved;
+
+        // Usar reflection para detectar propiedades ViewPermission que quedaron vacías
+        var props = typeof(ModulePermissions).GetProperties()
+            .Where(p => p.PropertyType == typeof(ViewPermission));
+
+        foreach (var prop in props)
+        {
+            var savedVal = (ViewPermission?)prop.GetValue(saved);
+            // Si el permiso guardado tiene todo en false (valor por defecto de new ViewPermission()),
+            // y el default del rol tiene al menos un true, usar el default
+            if (savedVal != null && !savedVal.CanView && !savedVal.CanCreate && !savedVal.CanEdit 
+                && !savedVal.CanDelete && !savedVal.CanExport && !savedVal.CanExecute)
+            {
+                var defaultVal = (ViewPermission?)prop.GetValue(defaults);
+                if (defaultVal != null && (defaultVal.CanView || defaultVal.CanCreate || defaultVal.CanEdit 
+                    || defaultVal.CanDelete || defaultVal.CanExport || defaultVal.CanExecute))
+                {
+                    prop.SetValue(saved, defaultVal);
+                }
+            }
+        }
+
+        return saved;
     }
 
     #endregion

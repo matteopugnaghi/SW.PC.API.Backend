@@ -58,6 +58,11 @@ namespace SW.PC.API.Backend.Services
         /// Ruta a la carpeta de traducciones (i18n)
         /// </summary>
         string TranslationsPath { get; }
+
+        /// <summary>
+        /// Ruta a la carpeta de documentación del proyecto (DMS)
+        /// </summary>
+        string DocsPath { get; }
         
         /// <summary>
         /// Configura el proyecto para este request
@@ -81,6 +86,7 @@ namespace SW.PC.API.Backend.Services
         private string _excelConfigPath = "";
         private string _databasePath = "";
         private string _translationsPath = "";
+        private string _docsPath = "";
         
         // Rutas legacy
         private readonly string _contentRootPath;
@@ -122,6 +128,7 @@ namespace SW.PC.API.Backend.Services
         public string ExcelConfigPath => _excelConfigPath;
         public string DatabasePath => _databasePath;
         public string TranslationsPath => _translationsPath;
+        public string DocsPath => _docsPath;
 
         /// <summary>
         /// Configura el proyecto para este request específico
@@ -163,6 +170,7 @@ namespace SW.PC.API.Backend.Services
                 _excelConfigPath = Path.Combine(_legacyExcelConfigPath, "ProjectConfig.xlsm");
                 _databasePath = Path.Combine(_legacyDataPath, "Aquafrisch.db");
                 _translationsPath = Path.Combine(_contentRootPath, "translations");
+                _docsPath = Path.Combine(_contentRootPath, "docs");
             }
             else
             {
@@ -173,6 +181,7 @@ namespace SW.PC.API.Backend.Services
                 _dataPath = Path.Combine(_projectBasePath, "data");
                 _backupsPath = Path.Combine(_projectBasePath, "backups");
                 _translationsPath = Path.Combine(_projectBasePath, "translations");
+                _docsPath = Path.Combine(_projectBasePath, "docs");
                 
                 // Buscar archivo Excel en config
                 _excelConfigPath = FindExcelConfig(_configPath);

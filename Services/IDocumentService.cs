@@ -113,6 +113,9 @@ public interface IDocumentService
     /// <summary>Actualizar toda la matriz de acceso de una categoría de golpe</summary>
     Task<List<DocumentCategoryAccess>> SetCategoryAccessBulkAsync(int categoryId, Dictionary<string, bool> roleAccess, string userName);
 
+    /// <summary>Resetear la matriz de acceso a defaults ISO 27001 (menor privilegio)</summary>
+    Task<int> ResetCategoryAccessToDefaultsAsync(string userName);
+
     // === Upload / Download de ficheros ===
 
     /// <summary>Subir un fichero (PDF, DOCX, imagen, etc.) al DMS</summary>
@@ -123,4 +126,7 @@ public interface IDocumentService
 
     /// <summary>Previsualización de un documento Markdown como HTML con estilo PDF o Word</summary>
     Task<string?> PreviewAsFormatAsync(string documentId, string userRole, string format);
+
+    /// <summary>Importar un fichero a un documento existente (DOCX→MD, o reemplazar fichero)</summary>
+    Task<DocumentOperationResponse> ImportFileAsync(string documentId, Stream fileStream, string fileName, long fileSize, string userName, string userRole);
 }

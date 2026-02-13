@@ -42,7 +42,31 @@ public class DocumentService : IDocumentService
     };
 
     // Roles del sistema para la matriz de acceso (sin SuperAdmin — tiene acceso implícito)
-    public static readonly string[] SystemRoles = { "Administrador", "Operador", "Mantenimiento", "Visualizador", "Auditor" };
+    // Orden: menor → mayor privilegio, alineado con RoleHierarchy
+    public static readonly string[] SystemRoles = { "Visualizador", "Operador", "Auditor", "Mantenimiento", "Administrador" };
+
+    // Mapeo JWT (inglés) → Matriz (español). La Matriz usa nombres en español (SystemRoles),
+    // pero el JWT almacena nombres en inglés. Este mapa normaliza para las consultas de acceso.
+    private static readonly Dictionary<string, string> RoleToMatrixName = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "Viewer", "Visualizador" },
+        { "Operator", "Operador" },
+        { "Auditor", "Auditor" },
+        { "Maintenance", "Mantenimiento" },
+        { "Administrator", "Administrador" },
+        // Si ya vienen en español, se mapean a sí mismos
+        { "Visualizador", "Visualizador" },
+        { "Operador", "Operador" },
+        { "Mantenimiento", "Mantenimiento" },
+        { "Administrador", "Administrador" },
+        { "SuperAdmin", "SuperAdmin" }
+    };
+
+    /// <summary>
+    /// Normaliza el nombre de rol del JWT (inglés) al nombre usado en la Matriz de Acceso (español).
+    /// </summary>
+    private static string NormalizeRoleForMatrix(string jwtRole)
+        => RoleToMatrixName.GetValueOrDefault(jwtRole, jwtRole);
 
     // Mapeo AccessLevel → rol mínimo requerido (legacy, mantener para compatibilidad)
     private static readonly Dictionary<DocumentAccessLevel, string> AccessLevelToRole = new()
@@ -119,8 +143,8 @@ public class DocumentService : IDocumentService
             using var db = _dbFactory.CreateDbContext();
             var query = db.Documents.AsQueryable();
 
-            // Filtrar por acceso del usuario
-            query = ApplyAccessFilter(query, userRole);
+            // Filtrar por acceso del usuario (matriz categoría×rol)
+            query = await ApplyAccessFilterWithMatrixAsync(db, query, userRole);
 
             // Filtros opcionales
             if (filter.Scope.HasValue)
@@ -276,7 +300,7 @@ public class DocumentService : IDocumentService
                 Category = request.Category,
                 Tags = request.Tags != null ? JsonSerializer.Serialize(request.Tags) : null,
                 AccessLevel = request.AccessLevel,
-                MinimumRole = request.MinimumRole ?? AccessLevelToRole.GetValueOrDefault(request.AccessLevel, "Visualizador"),
+                MinimumRole = request.MinimumRole ?? "Administrador", // Restrictivo por defecto hasta configuración explícita
                 ClassificationId = request.ClassificationId ?? 0,
                 Version = "1.0",
                 Status = DocumentStatus.Draft,
@@ -336,17 +360,28 @@ public class DocumentService : IDocumentService
             if (doc == null)
                 return new DocumentOperationResponse { Success = false, Message = "Documento no encontrado" };
 
-            // Los documentos master (Software) son de solo lectura — vienen del servidor corporativo
-            if (doc.Scope == DocumentScope.Software)
-                return new DocumentOperationResponse { Success = false, Message = "Los documentos AQSdocs_master son de solo lectura" };
+            // Documentos master (Software): solo se permiten cambios de metadatos de acceso/clasificación
+            // El contenido, título y archivo son de solo lectura (vienen del servidor corporativo)
+            var isMasterDoc = doc.Scope == DocumentScope.Software;
+            if (isMasterDoc)
+            {
+                // Bloquear cambios de contenido en master
+                if (request.Title != null || request.Content != null || request.Description != null || request.Version != null)
+                    return new DocumentOperationResponse { Success = false, Message = "Los documentos AQSdocs_master son de solo lectura. Solo se pueden modificar metadatos de acceso (rol mínimo, clasificación, tags, normativas)." };
+            }
 
             if (!HasAccessToDocument(doc, userRole))
                 return new DocumentOperationResponse { Success = false, Message = "Sin permisos para editar este documento" };
 
-            // Actualizar campos opcionales
-            if (request.Title != null) doc.Title = request.Title;
-            if (request.Description != null) doc.Description = request.Description;
-            if (request.Version != null) doc.Version = request.Version;
+            // Actualizar campos opcionales (en master: solo metadatos de acceso)
+            if (!isMasterDoc)
+            {
+                if (request.Title != null) doc.Title = request.Title;
+                if (request.Description != null) doc.Description = request.Description;
+                if (request.Version != null) doc.Version = request.Version;
+            }
+
+            // Metadatos de acceso/clasificación — permitidos siempre (incluido master)
             if (request.MinimumRole != null) doc.MinimumRole = request.MinimumRole;
             if (request.ClassificationId.HasValue) doc.ClassificationId = request.ClassificationId.Value;
             if (request.AccessLevel.HasValue)
@@ -365,8 +400,8 @@ public class DocumentService : IDocumentService
             if (request.Iec62443Relevant.HasValue) doc.Iec62443Relevant = request.Iec62443Relevant.Value;
             if (request.Iec62443Article != null) doc.Iec62443Article = request.Iec62443Article;
 
-            // Actualizar contenido del fichero si se proporcionó
-            if (request.Content != null)
+            // Actualizar contenido del fichero si se proporcionó (solo para docs de proyecto)
+            if (request.Content != null && !isMasterDoc)
             {
                 var docsPath = _requestContext.DocsPath;
                 var absolutePath = Path.Combine(docsPath, doc.FilePath.Replace('/', Path.DirectorySeparatorChar));
@@ -476,7 +511,8 @@ public class DocumentService : IDocumentService
         try
         {
             using var db = _dbFactory.CreateDbContext();
-            var docs = await ApplyAccessFilter(db.Documents.AsQueryable(), userRole).ToListAsync();
+            var docs = await ApplyAccessFilterWithMatrixAsync(db, db.Documents.AsQueryable(), userRole);
+            var docList = await docs.ToListAsync();
 
             // Cargar categorías para nombres/iconos/colores y jerarquía
             var allCategories = await db.DocumentCategories
@@ -647,7 +683,7 @@ public class DocumentService : IDocumentService
             //   - Software (master) → carpetas reales del filesystem (solo lectura)
             //   - Project → categorías gestionables
             // Siempre mostrar ambos scopes, incluso si están vacíos
-            var docsByScope = docs.GroupBy(d => d.Scope).ToDictionary(g => g.Key, g => g.AsEnumerable());
+            var docsByScope = docList.GroupBy(d => d.Scope).ToDictionary(g => g.Key, g => g.AsEnumerable());
 
             foreach (var scope in new[] { DocumentScope.Software, DocumentScope.Project })
             {
@@ -824,6 +860,7 @@ public class DocumentService : IDocumentService
     /// <summary>
     /// Sincronizar AQSdocs_master: copia docs del código fuente (backend/docs/) al proyecto
     /// y registra los .md en DB con scope=Software.
+    /// SIEMPRE purga los docs master existentes y los re-crea con MinimumRole=SuperAdmin.
     /// </summary>
     public async Task<DocumentOperationResponse> SyncMasterAsync(string userName)
     {
@@ -832,12 +869,21 @@ public class DocumentService : IDocumentService
             using var db = _dbFactory.CreateDbContext();
             await AquafrischDbContextFactory.EnsureDatabaseCreatedAsync(db);
 
+            // Purgar todos los master docs existentes (re-crear desde código fuente)
+            var existingMaster = await db.Documents
+                .Where(d => d.Scope == DocumentScope.Software)
+                .ToListAsync();
+            int purged = existingMaster.Count;
+            db.Documents.RemoveRange(existingMaster);
+            await db.SaveChangesAsync();
+            _logger.LogInformation("🗑️ SyncMaster: {Count} documentos master purgados antes de re-sync", purged);
+
             var projectDocsPath = _requestContext.DocsPath;
             if (string.IsNullOrEmpty(projectDocsPath))
                 return new DocumentOperationResponse { Success = false, Message = "No se encontró carpeta docs/ del proyecto" };
 
             var globalDocsPath = Path.GetFullPath(GetGlobalDocsPath());
-            int copied = 0, created = 0, updated = 0, orphaned = 0;
+            int copied = 0, created = 0;
 
             // ═══ PASO 1: Copiar ficheros del master al proyecto ═══
             var masterDestPath = Path.Combine(projectDocsPath, "AQSdocs_master");
@@ -874,12 +920,7 @@ public class DocumentService : IDocumentService
                 }
             }
 
-            // ═══ PASO 2: Escanear solo AQSdocs_master/ y registrar en DB ═══
-            var existingMasterDocs = await db.Documents
-                .Where(d => d.Scope == DocumentScope.Software)
-                .ToListAsync();
-            var existingByPath = existingMasterDocs.ToDictionary(d => d.FilePath, StringComparer.OrdinalIgnoreCase);
-
+            // ═══ PASO 2: Escanear AQSdocs_master/ y registrar TODOS en DB (ya purgados) ═══
             if (Directory.Exists(masterDestPath))
             {
                 var mdFiles = Directory.GetFiles(masterDestPath, "*.md", SearchOption.AllDirectories)
@@ -894,60 +935,34 @@ public class DocumentService : IDocumentService
                     var contentBytes = Encoding.UTF8.GetBytes(content);
                     var hash = ComputeSha256(contentBytes);
 
-                    if (existingByPath.TryGetValue(relativePath, out var existing))
+                    var title = ExtractTitleFromContent(content) ?? Path.GetFileNameWithoutExtension(filePath);
+                    var slug = GenerateUniqueSlug(db, title);
+                    
+                    db.Documents.Add(new Document
                     {
-                        var detectedCategory = await DetectCategoryFromPathAsync(db, relativePath);
-                        if (existing.ContentHash != hash || existing.Category != detectedCategory)
-                        {
-                            existing.ContentHash = hash;
-                            existing.FileSize = contentBytes.Length;
-                            existing.SearchContent = ExtractSearchContent(content);
-                            existing.Category = detectedCategory;
-                            existing.Scope = DocumentScope.Software;
-                            existing.UpdatedBy = userName;
-                            existing.UpdatedAt = DateTime.UtcNow;
-                            updated++;
-                        }
-                        existingByPath.Remove(relativePath);
-                    }
-                    else
-                    {
-                        var category = await DetectCategoryFromPathAsync(db, relativePath);
-                        var title = ExtractTitleFromContent(content) ?? Path.GetFileNameWithoutExtension(filePath);
-                        var slug = GenerateUniqueSlug(db, title);
-                        
-                        db.Documents.Add(new Document
-                        {
-                            Id = Guid.NewGuid().ToString(),
-                            Slug = slug,
-                            Title = title,
-                            FilePath = relativePath,
-                            FileType = DocumentFileType.Markdown,
-                            ContentHash = hash,
-                            FileSize = contentBytes.Length,
-                            Scope = DocumentScope.Software,
-                            Category = category,
-                            Version = "1.0",
-                            Status = DocumentStatus.Draft,
-                            CreatedBy = userName,
-                            CreatedAt = DateTime.UtcNow,
-                            SearchContent = ExtractSearchContent(content)
-                        });
-                        created++;
-                    }
+                        Id = Guid.NewGuid().ToString(),
+                        Slug = slug,
+                        Title = title,
+                        FilePath = relativePath,
+                        FileType = DocumentFileType.Markdown,
+                        ContentHash = hash,
+                        FileSize = contentBytes.Length,
+                        Scope = DocumentScope.Software,
+                        Category = SystemDocumentCategories.Other, // Sin configurar — SuperAdmin asigna
+                        MinimumRole = "SuperAdmin", // Solo SuperAdmin hasta configuración explícita
+                        Version = "1.0",
+                        Status = DocumentStatus.Draft,
+                        CreatedBy = userName,
+                        CreatedAt = DateTime.UtcNow,
+                        SearchContent = ExtractSearchContent(content)
+                    });
+                    created++;
                 }
-            }
-
-            // Eliminar huérfanos master
-            foreach (var orphan in existingByPath.Values)
-            {
-                db.Documents.Remove(orphan);
-                orphaned++;
             }
 
             await db.SaveChangesAsync();
 
-            var message = $"{created} creados, {updated} actualizados, {orphaned} eliminados, {copied} copiados";
+            var message = $"PURGE: {purged} eliminados → {created} creados, {copied} copiados (MinimumRole=SuperAdmin, Categoría=Otros)";
             _logger.LogInformation("📦 SyncMaster: {Message}", message);
             return new DocumentOperationResponse { Success = true, Message = message };
         }
@@ -1408,7 +1423,7 @@ public class DocumentService : IDocumentService
             // Calcular nueva ruta con la jerarquía ya actualizada en DB
             var newFolderPath = await BuildCategoryFolderPathAsync(db, categoryId);
             
-            _logger.LogInformation("📦 Reorganizando categoría {Id}: '{OldPath}' → '{NewPath}'", categoryId, oldFolderPath, newFolderPath);
+            _logger.LogDebug("📦 Reorganizando categoría {Id}: '{OldPath}' → '{NewPath}'", categoryId, oldFolderPath, newFolderPath);
 
             // Si las rutas son iguales, no hay nada que mover
             if (oldFolderPath == newFolderPath) return;
@@ -1613,23 +1628,6 @@ public class DocumentService : IDocumentService
         FileSize = doc.FileSize
     };
 
-    private IQueryable<Document> ApplyAccessFilter(IQueryable<Document> query, string userRole)
-    {
-        var roleLevel = RoleHierarchy.GetValueOrDefault(userRole, 0);
-        
-        // SuperAdmin ve todo
-        if (roleLevel >= 5) return query;
-
-        // Filtrar por AccessLevel compatible con el rol del usuario (legacy)
-        // TODO: Migrar a sistema de matriz categoría×rol cuando esté completamente activo
-        return query.Where(d =>
-            (d.AccessLevel == DocumentAccessLevel.Public) ||
-            (d.AccessLevel == DocumentAccessLevel.Operator && roleLevel >= 1) ||
-            (d.AccessLevel == DocumentAccessLevel.Maintenance && roleLevel >= 3) ||
-            (d.AccessLevel == DocumentAccessLevel.Admin && roleLevel >= 4) ||
-            (d.AccessLevel == DocumentAccessLevel.Internal && roleLevel >= 5));
-    }
-
     /// <summary>
     /// Filtrar documentos usando la matriz de acceso categoría×rol (ISO 27001 A.9.1).
     /// Usa la tabla DocumentCategoryAccess para determinar qué categorías puede ver el rol.
@@ -1642,21 +1640,31 @@ public class DocumentService : IDocumentService
         // SuperAdmin ve todo
         if (roleLevel >= 5) return query;
 
+        // Normalizar el rol del JWT (inglés) al nombre de la Matriz (español)
+        var matrixRole = NormalizeRoleForMatrix(userRole);
+
         // Obtener las categorías que este rol puede leer
         var allowedCategoryIds = await db.DocumentCategoryAccess
-            .Where(a => a.RoleName == userRole && a.CanRead)
+            .Where(a => a.RoleName == matrixRole && a.CanRead)
             .Select(a => a.CategoryId)
             .ToListAsync();
 
-        // Si no hay configuración de acceso (tabla vacía), usar filtro legacy
-        if (allowedCategoryIds.Count == 0)
-        {
-            _logger.LogWarning("No hay configuración de acceso para rol '{Role}', usando filtro legacy", userRole);
-            return ApplyAccessFilter(query, userRole);
-        }
+        _logger.LogInformation(
+            "[Matriz Acceso] JWT role='{JwtRole}' → matrix='{MatrixRole}' → {Count} categorías permitidas: [{Ids}]",
+            userRole, matrixRole, allowedCategoryIds.Count, string.Join(", ", allowedCategoryIds));
 
-        // Filtrar: solo documentos de categorías permitidas
-        return query.Where(d => allowedCategoryIds.Contains(d.Category));
+        // Filtrar: solo documentos de categorías explícitamente permitidas en la Matriz.
+        // Si el rol no tiene NINGUNA categoría con CanRead=true, no ve nada (solo SuperAdmin ve todo).
+        // Además filtrar por MinimumRole: excluir docs cuyo rol mínimo es superior al nivel del usuario.
+        // Construir lista de roles que el usuario NO puede ver (nivel superior al suyo)
+        var excludedRoles = RoleHierarchy
+            .Where(kv => kv.Value > roleLevel)
+            .Select(kv => kv.Key)
+            .ToList();
+
+        return query
+            .Where(d => allowedCategoryIds.Contains(d.Category))
+            .Where(d => string.IsNullOrEmpty(d.MinimumRole) || !excludedRoles.Contains(d.MinimumRole));
     }
 
     private bool HasAccessToDocument(Document doc, string userRole)
@@ -1664,9 +1672,9 @@ public class DocumentService : IDocumentService
         var roleLevel = RoleHierarchy.GetValueOrDefault(userRole, 0);
         if (roleLevel >= 5) return true; // SuperAdmin
 
-        var requiredLevel = RoleHierarchy.GetValueOrDefault(
-            AccessLevelToRole.GetValueOrDefault(doc.AccessLevel, "Viewer"), 0);
-
+        // Verificar MinimumRole del documento (default: Visualizador si no está configurado)
+        var requiredRole = !string.IsNullOrEmpty(doc.MinimumRole) ? doc.MinimumRole : "Visualizador";
+        var requiredLevel = RoleHierarchy.GetValueOrDefault(requiredRole, 0);
         return roleLevel >= requiredLevel;
     }
 
@@ -1823,7 +1831,6 @@ public class DocumentService : IDocumentService
         SystemDocumentCategories.Technical => "Documentación Técnica",
         SystemDocumentCategories.Electrical => "Esquemas Eléctricos",
         SystemDocumentCategories.Maintenance => "Mantenimiento",
-        SystemDocumentCategories.Internal => "Interno",
         SystemDocumentCategories.Other => "Otros",
         _ => $"Categoría {category}"
     };
@@ -1836,7 +1843,6 @@ public class DocumentService : IDocumentService
         SystemDocumentCategories.Technical => "🔧",
         SystemDocumentCategories.Electrical => "⚡",
         SystemDocumentCategories.Maintenance => "🔩",
-        SystemDocumentCategories.Internal => "🔒",
         SystemDocumentCategories.Other => "📄",
         _ => "📄"
     };
@@ -2033,6 +2039,63 @@ public class DocumentService : IDocumentService
         return result;
     }
 
+    /// <summary>
+    /// Resetear la matriz de acceso a los defaults ISO 27001 (principio de menor privilegio).
+    /// Sobrescribe TODOS los valores existentes en DocumentCategoryAccess.
+    /// </summary>
+    public async Task<int> ResetCategoryAccessToDefaultsAsync(string userName)
+    {
+        using var db = _dbFactory.CreateDbContext();
+
+        // Defaults restrictivos (ISO 27001 A.9.1 — menor privilegio)
+        var defaultAccess = new Dictionary<string, HashSet<int>>
+        {
+            { "Administrador", new() { 0, 1, 2, 3, 4, 5, 7 } },
+            { "Mantenimiento", new() { 2, 3, 4, 5, 7 } },
+            { "Auditor", new() { 0, 1, 2, 3, 7 } },
+            { "Operador", new() { 2, 7 } },
+            { "Visualizador", new() { 2, 7 } },
+        };
+
+        // Obtener todas las categorías
+        var allCategories = await db.DocumentCategories.Select(c => c.Id).ToListAsync();
+        int updated = 0;
+
+        foreach (var catId in allCategories)
+        {
+            foreach (var (role, allowedCats) in defaultAccess)
+            {
+                bool canRead = allowedCats.Contains(catId);
+                var existing = await db.DocumentCategoryAccess
+                    .FirstOrDefaultAsync(a => a.CategoryId == catId && a.RoleName == role);
+
+                if (existing != null)
+                {
+                    existing.CanRead = canRead;
+                    existing.UpdatedBy = userName;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    db.DocumentCategoryAccess.Add(new DocumentCategoryAccess
+                    {
+                        CategoryId = catId,
+                        RoleName = role,
+                        CanRead = canRead,
+                        UpdatedBy = userName,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+                updated++;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        _logger.LogWarning("🔒 Matriz de acceso reseteada a defaults ISO 27001 por {User}: {Count} entradas actualizadas",
+            userName, updated);
+        return updated;
+    }
+
     #endregion
 
     #region Upload / Download de ficheros
@@ -2132,6 +2195,18 @@ public class DocumentService : IDocumentService
             using var memStream = new MemoryStream();
             await fileStream.CopyToAsync(memStream);
             var fileBytes = memStream.ToArray();
+
+            // Validar que se recibió contenido real (proteción contra uploads corruptos)
+            if (fileBytes.Length == 0 || fileBytes.Length < fileSize * 0.5)
+            {
+                _logger.LogWarning("Upload corrupto: se esperaban {Expected} bytes, se recibieron {Actual}", fileSize, fileBytes.Length);
+                return new DocumentOperationResponse
+                {
+                    Success = false,
+                    Message = $"Error: fichero corrupto o vacío. Se esperaban {fileSize / 1024} KB, se recibieron {fileBytes.Length / 1024} KB. Reintente la subida."
+                };
+            }
+
             await File.WriteAllBytesAsync(absolutePath, fileBytes);
 
             var hash = ComputeSha256(fileBytes);
@@ -2153,7 +2228,7 @@ public class DocumentService : IDocumentService
                 Scope = DocumentScope.Project,
                 Category = category,
                 AccessLevel = DocumentAccessLevel.Public,
-                MinimumRole = minimumRole ?? "Visualizador",
+                MinimumRole = minimumRole ?? "Administrador", // Restrictivo por defecto
                 ClassificationId = classificationId ?? 0,
                 Version = "1.0",
                 Status = DocumentStatus.Draft,
@@ -2192,6 +2267,136 @@ public class DocumentService : IDocumentService
             _logger.LogError(ex, "Error subiendo fichero {FileName}", fileName);
             try { if (File.Exists(absolutePath)) File.Delete(absolutePath); } catch { }
             return new DocumentOperationResponse { Success = false, Message = $"Error subiendo fichero: {ex.Message}" };
+        }
+    }
+
+    /// <summary>
+    /// Importar un fichero a un documento existente.
+    /// - Si doc es Markdown y fichero es .docx → convierte DOCX→MD y reemplaza contenido
+    /// - Si doc es Markdown y fichero es .md → reemplaza contenido directamente
+    /// - Otros: reemplaza fichero en disco y actualiza metadatos
+    /// </summary>
+    public async Task<DocumentOperationResponse> ImportFileAsync(
+        string documentId, Stream fileStream, string fileName, long fileSize,
+        string userName, string userRole)
+    {
+        try
+        {
+            if (fileSize > MaxFileSize)
+                return new DocumentOperationResponse { Success = false, Message = $"El fichero excede {MaxFileSize / 1024 / 1024} MB" };
+
+            using var db = _dbFactory.CreateDbContext();
+            var doc = await db.Documents.FirstOrDefaultAsync(d => d.Id == documentId);
+            if (doc == null)
+                return new DocumentOperationResponse { Success = false, Message = "Documento no encontrado" };
+
+            if (!HasAccessToDocument(doc, userRole))
+                return new DocumentOperationResponse { Success = false, Message = "Sin acceso al documento" };
+
+            var ext = Path.GetExtension(fileName).ToLowerInvariant();
+            var importFileType = ExtToFileType.GetValueOrDefault(ext, DocumentFileType.Other);
+
+            // Leer fichero a memoria
+            using var memStream = new MemoryStream();
+            await fileStream.CopyToAsync(memStream);
+            var fileBytes = memStream.ToArray();
+
+            string importNote;
+
+            if (doc.FileType == DocumentFileType.Markdown)
+            {
+                // ── Importar contenido a documento Markdown ──
+                string newContent;
+                if (importFileType == DocumentFileType.Docx)
+                {
+                    // DOCX → Markdown
+                    using var docxStream = new MemoryStream(fileBytes);
+                    newContent = _exportService.ConvertDocxToMarkdown(docxStream);
+                    importNote = $"Importado desde DOCX: {fileName}";
+                }
+                else if (importFileType == DocumentFileType.Markdown || ext == ".txt")
+                {
+                    // MD/TXT → directo
+                    newContent = System.Text.Encoding.UTF8.GetString(fileBytes);
+                    importNote = $"Importado desde: {fileName}";
+                }
+                else
+                {
+                    return new DocumentOperationResponse
+                    {
+                        Success = false,
+                        Message = $"No se puede importar '{ext}' a un documento Markdown. Formatos válidos: .docx, .md, .txt"
+                    };
+                }
+
+                // Guardar contenido Markdown al fichero existente
+                var absolutePath = ResolveDocFilePath(doc.FilePath);
+                if (absolutePath == null)
+                    return new DocumentOperationResponse { Success = false, Message = "No se pudo resolver la ruta del documento" };
+
+                await File.WriteAllTextAsync(absolutePath, newContent, System.Text.Encoding.UTF8);
+                doc.ContentHash = ComputeSha256(System.Text.Encoding.UTF8.GetBytes(newContent));
+                doc.FileSize = new System.IO.FileInfo(absolutePath).Length;
+            }
+            else
+            {
+                // ── Reemplazar fichero binario (PDF, DOCX, imagen, etc.) ──
+                if (importFileType != doc.FileType)
+                    return new DocumentOperationResponse
+                    {
+                        Success = false,
+                        Message = $"Tipo de fichero incompatible: se esperaba {doc.FileType}, se recibió {importFileType} ({ext})"
+                    };
+
+                var absolutePath = ResolveDocFilePath(doc.FilePath);
+                if (absolutePath == null)
+                    return new DocumentOperationResponse { Success = false, Message = "No se pudo resolver la ruta del documento" };
+
+                await File.WriteAllBytesAsync(absolutePath, fileBytes);
+                doc.ContentHash = ComputeSha256(fileBytes);
+                doc.FileSize = fileBytes.Length;
+                importNote = $"Fichero reemplazado: {fileName} ({fileBytes.Length / 1024} KB)";
+            }
+
+            // Incrementar versión
+            var currentVersion = doc.Version ?? "1.0";
+            if (Version.TryParse(currentVersion, out var ver))
+                doc.Version = $"{ver.Major}.{ver.Minor + 1}";
+            else
+                doc.Version = currentVersion + ".1";
+
+            doc.UpdatedBy = userName;
+            doc.UpdatedAt = DateTime.UtcNow;
+            doc.Status = DocumentStatus.Draft;
+
+            // Historial
+            db.DocumentHistories.Add(new DocumentHistory
+            {
+                DocumentId = doc.Id,
+                Version = doc.Version,
+                Action = "imported",
+                ChangedBy = userName,
+                ChangedAt = DateTime.UtcNow,
+                ContentHash = doc.ContentHash,
+                ChangeNote = importNote
+            });
+
+            await db.SaveChangesAsync();
+
+            _logger.LogInformation("📥 Importado {FileName} → documento {DocId} v{Version} por {User}",
+                fileName, doc.Id, doc.Version, userName);
+
+            return new DocumentOperationResponse
+            {
+                Success = true,
+                Message = $"Importado '{fileName}' correctamente → v{doc.Version}",
+                Document = MapToInfo(doc)
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error importando fichero {FileName} a documento {DocId}", fileName, documentId);
+            return new DocumentOperationResponse { Success = false, Message = $"Error importando: {ex.Message}" };
         }
     }
 

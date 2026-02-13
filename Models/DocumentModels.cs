@@ -44,7 +44,7 @@ public static class SystemDocumentCategories
     public const int Technical = 3;
     public const int Electrical = 4;
     public const int Maintenance = 5;
-    public const int Internal = 6;
+    // ID 6 eliminado ("Interno" generaba confusión con Clasificación ISO "Interno")
     public const int Other = 7;
 }
 
