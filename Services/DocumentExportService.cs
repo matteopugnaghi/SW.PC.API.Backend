@@ -45,6 +45,9 @@ public interface IDocumentExportService
 
     /// <summary>Convertir Markdown a DOCX. Devuelve MemoryStream posicionado en 0.</summary>
     Stream ExportToDocx(string markdownContent, string title);
+
+    /// <summary>Convertir un fichero DOCX a HTML para previsualización inline.</summary>
+    string ConvertDocxToHtml(string docxPath);
 }
 
 /// <summary>
@@ -691,5 +694,115 @@ public class DocumentExportService : IDocumentExportService
                 sb.Append(GetInlineText(link));
         }
         return sb.ToString();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  DOCX → HTML — Previsualización inline
+    // ════════════════════════════════════════════════════════════════════════
+
+    public string ConvertDocxToHtml(string docxPath)
+    {
+        try
+        {
+            using var doc = WordprocessingDocument.Open(docxPath, false);
+            var body = doc.MainDocumentPart?.Document.Body;
+            if (body == null) return "<p><em>Documento vacío</em></p>";
+
+            var sb = new StringBuilder();
+            foreach (var element in body.Elements())
+            {
+                switch (element)
+                {
+                    case Paragraph para:
+                        RenderDocxParaToHtml(sb, para);
+                        break;
+                    case OxTable table:
+                        RenderDocxTableToHtml(sb, table);
+                        break;
+                }
+            }
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error convirtiendo DOCX a HTML: {Path}", docxPath);
+            return $"<p style=\"color:#f87171;\">Error leyendo DOCX: {System.Web.HttpUtility.HtmlEncode(ex.Message)}</p>";
+        }
+    }
+
+    private void RenderDocxParaToHtml(StringBuilder sb, Paragraph para)
+    {
+        // Detectar heading por styleId
+        var styleId = para.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
+        var tag = "p";
+        if (!string.IsNullOrEmpty(styleId))
+        {
+            var lower = styleId.ToLower();
+            if (lower.StartsWith("heading") || lower.StartsWith("ttulo"))
+            {
+                var lastChar = lower[^1];
+                if (char.IsDigit(lastChar) && lastChar >= '1' && lastChar <= '6')
+                    tag = $"h{lastChar}";
+            }
+        }
+
+        // Comprobar si el párrafo tiene texto
+        var runs = para.Elements<OxRun>().ToList();
+        if (runs.Count == 0 && !para.Elements<Hyperlink>().Any())
+        {
+            sb.AppendLine("<br/>");
+            return;
+        }
+
+        sb.Append($"<{tag}>");
+        foreach (var run in runs)
+        {
+            var text = run.InnerText;
+            if (string.IsNullOrEmpty(text)) continue;
+
+            var rp = run.RunProperties;
+            var encoded = System.Web.HttpUtility.HtmlEncode(text);
+
+            bool isBold = rp?.GetFirstChild<OxBold>() != null;
+            bool isItalic = rp?.GetFirstChild<OxItalic>() != null;
+            bool isUnderline = rp?.GetFirstChild<OxUnderline>() != null;
+            var fontFamily = rp?.GetFirstChild<RunFonts>()?.Ascii?.Value;
+            bool isCode = fontFamily != null && (fontFamily.Contains("Consolas") || fontFamily.Contains("Courier"));
+
+            if (isCode) sb.Append("<code>");
+            if (isBold) sb.Append("<strong>");
+            if (isItalic) sb.Append("<em>");
+            if (isUnderline) sb.Append("<u>");
+
+            sb.Append(encoded);
+
+            if (isUnderline) sb.Append("</u>");
+            if (isItalic) sb.Append("</em>");
+            if (isBold) sb.Append("</strong>");
+            if (isCode) sb.Append("</code>");
+        }
+        sb.AppendLine($"</{tag}>");
+    }
+
+    private void RenderDocxTableToHtml(StringBuilder sb, OxTable table)
+    {
+        sb.AppendLine("<table style=\"border-collapse:collapse;width:100%;margin:12px 0;\">");
+        bool isFirstRow = true;
+        foreach (var row in table.Elements<OxTableRow>())
+        {
+            sb.Append("<tr>");
+            var cellTag = isFirstRow ? "th" : "td";
+            foreach (var cell in row.Elements<OxTableCell>())
+            {
+                var cellText = System.Web.HttpUtility.HtmlEncode(cell.InnerText);
+                var bgStyle = isFirstRow
+                    ? "background:rgba(100,130,200,0.15);font-weight:bold;"
+                    : "";
+                sb.Append($"<{cellTag} style=\"border:1px solid rgba(255,255,255,0.15);padding:6px 10px;{bgStyle}\">{cellText}</{cellTag}>");
+            }
+            sb.AppendLine("</tr>");
+            isFirstRow = false;
+        }
+        sb.AppendLine("</table>");
     }
 }

@@ -1549,8 +1549,29 @@ public class DocumentService : IDocumentService
             var absolutePath = ResolveDocFilePath(doc.FilePath);
             if (absolutePath != null)
             {
-                detail.RawContent = await File.ReadAllTextAsync(absolutePath, Encoding.UTF8);
-                detail.HtmlContent = RenderMarkdownToHtml(detail.RawContent);
+                switch (doc.FileType)
+                {
+                    case DocumentFileType.Markdown:
+                    case DocumentFileType.Json:
+                    case DocumentFileType.Other:
+                        // Ficheros de texto: leer y renderizar como Markdown/HTML
+                        detail.RawContent = await File.ReadAllTextAsync(absolutePath, Encoding.UTF8);
+                        detail.HtmlContent = RenderMarkdownToHtml(detail.RawContent);
+                        break;
+
+                    case DocumentFileType.Docx:
+                        // DOCX: convertir a HTML para previsualización inline
+                        detail.HtmlContent = _exportService.ConvertDocxToHtml(absolutePath);
+                        detail.RawContent = null; // binario — no tiene rawContent
+                        break;
+
+                    case DocumentFileType.Pdf:
+                    case DocumentFileType.Image:
+                        // PDF/Image: no leer contenido — el frontend usa el endpoint de descarga
+                        detail.HtmlContent = null;
+                        detail.RawContent = null;
+                        break;
+                }
             }
         }
         catch (Exception ex)
