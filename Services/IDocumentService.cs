@@ -120,4 +120,7 @@ public interface IDocumentService
 
     /// <summary>Obtener el stream de un fichero para descarga (exportFormat: null=original, "pdf", "docx")</summary>
     Task<(Stream? FileStream, string? ContentType, string? FileName)?> DownloadFileAsync(string documentId, string userRole, string? exportFormat = null);
+
+    /// <summary>Previsualización de un documento Markdown como HTML con estilo PDF o Word</summary>
+    Task<string?> PreviewAsFormatAsync(string documentId, string userRole, string format);
 }

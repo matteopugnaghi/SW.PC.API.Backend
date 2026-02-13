@@ -335,6 +335,27 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
+    /// Previsualización de documento Markdown en formato Word (HTML renderizado)
+    /// GET /api/documents/{id}/preview?format=docx
+    /// </summary>
+    [HttpGet("{id}/preview")]
+    public async Task<IActionResult> PreviewAsFormat(string id, [FromQuery] string format = "docx")
+    {
+        try
+        {
+            var html = await _documentService.PreviewAsFormatAsync(id, UserRole, format);
+            if (html == null)
+                return NotFound(new { message = "Documento no encontrado, sin acceso, o formato no soportado" });
+            return Ok(new { html });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error en GET /api/documents/{Id}/preview (format={Format})", id, format);
+            return StatusCode(500, new { error = "Error generando preview", details = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Sincronizar filesystem → DB (escanea docs/ y registra ficheros nuevos)
     /// POST /api/documents/sync
     /// </summary>

@@ -2247,5 +2247,44 @@ public class DocumentService : IDocumentService
         }
     }
 
+    /// <summary>
+    /// Genera una previsualización HTML de un documento Markdown convertido a DOCX.
+    /// Cadena: MD → DOCX (en memoria) → HTML
+    /// </summary>
+    public async Task<string?> PreviewAsFormatAsync(string documentId, string userRole, string format)
+    {
+        try
+        {
+            using var db = _dbFactory.CreateDbContext();
+            var doc = await db.Documents.FirstOrDefaultAsync(d => d.Id == documentId);
+            if (doc == null) return null;
+            if (!HasAccessToDocument(doc, userRole)) return null;
+
+            // Solo soportamos preview para ficheros Markdown
+            if (doc.FileType != DocumentFileType.Markdown) return null;
+
+            var absolutePath = ResolveDocFilePath(doc.FilePath);
+            if (absolutePath == null || !File.Exists(absolutePath)) return null;
+
+            var mdContent = await File.ReadAllTextAsync(absolutePath, Encoding.UTF8);
+            var title = doc.Title ?? Path.GetFileNameWithoutExtension(doc.FilePath);
+
+            if (format.Equals("docx", StringComparison.OrdinalIgnoreCase))
+            {
+                // MD → DOCX (memory stream) → HTML
+                using var docxStream = _exportService.ExportToDocx(mdContent, title);
+                return _exportService.ConvertDocxToHtml(docxStream);
+            }
+
+            // Formato no soportado para preview
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generando preview {Format} para {DocumentId}", format, documentId);
+            return null;
+        }
+    }
+
     #endregion
 }

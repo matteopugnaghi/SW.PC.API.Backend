@@ -48,6 +48,9 @@ public interface IDocumentExportService
 
     /// <summary>Convertir un fichero DOCX a HTML para previsualización inline.</summary>
     string ConvertDocxToHtml(string docxPath);
+
+    /// <summary>Convertir un stream DOCX a HTML para previsualización inline.</summary>
+    string ConvertDocxToHtml(Stream docxStream);
 }
 
 /// <summary>
@@ -704,7 +707,21 @@ public class DocumentExportService : IDocumentExportService
     {
         try
         {
-            using var doc = WordprocessingDocument.Open(docxPath, false);
+            using var stream = new FileStream(docxPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return ConvertDocxToHtml(stream);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error convirtiendo DOCX a HTML: {Path}", docxPath);
+            return $"<p style=\"color:#f87171;\">Error leyendo DOCX: {System.Web.HttpUtility.HtmlEncode(ex.Message)}</p>";
+        }
+    }
+
+    public string ConvertDocxToHtml(Stream docxStream)
+    {
+        try
+        {
+            using var doc = WordprocessingDocument.Open(docxStream, false);
             var body = doc.MainDocumentPart?.Document.Body;
             if (body == null) return "<p><em>Documento vacío</em></p>";
 
@@ -725,7 +742,7 @@ public class DocumentExportService : IDocumentExportService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error convirtiendo DOCX a HTML: {Path}", docxPath);
+            _logger.LogError(ex, "Error convirtiendo DOCX stream a HTML");
             return $"<p style=\"color:#f87171;\">Error leyendo DOCX: {System.Web.HttpUtility.HtmlEncode(ex.Message)}</p>";
         }
     }
