@@ -313,15 +313,15 @@ public class DocumentsController : ControllerBase
     }
 
     /// <summary>
-    /// Descargar fichero de un documento
-    /// GET /api/documents/{id}/download
+    /// Descargar fichero de un documento (opcionalmente convertido a PDF o DOCX)
+    /// GET /api/documents/{id}/download?format=pdf|docx
     /// </summary>
     [HttpGet("{id}/download")]
-    public async Task<IActionResult> DownloadFile(string id)
+    public async Task<IActionResult> DownloadFile(string id, [FromQuery] string? format = null)
     {
         try
         {
-            var result = await _documentService.DownloadFileAsync(id, UserRole);
+            var result = await _documentService.DownloadFileAsync(id, UserRole, format);
             if (result == null || result.Value.FileStream == null)
                 return NotFound(new { message = "Fichero no encontrado o sin acceso" });
 
@@ -329,7 +329,7 @@ public class DocumentsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error en GET /api/documents/{Id}/download", id);
+            _logger.LogError(ex, "Error en GET /api/documents/{Id}/download (format={Format})", id, format ?? "original");
             return StatusCode(500, new { error = "Error descargando fichero", details = ex.Message });
         }
     }

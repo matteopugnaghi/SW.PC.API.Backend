@@ -24,6 +24,7 @@ public class DocumentService : IDocumentService
     private readonly IProjectContextService _globalContext;
     private readonly IRequestProjectContext _requestContext;
     private readonly MarkdownPipeline _markdownPipeline;
+    private readonly IDocumentExportService _exportService;
     private readonly string _contentRootPath;
 
     // (CategoryFolders estático eliminado — las carpetas se resuelven dinámicamente desde la DB)
@@ -58,13 +59,15 @@ public class DocumentService : IDocumentService
         IProjectDbContextFactory dbFactory,
         IProjectContextService globalContext,
         IRequestProjectContext requestContext,
-        IWebHostEnvironment environment)
+        IWebHostEnvironment environment,
+        IDocumentExportService exportService)
     {
         _logger = logger;
         _dbFactory = dbFactory;
         _globalContext = globalContext;
         _requestContext = requestContext;
         _contentRootPath = environment.ContentRootPath;
+        _exportService = exportService;
         
         // Configurar pipeline de Markdig con extensiones comunes
         _markdownPipeline = new MarkdownPipelineBuilder()
@@ -2171,7 +2174,7 @@ public class DocumentService : IDocumentService
         }
     }
 
-    public async Task<(Stream? FileStream, string? ContentType, string? FileName)?> DownloadFileAsync(string documentId, string userRole)
+    public async Task<(Stream? FileStream, string? ContentType, string? FileName)?> DownloadFileAsync(string documentId, string userRole, string? exportFormat = null)
     {
         try
         {
@@ -2189,16 +2192,36 @@ public class DocumentService : IDocumentService
             }
 
             var ext = Path.GetExtension(doc.FilePath).ToLower();
-            var contentType = ExtToMime.GetValueOrDefault(ext, "application/octet-stream");
             var originalFileName = Path.GetFileName(doc.FilePath);
+            var docTitle = doc.Title ?? Path.GetFileNameWithoutExtension(doc.FilePath);
 
-            // Abrir stream de lectura (el controller se encargará de cerrarlo)
+            // ── Conversión de formato (solo para fuentes Markdown) ──
+            if (!string.IsNullOrEmpty(exportFormat) && ext == ".md")
+            {
+                var mdContent = await File.ReadAllTextAsync(absolutePath);
+
+                switch (exportFormat.ToLower())
+                {
+                    case "pdf":
+                        var pdfStream = _exportService.ExportToPdf(mdContent, docTitle);
+                        var pdfName = Path.ChangeExtension(originalFileName, ".pdf");
+                        return (pdfStream, "application/pdf", pdfName);
+
+                    case "docx":
+                        var docxStream = _exportService.ExportToDocx(mdContent, docTitle);
+                        var docxName = Path.ChangeExtension(originalFileName, ".docx");
+                        return (docxStream, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docxName);
+                }
+            }
+
+            // ── Fichero original (sin conversión) ──
+            var contentType = ExtToMime.GetValueOrDefault(ext, "application/octet-stream");
             var stream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read);
             return (stream, contentType, originalFileName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error descargando fichero {DocumentId}", documentId);
+            _logger.LogError(ex, "Error descargando fichero {DocumentId} (formato: {Format})", documentId, exportFormat ?? "original");
             return null;
         }
     }

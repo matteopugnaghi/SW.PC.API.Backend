@@ -8,6 +8,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
+// QuestPDF — licencia Community (requerida antes de cualquier uso)
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -186,6 +189,11 @@ builder.Services.AddSingleton<IEtherCATDiagnosticsService, EtherCATDiagnosticsSe
 // ═══════════════════════════════════════════════════════════════════════════════
 builder.Services.AddSingleton<IBackupCertificateService, BackupCertificateService>(); // 🔐 Certificados de backup
 builder.Services.AddScoped<IBackupService, BackupService>(); // 💾 Servicio de backup/restore
+
+// 📄 DMS: Sistema de Gestión Documental (EU CRA - Trazabilidad documental)
+// ═══════════════════════════════════════════════════════════════════════════════
+builder.Services.AddSingleton<IDocumentExportService, DocumentExportService>(); // 📄 Exportación MD→PDF/DOCX
+builder.Services.AddScoped<IDocumentService, DocumentService>(); // 📄 Servicio de gestión documental
 
 // Register HttpClient for Vulnerability Scanner
 builder.Services.AddHttpClient("VulnerabilityScanner", client =>

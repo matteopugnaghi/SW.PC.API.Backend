@@ -118,6 +118,6 @@ public interface IDocumentService
     /// <summary>Subir un fichero (PDF, DOCX, imagen, etc.) al DMS</summary>
     Task<DocumentOperationResponse> UploadFileAsync(Stream fileStream, string fileName, long fileSize, int category, string? description, string? minimumRole, int? classificationId, string userName, string userRole);
 
-    /// <summary>Obtener el stream de un fichero para descarga</summary>
-    Task<(Stream? FileStream, string? ContentType, string? FileName)?> DownloadFileAsync(string documentId, string userRole);
+    /// <summary>Obtener el stream de un fichero para descarga (exportFormat: null=original, "pdf", "docx")</summary>
+    Task<(Stream? FileStream, string? ContentType, string? FileName)?> DownloadFileAsync(string documentId, string userRole, string? exportFormat = null);
 }
