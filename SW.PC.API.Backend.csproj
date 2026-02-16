@@ -32,6 +32,14 @@
     <PackageReference Include="System.Management" Version="10.0.0" />
   </ItemGroup>
 
+  <!-- Excluir carpeta de tests (proyecto separado) -->
+  <ItemGroup>
+    <Compile Remove="Tests\**" />
+    <Content Remove="Tests\**" />
+    <EmbeddedResource Remove="Tests\**" />
+    <None Remove="Tests\**" />
+  </ItemGroup>
+
   <!-- Excluir carpetas de desarrollo de wwwroot del publish -->
   <ItemGroup>
     <!-- Estos archivos/carpetas se generan en runtime o son solo para desarrollo -->
