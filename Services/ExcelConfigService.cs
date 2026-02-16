@@ -1,4 +1,4 @@
-using OfficeOpenXml;
+using ClosedXML.Excel;
 using SW.PC.API.Backend.Models.Excel;
 using SW.PC.API.Backend.Models;
 
@@ -126,10 +126,13 @@ namespace SW.PC.API.Backend.Services
                 Directory.CreateDirectory(_configFolder);
                 _logger.LogInformation("📁 ExcelConfigService: Created ExcelConfigs folder (development mode)");
             }
-            
-            // Configurar licencia EPPlus (NonCommercial o Commercial)
-            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
         }
+        
+        /// <summary>
+        /// Helper: Get worksheet by name, returns null if not found (ClosedXML compatibility)
+        /// </summary>
+        private static IXLWorksheet? FindWorksheet(XLWorkbook workbook, string name)
+            => workbook.TryGetWorksheet(name, out var ws) ? ws : null;
         
         /// <summary>
         /// Configura el servicio de contexto de proyecto para soporte multi-proyecto.
@@ -217,17 +220,17 @@ namespace SW.PC.API.Backend.Services
                 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using (var stream = OpenExcelFileWithRetry(fullPath))
-                using (var package = new ExcelPackage(stream))
+                using (var package = new XLWorkbook(stream))
                 {
                     // Leer hoja de información general
-                    var generalSheet = package.Workbook.Worksheets["General"];
+                    var generalSheet = FindWorksheet(package, "General");
                     if (generalSheet != null)
                     {
-                        config.ProjectName = generalSheet.Cells["B1"].Text;
-                        config.ProjectCode = generalSheet.Cells["B2"].Text;
-                        config.Customer = generalSheet.Cells["B3"].Text;
+                        config.ProjectName = generalSheet.Cell("B1").GetString();
+                        config.ProjectCode = generalSheet.Cell("B2").GetString();
+                        config.Customer = generalSheet.Cell("B3").GetString();
                         
-                        if (DateTime.TryParse(generalSheet.Cells["B4"].Text, out var date))
+                        if (DateTime.TryParse(generalSheet.Cell("B4").GetString(), out var date))
                         {
                             config.CreatedDate = date;
                         }
@@ -259,90 +262,90 @@ namespace SW.PC.API.Backend.Services
             {
                 var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
                 
-                using (var package = new ExcelPackage())
+                using (var package = new XLWorkbook())
                 {
                     // Crear hoja General
-                    var generalSheet = package.Workbook.Worksheets.Add("General");
-                    generalSheet.Cells["A1"].Value = "Project Name:";
-                    generalSheet.Cells["B1"].Value = config.ProjectName;
-                    generalSheet.Cells["A2"].Value = "Project Code:";
-                    generalSheet.Cells["B2"].Value = config.ProjectCode;
-                    generalSheet.Cells["A3"].Value = "Customer:";
-                    generalSheet.Cells["B3"].Value = config.Customer;
-                    generalSheet.Cells["A4"].Value = "Created Date:";
-                    generalSheet.Cells["B4"].Value = config.CreatedDate;
+                    var generalSheet = package.Worksheets.Add("General");
+                    generalSheet.Cell("A1").Value = "Project Name:";
+                    generalSheet.Cell("B1").Value = config.ProjectName;
+                    generalSheet.Cell("A2").Value = "Project Code:";
+                    generalSheet.Cell("B2").Value = config.ProjectCode;
+                    generalSheet.Cell("A3").Value = "Customer:";
+                    generalSheet.Cell("B3").Value = config.Customer;
+                    generalSheet.Cell("A4").Value = "Created Date:";
+                    generalSheet.Cell("B4").Value = config.CreatedDate;
                     
                     // Crear hoja de Variables PLC
-                    var plcSheet = package.Workbook.Worksheets.Add("PLC_Variables");
-                    plcSheet.Cells["A1"].Value = "Variable Name";
-                    plcSheet.Cells["B1"].Value = "Symbol Path";
-                    plcSheet.Cells["C1"].Value = "Data Type";
-                    plcSheet.Cells["D1"].Value = "Access Mode";
-                    plcSheet.Cells["E1"].Value = "Update Rate (ms)";
-                    plcSheet.Cells["F1"].Value = "Description";
+                    var plcSheet = package.Worksheets.Add("PLC_Variables");
+                    plcSheet.Cell("A1").Value = "Variable Name";
+                    plcSheet.Cell("B1").Value = "Symbol Path";
+                    plcSheet.Cell("C1").Value = "Data Type";
+                    plcSheet.Cell("D1").Value = "Access Mode";
+                    plcSheet.Cell("E1").Value = "Update Rate (ms)";
+                    plcSheet.Cell("F1").Value = "Description";
                     
                     int row = 2;
                     foreach (var variable in config.PlcVariables)
                     {
-                        plcSheet.Cells[$"A{row}"].Value = variable.VariableName;
-                        plcSheet.Cells[$"B{row}"].Value = variable.SymbolPath;
-                        plcSheet.Cells[$"C{row}"].Value = variable.DataType;
-                        plcSheet.Cells[$"D{row}"].Value = variable.AccessMode;
-                        plcSheet.Cells[$"E{row}"].Value = variable.UpdateRateMs;
-                        plcSheet.Cells[$"F{row}"].Value = variable.Description;
+                        plcSheet.Cell($"A{row}").Value = variable.VariableName;
+                        plcSheet.Cell($"B{row}").Value = variable.SymbolPath;
+                        plcSheet.Cell($"C{row}").Value = variable.DataType;
+                        plcSheet.Cell($"D{row}").Value = variable.AccessMode;
+                        plcSheet.Cell($"E{row}").Value = variable.UpdateRateMs;
+                        plcSheet.Cell($"F{row}").Value = variable.Description;
                         row++;
                     }
                     
                     // Crear hoja de Pantallas HMI
-                    var hmiSheet = package.Workbook.Worksheets.Add("HMI_Screens");
-                    hmiSheet.Cells["A1"].Value = "Screen ID";
-                    hmiSheet.Cells["B1"].Value = "Screen Name";
-                    hmiSheet.Cells["C1"].Value = "Title";
-                    hmiSheet.Cells["D1"].Value = "Display Order";
-                    hmiSheet.Cells["E1"].Value = "Is Enabled";
-                    hmiSheet.Cells["F1"].Value = "Icon Name";
+                    var hmiSheet = package.Worksheets.Add("HMI_Screens");
+                    hmiSheet.Cell("A1").Value = "Screen ID";
+                    hmiSheet.Cell("B1").Value = "Screen Name";
+                    hmiSheet.Cell("C1").Value = "Title";
+                    hmiSheet.Cell("D1").Value = "Display Order";
+                    hmiSheet.Cell("E1").Value = "Is Enabled";
+                    hmiSheet.Cell("F1").Value = "Icon Name";
                     
                     row = 2;
                     foreach (var screen in config.Screens)
                     {
-                        hmiSheet.Cells[$"A{row}"].Value = screen.ScreenId;
-                        hmiSheet.Cells[$"B{row}"].Value = screen.ScreenName;
-                        hmiSheet.Cells[$"C{row}"].Value = screen.Title;
-                        hmiSheet.Cells[$"D{row}"].Value = screen.DisplayOrder;
-                        hmiSheet.Cells[$"E{row}"].Value = screen.IsEnabled;
-                        hmiSheet.Cells[$"F{row}"].Value = screen.IconName;
+                        hmiSheet.Cell($"A{row}").Value = screen.ScreenId;
+                        hmiSheet.Cell($"B{row}").Value = screen.ScreenName;
+                        hmiSheet.Cell($"C{row}").Value = screen.Title;
+                        hmiSheet.Cell($"D{row}").Value = screen.DisplayOrder;
+                        hmiSheet.Cell($"E{row}").Value = screen.IsEnabled;
+                        hmiSheet.Cell($"F{row}").Value = screen.IconName;
                         row++;
                     }
                     
                     // Crear hoja de Modelos 3D
-                    var modelsSheet = package.Workbook.Worksheets.Add("3D_Models");
-                    modelsSheet.Cells["A1"].Value = "Model ID";
-                    modelsSheet.Cells["B1"].Value = "Model Name";
-                    modelsSheet.Cells["C1"].Value = "File Name";
-                    modelsSheet.Cells["D1"].Value = "File Type";
-                    modelsSheet.Cells["E1"].Value = "Description";
-                    modelsSheet.Cells["F1"].Value = "Category";
-                    modelsSheet.Cells["G1"].Value = "Associated Screen";
-                    modelsSheet.Cells["H1"].Value = "Is Enabled";
-                    modelsSheet.Cells["I1"].Value = "Display Order";
+                    var modelsSheet = package.Worksheets.Add("3D_Models");
+                    modelsSheet.Cell("A1").Value = "Model ID";
+                    modelsSheet.Cell("B1").Value = "Model Name";
+                    modelsSheet.Cell("C1").Value = "File Name";
+                    modelsSheet.Cell("D1").Value = "File Type";
+                    modelsSheet.Cell("E1").Value = "Description";
+                    modelsSheet.Cell("F1").Value = "Category";
+                    modelsSheet.Cell("G1").Value = "Associated Screen";
+                    modelsSheet.Cell("H1").Value = "Is Enabled";
+                    modelsSheet.Cell("I1").Value = "Display Order";
                     
                     row = 2;
                     foreach (var model in config.Models3D)
                     {
-                        modelsSheet.Cells[$"A{row}"].Value = model.ModelId;
-                        modelsSheet.Cells[$"B{row}"].Value = model.ModelName;
-                        modelsSheet.Cells[$"C{row}"].Value = model.FileName;
-                        modelsSheet.Cells[$"D{row}"].Value = model.FileType;
-                        modelsSheet.Cells[$"E{row}"].Value = model.Description;
-                        modelsSheet.Cells[$"F{row}"].Value = model.Category;
-                        modelsSheet.Cells[$"G{row}"].Value = model.AssociatedScreen;
-                        modelsSheet.Cells[$"H{row}"].Value = model.IsEnabled;
-                        modelsSheet.Cells[$"I{row}"].Value = model.DisplayOrder;
+                        modelsSheet.Cell($"A{row}").Value = model.ModelId;
+                        modelsSheet.Cell($"B{row}").Value = model.ModelName;
+                        modelsSheet.Cell($"C{row}").Value = model.FileName;
+                        modelsSheet.Cell($"D{row}").Value = model.FileType;
+                        modelsSheet.Cell($"E{row}").Value = model.Description;
+                        modelsSheet.Cell($"F{row}").Value = model.Category;
+                        modelsSheet.Cell($"G{row}").Value = model.AssociatedScreen;
+                        modelsSheet.Cell($"H{row}").Value = model.IsEnabled;
+                        modelsSheet.Cell($"I{row}").Value = model.DisplayOrder;
                         row++;
                     }
                     
                     // Guardar archivo
-                    await package.SaveAsAsync(new FileInfo(fullPath));
+                    package.SaveAs(fullPath);
                 }
                 
                 _logger.LogInformation("Project configuration saved successfully to {FilePath}", fullPath);
@@ -361,7 +364,7 @@ namespace SW.PC.API.Backend.Services
             
             // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
             using (var stream = OpenExcelFileWithRetry(fullPath))
-            using (var package = new ExcelPackage(stream))
+            using (var package = new XLWorkbook(stream))
             {
                 return await LoadPlcVariablesFromSheetAsync(package);
             }
@@ -373,7 +376,7 @@ namespace SW.PC.API.Backend.Services
             
             // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
             using (var stream = OpenExcelFileWithRetry(fullPath))
-            using (var package = new ExcelPackage(stream))
+            using (var package = new XLWorkbook(stream))
             {
                 return await LoadHMIScreensFromSheetAsync(package);
             }
@@ -383,16 +386,16 @@ namespace SW.PC.API.Backend.Services
         {
             var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
             
-            using (var package = new ExcelPackage(new FileInfo(fullPath)))
+            using (var package = new XLWorkbook(fullPath))
             {
                 return await LoadModels3DFromSheetAsync(package);
             }
         }*/
         
-        private async Task<List<PlcVariable>> LoadPlcVariablesFromSheetAsync(ExcelPackage package)
+        private async Task<List<PlcVariable>> LoadPlcVariablesFromSheetAsync(XLWorkbook package)
         {
             var variables = new List<PlcVariable>();
-            var sheet = package.Workbook.Worksheets["PLC_Variables"];
+            var sheet = FindWorksheet(package, "PLC_Variables");
             
             if (sheet == null)
             {
@@ -402,18 +405,18 @@ namespace SW.PC.API.Backend.Services
             
             // Leer desde la fila 2 (la 1 es encabezado)
             int row = 2;
-            while (!string.IsNullOrEmpty(sheet.Cells[$"A{row}"].Text))
+            while (!string.IsNullOrEmpty(sheet.Cell($"A{row}").GetString()))
             {
                 var variable = new PlcVariable
                 {
-                    VariableName = sheet.Cells[$"A{row}"].Text,
-                    SymbolPath = sheet.Cells[$"B{row}"].Text,
-                    DataType = sheet.Cells[$"C{row}"].Text,
-                    AccessMode = sheet.Cells[$"D{row}"].Text,
-                    UpdateRateMs = int.TryParse(sheet.Cells[$"E{row}"].Text, out var rate) ? rate : 1000,
-                    Description = sheet.Cells[$"F{row}"].Text,
-                    Unit = sheet.Cells[$"G{row}"].Text,
-                    LogToDatabase = sheet.Cells[$"H{row}"].Text.ToLower() == "true" || sheet.Cells[$"H{row}"].Text == "1"
+                    VariableName = sheet.Cell($"A{row}").GetString(),
+                    SymbolPath = sheet.Cell($"B{row}").GetString(),
+                    DataType = sheet.Cell($"C{row}").GetString(),
+                    AccessMode = sheet.Cell($"D{row}").GetString(),
+                    UpdateRateMs = int.TryParse(sheet.Cell($"E{row}").GetString(), out var rate) ? rate : 1000,
+                    Description = sheet.Cell($"F{row}").GetString(),
+                    Unit = sheet.Cell($"G{row}").GetString(),
+                    LogToDatabase = sheet.Cell($"H{row}").GetString().ToLower() == "true" || sheet.Cell($"H{row}").GetString() == "1"
                 };
                 
                 variables.Add(variable);
@@ -424,10 +427,10 @@ namespace SW.PC.API.Backend.Services
             return await Task.FromResult(variables);
         }
         
-        private async Task<List<HMIScreen>> LoadHMIScreensFromSheetAsync(ExcelPackage package)
+        private async Task<List<HMIScreen>> LoadHMIScreensFromSheetAsync(XLWorkbook package)
         {
             var screens = new List<HMIScreen>();
-            var sheet = package.Workbook.Worksheets["HMI_Screens"];
+            var sheet = FindWorksheet(package, "HMI_Screens");
             
             if (sheet == null)
             {
@@ -437,16 +440,16 @@ namespace SW.PC.API.Backend.Services
             
             // Leer desde la fila 2
             int row = 2;
-            while (!string.IsNullOrEmpty(sheet.Cells[$"A{row}"].Text))
+            while (!string.IsNullOrEmpty(sheet.Cell($"A{row}").GetString()))
             {
                 var screen = new HMIScreen
                 {
-                    ScreenId = sheet.Cells[$"A{row}"].Text,
-                    ScreenName = sheet.Cells[$"B{row}"].Text,
-                    Title = sheet.Cells[$"C{row}"].Text,
-                    DisplayOrder = int.TryParse(sheet.Cells[$"D{row}"].Text, out var order) ? order : 0,
-                    IsEnabled = sheet.Cells[$"E{row}"].Text.ToLower() != "false" && sheet.Cells[$"E{row}"].Text != "0",
-                    IconName = sheet.Cells[$"F{row}"].Text
+                    ScreenId = sheet.Cell($"A{row}").GetString(),
+                    ScreenName = sheet.Cell($"B{row}").GetString(),
+                    Title = sheet.Cell($"C{row}").GetString(),
+                    DisplayOrder = int.TryParse(sheet.Cell($"D{row}").GetString(), out var order) ? order : 0,
+                    IsEnabled = sheet.Cell($"E{row}").GetString().ToLower() != "false" && sheet.Cell($"E{row}").GetString() != "0",
+                    IconName = sheet.Cell($"F{row}").GetString()
                 };
                 
                 screens.Add(screen);
@@ -457,10 +460,10 @@ namespace SW.PC.API.Backend.Services
             return await Task.FromResult(screens);
         }
         
-        private async Task<List<Model3DConfig>> LoadModels3DFromSheetAsync(ExcelPackage package)
+        private async Task<List<Model3DConfig>> LoadModels3DFromSheetAsync(XLWorkbook package)
         {
             var models = new List<Model3DConfig>();
-            var sheet = package.Workbook.Worksheets["3D_Models"];
+            var sheet = FindWorksheet(package, "3D_Models");
             
             if (sheet == null)
             {
@@ -471,30 +474,30 @@ namespace SW.PC.API.Backend.Services
             // Leer desde la fila 2 (la 1 es encabezado)
             // Columnas: Model ID | Model Name | File Name | File Type | Description | Category | Associated Screen | Is Enabled | Display Order
             int row = 2;
-            while (!string.IsNullOrEmpty(sheet.Cells[$"A{row}"].Text))
+            while (!string.IsNullOrEmpty(sheet.Cell($"A{row}").GetString()))
             {
                 var model = new Model3DConfig
                 {
-                    ModelId = sheet.Cells[$"A{row}"].Text,
-                    ModelName = sheet.Cells[$"B{row}"].Text,
-                    FileName = sheet.Cells[$"C{row}"].Text,
-                    FileType = sheet.Cells[$"D{row}"].Text,
-                    Description = sheet.Cells[$"E{row}"].Text,
-                    Category = sheet.Cells[$"F{row}"].Text,
-                    AssociatedScreen = sheet.Cells[$"G{row}"].Text,
-                    IsEnabled = sheet.Cells[$"H{row}"].Text.ToLower() != "false" && sheet.Cells[$"H{row}"].Text != "0",
-                    DisplayOrder = int.TryParse(sheet.Cells[$"I{row}"].Text, out var order) ? order : 0,
+                    ModelId = sheet.Cell($"A{row}").GetString(),
+                    ModelName = sheet.Cell($"B{row}").GetString(),
+                    FileName = sheet.Cell($"C{row}").GetString(),
+                    FileType = sheet.Cell($"D{row}").GetString(),
+                    Description = sheet.Cell($"E{row}").GetString(),
+                    Category = sheet.Cell($"F{row}").GetString(),
+                    AssociatedScreen = sheet.Cell($"G{row}").GetString(),
+                    IsEnabled = sheet.Cell($"H{row}").GetString().ToLower() != "false" && sheet.Cell($"H{row}").GetString() != "0",
+                    DisplayOrder = int.TryParse(sheet.Cell($"I{row}").GetString(), out var order) ? order : 0,
                     // Columna T: EnableSwap - Condición PLC para hot-swap (ej: "MAIN.var=1")
-                    EnableSwap = sheet.Cells[$"T{row}"].Text?.Trim() ?? string.Empty,
+                    EnableSwap = sheet.Cell($"T{row}").GetString()?.Trim() ?? string.Empty,
                     // Campos de animación del padre
-                    AnimationType = sheet.Cells[$"U{row}"].Text,
-                    AnimationSpeed = double.TryParse(sheet.Cells[$"V{row}"].Text, out var animSpeed) ? animSpeed : 1.0,
-                    AnimateOnlyWhenOn = sheet.Cells[$"W{row}"].Text.ToLower() == "true" || sheet.Cells[$"W{row}"].Text == "1",
-                    AnimationPlcVariable = sheet.Cells[$"AD{row}"].Text,
-                    AnimationMinValue = double.TryParse(sheet.Cells[$"AE{row}"].Text, out var animMin) ? animMin : 0.0,
-                    AnimationMaxValue = double.TryParse(sheet.Cells[$"AF{row}"].Text, out var animMax) ? animMax : 1000.0,
-                    AnimationAxis = sheet.Cells[$"AG{row}"].Text,
-                    AnimationScaleFactor = double.TryParse(sheet.Cells[$"AH{row}"].Text, out var animScale) ? animScale : 0.1
+                    AnimationType = sheet.Cell($"U{row}").GetString(),
+                    AnimationSpeed = double.TryParse(sheet.Cell($"V{row}").GetString(), out var animSpeed) ? animSpeed : 1.0,
+                    AnimateOnlyWhenOn = sheet.Cell($"W{row}").GetString().ToLower() == "true" || sheet.Cell($"W{row}").GetString() == "1",
+                    AnimationPlcVariable = sheet.Cell($"AD{row}").GetString(),
+                    AnimationMinValue = double.TryParse(sheet.Cell($"AE{row}").GetString(), out var animMin) ? animMin : 0.0,
+                    AnimationMaxValue = double.TryParse(sheet.Cell($"AF{row}").GetString(), out var animMax) ? animMax : 1000.0,
+                    AnimationAxis = sheet.Cell($"AG{row}").GetString(),
+                    AnimationScaleFactor = double.TryParse(sheet.Cell($"AH{row}").GetString(), out var animScale) ? animScale : 0.1
                 };
                 
                 // ✅ LEER CHILDREN (5 hijos posibles, 21 columnas cada uno)
@@ -511,7 +514,7 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Lee las 21 columnas × 5 hijos (Child1-Child5) desde columnas AI-EI del Excel
         /// </summary>
-        private List<ChildModel3DConfig> LoadChildrenForModel(ExcelWorksheet sheet, int row, string parentName)
+        private List<ChildModel3DConfig> LoadChildrenForModel(IXLWorksheet sheet, int row, string parentName)
         {
             var children = new List<ChildModel3DConfig>();
             
@@ -533,7 +536,7 @@ namespace SW.PC.API.Backend.Services
             foreach (var (childLabel, startCol) in childColumns)
             {
                 // Leer Name (columna 0)
-                var name = sheet.Cells[row, startCol].Text?.Trim();
+                var name = sheet.Cell(row, startCol).GetString()?.Trim();
                 
                 // Si no hay nombre, este hijo no está definido
                 if (string.IsNullOrWhiteSpace(name))
@@ -545,26 +548,26 @@ namespace SW.PC.API.Backend.Services
                 var child = new ChildModel3DConfig
                 {
                     Name = name,
-                    ParentName = sheet.Cells[row, startCol + 1].Text?.Trim() ?? string.Empty,
-                    FileName = sheet.Cells[row, startCol + 2].Text?.Trim() ?? string.Empty,
-                    AnimationType = sheet.Cells[row, startCol + 3].Text?.Trim() ?? string.Empty,
-                    AnimationSpeed = double.TryParse(sheet.Cells[row, startCol + 4].Text, out var speed) ? speed : 1.0,
-                    AnimateOnlyWhenOn = sheet.Cells[row, startCol + 5].Text?.Trim().ToLower() != "false",
-                    PlcVariable = sheet.Cells[row, startCol + 6].Text?.Trim() ?? string.Empty,
-                    Axis = sheet.Cells[row, startCol + 7].Text?.Trim() ?? "Y",
-                    MinValue = double.TryParse(sheet.Cells[row, startCol + 8].Text, out var min) ? min : 0.0,
-                    MaxValue = double.TryParse(sheet.Cells[row, startCol + 9].Text, out var max) ? max : 1000.0,
-                    ScaleFactor = double.TryParse(sheet.Cells[row, startCol + 10].Text, out var scale) ? scale : 0.1,
-                    ScaleX = double.TryParse(sheet.Cells[row, startCol + 11].Text, out var sx) ? (double?)sx : null,
-                    ScaleY = double.TryParse(sheet.Cells[row, startCol + 12].Text, out var sy) ? (double?)sy : null,
-                    ScaleZ = double.TryParse(sheet.Cells[row, startCol + 13].Text, out var sz) ? (double?)sz : null,
-                    ColorOn = sheet.Cells[row, startCol + 14].Text?.Trim() ?? string.Empty,
-                    ColorOff = sheet.Cells[row, startCol + 15].Text?.Trim() ?? string.Empty,
-                    ColorDisabled = sheet.Cells[row, startCol + 16].Text?.Trim() ?? string.Empty,
-                    ColorAlarm = sheet.Cells[row, startCol + 17].Text?.Trim() ?? string.Empty,
-                    OffsetX = double.TryParse(sheet.Cells[row, startCol + 18].Text, out var ox) ? ox : 0.0,
-                    OffsetY = double.TryParse(sheet.Cells[row, startCol + 19].Text, out var oy) ? oy : 0.0,
-                    OffsetZ = double.TryParse(sheet.Cells[row, startCol + 20].Text, out var oz) ? oz : 0.0
+                    ParentName = sheet.Cell(row, startCol + 1).GetString()?.Trim() ?? string.Empty,
+                    FileName = sheet.Cell(row, startCol + 2).GetString()?.Trim() ?? string.Empty,
+                    AnimationType = sheet.Cell(row, startCol + 3).GetString()?.Trim() ?? string.Empty,
+                    AnimationSpeed = double.TryParse(sheet.Cell(row, startCol + 4).GetString(), out var speed) ? speed : 1.0,
+                    AnimateOnlyWhenOn = sheet.Cell(row, startCol + 5).GetString()?.Trim().ToLower() != "false",
+                    PlcVariable = sheet.Cell(row, startCol + 6).GetString()?.Trim() ?? string.Empty,
+                    Axis = sheet.Cell(row, startCol + 7).GetString()?.Trim() ?? "Y",
+                    MinValue = double.TryParse(sheet.Cell(row, startCol + 8).GetString(), out var min) ? min : 0.0,
+                    MaxValue = double.TryParse(sheet.Cell(row, startCol + 9).GetString(), out var max) ? max : 1000.0,
+                    ScaleFactor = double.TryParse(sheet.Cell(row, startCol + 10).GetString(), out var scale) ? scale : 0.1,
+                    ScaleX = double.TryParse(sheet.Cell(row, startCol + 11).GetString(), out var sx) ? (double?)sx : null,
+                    ScaleY = double.TryParse(sheet.Cell(row, startCol + 12).GetString(), out var sy) ? (double?)sy : null,
+                    ScaleZ = double.TryParse(sheet.Cell(row, startCol + 13).GetString(), out var sz) ? (double?)sz : null,
+                    ColorOn = sheet.Cell(row, startCol + 14).GetString()?.Trim() ?? string.Empty,
+                    ColorOff = sheet.Cell(row, startCol + 15).GetString()?.Trim() ?? string.Empty,
+                    ColorDisabled = sheet.Cell(row, startCol + 16).GetString()?.Trim() ?? string.Empty,
+                    ColorAlarm = sheet.Cell(row, startCol + 17).GetString()?.Trim() ?? string.Empty,
+                    OffsetX = double.TryParse(sheet.Cell(row, startCol + 18).GetString(), out var ox) ? ox : 0.0,
+                    OffsetY = double.TryParse(sheet.Cell(row, startCol + 19).GetString(), out var oy) ? oy : 0.0,
+                    OffsetZ = double.TryParse(sheet.Cell(row, startCol + 20).GetString(), out var oz) ? oz : 0.0
                 };
                 
                 children.Add(child);
@@ -615,7 +618,7 @@ namespace SW.PC.API.Backend.Services
 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using var stream = OpenExcelFileWithRetry(fullPath);
-                using var package = new ExcelPackage(stream);
+                using var package = new XLWorkbook(stream);
                 
                 var mappings = await LoadVariableViewsFromSheetAsync(package);
 
@@ -638,10 +641,10 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Lee la hoja Variable_Views del Excel y compila los patrones regex
         /// </summary>
-        private async Task<List<VariableViewMapping>> LoadVariableViewsFromSheetAsync(ExcelPackage package)
+        private async Task<List<VariableViewMapping>> LoadVariableViewsFromSheetAsync(XLWorkbook package)
         {
             var mappings = new List<VariableViewMapping>();
-            var sheet = package.Workbook.Worksheets["Variable_Views"];
+            var sheet = FindWorksheet(package, "Variable_Views");
 
             if (sheet == null)
             {
@@ -651,11 +654,11 @@ namespace SW.PC.API.Backend.Services
 
             // Leer desde fila 2 (fila 1 = encabezados)
             int row = 2;
-            while (!string.IsNullOrWhiteSpace(sheet.Cells[$"A{row}"].Text))
+            while (!string.IsNullOrWhiteSpace(sheet.Cell($"A{row}").GetString()))
             {
-                var pattern = sheet.Cells[$"A{row}"].Text?.Trim();
-                var viewsText = sheet.Cells[$"B{row}"].Text?.Trim();
-                var description = sheet.Cells[$"C{row}"].Text?.Trim();
+                var pattern = sheet.Cell($"A{row}").GetString()?.Trim();
+                var viewsText = sheet.Cell($"B{row}").GetString()?.Trim();
+                var description = sheet.Cell($"C{row}").GetString()?.Trim();
 
                 if (!string.IsNullOrEmpty(pattern) && !string.IsNullOrEmpty(viewsText))
                 {
@@ -1120,7 +1123,7 @@ namespace SW.PC.API.Backend.Services
 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using var stream = OpenExcelFileWithRetry(fullPath);
-                using var package = new ExcelPackage(stream);
+                using var package = new XLWorkbook(stream);
                 
                 var configs = await LoadElementsInfoSettingFromSheetAsync(package);
 
@@ -1143,10 +1146,10 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Lee la hoja 3D_Elements_Info_Setting del Excel
         /// </summary>
-        private async Task<List<ElementInfoSettingConfig>> LoadElementsInfoSettingFromSheetAsync(ExcelPackage package)
+        private async Task<List<ElementInfoSettingConfig>> LoadElementsInfoSettingFromSheetAsync(XLWorkbook package)
         {
             var configs = new List<ElementInfoSettingConfig>();
-            var sheet = package.Workbook.Worksheets["3D_Elements_Info_Setting"];
+            var sheet = FindWorksheet(package, "3D_Elements_Info_Setting");
 
             if (sheet == null)
             {
@@ -1162,25 +1165,25 @@ namespace SW.PC.API.Backend.Services
             
             // 🔍 DEBUG: Mostrar dimensiones reales de la hoja
             _logger.LogInformation("📐 Dimensiones de hoja '3D_Elements_Info_Setting': Rows={Rows}, Cols={Cols}",
-                sheet.Dimension?.Rows ?? 0, sheet.Dimension?.Columns ?? 0);
+                sheet.LastRowUsed()?.RowNumber() ?? 0, sheet.LastColumnUsed()?.ColumnNumber() ?? 0);
             
             // 🔍 DEBUG: Leer directamente la celda AC2 para verificar
-            var directAC2 = sheet.Cells["AC2"].Text;
-            var directAC3 = sheet.Cells["AC3"].Text;
+            var directAC2 = sheet.Cell("AC2").GetString();
+            var directAC3 = sheet.Cell("AC3").GetString();
             _logger.LogInformation("📌 LECTURA DIRECTA - AC2='{AC2}', AC3='{AC3}'", directAC2, directAC3);
             
             // Leer desde fila 2 (fila 1 = encabezados)
             // ⚠️ NO usar while con columna A vacía - puede haber filas con datos en otras columnas
             int row = 2;
             int emptyRowCount = 0;
-            int maxRows = sheet.Dimension?.Rows ?? 100;
+            int maxRows = sheet.LastRowUsed()?.RowNumber() ?? 100;
             
             while (row <= maxRows && emptyRowCount < 5)
             {
                 try
                 {
                     // Leer nombre del modelo desde columna A
-                    var modelName = sheet.Cells[$"A{row}"].Text?.Trim() ?? string.Empty;
+                    var modelName = sheet.Cell($"A{row}").GetString()?.Trim() ?? string.Empty;
                     
                     // Si la fila no tiene nombre de modelo, saltar pero continuar buscando
                     if (string.IsNullOrWhiteSpace(modelName))
@@ -1194,7 +1197,7 @@ namespace SW.PC.API.Backend.Services
                     emptyRowCount = 0;
                     
                     // Parsear DisplayType con posible sufijo :N para CompactSlots
-                    var (displayType, compactSlots) = ElementDisplayTypeParser.ParseWithCompact(sheet.Cells[$"B{row}"].Text);
+                    var (displayType, compactSlots) = ElementDisplayTypeParser.ParseWithCompact(sheet.Cell($"B{row}").GetString());
                     
                     var config = new ElementInfoSettingConfig
                     {
@@ -1374,22 +1377,22 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Carga un diccionario de ModelName -> Category desde la hoja 3D_Models o 3D Elements
         /// </summary>
-        private Dictionary<string, string> LoadModelCategoriesFromSheet(ExcelPackage package)
+        private Dictionary<string, string> LoadModelCategoriesFromSheet(XLWorkbook package)
         {
             var categories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             
             // Buscar en hoja "3D Elements" - Columna B = ModelName, Columna Y = Category
-            var sheet = package.Workbook.Worksheets["3D Elements"];
+            var sheet = FindWorksheet(package, "3D Elements");
             if (sheet != null)
             {
                 int row = 2;
                 int emptyCount = 0;
-                int maxRows = sheet.Dimension?.Rows ?? 500;
+                int maxRows = sheet.LastRowUsed()?.RowNumber() ?? 500;
                 
                 while (row <= maxRows && emptyCount < 10)
                 {
-                    var modelName = sheet.Cells[$"B{row}"].Text?.Trim(); // Columna B = nombre del modelo
-                    var category = sheet.Cells[$"Y{row}"].Text?.Trim();  // Columna Y = categoría
+                    var modelName = sheet.Cell($"B{row}").GetString()?.Trim(); // Columna B = nombre del modelo
+                    var category = sheet.Cell($"Y{row}").GetString()?.Trim();  // Columna Y = categoría
                     
                     if (string.IsNullOrWhiteSpace(modelName))
                     {
@@ -1412,24 +1415,25 @@ namespace SW.PC.API.Backend.Services
         }
 
         // Helpers para lectura de celdas por índice de columna
-        private string? GetCellText(ExcelWorksheet sheet, int row, int col)
+        private string? GetCellText(IXLWorksheet sheet, int row, int col)
         {
-            var text = sheet.Cells[row, col].Text?.Trim();
+            var text = sheet.Cell(row, col).GetString()?.Trim();
             return string.IsNullOrWhiteSpace(text) ? null : text;
         }
 
-        private string? GetCellText(ExcelWorksheet sheet, string address)
+        private string? GetCellText(IXLWorksheet sheet, string address)
         {
-            var text = sheet.Cells[address].Text?.Trim();
+            var text = sheet.Cell(address).GetString()?.Trim();
             return string.IsNullOrWhiteSpace(text) ? null : text;
         }
 
-        private double GetCellDouble(ExcelWorksheet sheet, string address)
+        private double GetCellDouble(IXLWorksheet sheet, string address)
         {
-            var cell = sheet.Cells[address];
-            if (cell.Value is double d) return d;
-            if (cell.Value is int i) return i;
-            if (double.TryParse(cell.Text?.Replace(",", "."), 
+            var cell = sheet.Cell(address);
+            if (cell.IsEmpty()) return 0;
+            if (cell.TryGetValue<double>(out var d)) return d;
+            var text = cell.GetString()?.Replace(",", ".");
+            if (double.TryParse(text, 
                 System.Globalization.NumberStyles.Any, 
                 System.Globalization.CultureInfo.InvariantCulture, out var result))
             {
@@ -1438,13 +1442,13 @@ namespace SW.PC.API.Backend.Services
             return 0;
         }
 
-        private double GetCellDoubleWithDefault(ExcelWorksheet sheet, string address, double defaultValue)
+        private double GetCellDoubleWithDefault(IXLWorksheet sheet, string address, double defaultValue)
         {
-            var cell = sheet.Cells[address];
-            if (cell.Value == null || string.IsNullOrWhiteSpace(cell.Text)) return defaultValue;
-            if (cell.Value is double d) return d;
-            if (cell.Value is int i) return i;
-            if (double.TryParse(cell.Text?.Replace(",", "."), 
+            var cell = sheet.Cell(address);
+            if (cell.IsEmpty()) return defaultValue;
+            if (cell.TryGetValue<double>(out var d)) return d;
+            var text = cell.GetString()?.Replace(",", ".");
+            if (double.TryParse(text, 
                 System.Globalization.NumberStyles.Any, 
                 System.Globalization.CultureInfo.InvariantCulture, out var result))
             {
@@ -1453,13 +1457,13 @@ namespace SW.PC.API.Backend.Services
             return defaultValue;
         }
 
-        private double? GetCellNullableDouble(ExcelWorksheet sheet, int row, int col)
+        private double? GetCellNullableDouble(IXLWorksheet sheet, int row, int col)
         {
-            var cell = sheet.Cells[row, col];
-            if (cell.Value == null || string.IsNullOrWhiteSpace(cell.Text)) return null;
-            if (cell.Value is double d) return d;
-            if (cell.Value is int i) return i;
-            if (double.TryParse(cell.Text?.Replace(",", "."), 
+            var cell = sheet.Cell(row, col);
+            if (cell.IsEmpty()) return null;
+            if (cell.TryGetValue<double>(out var d)) return d;
+            var text = cell.GetString()?.Replace(",", ".");
+            if (double.TryParse(text, 
                 System.Globalization.NumberStyles.Any, 
                 System.Globalization.CultureInfo.InvariantCulture, out var result))
             {
@@ -1468,13 +1472,12 @@ namespace SW.PC.API.Backend.Services
             return null;
         }
 
-        private int? GetCellNullableInt(ExcelWorksheet sheet, int row, int col)
+        private int? GetCellNullableInt(IXLWorksheet sheet, int row, int col)
         {
-            var cell = sheet.Cells[row, col];
-            if (cell.Value == null || string.IsNullOrWhiteSpace(cell.Text)) return null;
-            if (cell.Value is int i) return i;
-            if (cell.Value is double d) return (int)d;
-            if (int.TryParse(cell.Text, out var result))
+            var cell = sheet.Cell(row, col);
+            if (cell.IsEmpty()) return null;
+            if (cell.TryGetValue<double>(out var d)) return (int)d;
+            if (int.TryParse(cell.GetString(), out var result))
             {
                 return result;
             }
@@ -1503,9 +1506,9 @@ namespace SW.PC.API.Backend.Services
 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using var stream = OpenExcelFileWithRetry(fullPath);
-                using var package = new ExcelPackage(stream);
+                using var package = new XLWorkbook(stream);
                 
-                var sheet = package.Workbook.Worksheets["Semiautomatic_Mode"];
+                var sheet = FindWorksheet(package, "Semiautomatic_Mode");
                 
                 if (sheet == null)
                 {
@@ -1535,7 +1538,7 @@ namespace SW.PC.API.Backend.Services
                 var config = new SemiautomaticConfiguration();
                 
                 // A2 = Variable PLC principal para activar modo semiautomático
-                config.MainPlcVariable = sheet.Cells["A2"].Text?.Trim() ?? string.Empty;
+                config.MainPlcVariable = sheet.Cell("A2").GetString()?.Trim() ?? string.Empty;
                 
                 if (string.IsNullOrWhiteSpace(config.MainPlcVariable))
                 {
@@ -1549,15 +1552,15 @@ namespace SW.PC.API.Backend.Services
                 // Leer elementos desde fila 2 (fila 1 = encabezados)
                 int row = 2;
                 int emptyRowCount = 0;
-                int maxRows = sheet.Dimension?.Rows ?? 100;
+                int maxRows = sheet.LastRowUsed()?.RowNumber() ?? 100;
                 
                 while (row <= maxRows && emptyRowCount < 5)
                 {
                     try
                     {
-                        var description = sheet.Cells[$"B{row}"].Text?.Trim() ?? string.Empty;
-                        var plcVariable = sheet.Cells[$"C{row}"].Text?.Trim() ?? string.Empty;
-                        var visibilityText = sheet.Cells[$"D{row}"].Text?.Trim() ?? "1";
+                        var description = sheet.Cell($"B{row}").GetString()?.Trim() ?? string.Empty;
+                        var plcVariable = sheet.Cell($"C{row}").GetString()?.Trim() ?? string.Empty;
+                        var visibilityText = sheet.Cell($"D{row}").GetString()?.Trim() ?? "1";
                         
                         // Si no hay descripción y variable PLC, saltar
                         if (string.IsNullOrWhiteSpace(description) && string.IsNullOrWhiteSpace(plcVariable))
@@ -1668,7 +1671,7 @@ namespace SW.PC.API.Backend.Services
                 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using (var stream = OpenExcelFileWithRetry(fullPath))
-                using (var package = new ExcelPackage(stream))
+                using (var package = new XLWorkbook(stream))
                 {
                     var stateColors = await LoadStateColorsFromSheetAsync(package);
                     
@@ -1697,18 +1700,18 @@ namespace SW.PC.API.Backend.Services
             }
         }
         
-        private async Task<List<StateColorConfig>> LoadStateColorsFromSheetAsync(ExcelPackage package)
+        private async Task<List<StateColorConfig>> LoadStateColorsFromSheetAsync(XLWorkbook package)
         {
             var stateColors = new List<StateColorConfig>();
             
             // Buscar hoja con colores (orden de prioridad - actualizado para nueva estructura)
-            var sheet = package.Workbook.Worksheets["3D Elements"]      // ← Nueva estructura
-                     ?? package.Workbook.Worksheets["1) Pumps"]         // ← Fallback legacy
-                     ?? package.Workbook.Worksheets["Pumps"]
-                     ?? package.Workbook.Worksheets["PLC_State_Colors"] 
-                     ?? package.Workbook.Worksheets["PumpElements"]
-                     ?? package.Workbook.Worksheets["3D_Models"]
-                     ?? package.Workbook.Worksheets.FirstOrDefault();
+            var sheet = FindWorksheet(package, "3D Elements")      // ← Nueva estructura
+                     ?? FindWorksheet(package, "1) Pumps")         // ← Fallback legacy
+                     ?? FindWorksheet(package, "Pumps")
+                     ?? FindWorksheet(package, "PLC_State_Colors") 
+                     ?? FindWorksheet(package, "PumpElements")
+                     ?? FindWorksheet(package, "3D_Models")
+                     ?? package.Worksheets.FirstOrDefault();
             
             if (sheet == null)
             {
@@ -1735,7 +1738,7 @@ namespace SW.PC.API.Backend.Services
             {
                 // LEER NOMBRE COMPLETO DE LA VARIABLE DESDE COLUMNA G
                 // (La columna A solo tiene el número total en A2, las demás filas A3,A4,... están vacías)
-                var fullVariableName = sheet.Cells[$"G{row}"].Text;
+                var fullVariableName = sheet.Cell($"G{row}").GetString();
                 
                 _logger.LogInformation($"📋 Fila {row}: G='{fullVariableName}'");
                 
@@ -1764,37 +1767,37 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogDebug("✅ Variable encontrada en fila {Row}: {Variable}", row, variablePattern);
                     
                     // Leer colores de las 4 columnas (pueden estar en diferentes formatos)
-                    var colorOn = sheet.Cells[$"H{row}"].Text;       // Estado 2 (On)
-                    var colorOff = sheet.Cells[$"I{row}"].Text;      // Estado 1 (Off)
-                    var colorDisabled = sheet.Cells[$"J{row}"].Text; // Estado 0 (Disabled)
-                    var colorAlarm = sheet.Cells[$"K{row}"].Text;    // Estado 3 (Alarm)
+                    var colorOn = sheet.Cell($"H{row}").GetString();       // Estado 2 (On)
+                    var colorOff = sheet.Cell($"I{row}").GetString();      // Estado 1 (Off)
+                    var colorDisabled = sheet.Cell($"J{row}").GetString(); // Estado 0 (Disabled)
+                    var colorAlarm = sheet.Cell($"K{row}").GetString();    // Estado 3 (Alarm)
                     
                     // ✅ LEER COLORES DE LOS 5 HIJOS (si existen)
                     // Child1: AW/AX/AY/AZ, Child2: BR/BS/BT/BU, Child3: CM/CN/CO/CP, Child4: DH/DI/DJ/DK, Child5: EC/ED/EE/EF
-                    var child1ColorOn = sheet.Cells[$"AW{row}"].Text;
-                    var child1ColorOff = sheet.Cells[$"AX{row}"].Text;
-                    var child1ColorDisabled = sheet.Cells[$"AY{row}"].Text;
-                    var child1ColorAlarm = sheet.Cells[$"AZ{row}"].Text;
+                    var child1ColorOn = sheet.Cell($"AW{row}").GetString();
+                    var child1ColorOff = sheet.Cell($"AX{row}").GetString();
+                    var child1ColorDisabled = sheet.Cell($"AY{row}").GetString();
+                    var child1ColorAlarm = sheet.Cell($"AZ{row}").GetString();
                     
-                    var child2ColorOn = sheet.Cells[$"BR{row}"].Text;
-                    var child2ColorOff = sheet.Cells[$"BS{row}"].Text;
-                    var child2ColorDisabled = sheet.Cells[$"BT{row}"].Text;
-                    var child2ColorAlarm = sheet.Cells[$"BU{row}"].Text;
+                    var child2ColorOn = sheet.Cell($"BR{row}").GetString();
+                    var child2ColorOff = sheet.Cell($"BS{row}").GetString();
+                    var child2ColorDisabled = sheet.Cell($"BT{row}").GetString();
+                    var child2ColorAlarm = sheet.Cell($"BU{row}").GetString();
                     
-                    var child3ColorOn = sheet.Cells[$"CM{row}"].Text;
-                    var child3ColorOff = sheet.Cells[$"CN{row}"].Text;
-                    var child3ColorDisabled = sheet.Cells[$"CO{row}"].Text;
-                    var child3ColorAlarm = sheet.Cells[$"CP{row}"].Text;
+                    var child3ColorOn = sheet.Cell($"CM{row}").GetString();
+                    var child3ColorOff = sheet.Cell($"CN{row}").GetString();
+                    var child3ColorDisabled = sheet.Cell($"CO{row}").GetString();
+                    var child3ColorAlarm = sheet.Cell($"CP{row}").GetString();
                     
-                    var child4ColorOn = sheet.Cells[$"DH{row}"].Text;
-                    var child4ColorOff = sheet.Cells[$"DI{row}"].Text;
-                    var child4ColorDisabled = sheet.Cells[$"DJ{row}"].Text;
-                    var child4ColorAlarm = sheet.Cells[$"DK{row}"].Text;
+                    var child4ColorOn = sheet.Cell($"DH{row}").GetString();
+                    var child4ColorOff = sheet.Cell($"DI{row}").GetString();
+                    var child4ColorDisabled = sheet.Cell($"DJ{row}").GetString();
+                    var child4ColorAlarm = sheet.Cell($"DK{row}").GetString();
                     
-                    var child5ColorOn = sheet.Cells[$"EC{row}"].Text;
-                    var child5ColorOff = sheet.Cells[$"ED{row}"].Text;
-                    var child5ColorDisabled = sheet.Cells[$"EE{row}"].Text;
-                    var child5ColorAlarm = sheet.Cells[$"EF{row}"].Text;
+                    var child5ColorOn = sheet.Cell($"EC{row}").GetString();
+                    var child5ColorOff = sheet.Cell($"ED{row}").GetString();
+                    var child5ColorDisabled = sheet.Cell($"EE{row}").GetString();
+                    var child5ColorAlarm = sheet.Cell($"EF{row}").GetString();
                     
                     // ✅ TODOS (padre + hijos) usan la MISMA variable de columna C (variablePattern)
                     // pero cada uno tiene sus propias columnas de colores
@@ -2037,7 +2040,7 @@ namespace SW.PC.API.Backend.Services
 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using var stream = OpenExcelFileWithRetry(fullPath);
-                using (var package = new ExcelPackage(stream))
+                using (var package = new XLWorkbook(stream))
                 {
                     var variableNames = new HashSet<string>(); // Usar HashSet para evitar duplicados
                     var variablesBySheet = new Dictionary<string, int>(); // Para logging
@@ -2092,9 +2095,9 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogInformation("────────────────────────────────────────────────────────────────────");
 
                     // 🔄 Escanear TODAS las hojas del Excel (excepto las excluidas)
-                    foreach (var worksheet in package.Workbook.Worksheets)
+                    foreach (var worksheet in package.Worksheets)
                     {
-                        if (worksheet.Dimension == null) continue;
+                        if (worksheet.LastRowUsed() == null) continue;
                         
                         // ⚠️ EXCLUIR hojas deshabilitadas o que no contienen variables reales
                         if (skippedSheets.Contains(worksheet.Name))
@@ -2104,10 +2107,10 @@ namespace SW.PC.API.Backend.Services
                         }
                         
                         int sheetVarCount = 0;
-                        int rowCount = worksheet.Dimension.Rows;
-                        // ⚠️ worksheet.Dimension.Columns puede no incluir columnas lejanas si hay vacías intermedias
+                        int rowCount = worksheet.LastRowUsed()?.RowNumber() ?? 0;
+                        // ⚠️ worksheet.LastColumnUsed()?.ColumnNumber() ?? 0 puede no incluir columnas lejanas si hay vacías intermedias
                         // Usar un rango fijo amplio para asegurar que llegamos hasta AC (col 29) y más allá
-                        int colCount = Math.Max(worksheet.Dimension.Columns, 200); // Al menos 200 columnas (hasta columna GR)
+                        int colCount = Math.Max(worksheet.LastColumnUsed()?.ColumnNumber() ?? 0, 200); // Al menos 200 columnas (hasta columna GR)
                         
                         _logger.LogDebug("   🔍 Escaneando hoja '{SheetName}': {Rows} filas x {Cols} columnas", 
                             worksheet.Name, rowCount, colCount);
@@ -2117,7 +2120,7 @@ namespace SW.PC.API.Backend.Services
                         {
                             for (int col = 1; col <= colCount; col++)
                             {
-                                var cellValue = worksheet.Cells[row, col].Text?.Trim();
+                                var cellValue = worksheet.Cell(row, col).GetString()?.Trim();
                                 
                                 // Si la celda contiene una variable PLC (empieza con MAIN.fbMachine)
                                 if (!string.IsNullOrWhiteSpace(cellValue) && 
@@ -2393,13 +2396,13 @@ namespace SW.PC.API.Backend.Services
                 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using (var stream = OpenExcelFileWithRetry(fullPath))
-                using (var package = new ExcelPackage(stream))
+                using (var package = new XLWorkbook(stream))
                 {
                     // Buscar hoja "System Config" (varios nombres posibles)
-                    var sheet = package.Workbook.Worksheets["System Config"]
-                             ?? package.Workbook.Worksheets["SystemConfig"]
-                             ?? package.Workbook.Worksheets["Config"]
-                             ?? package.Workbook.Worksheets["Settings"];
+                    var sheet = FindWorksheet(package, "System Config")
+                             ?? FindWorksheet(package, "SystemConfig")
+                             ?? FindWorksheet(package, "Config")
+                             ?? FindWorksheet(package, "Settings");
                     
                     if (sheet == null)
                     {
@@ -2429,8 +2432,8 @@ namespace SW.PC.API.Backend.Services
                     int row = 2; // Empezar desde fila 2 (1 es encabezado)
                     while (row < 1000)
                     {
-                        var paramName = sheet.Cells[$"A{row}"].Text.Trim();
-                        var paramValue = sheet.Cells[$"B{row}"].Text.Trim();
+                        var paramName = sheet.Cell($"A{row}").GetString().Trim();
+                        var paramValue = sheet.Cell($"B{row}").GetString().Trim();
 
                         if (string.IsNullOrWhiteSpace(paramName))
                         {
@@ -3412,7 +3415,7 @@ namespace SW.PC.API.Backend.Services
                 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using (var stream = OpenExcelFileWithRetry(fullPath))
-                using (var package = new ExcelPackage(stream))
+                using (var package = new XLWorkbook(stream))
                 {
                     var models = await LoadModels3DFromSheetAsync(package);
                     _logger.LogInformation("✅ Loaded {Count} 3D models (with {ChildCount} total children)", 
@@ -3461,17 +3464,17 @@ namespace SW.PC.API.Backend.Services
                 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using var stream = OpenExcelFileWithRetry(fullPath);
-                using var package = new ExcelPackage(stream);
+                using var package = new XLWorkbook(stream);
                 
                 // 📋 Listar todas las hojas disponibles para debugging
-                var availableSheets = package.Workbook.Worksheets.Select(ws => ws.Name).ToList();
+                var availableSheets = package.Worksheets.Select(ws => ws.Name).ToList();
                 _logger.LogInformation("🔔 Hojas disponibles en Excel: [{Sheets}]", string.Join(", ", availableSheets));
                 
                 // Buscar hoja "Alarms" (varios nombres posibles)
-                var sheet = package.Workbook.Worksheets["Alarms"]
-                         ?? package.Workbook.Worksheets["ALARMS"]
-                         ?? package.Workbook.Worksheets["Alarmas"]
-                         ?? package.Workbook.Worksheets["2) Alarms"];
+                var sheet = FindWorksheet(package, "Alarms")
+                         ?? FindWorksheet(package, "ALARMS")
+                         ?? FindWorksheet(package, "Alarmas")
+                         ?? FindWorksheet(package, "2) Alarms");
                 
                 if (sheet == null)
                 {
@@ -3496,16 +3499,16 @@ namespace SW.PC.API.Backend.Services
                 
                 while (row <= maxRow && emptyRows < maxEmptyRows)
                 {
-                    var indexCell = sheet.Cells[$"A{row}"].Text.Trim();
+                    var indexCell = sheet.Cell($"A{row}").GetString().Trim();
                     
                     // Debug: mostrar las primeras 5 filas
                     if (row <= 6)
                     {
                         _logger.LogInformation("🔔 Fila {Row}: A='{IndexCell}', B='{ColB}', C='{ColC}', D='{ColD}'", 
                             row, indexCell, 
-                            sheet.Cells[$"B{row}"].Text.Trim(),
-                            sheet.Cells[$"C{row}"].Text.Trim(),
-                            sheet.Cells[$"D{row}"].Text.Trim());
+                            sheet.Cell($"B{row}").GetString().Trim(),
+                            sheet.Cell($"C{row}").GetString().Trim(),
+                            sheet.Cell($"D{row}").GetString().Trim());
                     }
                     
                     if (string.IsNullOrWhiteSpace(indexCell))
@@ -3582,7 +3585,7 @@ namespace SW.PC.API.Backend.Services
         /// Detecta el mapeo de columnas por idioma desde los encabezados (ISO 639-2: SPA, ENG, ITA, FRA, etc.)
         /// Estructura: Alarm_SPA, Notification_SPA, Info_SPA, Alarm_ENG, Notification_ENG, Info_ENG, ...
         /// </summary>
-        private Dictionary<string, AlarmColumnSet> DetectAlarmColumnMapping(ExcelWorksheet sheet)
+        private Dictionary<string, AlarmColumnSet> DetectAlarmColumnMapping(IXLWorksheet sheet)
         {
             var mapping = new Dictionary<string, AlarmColumnSet>();
             
@@ -3592,7 +3595,7 @@ namespace SW.PC.API.Backend.Services
             
             while (col <= maxCol)
             {
-                var header = sheet.Cells[1, col].Text.Trim();
+                var header = sheet.Cell(1, col).GetString().Trim();
                 
                 if (string.IsNullOrWhiteSpace(header))
                 {
@@ -3667,7 +3670,7 @@ namespace SW.PC.API.Backend.Services
         /// Lee los textos multilenguaje de un tipo de alarma específico
         /// </summary>
         private Dictionary<string, string> ReadAlarmTextsForType(
-            ExcelWorksheet sheet, 
+            IXLWorksheet sheet, 
             int row, 
             string alarmType, 
             Dictionary<string, AlarmColumnSet> columnMapping)
@@ -3689,7 +3692,7 @@ namespace SW.PC.API.Backend.Services
                 
                 if (col > 0)
                 {
-                    var text = sheet.Cells[row, col].Text?.Trim();
+                    var text = sheet.Cell(row, col).GetString()?.Trim();
                     if (!string.IsNullOrWhiteSpace(text))
                     {
                         texts[langCode] = text;
@@ -3738,10 +3741,10 @@ namespace SW.PC.API.Backend.Services
                 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using (var stream = OpenExcelFileWithRetry(fullPath))
-                using (var package = new ExcelPackage(stream))
+                using (var package = new XLWorkbook(stream))
                 {
                     // Buscar hoja "setting page" (case-insensitive)
-                    var sheet = package.Workbook.Worksheets
+                    var sheet = package.Worksheets
                         .FirstOrDefault(ws => ws.Name.Equals("setting page", StringComparison.OrdinalIgnoreCase));
                     
                     if (sheet == null)
@@ -3751,28 +3754,28 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // === Leer títulos de secciones desde las celdas A2, E2, L2 ===
-                    var boolTitle = sheet.Cells["A2"].Text?.Trim();
+                    var boolTitle = sheet.Cell("A2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(boolTitle))
                     {
                         config.BoolSectionTitle = boolTitle;
                         _logger.LogDebug("⚙️ Bool section title from A2: {Title}", boolTitle);
                     }
                     
-                    var intTitle = sheet.Cells["E2"].Text?.Trim();
+                    var intTitle = sheet.Cell("E2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(intTitle))
                     {
                         config.IntSectionTitle = intTitle;
                         _logger.LogDebug("⚙️ Int section title from E2: {Title}", intTitle);
                     }
                     
-                    var longRealTitle = sheet.Cells["L2"].Text?.Trim();
+                    var longRealTitle = sheet.Cell("L2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(longRealTitle))
                     {
                         config.LongRealSectionTitle = longRealTitle;
                         _logger.LogDebug("⚙️ LongReal section title from L2: {Title}", longRealTitle);
                     }
                     
-                    var longReal2Title = sheet.Cells["T2"].Text?.Trim();
+                    var longReal2Title = sheet.Cell("T2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(longReal2Title))
                     {
                         config.LongReal2SectionTitle = longReal2Title;
@@ -3789,9 +3792,9 @@ namespace SW.PC.API.Backend.Services
                         bool hasData = false;
                         
                         // === BOOL: Columnas B (Nombre), C (Imagen), D (Variable PLC) ===
-                        var boolName = sheet.Cells[$"B{row}"].Text?.Trim();
-                        var boolImage = sheet.Cells[$"C{row}"].Text?.Trim();
-                        var boolPlcVar = sheet.Cells[$"D{row}"].Text?.Trim();
+                        var boolName = sheet.Cell($"B{row}").GetString()?.Trim();
+                        var boolImage = sheet.Cell($"C{row}").GetString()?.Trim();
+                        var boolPlcVar = sheet.Cell($"D{row}").GetString()?.Trim();
                         
                         if (!string.IsNullOrEmpty(boolName) && !string.IsNullOrEmpty(boolPlcVar))
                         {
@@ -3807,9 +3810,9 @@ namespace SW.PC.API.Backend.Services
                         }
                         
                         // === INT: Columnas F (Nombre), G (Imagen), H (Variable PLC), I (Min), J (Max), K (Unidad) ===
-                        var intName = sheet.Cells[$"F{row}"].Text?.Trim();
-                        var intImage = sheet.Cells[$"G{row}"].Text?.Trim();
-                        var intPlcVar = sheet.Cells[$"H{row}"].Text?.Trim();
+                        var intName = sheet.Cell($"F{row}").GetString()?.Trim();
+                        var intImage = sheet.Cell($"G{row}").GetString()?.Trim();
+                        var intPlcVar = sheet.Cell($"H{row}").GetString()?.Trim();
                         
                         if (!string.IsNullOrEmpty(intName) && !string.IsNullOrEmpty(intPlcVar))
                         {
@@ -3822,17 +3825,17 @@ namespace SW.PC.API.Backend.Services
                             };
                             
                             // Leer Min (columna I)
-                            var minVal = sheet.Cells[$"I{row}"].Text?.Trim();
+                            var minVal = sheet.Cell($"I{row}").GetString()?.Trim();
                             if (int.TryParse(minVal, out var minInt))
                                 intSetting.MinValue = minInt;
                             
                             // Leer Max (columna J)
-                            var maxVal = sheet.Cells[$"J{row}"].Text?.Trim();
+                            var maxVal = sheet.Cell($"J{row}").GetString()?.Trim();
                             if (int.TryParse(maxVal, out var maxInt))
                                 intSetting.MaxValue = maxInt;
                             
                             // Leer Unidad (columna K)
-                            var unit = sheet.Cells[$"K{row}"].Text?.Trim();
+                            var unit = sheet.Cell($"K{row}").GetString()?.Trim();
                             if (!string.IsNullOrEmpty(unit))
                                 intSetting.Unit = unit;
                             
@@ -3843,9 +3846,9 @@ namespace SW.PC.API.Backend.Services
                         }
                         
                         // === LONGREAL: Columnas M (Nombre), N (Imagen), O (Variable PLC), P (Min), Q (Max), R (Decimales), S (Unidad) ===
-                        var lrealName = sheet.Cells[$"M{row}"].Text?.Trim();
-                        var lrealImage = sheet.Cells[$"N{row}"].Text?.Trim();
-                        var lrealPlcVar = sheet.Cells[$"O{row}"].Text?.Trim();
+                        var lrealName = sheet.Cell($"M{row}").GetString()?.Trim();
+                        var lrealImage = sheet.Cell($"N{row}").GetString()?.Trim();
+                        var lrealPlcVar = sheet.Cell($"O{row}").GetString()?.Trim();
                         
                         if (!string.IsNullOrEmpty(lrealName) && !string.IsNullOrEmpty(lrealPlcVar))
                         {
@@ -3858,10 +3861,10 @@ namespace SW.PC.API.Backend.Services
                             };
                             
                             // Leer min/max/decimals/unit desde columnas P, Q, R, S
-                            var lrealMin = sheet.Cells[$"P{row}"].Text?.Trim();
-                            var lrealMax = sheet.Cells[$"Q{row}"].Text?.Trim();
-                            var lrealDecimals = sheet.Cells[$"R{row}"].Text?.Trim();
-                            var lrealUnit = sheet.Cells[$"S{row}"].Text?.Trim();
+                            var lrealMin = sheet.Cell($"P{row}").GetString()?.Trim();
+                            var lrealMax = sheet.Cell($"Q{row}").GetString()?.Trim();
+                            var lrealDecimals = sheet.Cell($"R{row}").GetString()?.Trim();
+                            var lrealUnit = sheet.Cell($"S{row}").GetString()?.Trim();
                             
                             if (double.TryParse(lrealMin, System.Globalization.NumberStyles.Any, 
                                 System.Globalization.CultureInfo.InvariantCulture, out var minDbl))
@@ -3880,9 +3883,9 @@ namespace SW.PC.API.Backend.Services
                         }
                         
                         // === LONGREAL2: Columnas U (Nombre), V (Imagen), W (Variable PLC), X (Min), Y (Max), Z (Decimales), AA (Unidad) ===
-                        var lreal2Name = sheet.Cells[$"U{row}"].Text?.Trim();
-                        var lreal2Image = sheet.Cells[$"V{row}"].Text?.Trim();
-                        var lreal2PlcVar = sheet.Cells[$"W{row}"].Text?.Trim();
+                        var lreal2Name = sheet.Cell($"U{row}").GetString()?.Trim();
+                        var lreal2Image = sheet.Cell($"V{row}").GetString()?.Trim();
+                        var lreal2PlcVar = sheet.Cell($"W{row}").GetString()?.Trim();
                         
                         if (!string.IsNullOrEmpty(lreal2Name) && !string.IsNullOrEmpty(lreal2PlcVar))
                         {
@@ -3895,10 +3898,10 @@ namespace SW.PC.API.Backend.Services
                             };
                             
                             // Leer min/max/decimals/unit desde columnas X, Y, Z, AA
-                            var lreal2Min = sheet.Cells[$"X{row}"].Text?.Trim();
-                            var lreal2Max = sheet.Cells[$"Y{row}"].Text?.Trim();
-                            var lreal2Decimals = sheet.Cells[$"Z{row}"].Text?.Trim();
-                            var lreal2Unit = sheet.Cells[$"AA{row}"].Text?.Trim();
+                            var lreal2Min = sheet.Cell($"X{row}").GetString()?.Trim();
+                            var lreal2Max = sheet.Cell($"Y{row}").GetString()?.Trim();
+                            var lreal2Decimals = sheet.Cell($"Z{row}").GetString()?.Trim();
+                            var lreal2Unit = sheet.Cell($"AA{row}").GetString()?.Trim();
                             
                             if (double.TryParse(lreal2Min, System.Globalization.NumberStyles.Any, 
                                 System.Globalization.CultureInfo.InvariantCulture, out var min2Dbl))
@@ -4008,10 +4011,10 @@ namespace SW.PC.API.Backend.Services
                 {
                     // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                     using var stream = OpenExcelFileWithRetry(fullPath);
-                    using var package = new ExcelPackage(stream);
+                    using var package = new XLWorkbook(stream);
                     
                     // Buscar hoja "WashRecipe" (case-insensitive)
-                    var sheet = package.Workbook.Worksheets
+                    var sheet = package.Worksheets
                         .FirstOrDefault(ws => ws.Name.Equals("WashRecipe", StringComparison.OrdinalIgnoreCase));
                     
                     if (sheet == null)
@@ -4021,7 +4024,7 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // Leer descripción del nombre de lavado desde A2
-                    var recipeDesc = sheet.Cells["A2"].Text?.Trim();
+                    var recipeDesc = sheet.Cell("A2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(recipeDesc))
                     {
                         config.RecipeNameDescription = recipeDesc;
@@ -4029,7 +4032,7 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // Leer variable PLC del nombre de receta desde A3
-                    var recipeNamePlcVar = sheet.Cells["A3"].Text?.Trim();
+                    var recipeNamePlcVar = sheet.Cell("A3").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(recipeNamePlcVar))
                     {
                         config.RecipeNamePlcVariable = recipeNamePlcVar;
@@ -4037,7 +4040,7 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // Leer variable PLC de la línea/número de receta desde A4
-                    var recipeLinePlcVar = sheet.Cells["A4"].Text?.Trim();
+                    var recipeLinePlcVar = sheet.Cell("A4").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(recipeLinePlcVar))
                     {
                         config.RecipeLineNumberPlcVariable = recipeLinePlcVar;
@@ -4045,14 +4048,14 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // Leer configuración de escritura alternativa desde A13 (ON/OFF)
-                    var alternateWriteEnabled = sheet.Cells["A13"].Text?.Trim()?.ToUpperInvariant();
+                    var alternateWriteEnabled = sheet.Cell("A13").GetString()?.Trim()?.ToUpperInvariant();
                     if (alternateWriteEnabled == "ON")
                     {
                         config.AlternateWriteEnabled = true;
                         _logger.LogDebug("🚿 Alternate write enabled from A13: ON");
                         
                         // Leer prefijo PLC alternativo desde A14
-                        var alternatePlcPrefix = sheet.Cells["A14"].Text?.Trim();
+                        var alternatePlcPrefix = sheet.Cell("A14").GetString()?.Trim();
                         if (!string.IsNullOrEmpty(alternatePlcPrefix))
                         {
                             config.AlternateWritePlcPrefix = alternatePlcPrefix;
@@ -4101,8 +4104,8 @@ namespace SW.PC.API.Backend.Services
                     
                     while (consecutiveEmpty < maxEmptyRows && stationIndex < 50) // Máximo 50 estaciones
                     {
-                        var stationName = sheet.Cells[$"B{row}"].Text?.Trim();
-                        var stationImage = sheet.Cells[$"C{row}"].Text?.Trim();
+                        var stationName = sheet.Cell($"B{row}").GetString()?.Trim();
+                        var stationImage = sheet.Cell($"C{row}").GetString()?.Trim();
                         
                         // Verificar si hay algo en esta fila (nombre o al menos una variable)
                         bool hasData = !string.IsNullOrEmpty(stationName);
@@ -4112,7 +4115,7 @@ namespace SW.PC.API.Backend.Services
                         {
                             foreach (var (varCol, _) in boolColumns)
                             {
-                                if (!string.IsNullOrEmpty(sheet.Cells[$"{varCol}{row}"].Text?.Trim()))
+                                if (!string.IsNullOrEmpty(sheet.Cell($"{varCol}{row}").GetString()?.Trim()))
                                 {
                                     hasData = true;
                                     break;
@@ -4124,7 +4127,7 @@ namespace SW.PC.API.Backend.Services
                         {
                             foreach (var (varCol, _, _, _, _) in intColumns)
                             {
-                                if (!string.IsNullOrEmpty(sheet.Cells[$"{varCol}{row}"].Text?.Trim()))
+                                if (!string.IsNullOrEmpty(sheet.Cell($"{varCol}{row}").GetString()?.Trim()))
                                 {
                                     hasData = true;
                                     break;
@@ -4148,8 +4151,8 @@ namespace SW.PC.API.Backend.Services
                             for (int i = 0; i < boolColumns.Length; i++)
                             {
                                 var (varCol, descCol) = boolColumns[i];
-                                var plcVar = sheet.Cells[$"{varCol}{row}"].Text?.Trim();
-                                var desc = sheet.Cells[$"{descCol}{row}"].Text?.Trim();
+                                var plcVar = sheet.Cell($"{varCol}{row}").GetString()?.Trim();
+                                var desc = sheet.Cell($"{descCol}{row}").GetString()?.Trim();
                                 
                                 station.BoolParameters.Add(new WashRecipeBoolParam
                                 {
@@ -4164,11 +4167,11 @@ namespace SW.PC.API.Backend.Services
                             for (int i = 0; i < intColumns.Length; i++)
                             {
                                 var (varCol, descCol, minCol, maxCol, unitCol) = intColumns[i];
-                                var plcVar = sheet.Cells[$"{varCol}{row}"].Text?.Trim();
-                                var desc = sheet.Cells[$"{descCol}{row}"].Text?.Trim();
-                                var minText = sheet.Cells[$"{minCol}{row}"].Text?.Trim();
-                                var maxText = sheet.Cells[$"{maxCol}{row}"].Text?.Trim();
-                                var unit = sheet.Cells[$"{unitCol}{row}"].Text?.Trim();
+                                var plcVar = sheet.Cell($"{varCol}{row}").GetString()?.Trim();
+                                var desc = sheet.Cell($"{descCol}{row}").GetString()?.Trim();
+                                var minText = sheet.Cell($"{minCol}{row}").GetString()?.Trim();
+                                var maxText = sheet.Cell($"{maxCol}{row}").GetString()?.Trim();
+                                var unit = sheet.Cell($"{unitCol}{row}").GetString()?.Trim();
                                 
                                 var intParam = new WashRecipeIntParam
                                 {
@@ -4249,10 +4252,10 @@ namespace SW.PC.API.Backend.Services
                 {
                     // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                     using var stream = OpenExcelFileWithRetry(fullPath);
-                    using var package = new ExcelPackage(stream);
+                    using var package = new XLWorkbook(stream);
                     
                     // Buscar hoja "TrainRecipe" (case-insensitive)
-                    var sheet = package.Workbook.Worksheets
+                    var sheet = package.Worksheets
                         .FirstOrDefault(ws => ws.Name.Equals("TrainRecipe", StringComparison.OrdinalIgnoreCase));
                     
                     if (sheet == null)
@@ -4262,7 +4265,7 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // Leer descripción/título del nombre del tren desde A2
-                    var titleLabel = sheet.Cells["A2"].Text?.Trim();
+                    var titleLabel = sheet.Cell("A2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(titleLabel))
                     {
                         config.TitleLabel = titleLabel;
@@ -4272,7 +4275,7 @@ namespace SW.PC.API.Backend.Services
                     // ============================================
                     // Leer nombres de secciones desde B2, F2, N2
                     // ============================================
-                    var sectionBoolName = sheet.Cells["B2"].Text?.Trim();
+                    var sectionBoolName = sheet.Cell("B2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(sectionBoolName))
                     {
                         config.SectionBoolName = sectionBoolName;
@@ -4280,14 +4283,14 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // Imagen de sección BOOL desde D2
-                    var sectionBoolImage = sheet.Cells["D2"].Text?.Trim();
+                    var sectionBoolImage = sheet.Cell("D2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(sectionBoolImage))
                     {
                         config.SectionBoolImage = sectionBoolImage;
                         _logger.LogDebug("🚆 Section BOOL image from D2: {Image}", sectionBoolImage);
                     }
                     
-                    var sectionDecimalName = sheet.Cells["F2"].Text?.Trim();
+                    var sectionDecimalName = sheet.Cell("F2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(sectionDecimalName))
                     {
                         config.SectionDecimalName = sectionDecimalName;
@@ -4295,14 +4298,14 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // Imagen de sección DECIMAL desde H2
-                    var sectionDecimalImage = sheet.Cells["H2"].Text?.Trim();
+                    var sectionDecimalImage = sheet.Cell("H2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(sectionDecimalImage))
                     {
                         config.SectionDecimalImage = sectionDecimalImage;
                         _logger.LogDebug("🚆 Section DECIMAL image from H2: {Image}", sectionDecimalImage);
                     }
                     
-                    var sectionGantryName = sheet.Cells["N2"].Text?.Trim();
+                    var sectionGantryName = sheet.Cell("N2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(sectionGantryName))
                     {
                         config.SectionGantryName = sectionGantryName;
@@ -4311,7 +4314,7 @@ namespace SW.PC.API.Backend.Services
                     
                     // Leer variable PLC para el número de tablas activas del Gantry desde W2
                     // Valor 1 = 4 tablas (TAB1_*), Valor 2 = 8 tablas (TAB1_* + TAB2_*)
-                    var gantryTableCountPlcVar = sheet.Cells["W2"].Text?.Trim();
+                    var gantryTableCountPlcVar = sheet.Cell("W2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(gantryTableCountPlcVar))
                     {
                         config.GantryTableCountPlcVariable = gantryTableCountPlcVar;
@@ -4353,13 +4356,13 @@ namespace SW.PC.API.Backend.Services
                     {
                         var (tableId, colPosX, colPosY, colSpeedY, colFuncType, colLineCount, colMinHeight, colMaxHeight) = tableDefinitions[i];
                         
-                        var posXTemplate = sheet.Cells[$"{colPosX}2"].Text?.Trim();
-                        var posYTemplate = sheet.Cells[$"{colPosY}2"].Text?.Trim();
-                        var speedYTemplate = sheet.Cells[$"{colSpeedY}2"].Text?.Trim();
-                        var funcTypeTemplate = sheet.Cells[$"{colFuncType}2"].Text?.Trim();
-                        var lineCountPlcVar = sheet.Cells[$"{colLineCount}2"].Text?.Trim();
-                        var minHeightPlcVar = sheet.Cells[$"{colMinHeight}2"].Text?.Trim();
-                        var maxHeightPlcVar = sheet.Cells[$"{colMaxHeight}2"].Text?.Trim();
+                        var posXTemplate = sheet.Cell($"{colPosX}2").GetString()?.Trim();
+                        var posYTemplate = sheet.Cell($"{colPosY}2").GetString()?.Trim();
+                        var speedYTemplate = sheet.Cell($"{colSpeedY}2").GetString()?.Trim();
+                        var funcTypeTemplate = sheet.Cell($"{colFuncType}2").GetString()?.Trim();
+                        var lineCountPlcVar = sheet.Cell($"{colLineCount}2").GetString()?.Trim();
+                        var minHeightPlcVar = sheet.Cell($"{colMinHeight}2").GetString()?.Trim();
+                        var maxHeightPlcVar = sheet.Cell($"{colMaxHeight}2").GetString()?.Trim();
                         
                         var table = new GantryInterpolationTable
                         {
@@ -4388,7 +4391,7 @@ namespace SW.PC.API.Backend.Services
                         config.GantryInterpolationTables.Count(t => t.IsConfigured));
                     
                     // Leer variable PLC del nombre del tren desde A3
-                    var trainNamePlcVar = sheet.Cells["A3"].Text?.Trim();
+                    var trainNamePlcVar = sheet.Cell("A3").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(trainNamePlcVar))
                     {
                         config.TrainNamePlcVariable = trainNamePlcVar;
@@ -4396,7 +4399,7 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // Leer variable PLC de la línea/número desde A4
-                    var lineNumberPlcVar = sheet.Cells["A4"].Text?.Trim();
+                    var lineNumberPlcVar = sheet.Cell("A4").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(lineNumberPlcVar))
                     {
                         config.LineNumberPlcVariable = lineNumberPlcVar;
@@ -4405,7 +4408,7 @@ namespace SW.PC.API.Backend.Services
                     
                     // Leer variable PLC del trigger de escritura desde A5
                     // (Se pone en TRUE cuando escribimos al PLC, el PLC la pone en FALSE al recibir)
-                    var writeTriggerPlcVar = sheet.Cells["A5"].Text?.Trim();
+                    var writeTriggerPlcVar = sheet.Cell("A5").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(writeTriggerPlcVar))
                     {
                         config.WriteTriggerPlcVariable = writeTriggerPlcVar;
@@ -4426,18 +4429,18 @@ namespace SW.PC.API.Backend.Services
                     while (consecutiveEmpty < maxEmptyRows && row < 100) // Máximo 100 filas
                     {
                         // Leer parámetro BOOL de esta fila (columnas C, D, E)
-                        var boolName = sheet.Cells[row, 3].Text?.Trim();      // C = columna 3
-                        var boolImage = sheet.Cells[row, 4].Text?.Trim();     // D = columna 4
-                        var boolPlcVar = sheet.Cells[row, 5].Text?.Trim();    // E = columna 5
+                        var boolName = sheet.Cell(row, 3).GetString()?.Trim();      // C = columna 3
+                        var boolImage = sheet.Cell(row, 4).GetString()?.Trim();     // D = columna 4
+                        var boolPlcVar = sheet.Cell(row, 5).GetString()?.Trim();    // E = columna 5
                         
                         // Leer parámetro DECIMAL de esta fila (columnas G, H, I, J, K, L, M)
-                        var decName = sheet.Cells[row, 7].Text?.Trim();       // G = columna 7
-                        var decImage = sheet.Cells[row, 8].Text?.Trim();      // H = columna 8
-                        var decPlcVar = sheet.Cells[row, 9].Text?.Trim();     // I = columna 9
-                        var decMin = sheet.Cells[row, 10].Text?.Trim();       // J = columna 10
-                        var decMax = sheet.Cells[row, 11].Text?.Trim();       // K = columna 11
-                        var decDecimals = sheet.Cells[row, 12].Text?.Trim();  // L = columna 12
-                        var decUnit = sheet.Cells[row, 13].Text?.Trim();      // M = columna 13
+                        var decName = sheet.Cell(row, 7).GetString()?.Trim();       // G = columna 7
+                        var decImage = sheet.Cell(row, 8).GetString()?.Trim();      // H = columna 8
+                        var decPlcVar = sheet.Cell(row, 9).GetString()?.Trim();     // I = columna 9
+                        var decMin = sheet.Cell(row, 10).GetString()?.Trim();       // J = columna 10
+                        var decMax = sheet.Cell(row, 11).GetString()?.Trim();       // K = columna 11
+                        var decDecimals = sheet.Cell(row, 12).GetString()?.Trim();  // L = columna 12
+                        var decUnit = sheet.Cell(row, 13).GetString()?.Trim();      // M = columna 13
                         
                         bool hasData = false;
                         
@@ -4506,14 +4509,14 @@ namespace SW.PC.API.Backend.Services
                         // Leer parámetro GANTRY CONFIG de esta fila (columnas O, P, Q, R, S, T, U, V)
                         // O=Nombre, P=Icono, Q=Variable PLC, R=Min, S=Max, T=Decimales, U=Unidad, V=Visibilidad
                         // ============================================
-                        var gantryName = sheet.Cells[row, 15].Text?.Trim();      // O = columna 15
-                        var gantryImage = sheet.Cells[row, 16].Text?.Trim();     // P = columna 16
-                        var gantryPlcVar = sheet.Cells[row, 17].Text?.Trim();    // Q = columna 17
-                        var gantryMin = sheet.Cells[row, 18].Text?.Trim();       // R = columna 18
-                        var gantryMax = sheet.Cells[row, 19].Text?.Trim();       // S = columna 19
-                        var gantryDecimals = sheet.Cells[row, 20].Text?.Trim();  // T = columna 20
-                        var gantryUnit = sheet.Cells[row, 21].Text?.Trim();      // U = columna 21
-                        var gantryVisibility = sheet.Cells[row, 22].Text?.Trim(); // V = columna 22
+                        var gantryName = sheet.Cell(row, 15).GetString()?.Trim();      // O = columna 15
+                        var gantryImage = sheet.Cell(row, 16).GetString()?.Trim();     // P = columna 16
+                        var gantryPlcVar = sheet.Cell(row, 17).GetString()?.Trim();    // Q = columna 17
+                        var gantryMin = sheet.Cell(row, 18).GetString()?.Trim();       // R = columna 18
+                        var gantryMax = sheet.Cell(row, 19).GetString()?.Trim();       // S = columna 19
+                        var gantryDecimals = sheet.Cell(row, 20).GetString()?.Trim();  // T = columna 20
+                        var gantryUnit = sheet.Cell(row, 21).GetString()?.Trim();      // U = columna 21
+                        var gantryVisibility = sheet.Cell(row, 22).GetString()?.Trim(); // V = columna 22
                         
                         // Agregar parámetro GANTRY CONFIG si tiene nombre Y visibilidad
                         if (!string.IsNullOrEmpty(gantryName) && !string.IsNullOrEmpty(gantryVisibility))
@@ -4575,7 +4578,7 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // Leer prefijo alternativo para PLC2 desde A14 (igual que WashRecipe)
-                    var alternatePlcPrefix = sheet.Cells["A14"].Text?.Trim();
+                    var alternatePlcPrefix = sheet.Cell("A14").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(alternatePlcPrefix))
                     {
                         config.AlternatePlcPrefix = alternatePlcPrefix;
@@ -4630,10 +4633,10 @@ namespace SW.PC.API.Backend.Services
                 {
                     // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                     using var stream = OpenExcelFileWithRetry(fullPath);
-                    using var package = new ExcelPackage(stream);
+                    using var package = new XLWorkbook(stream);
                     
                     // Buscar hoja "Manual" (case-insensitive)
-                    var sheet = package.Workbook.Worksheets
+                    var sheet = package.Worksheets
                         .FirstOrDefault(ws => ws.Name.Equals("Manual", StringComparison.OrdinalIgnoreCase));
                     
                     if (sheet == null)
@@ -4643,7 +4646,7 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // === Leer título de la vista desde A2 ===
-                    var viewTitle = sheet.Cells["A2"].Text?.Trim();
+                    var viewTitle = sheet.Cell("A2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(viewTitle))
                     {
                         config.ViewTitle = viewTitle;
@@ -4658,9 +4661,9 @@ namespace SW.PC.API.Backend.Services
                     while (consecutiveEmpty < maxEmptyRows)
                     {
                         // === Columnas B (Descripción), C (Imagen), D (Variable PLC) ===
-                        var description = sheet.Cells[$"B{row}"].Text?.Trim();
-                        var imagePath = sheet.Cells[$"C{row}"].Text?.Trim();
-                        var plcVariable = sheet.Cells[$"D{row}"].Text?.Trim();
+                        var description = sheet.Cell($"B{row}").GetString()?.Trim();
+                        var imagePath = sheet.Cell($"C{row}").GetString()?.Trim();
+                        var plcVariable = sheet.Cell($"D{row}").GetString()?.Trim();
                         
                         // Solo añadir si tiene descripción Y variable PLC
                         if (!string.IsNullOrEmpty(description) && !string.IsNullOrEmpty(plcVariable))
@@ -4723,10 +4726,10 @@ namespace SW.PC.API.Backend.Services
                 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using (var stream = OpenExcelFileWithRetry(fullPath))
-                using (var package = new ExcelPackage(stream))
+                using (var package = new XLWorkbook(stream))
                 {
                     // Buscar hoja "Fast_Configuration" (case-insensitive)
-                    var sheet = package.Workbook.Worksheets
+                    var sheet = package.Worksheets
                         .FirstOrDefault(ws => ws.Name.Equals("Fast_Configuration", StringComparison.OrdinalIgnoreCase));
                     
                     if (sheet == null)
@@ -4736,28 +4739,28 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // === Leer títulos desde las celdas A2, B2, F2, M2 ===
-                    var pageTitle = sheet.Cells["A2"].Text?.Trim();
+                    var pageTitle = sheet.Cell("A2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(pageTitle))
                     {
                         config.PageTitle = pageTitle;
                         _logger.LogDebug("⚡ Page title from A2: {Title}", pageTitle);
                     }
                     
-                    var boolTitle = sheet.Cells["B2"].Text?.Trim();
+                    var boolTitle = sheet.Cell("B2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(boolTitle))
                     {
                         config.BoolSectionTitle = boolTitle;
                         _logger.LogDebug("⚡ Bool section title from B2: {Title}", boolTitle);
                     }
                     
-                    var intTitle = sheet.Cells["F2"].Text?.Trim();
+                    var intTitle = sheet.Cell("F2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(intTitle))
                     {
                         config.IntSectionTitle = intTitle;
                         _logger.LogDebug("⚡ Int section title from F2: {Title}", intTitle);
                     }
                     
-                    var lrealTitle = sheet.Cells["M2"].Text?.Trim();
+                    var lrealTitle = sheet.Cell("M2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(lrealTitle))
                     {
                         config.LRealSectionTitle = lrealTitle;
@@ -4774,9 +4777,9 @@ namespace SW.PC.API.Backend.Services
                         bool hasData = false;
                         
                         // === BOOL: Columnas C (Descripción), D (Imagen), E (Variable PLC) ===
-                        var boolDesc = sheet.Cells[$"C{row}"].Text?.Trim();
-                        var boolImage = sheet.Cells[$"D{row}"].Text?.Trim();
-                        var boolPlcVar = sheet.Cells[$"E{row}"].Text?.Trim();
+                        var boolDesc = sheet.Cell($"C{row}").GetString()?.Trim();
+                        var boolImage = sheet.Cell($"D{row}").GetString()?.Trim();
+                        var boolPlcVar = sheet.Cell($"E{row}").GetString()?.Trim();
                         
                         if (!string.IsNullOrEmpty(boolDesc) && !string.IsNullOrEmpty(boolPlcVar))
                         {
@@ -4792,9 +4795,9 @@ namespace SW.PC.API.Backend.Services
                         }
                         
                         // === INT: Columnas G (Descripción), H (Imagen), I (Variable PLC), J (Min), K (Max), L (Unidad) ===
-                        var intDesc = sheet.Cells[$"G{row}"].Text?.Trim();
-                        var intImage = sheet.Cells[$"H{row}"].Text?.Trim();
-                        var intPlcVar = sheet.Cells[$"I{row}"].Text?.Trim();
+                        var intDesc = sheet.Cell($"G{row}").GetString()?.Trim();
+                        var intImage = sheet.Cell($"H{row}").GetString()?.Trim();
+                        var intPlcVar = sheet.Cell($"I{row}").GetString()?.Trim();
                         
                         if (!string.IsNullOrEmpty(intDesc) && !string.IsNullOrEmpty(intPlcVar))
                         {
@@ -4807,17 +4810,17 @@ namespace SW.PC.API.Backend.Services
                             };
                             
                             // Leer Min (columna J)
-                            var minVal = sheet.Cells[$"J{row}"].Text?.Trim();
+                            var minVal = sheet.Cell($"J{row}").GetString()?.Trim();
                             if (int.TryParse(minVal, out var minInt))
                                 intSetting.MinValue = minInt;
                             
                             // Leer Max (columna K)
-                            var maxVal = sheet.Cells[$"K{row}"].Text?.Trim();
+                            var maxVal = sheet.Cell($"K{row}").GetString()?.Trim();
                             if (int.TryParse(maxVal, out var maxInt))
                                 intSetting.MaxValue = maxInt;
                             
                             // Leer Unidad (columna L)
-                            var unit = sheet.Cells[$"L{row}"].Text?.Trim();
+                            var unit = sheet.Cell($"L{row}").GetString()?.Trim();
                             if (!string.IsNullOrEmpty(unit))
                                 intSetting.Unit = unit;
                             
@@ -4828,9 +4831,9 @@ namespace SW.PC.API.Backend.Services
                         }
                         
                         // === LREAL: Columnas N (Descripción), O (Imagen), P (Variable PLC), Q (Min), R (Max), S (Decimales), T (Unidad) ===
-                        var lrealDesc = sheet.Cells[$"N{row}"].Text?.Trim();
-                        var lrealImage = sheet.Cells[$"O{row}"].Text?.Trim();
-                        var lrealPlcVar = sheet.Cells[$"P{row}"].Text?.Trim();
+                        var lrealDesc = sheet.Cell($"N{row}").GetString()?.Trim();
+                        var lrealImage = sheet.Cell($"O{row}").GetString()?.Trim();
+                        var lrealPlcVar = sheet.Cell($"P{row}").GetString()?.Trim();
                         
                         if (!string.IsNullOrEmpty(lrealDesc) && !string.IsNullOrEmpty(lrealPlcVar))
                         {
@@ -4843,24 +4846,24 @@ namespace SW.PC.API.Backend.Services
                             };
                             
                             // Leer Min (columna Q)
-                            var lrealMin = sheet.Cells[$"Q{row}"].Text?.Trim();
+                            var lrealMin = sheet.Cell($"Q{row}").GetString()?.Trim();
                             if (double.TryParse(lrealMin, System.Globalization.NumberStyles.Any, 
                                 System.Globalization.CultureInfo.InvariantCulture, out var minDbl))
                                 lrealSetting.MinValue = minDbl;
                             
                             // Leer Max (columna R)
-                            var lrealMax = sheet.Cells[$"R{row}"].Text?.Trim();
+                            var lrealMax = sheet.Cell($"R{row}").GetString()?.Trim();
                             if (double.TryParse(lrealMax, System.Globalization.NumberStyles.Any, 
                                 System.Globalization.CultureInfo.InvariantCulture, out var maxDbl))
                                 lrealSetting.MaxValue = maxDbl;
                             
                             // Leer Decimales (columna S)
-                            var lrealDecimals = sheet.Cells[$"S{row}"].Text?.Trim();
+                            var lrealDecimals = sheet.Cell($"S{row}").GetString()?.Trim();
                             if (int.TryParse(lrealDecimals, out var dec))
                                 lrealSetting.DecimalPlaces = dec;
                             
                             // Leer Unidad (columna T)
-                            var lrealUnit = sheet.Cells[$"T{row}"].Text?.Trim();
+                            var lrealUnit = sheet.Cell($"T{row}").GetString()?.Trim();
                             lrealSetting.Unit = string.IsNullOrEmpty(lrealUnit) ? null : lrealUnit;
                             
                             config.LRealSettings.Add(lrealSetting);
@@ -4928,10 +4931,10 @@ namespace SW.PC.API.Backend.Services
                 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using (var stream = OpenExcelFileWithRetry(fullPath))
-                using (var package = new ExcelPackage(stream))
+                using (var package = new XLWorkbook(stream))
                 {
                     // Buscar hoja "Plc_InfoPanel" (case-insensitive)
-                    var sheet = package.Workbook.Worksheets
+                    var sheet = package.Worksheets
                         .FirstOrDefault(ws => ws.Name.Equals("Plc_InfoPanel", StringComparison.OrdinalIgnoreCase));
                     
                     if (sheet == null)
@@ -4941,21 +4944,21 @@ namespace SW.PC.API.Backend.Services
                     }
                     
                     // === Leer configuración de la card (solo de fila 2) ===
-                    var title = sheet.Cells["A2"].Text?.Trim();
+                    var title = sheet.Cell("A2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(title))
                     {
                         config.Title = title;
                         _logger.LogDebug("📟 Card title from A2: {Title}", title);
                     }
                     
-                    var titleIcon = sheet.Cells["B2"].Text?.Trim();
+                    var titleIcon = sheet.Cell("B2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(titleIcon))
                     {
                         config.TitleIcon = titleIcon;
                         _logger.LogDebug("📟 Card icon from B2: {Icon}", titleIcon);
                     }
                     
-                    var helpContent = sheet.Cells["C2"].Text?.Trim();
+                    var helpContent = sheet.Cell("C2").GetString()?.Trim();
                     if (!string.IsNullOrEmpty(helpContent))
                     {
                         config.HelpContent = helpContent;
@@ -4972,16 +4975,16 @@ namespace SW.PC.API.Backend.Services
                     while (consecutiveEmpty < maxEmptyRows)
                     {
                         // Columna F (Variable PLC) es requerida
-                        var plcVariable = sheet.Cells[$"F{row}"].Text?.Trim();
+                        var plcVariable = sheet.Cell($"F{row}").GetString()?.Trim();
                         
                         // DEBUG: Log every row we check
                         _logger.LogDebug("📟 Row {Row}: F={PlcVar}, D={LineName}", 
-                            row, plcVariable ?? "(empty)", sheet.Cells[$"D{row}"].Text?.Trim() ?? "(empty)");
+                            row, plcVariable ?? "(empty)", sheet.Cell($"D{row}").GetString()?.Trim() ?? "(empty)");
                         
                         if (!string.IsNullOrEmpty(plcVariable))
                         {
-                            var lineName = sheet.Cells[$"D{row}"].Text?.Trim();
-                            var lineIcon = sheet.Cells[$"E{row}"].Text?.Trim();
+                            var lineName = sheet.Cell($"D{row}").GetString()?.Trim();
+                            var lineIcon = sheet.Cell($"E{row}").GetString()?.Trim();
                             
                             // Solo agregar si tiene nombre y variable PLC
                             if (!string.IsNullOrEmpty(lineName))
@@ -5048,12 +5051,12 @@ namespace SW.PC.API.Backend.Services
             
             try
             {
-                using var package = new ExcelPackage(new FileInfo(filePath));
+                using var package = new XLWorkbook(filePath);
                 
-                var sheet = package.Workbook.Worksheets["OT_Components"]
-                         ?? package.Workbook.Worksheets["OT Components"]
-                         ?? package.Workbook.Worksheets["SBOM_OT"]
-                         ?? package.Workbook.Worksheets["Hardware"];
+                var sheet = FindWorksheet(package, "OT_Components")
+                         ?? FindWorksheet(package, "OT Components")
+                         ?? FindWorksheet(package, "SBOM_OT")
+                         ?? FindWorksheet(package, "Hardware");
                 
                 if (sheet == null)
                 {
@@ -5069,9 +5072,9 @@ namespace SW.PC.API.Backend.Services
                 
                 while (consecutiveEmpty < 5) // Stop after 5 empty rows
                 {
-                    var type = sheet.Cells[row, 1].Text?.Trim();
-                    var manufacturer = sheet.Cells[row, 2].Text?.Trim();
-                    var model = sheet.Cells[row, 3].Text?.Trim();
+                    var type = sheet.Cell(row, 1).GetString()?.Trim();
+                    var manufacturer = sheet.Cell(row, 2).GetString()?.Trim();
+                    var model = sheet.Cell(row, 3).GetString()?.Trim();
                     
                     if (!string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(manufacturer) && !string.IsNullOrEmpty(model))
                     {
@@ -5080,16 +5083,16 @@ namespace SW.PC.API.Backend.Services
                             Type = type.ToLower(),
                             Manufacturer = manufacturer,
                             Model = model,
-                            Version = sheet.Cells[row, 4].Text?.Trim() ?? "Unknown",
-                            SerialNumber = sheet.Cells[row, 5].Text?.Trim(),
-                            IpAddress = sheet.Cells[row, 6].Text?.Trim(),
-                            Location = sheet.Cells[row, 7].Text?.Trim(),
-                            Description = sheet.Cells[row, 8].Text?.Trim(),
-                            SupportUrl = sheet.Cells[row, 9].Text?.Trim()
+                            Version = sheet.Cell(row, 4).GetString()?.Trim() ?? "Unknown",
+                            SerialNumber = sheet.Cell(row, 5).GetString()?.Trim(),
+                            IpAddress = sheet.Cell(row, 6).GetString()?.Trim(),
+                            Location = sheet.Cell(row, 7).GetString()?.Trim(),
+                            Description = sheet.Cell(row, 8).GetString()?.Trim(),
+                            SupportUrl = sheet.Cell(row, 9).GetString()?.Trim()
                         };
                         
                         // Parse LastUpdate date
-                        var lastUpdateText = sheet.Cells[row, 10].Text?.Trim();
+                        var lastUpdateText = sheet.Cell(row, 10).GetString()?.Trim();
                         if (!string.IsNullOrEmpty(lastUpdateText) && DateTime.TryParse(lastUpdateText, out var lastUpdate))
                         {
                             component.LastUpdate = lastUpdate;

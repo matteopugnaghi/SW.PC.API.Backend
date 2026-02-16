@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using SW.PC.API.Backend.Data;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Services;
-using OfficeOpenXml;
+using ClosedXML.Excel;
 using System.Text.Json;
 
 namespace SW.PC.API.Backend.Controllers;
@@ -379,10 +379,8 @@ public class OperationLogsController : ControllerBase
     /// </summary>
     private async Task<IActionResult> ExportAsExcelAsync(List<OperationLogDto> logs, Dictionary<string, string> translations, DateTime start, DateTime end, string lang)
     {
-        ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-        
-        using var package = new ExcelPackage();
-        var worksheet = package.Workbook.Worksheets.Add(GetTranslation(translations, "export.sheet.operationLogs", "Operation Logs"));
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add(GetTranslation(translations, "export.sheet.operationLogs", "Operation Logs"));
         
         // Header row with translations
         var headers = new[]
@@ -401,52 +399,53 @@ public class OperationLogsController : ControllerBase
         
         for (int i = 0; i < headers.Length; i++)
         {
-            worksheet.Cells[1, i + 1].Value = headers[i];
-            worksheet.Cells[1, i + 1].Style.Font.Bold = true;
-            worksheet.Cells[1, i + 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-            worksheet.Cells[1, i + 1].Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(23, 162, 184));
-            worksheet.Cells[1, i + 1].Style.Font.Color.SetColor(System.Drawing.Color.White);
+            var cell = worksheet.Cell(1, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.FromArgb(23, 162, 184);
+            cell.Style.Font.FontColor = XLColor.White;
         }
         
         // Data rows
         int row = 2;
         foreach (var log in logs)
         {
-            worksheet.Cells[row, 1].Value = log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
-            worksheet.Cells[row, 2].Value = TranslateCategory(log.Category, log.AlarmType, translations);
-            worksheet.Cells[row, 3].Value = TranslateAction(log.Action, translations);
-            worksheet.Cells[row, 4].Value = log.User;
-            worksheet.Cells[row, 5].Value = log.Message ?? log.Description;
-            worksheet.Cells[row, 6].Value = log.AlarmIndex;
-            worksheet.Cells[row, 7].Value = log.Severity;
-            worksheet.Cells[row, 8].Value = log.IsAcknowledged ? GetTranslation(translations, "export.yes", "Yes") : GetTranslation(translations, "export.no", "No");
-            worksheet.Cells[row, 9].Value = log.AcknowledgedBy;
-            worksheet.Cells[row, 10].Value = log.AcknowledgedAt?.ToString("yyyy-MM-dd HH:mm:ss");
+            worksheet.Cell(row, 1).Value = log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
+            worksheet.Cell(row, 2).Value = TranslateCategory(log.Category, log.AlarmType, translations);
+            worksheet.Cell(row, 3).Value = TranslateAction(log.Action, translations);
+            worksheet.Cell(row, 4).Value = log.User;
+            worksheet.Cell(row, 5).Value = log.Message ?? log.Description;
+            worksheet.Cell(row, 6).Value = log.AlarmIndex;
+            worksheet.Cell(row, 7).Value = log.Severity;
+            worksheet.Cell(row, 8).Value = log.IsAcknowledged ? GetTranslation(translations, "export.yes", "Yes") : GetTranslation(translations, "export.no", "No");
+            worksheet.Cell(row, 9).Value = log.AcknowledgedBy;
+            worksheet.Cell(row, 10).Value = log.AcknowledgedAt?.ToString("yyyy-MM-dd HH:mm:ss");
             
             // Color code by category
             var color = GetCategoryColor(log.Category, log.AlarmType);
-            worksheet.Cells[row, 2].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-            worksheet.Cells[row, 2].Style.Fill.BackgroundColor.SetColor(color);
+            worksheet.Cell(row, 2).Style.Fill.BackgroundColor = XLColor.FromColor(color);
             
             row++;
         }
         
         // Auto-fit columns
-        worksheet.Cells.AutoFitColumns();
+        worksheet.Columns().AdjustToContents();
         
         // Add metadata sheet
-        var metaSheet = package.Workbook.Worksheets.Add(GetTranslation(translations, "export.sheet.metadata", "Metadata"));
-        metaSheet.Cells[1, 1].Value = GetTranslation(translations, "export.metadata.exportDate", "Export Date");
-        metaSheet.Cells[1, 2].Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-        metaSheet.Cells[2, 1].Value = GetTranslation(translations, "export.metadata.dateRange", "Date Range");
-        metaSheet.Cells[2, 2].Value = $"{start:yyyy-MM-dd} - {end:yyyy-MM-dd}";
-        metaSheet.Cells[3, 1].Value = GetTranslation(translations, "export.metadata.recordCount", "Record Count");
-        metaSheet.Cells[3, 2].Value = logs.Count;
-        metaSheet.Cells[4, 1].Value = GetTranslation(translations, "export.metadata.language", "Language");
-        metaSheet.Cells[4, 2].Value = lang;
-        metaSheet.Cells.AutoFitColumns();
+        var metaSheet = workbook.Worksheets.Add(GetTranslation(translations, "export.sheet.metadata", "Metadata"));
+        metaSheet.Cell(1, 1).Value = GetTranslation(translations, "export.metadata.exportDate", "Export Date");
+        metaSheet.Cell(1, 2).Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        metaSheet.Cell(2, 1).Value = GetTranslation(translations, "export.metadata.dateRange", "Date Range");
+        metaSheet.Cell(2, 2).Value = $"{start:yyyy-MM-dd} - {end:yyyy-MM-dd}";
+        metaSheet.Cell(3, 1).Value = GetTranslation(translations, "export.metadata.recordCount", "Record Count");
+        metaSheet.Cell(3, 2).Value = logs.Count;
+        metaSheet.Cell(4, 1).Value = GetTranslation(translations, "export.metadata.language", "Language");
+        metaSheet.Cell(4, 2).Value = lang;
+        metaSheet.Columns().AdjustToContents();
         
-        var bytes = await package.GetAsByteArrayAsync();
+        using var ms = new MemoryStream();
+        workbook.SaveAs(ms);
+        var bytes = ms.ToArray();
         var fileName = $"operation_logs_{start:yyyyMMdd}_{end:yyyyMMdd}_{lang}.xlsx";
         
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);

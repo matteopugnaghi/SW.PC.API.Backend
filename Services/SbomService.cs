@@ -53,6 +53,21 @@ public class SbomService : ISbomService
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    /// <summary>
+    /// Known license mappings for NuGet packages that use file-based licenses
+    /// (their .nuspec has license type="file" pointing to a .md, which is useless in SBOM)
+    /// ⚠️ Packages with commercial/restrictive licenses are flagged here
+    /// </summary>
+    private static readonly Dictionary<string, (string Id, string? Name, string? Url, bool IsCommercial)> KnownNuGetLicenses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["BCrypt.Net-Next"]                         = ("MIT", null, "https://github.com/BcryptNet/bcrypt.net/blob/main/licence.txt", false),
+        ["Beckhoff.TwinCAT.Ads"]                    = ("LicenseRef-Beckhoff", "Beckhoff Proprietary License", "https://download.beckhoff.com/download/Document/automation/twincat3/TwinCAT3LicenseTerms.pdf", true),
+        ["ClosedXML"]                               = ("MIT", null, "https://github.com/ClosedXML/ClosedXML/blob/develop/LICENSE", false),
+        ["QuestPDF"]                                = ("LicenseRef-QuestPDF-Community", "QuestPDF Community License (free <$1M revenue)", "https://www.questpdf.com/license/", true),
+        ["Microsoft.AspNetCore.SignalR"]             = ("Apache-2.0", null, "https://licenses.nuget.org/Apache-2.0", false),
+        ["DocumentFormat.OpenXml"]                  = ("MIT", null, null, false),
+    };
+
     public SbomService(
         ILogger<SbomService> logger,
         IConfiguration configuration,
@@ -280,7 +295,9 @@ public class SbomService : ISbomService
             {
                 var nugetComponents = await GetNuGetComponentsAsync();
                 sbom.Components.AddRange(nugetComponents);
-                _logger.LogInformation("📦 Added {Count} NuGet packages", nugetComponents.Count);
+                var nugetWithLicense = nugetComponents.Count(c => c.Licenses?.Count > 0);
+                _logger.LogInformation("📦 Added {Count} NuGet packages ({Licensed} with license info)", 
+                    nugetComponents.Count, nugetWithLicense);
             }
             
             // Generate Frontend (npm) components
@@ -288,7 +305,9 @@ public class SbomService : ISbomService
             {
                 var npmComponents = await GetNpmComponentsAsync(request.IncludeDevDependencies);
                 sbom.Components.AddRange(npmComponents);
-                _logger.LogInformation("📦 Added {Count} npm packages", npmComponents.Count);
+                var npmWithLicense = npmComponents.Count(c => c.Licenses?.Count > 0);
+                _logger.LogInformation("📦 Added {Count} npm packages ({Licensed} with license info)", 
+                    npmComponents.Count, npmWithLicense);
             }
             
             // Generate OT (Operational Technology) components - TwinCAT, IPC, etc.
@@ -437,6 +456,9 @@ public class SbomService : ISbomService
                     ? string.Join(".", nameParts.Take(nameParts.Length - 1))
                     : nameParts.FirstOrDefault();
                 
+                // Extract license from NuGet cache (.nuspec)
+                var licenses = await GetNuGetLicenseAsync(name, version);
+                
                 components.Add(new SbomComponent
                 {
                     Type = "library",
@@ -447,6 +469,7 @@ public class SbomService : ISbomService
                     Purl = $"pkg:nuget/{name}@{version}",
                     Publisher = "NuGet",
                     Scope = "required",
+                    Licenses = licenses,
                     ExternalReferences = new List<SbomExternalReference>
                     {
                         new()
@@ -500,6 +523,9 @@ public class SbomService : ISbomService
                         ? name.Split('/').FirstOrDefault()
                         : null;
                     
+                    // Extract license from node_modules
+                    var licenses = GetNpmLicense(name);
+                    
                     components.Add(new SbomComponent
                     {
                         Type = "library",
@@ -510,6 +536,7 @@ public class SbomService : ISbomService
                         Purl = $"pkg:npm/{name}@{version}",
                         Publisher = "npm",
                         Scope = "required",
+                        Licenses = licenses,
                         ExternalReferences = new List<SbomExternalReference>
                         {
                             new()
@@ -531,6 +558,9 @@ public class SbomService : ISbomService
                     var version = dep.Value.GetString()?.TrimStart('^', '~') ?? "unknown";
                     var group = name.StartsWith("@") ? name.Split('/').FirstOrDefault() : null;
                     
+                    // Extract license from node_modules
+                    var devLicenses = GetNpmLicense(name);
+                    
                     components.Add(new SbomComponent
                     {
                         Type = "library",
@@ -541,6 +571,7 @@ public class SbomService : ISbomService
                         Purl = $"pkg:npm/{name}@{version}",
                         Publisher = "npm",
                         Scope = "optional", // devDependencies are optional
+                        Licenses = devLicenses,
                         ExternalReferences = new List<SbomExternalReference>
                         {
                             new()
@@ -584,28 +615,18 @@ public class SbomService : ISbomService
                 Description = $"Beckhoff TwinCAT PLC Runtime - Device: {tcVersion.DeviceName}",
                 Publisher = "Beckhoff Automation",
                 Purl = $"pkg:ot/beckhoff/twincat-runtime@{tcVersion.MajorVersion}.{tcVersion.MinorVersion}.{tcVersion.BuildNumber}",
+                Licenses = new List<SbomLicense>
+                {
+                    new() { License = new SbomLicenseInfo { Id = "LicenseRef-Beckhoff", Name = "Beckhoff Proprietary License", Url = "https://download.beckhoff.com/download/Document/automation/twincat3/TwinCAT3LicenseTerms.pdf" } }
+                },
                 ExternalReferences = new List<SbomExternalReference>
                 {
                     new() { Type = "website", Url = "https://www.beckhoff.com/twincat3/" }
                 }
             });
             
-            // 2. TwinCAT ADS Client Library
-            components.Add(new SbomComponent
-            {
-                Type = "library",
-                BomRef = $"pkg:nuget/Beckhoff.TwinCAT.Ads@{tcVersion.AdsVersion}",
-                Group = "OT-PLC",
-                Name = "TwinCAT.Ads",
-                Version = tcVersion.AdsVersion,
-                Description = "Beckhoff TwinCAT ADS Communication Library",
-                Publisher = "Beckhoff Automation",
-                Purl = $"pkg:nuget/Beckhoff.TwinCAT.Ads@{tcVersion.AdsVersion}",
-                ExternalReferences = new List<SbomExternalReference>
-                {
-                    new() { Type = "website", Url = "https://www.nuget.org/packages/Beckhoff.TwinCAT.Ads" }
-                }
-            });
+            // 2. TwinCAT ADS - SKIP: already included from NuGet PackageReference scan
+            //    (avoids duplicate with different version numbers)
             
             // 3. IPC / Host System
             var osVersion = Environment.OSVersion;
@@ -638,6 +659,10 @@ public class SbomService : ISbomService
                 Description = "Microsoft .NET Runtime for Backend Application",
                 Publisher = "Microsoft",
                 Purl = $"pkg:generic/microsoft/dotnet@{Environment.Version}",
+                Licenses = new List<SbomLicense>
+                {
+                    new() { License = new SbomLicenseInfo { Id = "MIT", Url = "https://github.com/dotnet/runtime/blob/main/LICENSE.TXT" } }
+                },
                 ExternalReferences = new List<SbomExternalReference>
                 {
                     new() { Type = "website", Url = "https://dotnet.microsoft.com/" }
@@ -696,6 +721,243 @@ public class SbomService : ISbomService
         return components;
     }
     
+    // ============================================
+    // 📜 License Extraction Methods
+    // ============================================
+
+    /// <summary>
+    /// Extract license information from NuGet global package cache (.nuspec files)
+    /// Path: %USERPROFILE%\.nuget\packages\{name}\{version}\{name}.nuspec
+    /// </summary>
+    private async Task<List<SbomLicense>?> GetNuGetLicenseAsync(string packageName, string version)
+    {
+        try
+        {
+            var nugetCachePath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".nuget", "packages", packageName.ToLowerInvariant(), version);
+            
+            if (!Directory.Exists(nugetCachePath))
+                return null;
+            
+            var nuspecPath = Directory.GetFiles(nugetCachePath, "*.nuspec").FirstOrDefault();
+            if (nuspecPath == null || !File.Exists(nuspecPath))
+                return null;
+            
+            var nuspecXml = await File.ReadAllTextAsync(nuspecPath);
+            var nuspecDoc = XDocument.Parse(nuspecXml);
+            var ns = nuspecDoc.Root?.Name.Namespace ?? XNamespace.None;
+            var metadata = nuspecDoc.Root?.Element(ns + "metadata");
+            
+            if (metadata == null)
+                return null;
+            
+            // Try <license type="expression">MIT</license> (modern format)
+            var licenseElement = metadata.Element(ns + "license");
+            if (licenseElement != null)
+            {
+                var licenseType = licenseElement.Attribute("type")?.Value;
+                var licenseValue = licenseElement.Value.Trim();
+                
+                if (licenseType == "expression")
+                {
+                    return new List<SbomLicense>
+                    {
+                        new() { Expression = licenseValue }
+                    };
+                }
+                
+                // type="file" → just a filename (e.g. "license.md") — try known licenses fallback
+                if (licenseType == "file" || licenseValue.EndsWith(".md", StringComparison.OrdinalIgnoreCase) 
+                    || licenseValue.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                {
+                    var fallback = GetKnownLicenseFallback(packageName);
+                    if (fallback != null) return fallback;
+                }
+                
+                return new List<SbomLicense>
+                {
+                    new() { License = new SbomLicenseInfo { Name = licenseValue } }
+                };
+            }
+            
+            // Try <licenseUrl> (legacy format)
+            var licenseUrl = metadata.Element(ns + "licenseUrl")?.Value;
+            if (!string.IsNullOrEmpty(licenseUrl) && licenseUrl != "https://aka.ms/deprecateLicenseUrl")
+            {
+                var spdxId = DetectSpdxFromUrl(licenseUrl);
+                
+                // If URL detection failed, try known licenses fallback
+                if (spdxId == null)
+                {
+                    var fallback = GetKnownLicenseFallback(packageName);
+                    if (fallback != null) return fallback;
+                }
+                
+                return new List<SbomLicense>
+                {
+                    new()
+                    {
+                        License = new SbomLicenseInfo
+                        {
+                            Id = spdxId,
+                            Name = spdxId ?? "See license URL",
+                            Url = licenseUrl
+                        }
+                    }
+                };
+            }
+            
+            // Final fallback: check known licenses dictionary
+            var knownFallback = GetKnownLicenseFallback(packageName);
+            if (knownFallback != null) return knownFallback;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("Could not extract NuGet license for {Package}@{Version}: {Error}",
+                packageName, version, ex.Message);
+        }
+        
+        return null;
+    }
+
+    /// <summary>
+    /// Extract license information from npm node_modules package.json
+    /// Reads: node_modules/{packageName}/package.json → "license" or "licenses" field
+    /// </summary>
+    private List<SbomLicense>? GetNpmLicense(string packageName)
+    {
+        try
+        {
+            var packageJsonPath = Path.Combine(_frontendPath, "node_modules", packageName, "package.json");
+            if (!File.Exists(packageJsonPath))
+                return null;
+            
+            var json = File.ReadAllText(packageJsonPath);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            
+            // Try "license" string (modern format, SPDX expression)
+            if (root.TryGetProperty("license", out var license))
+            {
+                if (license.ValueKind == JsonValueKind.String)
+                {
+                    var licenseValue = license.GetString();
+                    if (!string.IsNullOrEmpty(licenseValue) && licenseValue != "UNLICENSED")
+                    {
+                        // Compound SPDX expressions like "MIT OR Apache-2.0"
+                        if (licenseValue.Contains(" OR ") || licenseValue.Contains(" AND ") || licenseValue.Contains("("))
+                        {
+                            return new List<SbomLicense>
+                            {
+                                new() { Expression = licenseValue }
+                            };
+                        }
+                        
+                        return new List<SbomLicense>
+                        {
+                            new() { License = new SbomLicenseInfo { Id = licenseValue } }
+                        };
+                    }
+                }
+                else if (license.ValueKind == JsonValueKind.Object)
+                {
+                    // Object format: { "type": "MIT", "url": "..." }
+                    var type = license.TryGetProperty("type", out var t) ? t.GetString() : null;
+                    var url = license.TryGetProperty("url", out var u) ? u.GetString() : null;
+                    if (!string.IsNullOrEmpty(type))
+                    {
+                        return new List<SbomLicense>
+                        {
+                            new() { License = new SbomLicenseInfo { Id = type, Url = url } }
+                        };
+                    }
+                }
+            }
+            
+            // Try "licenses" array (deprecated but still used by some packages)
+            if (root.TryGetProperty("licenses", out var licenses) && licenses.ValueKind == JsonValueKind.Array)
+            {
+                var result = new List<SbomLicense>();
+                foreach (var lic in licenses.EnumerateArray())
+                {
+                    var type = lic.TryGetProperty("type", out var t) ? t.GetString() : null;
+                    var url = lic.TryGetProperty("url", out var u) ? u.GetString() : null;
+                    
+                    if (!string.IsNullOrEmpty(type))
+                    {
+                        result.Add(new SbomLicense
+                        {
+                            License = new SbomLicenseInfo { Id = type, Url = url }
+                        });
+                    }
+                }
+                return result.Count > 0 ? result : null;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("Could not extract npm license for {Package}: {Error}",
+                packageName, ex.Message);
+        }
+        
+        return null;
+    }
+
+    /// <summary>
+    /// Detect SPDX license identifier from a license URL
+    /// </summary>
+    private static string? DetectSpdxFromUrl(string url)
+    {
+        if (string.IsNullOrEmpty(url)) return null;
+        var lower = url.ToLowerInvariant();
+        
+        if (lower.Contains("apache") && lower.Contains("2")) return "Apache-2.0";
+        if (lower.Contains("/mit")) return "MIT";
+        if (lower.Contains("bsd-3") || lower.Contains("bsd/3")) return "BSD-3-Clause";
+        if (lower.Contains("bsd-2") || lower.Contains("bsd/2")) return "BSD-2-Clause";
+        if (lower.Contains("lgpl-3")) return "LGPL-3.0-only";
+        if (lower.Contains("lgpl-2.1")) return "LGPL-2.1-only";
+        if (lower.Contains("gpl-3")) return "GPL-3.0-only";
+        if (lower.Contains("gpl-2")) return "GPL-2.0-only";
+        if (lower.Contains("mpl-2")) return "MPL-2.0";
+        if (lower.Contains("isc")) return "ISC";
+        if (lower.Contains("unlicense")) return "Unlicense";
+        if (lower.Contains("ms-pl")) return "MS-PL";
+        if (lower.Contains("ms-rl")) return "MS-RL";
+        
+        // GitHub raw LICENSE files (e.g., aspnet/AspNetCore)
+        if (lower.Contains("github") && lower.Contains("license"))
+        {
+            if (lower.Contains("aspnet") || lower.Contains("dotnet")) return "Apache-2.0";
+        }
+        
+        return null;
+    }
+
+    /// <summary>
+    /// Get license from known licenses dictionary (fallback for file-based or unknown licenses)
+    /// </summary>
+    private static List<SbomLicense>? GetKnownLicenseFallback(string packageName)
+    {
+        if (KnownNuGetLicenses.TryGetValue(packageName, out var known))
+        {
+            return new List<SbomLicense>
+            {
+                new()
+                {
+                    License = new SbomLicenseInfo
+                    {
+                        Id = known.Id,
+                        Name = known.Name ?? known.Id,
+                        Url = known.Url
+                    }
+                }
+            };
+        }
+        return null;
+    }
+
     /// <summary>
     /// Mapea tipos OT del Excel a tipos SBOM estándar
     /// </summary>

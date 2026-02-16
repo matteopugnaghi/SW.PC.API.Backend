@@ -181,7 +181,23 @@ public class SbomController : ControllerBase
             MainComponent = sbom.Metadata.Component?.Name,
             ComponentsByScope = sbom.Components
                 .GroupBy(c => c.Scope ?? "unknown")
-                .Select(g => new { Scope = g.Key, Count = g.Count() })
+                .Select(g => new { Scope = g.Key, Count = g.Count() }),
+            // 📜 License statistics (EU CRA compliance)
+            LicenseStats = new
+            {
+                WithLicense = sbom.Components.Count(c => c.Licenses?.Count > 0),
+                WithoutLicense = sbom.Components.Count(c => c.Licenses == null || c.Licenses.Count == 0),
+                CoveragePercent = sbom.Components.Count > 0
+                    ? Math.Round(100.0 * sbom.Components.Count(c => c.Licenses?.Count > 0) / sbom.Components.Count, 1)
+                    : 0,
+                ByLicense = sbom.Components
+                    .Where(c => c.Licenses?.Count > 0)
+                    .SelectMany(c => c.Licenses!)
+                    .Select(l => l.Expression ?? l.License?.Id ?? l.License?.Name ?? "Unknown")
+                    .GroupBy(l => l)
+                    .Select(g => new { License = g.Key, Count = g.Count() })
+                    .OrderByDescending(g => g.Count)
+            }
         };
         
         return Ok(summary);
