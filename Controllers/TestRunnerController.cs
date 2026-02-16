@@ -134,7 +134,8 @@ namespace SW.PC.API.Backend.Controllers
             var psi = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"test \"{projectPath}\" --verbosity normal",
+                // -p:BuildProjectReferences=false → don't rebuild the main project (its exe is locked by the running backend)
+                Arguments = $"test \"{projectPath}\" --verbosity normal -p:BuildProjectReferences=false",
                 WorkingDirectory = _environment.ContentRootPath,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
