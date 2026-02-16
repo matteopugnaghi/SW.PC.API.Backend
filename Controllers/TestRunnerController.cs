@@ -183,7 +183,8 @@ namespace SW.PC.API.Backend.Controllers
                 result.Total = int.Parse(totalMatch.Groups[1].Value);
 
             // Parse passed: "Correcto: 65" or "Passed: 65" or "Correctas: 65"
-            var passedMatch = Regex.Match(output, @"(?:Correctas?|Passed):\s*(\d+)", RegexOptions.IgnoreCase);
+            // Note: Spanish uses "Correcto" (masc) in summary
+            var passedMatch = Regex.Match(output, @"(?:Correct[oa]s?|Passed):\s*(\d+)", RegexOptions.IgnoreCase);
             if (passedMatch.Success)
                 result.Passed = int.Parse(passedMatch.Groups[1].Value);
 
