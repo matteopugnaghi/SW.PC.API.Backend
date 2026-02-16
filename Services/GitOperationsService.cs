@@ -26,6 +26,12 @@ public interface IGitOperationsService
     Task<GitOperationResult> ConfigureSshSigningAsync(string keyPath);
     Task<GitOperationResult> DisableSshSigningAsync();
     Task<IdentityValidationResult> ValidateSigningIdentityAsync();
+    // Release Notes methods
+    Task<List<CommitInfo>> GetCommitsBetweenTagsAsync(string repoPath, string? fromTag, string? toTag);
+    Task<ReleaseNotesResult> GenerateReleaseNotesAsync(string repoPath, string? fromTag = null, string? toTag = null);
+    Task<List<ReleaseNotesResult>> GenerateFullChangelogAsync(string repoPath, int maxReleases = 20);
+    Task<GitOperationResult> WriteChangelogFileAsync(string repoPath, int maxReleases = 20);
+    Task<GitOperationResult> WriteProjectChangelogAsync(string projectPath, int maxReleases = 20);
     // SSH Key Management (authorized keys system)
     Task<GitOperationResult> DeleteSshKeysAsync();
     Task<SshKeyExportResult> ExportSshKeyAsync();
@@ -64,7 +70,7 @@ public class GitOperationsService : IGitOperationsService
     }
 
     /// <summary>
-    /// Detecta el entorno (production/development) basado en configuración Excel (EnvironmentMode)
+    /// Detecta el entorno (production/development) basado en configuraciï¿½n Excel (EnvironmentMode)
     /// </summary>
     public ScadaEnvironmentInfo GetEnvironmentInfo()
     {
@@ -82,12 +88,12 @@ public class GitOperationsService : IGitOperationsService
         
         var paths = GetRepoPaths();
         
-        // ?? AUTO-DETECTAR PRODUCCIÓN: Si no hay .git en Backend/Frontend, es producción
-        // Esto permite detectar automáticamente sin depender del Excel
+        // ?? AUTO-DETECTAR PRODUCCIï¿½N: Si no hay .git en Backend/Frontend, es producciï¿½n
+        // Esto permite detectar automï¿½ticamente sin depender del Excel
         var hasBackendGit = Directory.Exists(Path.Combine(paths.Backend ?? "", ".git"));
         var hasFrontendGit = Directory.Exists(Path.Combine(paths.Frontend ?? "", ".git"));
         
-        // Si el Excel no especifica producción pero no hay repos Git, forzar producción
+        // Si el Excel no especifica producciï¿½n pero no hay repos Git, forzar producciï¿½n
         if (environmentMode != "production" && !hasBackendGit && !hasFrontendGit)
         {
             _logger.LogInformation("?? Auto-detecting PRODUCTION mode: No Git repos found for Backend/Frontend");
@@ -96,7 +102,7 @@ public class GitOperationsService : IGitOperationsService
         
         var isProduction = environmentMode == "production";
         
-        // En producción: solo TwinCAT es editable
+        // En producciï¿½n: solo TwinCAT es editable
         // En desarrollo: todos son editables (si tienen .git)
         var permissions = new Dictionary<string, bool>
         {
@@ -204,8 +210,295 @@ public class GitOperationsService : IGitOperationsService
         return commits;
     }
 
+    #region Release Notes
+
     /// <summary>
-    /// Verifica si el repositorio es editable según el entorno (production/development)
+    /// Gets commits between two tags (or from a tag to HEAD, or all commits if no tags)
+    /// </summary>
+    public async Task<List<CommitInfo>> GetCommitsBetweenTagsAsync(string repoPath, string? fromTag, string? toTag)
+    {
+        var commits = new List<CommitInfo>();
+        try
+        {
+            string range;
+            if (!string.IsNullOrEmpty(fromTag) && !string.IsNullOrEmpty(toTag))
+                range = $"{fromTag}..{toTag}";
+            else if (!string.IsNullOrEmpty(fromTag))
+                range = $"{fromTag}..HEAD";
+            else if (!string.IsNullOrEmpty(toTag))
+                range = toTag; // All commits up to this tag
+            else
+                range = "HEAD";
+
+            var result = await RunGitCommandAsync(repoPath, $"log {range} --format=%H|%s|%ai|%an --reverse");
+            if (result.Success && !string.IsNullOrEmpty(result.Output))
+            {
+                foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var parts = line.Split('|');
+                    if (parts.Length >= 4)
+                    {
+                        commits.Add(new CommitInfo
+                        {
+                            Hash = parts[0],
+                            ShortHash = parts[0].Length > 7 ? parts[0][..7] : parts[0],
+                            Message = parts[1],
+                            Date = DateTime.TryParse(parts[2], out var date) ? date : DateTime.MinValue,
+                            Author = parts[3]
+                        });
+                    }
+                }
+            }
+        }
+        catch (Exception ex) { _logger.LogError(ex, "Error getting commits between tags for {Path}", repoPath); }
+        return commits;
+    }
+
+    /// <summary>
+    /// Generates release notes for a specific version (between two tags)
+    /// If toTag is null, generates for unreleased changes (latest tag..HEAD)
+    /// </summary>
+    public async Task<ReleaseNotesResult> GenerateReleaseNotesAsync(string repoPath, string? fromTag = null, string? toTag = null)
+    {
+        try
+        {
+            // If no fromTag specified, try to find the previous tag
+            if (string.IsNullOrEmpty(fromTag) && !string.IsNullOrEmpty(toTag))
+            {
+                var tags = await GetTagsAsync(repoPath);
+                var tagIndex = tags.FindIndex(t => t.Name == toTag);
+                if (tagIndex >= 0 && tagIndex + 1 < tags.Count)
+                    fromTag = tags[tagIndex + 1].Name; // Tags are already sorted descending
+            }
+            else if (string.IsNullOrEmpty(fromTag) && string.IsNullOrEmpty(toTag))
+            {
+                // Unreleased: from latest tag to HEAD
+                fromTag = await GetLatestTagAsync(repoPath);
+                if (string.IsNullOrEmpty(fromTag)) fromTag = null; // No tags at all
+            }
+
+            var commits = await GetCommitsBetweenTagsAsync(repoPath, fromTag, toTag);
+
+            // Get tag info for metadata
+            TagInfo? toTagInfo = null;
+            if (!string.IsNullOrEmpty(toTag))
+            {
+                var tags = await GetTagsAsync(repoPath);
+                toTagInfo = tags.FirstOrDefault(t => t.Name == toTag);
+            }
+
+            var versionName = toTag ?? "Sin publicar";
+            var versionDate = toTagInfo?.Date ?? DateTime.Now;
+
+            // Generate markdown
+            var sb = new StringBuilder();
+            sb.AppendLine($"## {versionName}");
+            sb.AppendLine();
+            sb.AppendLine($"**Fecha**: {versionDate:yyyy-MM-dd HH:mm}");
+            if (!string.IsNullOrEmpty(fromTag))
+                sb.AppendLine($"**Desde**: {fromTag}");
+            sb.AppendLine($"**Commits**: {commits.Count}");
+            if (!string.IsNullOrEmpty(toTagInfo?.Message))
+                sb.AppendLine($"**Nota**: {toTagInfo.Message}");
+            sb.AppendLine();
+
+            if (commits.Count > 0)
+            {
+                foreach (var commit in commits)
+                {
+                    sb.AppendLine($"- `{commit.ShortHash}` {commit.Message} â€” *{commit.Author}*");
+                }
+            }
+            else
+            {
+                sb.AppendLine("*Sin cambios registrados.*");
+            }
+            sb.AppendLine();
+
+            return new ReleaseNotesResult
+            {
+                Version = versionName,
+                Date = versionDate,
+                FromTag = fromTag ?? "",
+                ToTag = toTag ?? "HEAD",
+                CommitCount = commits.Count,
+                Commits = commits,
+                Markdown = sb.ToString(),
+                TagMessage = toTagInfo?.Message
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating release notes");
+            return new ReleaseNotesResult
+            {
+                Version = toTag ?? "Error",
+                Markdown = $"Error generating release notes: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Generates full changelog with all releases (tag pairs)
+    /// </summary>
+    public async Task<List<ReleaseNotesResult>> GenerateFullChangelogAsync(string repoPath, int maxReleases = 20)
+    {
+        var changelog = new List<ReleaseNotesResult>();
+        try
+        {
+            var tags = await GetTagsAsync(repoPath); // Already sorted descending
+
+            // First: unreleased changes (latest tag â†’ HEAD)
+            if (tags.Count > 0)
+            {
+                var unreleased = await GenerateReleaseNotesAsync(repoPath, tags[0].Name, null);
+                if (unreleased.CommitCount > 0)
+                    changelog.Add(unreleased);
+            }
+
+            // Then: each tag pair
+            for (int i = 0; i < Math.Min(tags.Count, maxReleases); i++)
+            {
+                var toTag = tags[i].Name;
+                var fromTag = (i + 1 < tags.Count) ? tags[i + 1].Name : null;
+                var notes = await GenerateReleaseNotesAsync(repoPath, fromTag, toTag);
+                changelog.Add(notes);
+            }
+        }
+        catch (Exception ex) { _logger.LogError(ex, "Error generating full changelog"); }
+        return changelog;
+    }
+
+    /// <summary>
+    /// Writes a CHANGELOG.md file in the repo root
+    /// </summary>
+    public async Task<GitOperationResult> WriteChangelogFileAsync(string repoPath, int maxReleases = 20)
+    {
+        try
+        {
+            var changelog = await GenerateFullChangelogAsync(repoPath, maxReleases);
+            if (changelog.Count == 0)
+                return new GitOperationResult { Success = false, Message = "No releases found to generate changelog" };
+
+            var sb = new StringBuilder();
+            sb.AppendLine("# CHANGELOG");
+            sb.AppendLine();
+            sb.AppendLine($"> Auto-generated on {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine();
+
+            foreach (var release in changelog)
+            {
+                sb.Append(release.Markdown);
+                sb.AppendLine("---");
+                sb.AppendLine();
+            }
+
+            var changelogPath = Path.Combine(repoPath, "CHANGELOG.md");
+            await File.WriteAllTextAsync(changelogPath, sb.ToString(), Encoding.UTF8);
+
+            _logger.LogInformation("ðŸ“‹ CHANGELOG.md written to {Path} ({Count} releases)", changelogPath, changelog.Count);
+            return new GitOperationResult
+            {
+                Success = true,
+                Message = $"CHANGELOG.md generated with {changelog.Count} releases ({changelog.Sum(c => c.CommitCount)} commits total)",
+                Output = changelogPath
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error writing CHANGELOG.md");
+            return new GitOperationResult { Success = false, Message = ex.Message };
+        }
+    }
+
+    /// <summary>
+    /// Generates a SINGLE combined CHANGELOG.md in the project folder (Projects/{projectId}/)
+    /// merging Backend, Frontend and TwinCAT release notes into one document.
+    /// </summary>
+    public async Task<GitOperationResult> WriteProjectChangelogAsync(string projectPath, int maxReleases = 20)
+    {
+        try
+        {
+            var paths = GetRepoPaths();
+            var repos = new Dictionary<string, string>
+            {
+                ["Backend"] = paths.Backend,
+                ["Frontend"] = paths.Frontend,
+                ["TwinCAT"] = paths.TwinCAT
+            };
+
+            var sb = new StringBuilder();
+            sb.AppendLine("# CHANGELOG â€” Proyecto Unificado");
+            sb.AppendLine();
+            sb.AppendLine($"> Auto-generated on {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine($"> Backend + Frontend + TwinCAT");
+            sb.AppendLine();
+
+            int totalReleases = 0;
+            int totalCommits = 0;
+
+            foreach (var (componentName, repoPath) in repos)
+            {
+                if (string.IsNullOrEmpty(repoPath) || !Directory.Exists(Path.Combine(repoPath, ".git")))
+                {
+                    sb.AppendLine($"# {componentName}");
+                    sb.AppendLine();
+                    sb.AppendLine("*Repositorio no disponible.*");
+                    sb.AppendLine();
+                    sb.AppendLine("---");
+                    sb.AppendLine();
+                    continue;
+                }
+
+                var changelog = await GenerateFullChangelogAsync(repoPath, maxReleases);
+                totalReleases += changelog.Count;
+                totalCommits += changelog.Sum(c => c.CommitCount);
+
+                sb.AppendLine($"# {componentName}");
+                sb.AppendLine();
+
+                if (changelog.Count == 0)
+                {
+                    sb.AppendLine("*Sin releases registradas.*");
+                    sb.AppendLine();
+                }
+                else
+                {
+                    foreach (var release in changelog)
+                    {
+                        sb.Append(release.Markdown);
+                        sb.AppendLine("---");
+                        sb.AppendLine();
+                    }
+                }
+            }
+
+            // Ensure project path exists
+            Directory.CreateDirectory(projectPath);
+            var changelogPath = Path.Combine(projectPath, "CHANGELOG.md");
+            await File.WriteAllTextAsync(changelogPath, sb.ToString(), Encoding.UTF8);
+
+            _logger.LogInformation("ðŸ“‹ Combined CHANGELOG.md written to {Path} ({Releases} releases, {Commits} commits)",
+                changelogPath, totalReleases, totalCommits);
+
+            return new GitOperationResult
+            {
+                Success = true,
+                Message = $"CHANGELOG.md unificado generado con {totalReleases} releases ({totalCommits} commits) de Backend + Frontend + TwinCAT",
+                Output = changelogPath
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error writing combined CHANGELOG.md to project folder");
+            return new GitOperationResult { Success = false, Message = ex.Message };
+        }
+    }
+
+    #endregion
+
+    /// <summary>
+    /// Verifica si el repositorio es editable segï¿½n el entorno (production/development)
     /// </summary>
     private GitOperationResult? CheckEditPermission(string repoPath)
     {
@@ -223,8 +516,8 @@ public class GitOperationsService : IGitOperationsService
             return new GitOperationResult
             {
                 Success = false,
-                Message = $"?? OPERACIÓN BLOQUEADA: El repositorio '{repoName}' no es editable en modo {envInfo.Environment.ToUpper()}.\n" +
-                          (envInfo.IsProduction ? "En producción solo se puede editar TwinCAT." : "Verifica que existe la carpeta .git")
+                Message = $"?? OPERACIï¿½N BLOQUEADA: El repositorio '{repoName}' no es editable en modo {envInfo.Environment.ToUpper()}.\n" +
+                          (envInfo.IsProduction ? "En producciï¿½n solo se puede editar TwinCAT." : "Verifica que existe la carpeta .git")
             };
         }
         
@@ -239,7 +532,7 @@ public class GitOperationsService : IGitOperationsService
             var editCheck = CheckEditPermission(repoPath);
             if (editCheck != null) return editCheck;
 
-            // ?? EU CRA: Verificar autorización de clave antes de permitir commit
+            // ?? EU CRA: Verificar autorizaciï¿½n de clave antes de permitir commit
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
             {
@@ -247,7 +540,7 @@ public class GitOperationsService : IGitOperationsService
                 return new GitOperationResult 
                 { 
                     Success = false, 
-                    Message = $"?? COMMIT RECHAZADO: Tu clave SSH no está en la lista de autorizadas.\n" +
+                    Message = $"?? COMMIT RECHAZADO: Tu clave SSH no estï¿½ en la lista de autorizadas.\n" +
                               $"Fingerprint: {authResult.CurrentFingerprint}\n" +
                               $"Contacta al administrador para autorizar tu clave."
                 };
@@ -262,7 +555,7 @@ public class GitOperationsService : IGitOperationsService
             var commitResult = await RunGitCommandAsync(repoPath, $"commit -m \"{escapedMessage}\"", 60000);
             if (commitResult.Success) 
             {
-                // ?? Actualizar información de firma en el servicio de integridad
+                // ?? Actualizar informaciï¿½n de firma en el servicio de integridad
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after commit"); }
@@ -283,7 +576,7 @@ public class GitOperationsService : IGitOperationsService
             var editCheck = CheckEditPermission(repoPath);
             if (editCheck != null) return editCheck;
 
-            // ?? EU CRA: Verificar autorización antes de push
+            // ?? EU CRA: Verificar autorizaciï¿½n antes de push
             var authResult = await CheckKeyAuthorizationAsync();
             _logger.LogWarning("?? DEBUG Push - AccessControlEnabled: {Enabled}, IsAuthorized: {Auth}, Message: {Msg}", 
                 authResult.AccessControlEnabled, authResult.IsAuthorized, authResult.Message);
@@ -294,16 +587,16 @@ public class GitOperationsService : IGitOperationsService
                 return new GitOperationResult 
                 { 
                     Success = false, 
-                    Message = $"?? PUSH RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                    Message = $"?? PUSH RECHAZADO: Tu clave SSH no estï¿½ autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
                 };
             }
 
             _logger.LogInformation("Pushing changes from {Path}", repoPath);
-            // 120s timeout para primera conexión SSH (puede tardar en establecer)
+            // 120s timeout para primera conexiï¿½n SSH (puede tardar en establecer)
             var result = await RunGitCommandAsync(repoPath, "push", 120000);
             if (result.Success) 
             {
-                // ?? Actualizar información de integridad después de push
+                // ?? Actualizar informaciï¿½n de integridad despuï¿½s de push
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after push"); }
@@ -319,11 +612,11 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // ?? MODO PRODUCCIÓN: Verificar permisos de edición
+            // ?? MODO PRODUCCIï¿½N: Verificar permisos de ediciï¿½n
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
-            // ?? EU CRA: Verificar autorización antes de force push
+            // ?? EU CRA: Verificar autorizaciï¿½n antes de force push
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
             {
@@ -331,16 +624,16 @@ public class GitOperationsService : IGitOperationsService
                 return new GitOperationResult 
                 { 
                     Success = false, 
-                    Message = $"?? FORCE PUSH RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                    Message = $"?? FORCE PUSH RECHAZADO: Tu clave SSH no estï¿½ autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
                 };
             }
 
             _logger.LogWarning("?? FORCE PUSHING changes from {Path} - This will overwrite remote!", repoPath);
-            // 120s timeout para primera conexión SSH
+            // 120s timeout para primera conexiï¿½n SSH
             var result = await RunGitCommandAsync(repoPath, "push --force", 120000);
             if (result.Success) 
             {
-                // ?? Actualizar información de integridad después de force push
+                // ?? Actualizar informaciï¿½n de integridad despuï¿½s de force push
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after force push"); }
@@ -356,7 +649,7 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // ?? MODO PRODUCCIÓN: Verificar permisos de edición
+            // ?? MODO PRODUCCIï¿½N: Verificar permisos de ediciï¿½n
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
@@ -373,7 +666,7 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // ?? MODO PRODUCCIÓN: Verificar permisos de edición
+            // ?? MODO PRODUCCIï¿½N: Verificar permisos de ediciï¿½n
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
@@ -519,11 +812,11 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // ?? MODO PRODUCCIÓN: Verificar permisos de edición
+            // ?? MODO PRODUCCIï¿½N: Verificar permisos de ediciï¿½n
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
-            // ?? EU CRA: Verificar autorización antes de crear tag/release
+            // ?? EU CRA: Verificar autorizaciï¿½n antes de crear tag/release
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
             {
@@ -531,7 +824,7 @@ public class GitOperationsService : IGitOperationsService
                 return new GitOperationResult 
                 { 
                     Success = false, 
-                    Message = $"?? RELEASE RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                    Message = $"?? RELEASE RECHAZADO: Tu clave SSH no estï¿½ autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
                 };
             }
 
@@ -541,7 +834,7 @@ public class GitOperationsService : IGitOperationsService
             
             if (result.Success)
             {
-                // ?? Actualizar información de integridad (incluye latest release)
+                // ?? Actualizar informaciï¿½n de integridad (incluye latest release)
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after tag creation"); }
@@ -562,11 +855,11 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // ?? MODO PRODUCCIÓN: Verificar permisos de edición
+            // ?? MODO PRODUCCIï¿½N: Verificar permisos de ediciï¿½n
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
-            // ?? EU CRA: Verificar autorización antes de push tags
+            // ?? EU CRA: Verificar autorizaciï¿½n antes de push tags
             var authResult = await CheckKeyAuthorizationAsync();
             if (authResult.AccessControlEnabled && !authResult.IsAuthorized)
             {
@@ -574,7 +867,7 @@ public class GitOperationsService : IGitOperationsService
                 return new GitOperationResult 
                 { 
                     Success = false, 
-                    Message = $"?? PUSH TAGS RECHAZADO: Tu clave SSH no está autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
+                    Message = $"?? PUSH TAGS RECHAZADO: Tu clave SSH no estï¿½ autorizada.\nFingerprint: {authResult.CurrentFingerprint}"
                 };
             }
 
@@ -583,7 +876,7 @@ public class GitOperationsService : IGitOperationsService
             
             if (result.Success)
             {
-                // ?? Actualizar información de integridad después de push tags
+                // ?? Actualizar informaciï¿½n de integridad despuï¿½s de push tags
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after push tags"); }
@@ -771,7 +1064,7 @@ public class GitOperationsService : IGitOperationsService
     }
 
     /// <summary>
-    /// Desactiva SSH signing - quita la configuración de firma
+    /// Desactiva SSH signing - quita la configuraciï¿½n de firma
     /// </summary>
     public async Task<GitOperationResult> DisableSshSigningAsync()
     {
@@ -808,7 +1101,7 @@ public class GitOperationsService : IGitOperationsService
 
     /// <summary>
     /// Valida que la identidad del usuario Git coincida con la clave SSH
-    /// Para evitar suplantación de identidad (EU CRA compliance)
+    /// Para evitar suplantaciï¿½n de identidad (EU CRA compliance)
     /// </summary>
     public async Task<IdentityValidationResult> ValidateSigningIdentityAsync()
     {
@@ -870,7 +1163,7 @@ public class GitOperationsService : IGitOperationsService
                 {
                     result.IsValid = false;
                     result.Message = $"?? IDENTITY MISMATCH: Git email ({result.GitEmail}) doesn't match SSH key email ({result.KeyEmail}). This could indicate identity spoofing!";
-                    result.Warning = "La identidad del commit podría no coincidir con el firmante real.";
+                    result.Warning = "La identidad del commit podrï¿½a no coincidir con el firmante real.";
                     _logger.LogWarning("?? Identity mismatch detected! Git: {GitEmail}, Key: {KeyEmail}", result.GitEmail, result.KeyEmail);
                 }
                 else
@@ -919,7 +1212,7 @@ public class GitOperationsService : IGitOperationsService
     private static readonly string AccessControlConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "access_control_config.json");
 
     /// <summary>
-    /// Obtiene la configuración de control de acceso
+    /// Obtiene la configuraciï¿½n de control de acceso
     /// </summary>
     public async Task<AccessControlConfig> GetAccessControlConfigAsync()
     {
@@ -1069,7 +1362,7 @@ public class GitOperationsService : IGitOperationsService
     }
 
     /// <summary>
-    /// Importa una clave SSH (privada + pública) al sistema
+    /// Importa una clave SSH (privada + pï¿½blica) al sistema
     /// </summary>
     public async Task<GitOperationResult> ImportSshKeyAsync(string privateKey, string publicKey)
     {
@@ -1158,7 +1451,7 @@ public class GitOperationsService : IGitOperationsService
     }
 
     /// <summary>
-    /// Añade una clave a la lista de autorizados
+    /// Aï¿½ade una clave a la lista de autorizados
     /// </summary>
     public async Task<GitOperationResult> AddAuthorizedKeyAsync(string fingerprint, string ownerName, string ownerEmail)
     {
@@ -1230,7 +1523,7 @@ public class GitOperationsService : IGitOperationsService
     }
 
     /// <summary>
-    /// Verifica si la clave SSH actual está en la lista de autorizados
+    /// Verifica si la clave SSH actual estï¿½ en la lista de autorizados
     /// </summary>
     public async Task<KeyAuthorizationResult> CheckKeyAuthorizationAsync()
     {
@@ -1282,7 +1575,7 @@ public class GitOperationsService : IGitOperationsService
             {
                 // Access control enabled but no keys = block everyone (must add keys first)
                 result.IsAuthorized = false;
-                result.Message = "?? Control de acceso ACTIVADO pero no hay claves autorizadas. Añade claves para poder modificar.";
+                result.Message = "?? Control de acceso ACTIVADO pero no hay claves autorizadas. Aï¿½ade claves para poder modificar.";
                 result.AuthorizationMode = "restricted";
                 return result;
             }
@@ -1301,7 +1594,7 @@ public class GitOperationsService : IGitOperationsService
             else
             {
                 result.IsAuthorized = false;
-                result.Message = $"?? ACCESO DENEGADO: Tu clave ({result.CurrentFingerprint}) no está en la lista de autorizados.";
+                result.Message = $"?? ACCESO DENEGADO: Tu clave ({result.CurrentFingerprint}) no estï¿½ en la lista de autorizados.";
                 result.AuthorizationMode = "restricted";
             }
 
@@ -1418,4 +1711,17 @@ public class AccessControlConfig
     public bool IsEnabled { get; set; }
     public DateTime LastModified { get; set; }
     public string ModifiedBy { get; set; } = "";
+}
+
+// Release Notes Result
+public class ReleaseNotesResult
+{
+    public string Version { get; set; } = "";
+    public DateTime Date { get; set; }
+    public string FromTag { get; set; } = "";
+    public string ToTag { get; set; } = "";
+    public int CommitCount { get; set; }
+    public List<CommitInfo> Commits { get; set; } = new();
+    public string Markdown { get; set; } = "";
+    public string? TagMessage { get; set; }
 }

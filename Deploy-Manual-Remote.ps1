@@ -370,6 +370,177 @@ if ($frontendVersionInfo) {
 Write-Success "Archivos deploy-version.json generados"
 
 # ============================================
+# PASO 2.2: Generar CHANGELOG.md (Release Notes automáticas)
+# ============================================
+Write-Header "PASO 2.2: Generando CHANGELOG.md (Release Notes)"
+
+function Generate-Changelog {
+    param([string]$RepoPath, [string]$ComponentName, [int]$MaxReleases = 20)
+    
+    if (-not (Test-Path (Join-Path $RepoPath ".git"))) {
+        Write-Warning "$ComponentName: No es un repositorio Git, saltando CHANGELOG"
+        return $null
+    }
+    
+    Push-Location $RepoPath
+    try {
+        # Get all tags sorted by version descending
+        $tags = git tag -l --sort=-version:refname 2>$null
+        if (-not $tags) {
+            Write-Warning "$ComponentName: Sin tags, generando changelog desde todos los commits"
+            $allCommits = git log --format="%H|%s|%ai|%an" --reverse 2>$null
+            if (-not $allCommits) { return $null }
+            
+            $md = "# CHANGELOG — $ComponentName`n`n"
+            $md += "> Auto-generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n`n"
+            $md += "## Sin publicar`n`n"
+            foreach ($line in $allCommits) {
+                $parts = $line -split '\|', 4
+                if ($parts.Count -ge 4) {
+                    $shortHash = $parts[0].Substring(0, 7)
+                    $md += "- ``$shortHash`` $($parts[1]) — *$($parts[3])*`n"
+                }
+            }
+            return $md
+        }
+        
+        $tagList = @($tags | Select-Object -First $MaxReleases)
+        $md = "# CHANGELOG — $ComponentName`n`n"
+        $md += "> Auto-generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n`n"
+        
+        # Unreleased changes (latest tag → HEAD)
+        $latestTag = $tagList[0]
+        $unreleased = git log "$latestTag..HEAD" --format="%H|%s|%ai|%an" --reverse 2>$null
+        if ($unreleased) {
+            $md += "## Sin publicar`n`n"
+            $md += "**Desde**: $latestTag`n"
+            $md += "**Commits**: $(($unreleased | Measure-Object).Count)`n`n"
+            foreach ($line in $unreleased) {
+                $parts = $line -split '\|', 4
+                if ($parts.Count -ge 4) {
+                    $shortHash = $parts[0].Substring(0, 7)
+                    $md += "- ``$shortHash`` $($parts[1]) — *$($parts[3])*`n"
+                }
+            }
+            $md += "`n---`n`n"
+        }
+        
+        # Each tag pair
+        for ($i = 0; $i -lt $tagList.Count; $i++) {
+            $toTag = $tagList[$i]
+            $fromTag = if ($i + 1 -lt $tagList.Count) { $tagList[$i + 1] } else { $null }
+            
+            $tagDate = git log -1 --format="%ai" $toTag 2>$null
+            $tagMsg = git tag -l --format="%(subject)" $toTag 2>$null
+            
+            if ($fromTag) {
+                $commits = git log "$fromTag..$toTag" --format="%H|%s|%ai|%an" --reverse 2>$null
+            } else {
+                $commits = git log $toTag --format="%H|%s|%ai|%an" --reverse 2>$null
+            }
+            
+            $commitCount = if ($commits) { ($commits | Measure-Object).Count } else { 0 }
+            
+            $md += "## $toTag`n`n"
+            $md += "**Fecha**: $($tagDate.Substring(0, 16))`n"
+            if ($fromTag) { $md += "**Desde**: $fromTag`n" }
+            $md += "**Commits**: $commitCount`n"
+            if ($tagMsg) { $md += "**Nota**: $tagMsg`n" }
+            $md += "`n"
+            
+            if ($commits) {
+                foreach ($line in $commits) {
+                    $parts = $line -split '\|', 4
+                    if ($parts.Count -ge 4) {
+                        $shortHash = $parts[0].Substring(0, 7)
+                        $md += "- ``$shortHash`` $($parts[1]) — *$($parts[3])*`n"
+                    }
+                }
+            } else {
+                $md += "*Sin cambios registrados.*`n"
+            }
+            $md += "`n---`n`n"
+        }
+        
+        return $md
+    } finally {
+        Pop-Location
+    }
+}
+
+# Backend CHANGELOG
+$backendChangelog = Generate-Changelog -RepoPath $BackendPath -ComponentName "Backend"
+if ($backendChangelog) {
+    $backendChangelogPath = Join-Path $BackendPath "CHANGELOG.md"
+    Set-Content -Path $backendChangelogPath -Value $backendChangelog -Encoding UTF8
+    Write-Success "Backend CHANGELOG.md generado"
+    
+    # Also copy to publish folder
+    $publishChangelogPath = Join-Path "$BackendPath\publish" "CHANGELOG.md"
+    Copy-Item $backendChangelogPath $publishChangelogPath -Force -ErrorAction SilentlyContinue
+}
+
+# Frontend CHANGELOG
+$frontendChangelog = Generate-Changelog -RepoPath $FrontendPath -ComponentName "Frontend"
+if ($frontendChangelog) {
+    $frontendChangelogPath = Join-Path $FrontendPath "CHANGELOG.md"
+    Set-Content -Path $frontendChangelogPath -Value $frontendChangelog -Encoding UTF8
+    Write-Success "Frontend CHANGELOG.md generado"
+}
+
+# Combined project CHANGELOG (Backend + Frontend + TwinCAT → Projects/{ProjectId}/)
+$projectFolder = Join-Path $ProjectsPath $ProjectId
+if ($ProjectId -ne "default" -and (Test-Path $projectFolder)) {
+    $combinedMd = "# CHANGELOG — Proyecto Unificado`n`n"
+    $combinedMd += "> Auto-generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n"
+    $combinedMd += "> Backend + Frontend + TwinCAT`n`n"
+    
+    if ($backendChangelog) {
+        $combinedMd += "# Backend`n`n"
+        # Remove the per-repo header lines (first 3 lines) and add the content
+        $backendLines = ($backendChangelog -split "`n") | Select-Object -Skip 3
+        $combinedMd += ($backendLines -join "`n") + "`n`n"
+    } else {
+        $combinedMd += "# Backend`n`n*Sin changelog disponible.*`n`n---`n`n"
+    }
+    
+    if ($frontendChangelog) {
+        $combinedMd += "# Frontend`n`n"
+        $frontendLines = ($frontendChangelog -split "`n") | Select-Object -Skip 3
+        $combinedMd += ($frontendLines -join "`n") + "`n`n"
+    } else {
+        $combinedMd += "# Frontend`n`n*Sin changelog disponible.*`n`n---`n`n"
+    }
+    
+    # TwinCAT (if repo exists)
+    $twinCATRoot = Split-Path -Parent (Split-Path -Parent $BackendPath)
+    $twinCATPath = Join-Path $twinCATRoot "SW.PC.TWINCAT.PLC"
+    $twinCATChangelog = $null
+    if (Test-Path (Join-Path $twinCATPath ".git")) {
+        $twinCATChangelog = Generate-Changelog -RepoPath $twinCATPath -ComponentName "TwinCAT"
+    }
+    if ($twinCATChangelog) {
+        $combinedMd += "# TwinCAT`n`n"
+        $twinCATLines = ($twinCATChangelog -split "`n") | Select-Object -Skip 3
+        $combinedMd += ($twinCATLines -join "`n") + "`n`n"
+    } else {
+        $combinedMd += "# TwinCAT`n`n*Repositorio no disponible.*`n`n---`n`n"
+    }
+    
+    $combinedPath = Join-Path $projectFolder "CHANGELOG.md"
+    Set-Content -Path $combinedPath -Value $combinedMd -Encoding UTF8
+    Write-Success "CHANGELOG.md unificado generado en: $combinedPath"
+    
+    # Also copy to publish/Projects/{ProjectId}/
+    $publishProjectPath = Join-Path "$BackendPath\publish\Projects\$ProjectId" ""
+    if (Test-Path $publishProjectPath) {
+        Copy-Item $combinedPath (Join-Path $publishProjectPath "CHANGELOG.md") -Force -ErrorAction SilentlyContinue
+    }
+}
+
+Write-Success "CHANGELOG.md generados"
+
+# ============================================
 # PASO 3: Build Frontend (npm run build)
 # ============================================
 Write-Header "PASO 3: Compilando Frontend (npm run build)"

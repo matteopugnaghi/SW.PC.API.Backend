@@ -42,15 +42,17 @@ public class GitController : ControllerBase
     private readonly IGitOperationsService _gitService;
     private readonly IAuditLogService _auditLog;
     private readonly ISoftwareIntegrityService _integrityService;
+    private readonly IProjectContextService _projectContext;
     private readonly ILogger<GitController> _logger;
     private static readonly string BackupLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "backup_log.json");
     private static readonly string DeploymentLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "deployment_certificates.json");
 
-    public GitController(IGitOperationsService gitService, IAuditLogService auditLog, ISoftwareIntegrityService integrityService, ILogger<GitController> logger)
+    public GitController(IGitOperationsService gitService, IAuditLogService auditLog, ISoftwareIntegrityService integrityService, IProjectContextService projectContext, ILogger<GitController> logger)
     {
         _gitService = gitService;
         _auditLog = auditLog;
         _integrityService = integrityService;
+        _projectContext = projectContext;
         _logger = logger;
     }
 
@@ -436,6 +438,84 @@ public class GitController : ControllerBase
         {
             await GenerateDeploymentCertificateAsync(repoName, repoPath, operatorName, $"Release {tagName}: {message}");
         }
+    }
+
+    /// <summary>
+    /// Genera release notes entre dos tags (o desde el último tag a HEAD si toTag está vacío)
+    /// </summary>
+    [HttpGet("release-notes/{repoName}")]
+    public async Task<ActionResult<ReleaseNotesResult>> GetReleaseNotes(string repoName, [FromQuery] string? fromTag = null, [FromQuery] string? toTag = null)
+    {
+        var repoPaths = GetRepoPaths();
+        if (!repoPaths.TryGetValue(repoName.ToLower(), out var repoPath) || string.IsNullOrEmpty(repoPath))
+            return NotFound($"Repository '{repoName}' not found");
+
+        var notes = await _gitService.GenerateReleaseNotesAsync(repoPath, fromTag, toTag);
+        return Ok(notes);
+    }
+
+    /// <summary>
+    /// Genera changelog completo con todas las releases del repositorio
+    /// </summary>
+    [HttpGet("changelog/{repoName}")]
+    public async Task<ActionResult<List<ReleaseNotesResult>>> GetChangelog(string repoName, [FromQuery] int maxReleases = 20)
+    {
+        var repoPaths = GetRepoPaths();
+        if (!repoPaths.TryGetValue(repoName.ToLower(), out var repoPath) || string.IsNullOrEmpty(repoPath))
+            return NotFound($"Repository '{repoName}' not found");
+
+        var changelog = await _gitService.GenerateFullChangelogAsync(repoPath, maxReleases);
+        return Ok(changelog);
+    }
+
+    /// <summary>
+    /// Genera y escribe CHANGELOG.md en el directorio raíz del repositorio
+    /// </summary>
+    [HttpPost("changelog/{repoName}/generate")]
+    public async Task<ActionResult<GitOperationResult>> GenerateChangelogFile(string repoName, [FromQuery] int maxReleases = 20)
+    {
+        var repoPaths = GetRepoPaths();
+        if (!repoPaths.TryGetValue(repoName.ToLower(), out var repoPath) || string.IsNullOrEmpty(repoPath))
+            return NotFound($"Repository '{repoName}' not found");
+
+        var result = await _gitService.WriteChangelogFileAsync(repoPath, maxReleases);
+        
+        if (result.Success)
+        {
+            await _auditLog.LogToAllProjectsAsync(
+                AuditCategory.Git,
+                AuditAction.GitRelease,
+                AuditResult.Success,
+                $"📋 CHANGELOG.md generado para {repoName}",
+                null, GetLoggedUserName());
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Genera un CHANGELOG.md unificado (Backend + Frontend + TwinCAT) en la carpeta del proyecto activo
+    /// (Projects/{projectId}/CHANGELOG.md)
+    /// </summary>
+    [HttpPost("changelog/generate-combined")]
+    public async Task<ActionResult<GitOperationResult>> GenerateProjectChangelog([FromQuery] int maxReleases = 20)
+    {
+        var projectPath = _projectContext.ProjectBasePath;
+        _logger.LogInformation("📋 Generating combined CHANGELOG.md in project folder: {Path}", projectPath);
+
+        var result = await _gitService.WriteProjectChangelogAsync(projectPath, maxReleases);
+
+        if (result.Success)
+        {
+            await _auditLog.LogToAllProjectsAsync(
+                AuditCategory.Git,
+                AuditAction.GitRelease,
+                AuditResult.Success,
+                $"📋 CHANGELOG.md unificado generado en {projectPath}",
+                null, GetLoggedUserName());
+        }
+
+        return Ok(result);
     }
 
     #endregion
