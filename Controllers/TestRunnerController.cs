@@ -20,6 +20,10 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IWebHostEnvironment _environment;
         private readonly ISystemLogService _systemLogService;
 
+        // Store last test result for report generation
+        private static TestRunResult? _lastTestResult;
+        private static readonly object _lock = new();
+
         public TestRunnerController(
             ILogger<TestRunnerController> logger,
             IWebHostEnvironment environment,
@@ -88,6 +92,9 @@ namespace SW.PC.API.Backend.Controllers
                     });
                 }
 
+                // Store for report generation
+                lock (_lock) { _lastTestResult = result; }
+
                 return Ok(result);
             }
             catch (Exception ex)
@@ -125,7 +132,30 @@ namespace SW.PC.API.Backend.Controllers
             });
         }
 
-        // ==================== Private Methods ====================
+        /// <summary>
+        /// GET /api/tests/report — Download last test result as Markdown report
+        /// Suitable for attaching to compliance/audit documentation (IEC 62443, EU CRA)
+        /// </summary>
+        [HttpGet("report")]
+        public IActionResult GetReport()
+        {
+            if (!_environment.IsDevelopment())
+                return StatusCode(403, new { error = "Test runner is only available in Development mode" });
+
+            TestRunResult? result;
+            lock (_lock) { result = _lastTestResult; }
+
+            if (result == null)
+                return NotFound(new { error = "No test results available. Run tests first." });
+
+            var report = GenerateMarkdownReport(result);
+            var fileName = $"TestReport_{result.Timestamp:yyyy-MM-dd_HHmmss}.md";
+            var bytes = System.Text.Encoding.UTF8.GetBytes(report);
+
+            return File(bytes, "text/markdown", fileName);
+        }
+
+        // ==================== Private Methods ==
 
         private async Task<TestRunResult> RunDotnetTestAsync(string projectPath)
         {
@@ -211,6 +241,69 @@ namespace SW.PC.API.Backend.Controllers
             result.Success = result.Failed == 0 && result.Total > 0;
 
             return result;
+        }
+
+        private static string GenerateMarkdownReport(TestRunResult result)
+        {
+            var sb = new System.Text.StringBuilder();
+            var statusIcon = result.Success ? "✅" : "❌";
+            var statusText = result.Success ? "PASSED" : "FAILED";
+
+            sb.AppendLine($"# {statusIcon} Unit Test Report — {statusText}");
+            sb.AppendLine();
+            sb.AppendLine($"**Date:** {result.Timestamp:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine($"**Framework:** xUnit (.NET 8.0)");
+            sb.AppendLine($"**Project:** SW.PC.API.Backend.Tests");
+            sb.AppendLine();
+            sb.AppendLine("## Summary");
+            sb.AppendLine();
+            sb.AppendLine("| Metric | Value |");
+            sb.AppendLine("|--------|-------|");
+            sb.AppendLine($"| **Status** | {statusIcon} {statusText} |");
+            sb.AppendLine($"| **Total Tests** | {result.Total} |");
+            sb.AppendLine($"| **Passed** | {result.Passed} |");
+            sb.AppendLine($"| **Failed** | {result.Failed} |");
+            sb.AppendLine($"| **Duration** | {result.DurationMs} ms |");
+            sb.AppendLine($"| **Pass Rate** | {(result.Total > 0 ? (result.Passed * 100.0 / result.Total).ToString("F1") : "0")}% |");
+            sb.AppendLine();
+
+            if (result.Failures.Count > 0)
+            {
+                sb.AppendLine("## Failed Tests");
+                sb.AppendLine();
+                foreach (var f in result.Failures)
+                {
+                    sb.AppendLine($"- **{f.TestName}**");
+                    if (!string.IsNullOrWhiteSpace(f.ErrorMessage))
+                        sb.AppendLine($"  - Error: `{f.ErrorMessage}`");
+                }
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("## Test Categories");
+            sb.AppendLine();
+            sb.AppendLine("| Service Under Test | Description |");
+            sb.AppendLine("|-------------------|-------------|");
+            sb.AppendLine("| MetricsService | CPU, memory, disk monitoring (14 tests) |");
+            sb.AppendLine("| SystemLogService | Log buffer management (18 tests) |");
+            sb.AppendLine("| ProjectContextService | Multi-project context (13 tests) |");
+            sb.AppendLine("| BackupCertificateService | Backup integrity validation (11 tests) |");
+            // Note: Future test files will be reflected in the Total count
+            sb.AppendLine();
+
+            sb.AppendLine("## Compliance");
+            sb.AppendLine();
+            sb.AppendLine("This test report supports the following compliance requirements:");
+            sb.AppendLine();
+            sb.AppendLine("- **IEC 62443-4-1** SR-7: Software verification and validation");
+            sb.AppendLine("- **EU Cyber Resilience Act** Annex I, Part II: Vulnerability handling & testing");
+            sb.AppendLine("- **ISO 27001** A.14.2.8: System security testing");
+            sb.AppendLine();
+
+            sb.AppendLine("---");
+            sb.AppendLine($"*Generated automatically by SW.PC.API.Backend Test Runner — {result.Timestamp:yyyy-MM-dd HH:mm:ss}*");
+
+            return sb.ToString();
         }
     }
 
