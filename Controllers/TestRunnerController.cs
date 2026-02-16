@@ -134,7 +134,7 @@ namespace SW.PC.API.Backend.Controllers
             var psi = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"test \"{projectPath}\" --verbosity normal --no-build 2>&1",
+                Arguments = $"test \"{projectPath}\" --verbosity normal",
                 WorkingDirectory = _environment.ContentRootPath,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -153,8 +153,8 @@ namespace SW.PC.API.Backend.Controllers
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            // Timeout: 60 seconds max
-            var completed = await Task.Run(() => process.WaitForExit(60_000));
+            // Timeout: 120 seconds max (includes build + test)
+            var completed = await Task.Run(() => process.WaitForExit(120_000));
             sw.Stop();
 
             if (!completed)
@@ -181,13 +181,13 @@ namespace SW.PC.API.Backend.Controllers
             if (totalMatch.Success)
                 result.Total = int.Parse(totalMatch.Groups[1].Value);
 
-            // Parse passed: "Correcto: 65" or "Passed: 65"
-            var passedMatch = Regex.Match(output, @"(?:Correcto|Passed):\s*(\d+)", RegexOptions.IgnoreCase);
+            // Parse passed: "Correcto: 65" or "Passed: 65" or "Correctas: 65"
+            var passedMatch = Regex.Match(output, @"(?:Correctas?|Passed):\s*(\d+)", RegexOptions.IgnoreCase);
             if (passedMatch.Success)
                 result.Passed = int.Parse(passedMatch.Groups[1].Value);
 
-            // Parse failed: "Error: X" or "Failed: X"
-            var failedMatch = Regex.Match(output, @"(?:Failed|Error\s*(?:de prueba)?):\s*(\d+)", RegexOptions.IgnoreCase);
+            // Parse failed: "Con error: X" or "Failed: X" or "No superada: X"
+            var failedMatch = Regex.Match(output, @"(?:Failed|Con error|No superadas?):\s*(\d+)", RegexOptions.IgnoreCase);
             if (failedMatch.Success)
                 result.Failed = int.Parse(failedMatch.Groups[1].Value);
 
