@@ -30,6 +30,7 @@ namespace SW.PC.API.Backend.Services
         public string AuditPath { get; set; } = "";     // EU CRA Compliance
         public string TranslationsPath { get; set; } = ""; // Translations per project
         public string DocsPath { get; set; } = "";       // DMS: Document Management System
+        public string LogsPath { get; set; } = "";       // NxLog JSONL Export (SOC PIVOT TISSEO)
     }
 
     public interface IBackupService
@@ -123,7 +124,8 @@ namespace SW.PC.API.Backend.Services
                     SbomPath = Path.Combine(webRoot, "sbom"),           // Legacy: wwwroot/sbom
                     AuditPath = Path.Combine(webRoot, "audit"),          // Legacy: wwwroot/audit
                     TranslationsPath = Path.Combine(contentRoot, "translations"), // Legacy: root/translations
-                    DocsPath = Path.Combine(contentRoot, "docs")          // Legacy: root/docs
+                    DocsPath = Path.Combine(contentRoot, "docs"),          // Legacy: root/docs
+                    LogsPath = Path.Combine(Path.Combine(webRoot, "logs")) // Legacy: wwwroot/logs
                 };
             }
             
@@ -142,7 +144,8 @@ namespace SW.PC.API.Backend.Services
                 SbomPath = Path.Combine(projectRoot, "sbom"),           // Multi-proyecto: Projects/{id}/sbom
                 AuditPath = Path.Combine(projectRoot, "audit"),          // Multi-proyecto: Projects/{id}/audit
                 TranslationsPath = Path.Combine(projectRoot, "translations"), // Multi-proyecto: Projects/{id}/translations
-                DocsPath = Path.Combine(projectRoot, "docs")              // Multi-proyecto: Projects/{id}/docs
+                DocsPath = Path.Combine(projectRoot, "docs"),              // Multi-proyecto: Projects/{id}/docs
+                LogsPath = Path.Combine(projectRoot, "logs")               // Multi-proyecto: Projects/{id}/logs (NxLog JSONL)
             };
         }
 
@@ -425,6 +428,31 @@ namespace SW.PC.API.Backend.Services
                         }
                     }
                     
+                    // Agregar NxLog JSONL Logs (SOC PIVOT TISSEO - TLS_M3_ALS_EXI_CYB_SYS_00514)
+                    var logsPath = projectPaths.LogsPath;
+                    if (Directory.Exists(logsPath))
+                    {
+                        var logFiles = Directory.GetFiles(logsPath, "*.log", SearchOption.AllDirectories);
+                        foreach (var logFile in logFiles)
+                        {
+                            var relativePath = Path.Combine("logs", Path.GetRelativePath(logsPath, logFile));
+                            await AddFileToZipAsync(zipArchive, logFile, relativePath);
+                            
+                            manifest.Files.Add(new BackupFileEntry
+                            {
+                                RelativePath = relativePath,
+                                Hash = await ComputeFileHashAsync(logFile),
+                                SizeBytes = new FileInfo(logFile).Length,
+                                ModifiedAt = File.GetLastWriteTimeUtc(logFile)
+                            });
+                        }
+                        
+                        if (logFiles.Length > 0)
+                        {
+                            _logger.LogInformation("✅ NxLog JSONL logs incluidos en backup ({Count} archivos - TISSEO Compliance)", logFiles.Length);
+                        }
+                    }
+                    
                     // Agregar manifest al ZIP
                     var manifestEntry = zipArchive.CreateEntry("manifest.json");
                     using (var stream = manifestEntry.Open())
@@ -572,6 +600,18 @@ namespace SW.PC.API.Backend.Services
                             // Siempre restaurar archivos de trazabilidad y documentación
                             shouldRestore = true;
                             _logger.LogInformation("✅ Restaurando {FileName}", entry.FullName);
+                        }
+                        else if (entry.FullName.StartsWith("logs/"))
+                        {
+                            // Siempre restaurar NxLog JSONL logs (TISSEO Compliance)
+                            shouldRestore = true;
+                            _logger.LogInformation("✅ Restaurando NxLog JSONL: {FileName}", entry.FullName);
+                        }
+                        else if (entry.FullName.StartsWith("translations/"))
+                        {
+                            // Siempre restaurar Translations
+                            shouldRestore = true;
+                            _logger.LogInformation("✅ Restaurando Translation: {FileName}", entry.FullName);
                         }
                         
                         if (shouldRestore)

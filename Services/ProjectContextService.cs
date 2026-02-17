@@ -61,6 +61,11 @@ namespace SW.PC.API.Backend.Services
         string DocsPath { get; }
         
         /// <summary>
+        /// Ruta a la carpeta de logs JSONL para NxLog (SOC PIVOT TISSEO)
+        /// </summary>
+        string LogsPath { get; }
+        
+        /// <summary>
         /// Lista todos los proyectos disponibles en la carpeta Projects/
         /// </summary>
         IEnumerable<ProjectInfo> GetAvailableProjects();
@@ -200,6 +205,13 @@ namespace SW.PC.API.Backend.Services
             ? Path.Combine(ProjectBasePath, "docs")
             : Path.Combine(_contentRootPath, "docs");
         
+        /// <summary>
+        /// Ruta a la carpeta de logs JSONL para NxLog (SOC PIVOT TISSEO)
+        /// </summary>
+        public string LogsPath => _isMultiProjectMode
+            ? Path.Combine(ProjectBasePath, "logs")
+            : Path.Combine(_contentRootPath, "wwwroot", "logs");
+        
         public bool IsMultiProjectMode => _isMultiProjectMode;
         
         public IEnumerable<ProjectInfo> GetAvailableProjects()
@@ -284,6 +296,9 @@ namespace SW.PC.API.Backend.Services
                 Directory.CreateDirectory(Path.Combine(projectPath, "models"));
                 Directory.CreateDirectory(Path.Combine(projectPath, "data"));
                 Directory.CreateDirectory(Path.Combine(projectPath, "backups"));
+                
+                // NxLog: Carpeta para ficheros JSONL (SOC PIVOT TISSEO)
+                Directory.CreateDirectory(Path.Combine(projectPath, "logs"));
                 
                 // DMS: Estructura documental del proyecto
                 var docsPath = Path.Combine(projectPath, "docs");

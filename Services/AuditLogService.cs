@@ -87,17 +87,21 @@ namespace SW.PC.API.Backend.Services
             Converters = { new JsonStringEnumConverter() }
         };
 
+        private readonly INxLogFileService _nxLogFileService;
+
         public AuditLogService(
             ILogger<AuditLogService> logger, 
             IWebHostEnvironment env,
             IExcelConfigService excelConfigService,
             IHttpClientFactory httpClientFactory,
-            IProjectContextService projectContext)
+            IProjectContextService projectContext,
+            INxLogFileService nxLogFileService)
         {
             _logger = logger;
             _excelConfigService = excelConfigService;
             _httpClientFactory = httpClientFactory;
             _projectContext = projectContext;
+            _nxLogFileService = nxLogFileService;
             _contentRoot = env.ContentRootPath;
             
             // NO crear directorio aquí - se crea dinámicamente cuando se necesite escribir
@@ -233,6 +237,22 @@ namespace SW.PC.API.Backend.Services
             }
 
             _cache.Enqueue(entry);
+            
+            // 📋 NxLog: Escribir evento L1 a fichero JSONL (para SOC PIVOT TISSEO)
+            _ = _nxLogFileService.WriteAuditEventAsync(new NxLogAuditEntry
+            {
+                Timestamp = entry.Timestamp,
+                Level = result == AuditResult.Error || result == AuditResult.Failure ? "ERROR" : 
+                        result == AuditResult.Warning ? "WARNING" : "INFO",
+                Category = category.ToString(),
+                Action = action.ToString(),
+                Result = result.ToString(),
+                User = userName ?? userId,
+                IpAddress = ipAddress,
+                Details = details,
+                DurationMs = durationMs,
+                AffectedItemCount = affectedItemCount
+            }, projectId);
             
             // Añadir a cola de envío externo si está habilitado
             if (_externalEnabled && !string.IsNullOrEmpty(_externalUrl))
@@ -447,6 +467,9 @@ namespace SW.PC.API.Backend.Services
                 try
                 {
                     await CleanupOldLogsAsync();
+                    
+                    // 📋 También limpiar ficheros JSONL de NxLog (retención 30 días - TISSEO TLS_..00514)
+                    await _nxLogFileService.CleanupOldLogsAsync(retentionDays: 30);
                 }
                 catch (Exception ex)
                 {

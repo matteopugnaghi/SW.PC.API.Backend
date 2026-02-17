@@ -107,14 +107,18 @@ public class OperationLogService : IOperationLogService
         @"st_alarmHistPc\[(\d+)\]\.(Alarm|Notification|Info)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private readonly INxLogFileService _nxLogFileService;
+
     public OperationLogService(
         ILogger<OperationLogService> logger,
         IServiceScopeFactory scopeFactory,
-        IExcelConfigService excelConfigService)
+        IExcelConfigService excelConfigService,
+        INxLogFileService nxLogFileService)
     {
         _logger = logger;
         _scopeFactory = scopeFactory;
         _excelConfigService = excelConfigService;
+        _nxLogFileService = nxLogFileService;
         
         _logger.LogInformation("📋 OperationLogService initialized (SQLite mode)");
     }
@@ -157,6 +161,20 @@ public class OperationLogService : IOperationLogService
             
             dbContext.OperationLogs.Add(entry);
             await dbContext.SaveChangesAsync();
+            
+            // 📋 NxLog: Escribir evento L2 a fichero JSONL (para SOC PIVOT TISSEO)
+            _ = _nxLogFileService.WriteOperationEventAsync(new NxLogOperationEntry
+            {
+                Timestamp = entry.Timestamp,
+                Level = entry.Severity == OperationSeverity.Critical ? "ERROR" :
+                        entry.Severity == OperationSeverity.Warning ? "WARNING" : "INFO",
+                Category = category.ToString(),
+                Action = action.ToString(),
+                Severity = entry.Severity.ToString(),
+                User = entry.User,
+                Description = description,
+                IpAddress = ipAddress
+            });
             
             _logger.LogDebug("📋 Operation logged: {Category}.{Action} by {User}: {Description}",
                 category, action, user, description);
@@ -237,6 +255,23 @@ public class OperationLogService : IOperationLogService
             dbContext.OperationLogs.Add(entry);
             await dbContext.SaveChangesAsync();
             
+            // 📋 NxLog: Escribir alarma PLC L2 a fichero JSONL (para SOC PIVOT TISSEO)
+            _ = _nxLogFileService.WriteOperationEventAsync(new NxLogOperationEntry
+            {
+                Timestamp = entry.Timestamp,
+                Level = alarmTypeStr == "Alarm" ? "ERROR" :
+                        alarmTypeStr == "Notification" ? "WARNING" : "INFO",
+                Category = entry.Category.ToString(),
+                Action = entry.Action.ToString(),
+                Severity = entry.Severity.ToString(),
+                User = "PLC",
+                Description = entry.Description,
+                PlcVariable = plcVariable,
+                AlarmCode = alarmCode,
+                AlarmType = alarmTypeStr,
+                NewValue = isActive ? "Active" : "Inactive"
+            });
+            
             _logger.LogInformation(
                 "🔔 Alarma PLC registrada: [{Type}] Index={Index} Active={Active} - Code={Code}",
                 alarmTypeStr, alarmIndex, isActive, alarmCode ?? "N/A");
@@ -312,6 +347,20 @@ public class OperationLogService : IOperationLogService
             
             dbContext.OperationLogs.Add(entry);
             await dbContext.SaveChangesAsync();
+            
+            // 📋 NxLog: Escribir mensaje PLC L2 a fichero JSONL (para SOC PIVOT TISSEO)
+            _ = _nxLogFileService.WriteOperationEventAsync(new NxLogOperationEntry
+            {
+                Timestamp = entry.Timestamp,
+                Level = category == "ERROR" || category == "ALARM" ? "ERROR" :
+                        category == "WARNING" || category == "NOTIFICATION" ? "WARNING" : "INFO",
+                Category = entry.Category.ToString(),
+                Action = entry.Action.ToString(),
+                Severity = entry.Severity.ToString(),
+                User = "PLC",
+                Description = message,
+                NewValue = messageId
+            });
 
             _logger.LogInformation(
                 "📋 Mensaje PLC registrado: [{Category}] ID={Id} - {Message}",

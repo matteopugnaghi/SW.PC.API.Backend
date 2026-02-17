@@ -725,6 +725,7 @@ if ($ProjectId -ne "default") {
     $folders += "$RemotePath\Backend\Projects\$ProjectId\backups"
     $folders += "$RemotePath\Backend\Projects\$ProjectId\sbom"   # SBOM por proyecto (EU CRA)
     $folders += "$RemotePath\Backend\Projects\$ProjectId\audit"  # Audit logs por proyecto (EU CRA)
+    $folders += "$RemotePath\Backend\Projects\$ProjectId\logs"   # NxLog JSONL logs (SOC PIVOT TISSEO)
 }
 
 foreach ($folder in $folders) {

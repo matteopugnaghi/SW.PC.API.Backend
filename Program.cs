@@ -192,6 +192,7 @@ builder.Services.AddSingleton<IIpcInfoService, IpcInfoService>(); // 💻 IPC Sy
 builder.Services.AddSingleton<IAuditLogService, AuditLogService>(); // 📋 Audit Log (Nivel 1) - EU CRA Compliance
 builder.Services.AddSingleton<IOperationLogService, OperationLogService>(); // 📋 Operation Log (Nivel 2) - Acciones de operador
 builder.Services.AddSingleton<ISystemLogService, SystemLogService>(); // 📋 System Log (Nivel 3) - In-memory diagnostic buffer
+builder.Services.AddSingleton<INxLogFileService, NxLogFileService>(); // 📋 NxLog JSONL Export - TISSEO SOC PIVOT (TLS_M3_ALS_EXI_CYB_SYS_00516)
 builder.Services.AddSingleton<IESIParserService, ESIParserService>(); // 🌐 ESI Parser - EtherCAT Slave Info files
 builder.Services.AddSingleton<IEtherCATDiagnosticsService, EtherCATDiagnosticsService>(); // 🌐 EtherCAT Topology Diagnostics
 

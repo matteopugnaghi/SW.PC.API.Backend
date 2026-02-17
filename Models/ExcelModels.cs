@@ -592,7 +592,34 @@ namespace SW.PC.API.Backend.Models.Excel
         public int AuditLogMaxEntriesPerFile { get; set; } = 10000;
 
         // ═══════════════════════════════════════════════════════════════════════════
-        // 🔐 AUTHENTICATION - EU CRA Compliance (CADRA/Alstom Phase 2)
+        // � NXLOG JSONL EXPORT - TISSEO SOC PIVOT (Cybersecurity)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar exportación de logs en formato JSONL para NxLog.
+        /// Genera ficheros append-only para L1 (audit) y L2 (operations) en Projects/{id}/logs/.
+        /// NxLog los recoge y envía al SOC PIVOT TISSEO.
+        /// Solo necesario en instalaciones con requisitos TISSEO/SOC.
+        /// TLS_M3_ALS_EXI_CYB_SYS_00510, 00516
+        /// </summary>
+        public bool NxLogEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Días de retención de ficheros JSONL en disco local.
+        /// Los ficheros más antiguos se borran automáticamente cada hora.
+        /// Mínimo 7 días, recomendado 30 días según TLS_M3_ALS_EXI_CYB_SYS_00514.
+        /// </summary>
+        public int NxLogRetentionDays { get; set; } = 30;
+
+        /// <summary>
+        /// Nombre identificador de la fuente en las entradas de log.
+        /// Aparece en el campo "source" de cada evento JSONL.
+        /// Debe ser único por instalación (ej: "MAL-EQI", "MAL-TOULOUSE", "MAL-LYON").
+        /// </summary>
+        public string NxLogSourceName { get; set; } = "MAL-EQI";
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // �🔐 AUTHENTICATION - EU CRA Compliance (CADRA/Alstom Phase 2)
         // ═══════════════════════════════════════════════════════════════════════════
 
         /// <summary>

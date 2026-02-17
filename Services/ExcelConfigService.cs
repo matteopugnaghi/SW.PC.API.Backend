@@ -3054,6 +3054,29 @@ namespace SW.PC.API.Backend.Services
                             // NOTA: SupportChallengeSecret NO se lee de Excel
                             // Está hardcodeado en SupportController.cs (igual que RecoveryCodeService)
 
+                            // ═════════════════════════════════════════════════════════════
+                            // 📋 NXLOG JSONL EXPORT - TISSEO SOC PIVOT
+                            // ═════════════════════════════════════════════════════════════
+                            case "nxlogenabled":
+                            case "nxlog_enabled":
+                            case "enable_nxlog":
+                            case "enablxlog":
+                                config.NxLogEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "nxlogretentiondays":
+                            case "nxlog_retentiondays":
+                            case "nxlog_retention_days":
+                                if (int.TryParse(paramValue, out int nxlogRetDays))
+                                    config.NxLogRetentionDays = Math.Max(7, nxlogRetDays); // Mínimo 7 días
+                                break;
+                            case "nxlogsourcename":
+                            case "nxlog_sourcename":
+                            case "nxlog_source_name":
+                            case "nxlog_source":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.NxLogSourceName = paramValue.Trim();
+                                break;
+
                             // ═══════════════════════════════════════════════════════════════
                             // 🚿 WASH RECIPE - Tipos de Lavado
                             // ═══════════════════════════════════════════════════════════════
@@ -3336,7 +3359,9 @@ namespace SW.PC.API.Backend.Services
                         string.IsNullOrEmpty(config.TrainRecipeAutoLoadVar2) ? "N/A" : config.TrainRecipeAutoLoadVar2);
                     _logger.LogInformation("  - ⚡ Semiautomatic: {Enabled}", config.SemiautomaticEnabled);
                     _logger.LogInformation("  - ⚡ FastConfiguration: {Enabled}", config.FastConfigurationEnabled);
-                    _logger.LogInformation("  - 📷 CameraZoomFactor: {Factor}", config.CameraZoomFactor);
+                    _logger.LogInformation("  - � NxLog JSONL Export: {Enabled} (Retention: {Days} days, Source: {Source})", 
+                        config.NxLogEnabled, config.NxLogRetentionDays, config.NxLogSourceName);
+                    _logger.LogInformation("  - �📷 CameraZoomFactor: {Factor}", config.CameraZoomFactor);
                     _logger.LogInformation("  - 🌐 i18n: DefaultLanguage={Lang}, ExposeLabelIds={Expose}", 
                         config.DefaultLanguage, config.ExposeLabelIds);
                     _logger.LogInformation("  - 📦 Product: {Name} v{Version} by {Manufacturer}", 

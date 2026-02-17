@@ -65,6 +65,11 @@ namespace SW.PC.API.Backend.Services
         string DocsPath { get; }
         
         /// <summary>
+        /// Ruta a la carpeta de logs JSONL para NxLog (SOC PIVOT TISSEO)
+        /// </summary>
+        string LogsPath { get; }
+        
+        /// <summary>
         /// Configura el proyecto para este request
         /// </summary>
         void SetProject(string projectId);
@@ -87,6 +92,7 @@ namespace SW.PC.API.Backend.Services
         private string _databasePath = "";
         private string _translationsPath = "";
         private string _docsPath = "";
+        private string _logsPath = "";
         
         // Rutas legacy
         private readonly string _contentRootPath;
@@ -129,6 +135,7 @@ namespace SW.PC.API.Backend.Services
         public string DatabasePath => _databasePath;
         public string TranslationsPath => _translationsPath;
         public string DocsPath => _docsPath;
+        public string LogsPath => _logsPath;
 
         /// <summary>
         /// Configura el proyecto para este request específico
@@ -171,6 +178,7 @@ namespace SW.PC.API.Backend.Services
                 _databasePath = Path.Combine(_legacyDataPath, "Aquafrisch.db");
                 _translationsPath = Path.Combine(_contentRootPath, "translations");
                 _docsPath = Path.Combine(_contentRootPath, "docs");
+                _logsPath = Path.Combine(_contentRootPath, "wwwroot", "logs");
             }
             else
             {
@@ -182,6 +190,7 @@ namespace SW.PC.API.Backend.Services
                 _backupsPath = Path.Combine(_projectBasePath, "backups");
                 _translationsPath = Path.Combine(_projectBasePath, "translations");
                 _docsPath = Path.Combine(_projectBasePath, "docs");
+                _logsPath = Path.Combine(_projectBasePath, "logs");
                 
                 // Buscar archivo Excel en config
                 _excelConfigPath = FindExcelConfig(_configPath);

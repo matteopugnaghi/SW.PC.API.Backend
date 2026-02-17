@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Árbol Raíz Documental v5.1 — Aquafrisch</title>
+<style>
+  @page { size: A3 landscape; margin: 10mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9px; color: #1a1a2e; background: #fff; padding: 10px; }
+  
+  .header { text-align: center; margin-bottom: 8px; border-bottom: 3px solid #1a1a2e; padding-bottom: 6px; }
+  .header h1 { font-size: 18px; color: #1a1a2e; }
+  .header .subtitle { font-size: 11px; color: #555; margin-top: 2px; }
+  .header .meta { font-size: 8px; color: #888; margin-top: 3px; }
+  
+  .legends { display: flex; gap: 20px; justify-content: center; margin-bottom: 8px; padding: 5px; background: #f8f9fa; border-radius: 4px; border: 1px solid #dee2e6; }
+  .legend-group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .legend-group .label { font-weight: 700; font-size: 8px; color: #555; margin-right: 4px; }
+  .legend-item { font-size: 8px; white-space: nowrap; }
+  
+  .columns { display: flex; gap: 6px; align-items: flex-start; }
+  .column { flex: 1; min-width: 0; }
+  
+  .category { border: 1.5px solid #333; border-radius: 5px; margin-bottom: 5px; overflow: hidden; break-inside: avoid; }
+  .cat-header { padding: 4px 6px; font-weight: 700; font-size: 10px; color: #fff; display: flex; justify-content: space-between; align-items: center; }
+  .cat-header .tags { font-size: 7px; font-weight: 400; opacity: 0.9; }
+  .cat-body { padding: 3px 5px; background: #fff; }
+  
+  .subcat { margin-bottom: 2px; }
+  .subcat-title { font-weight: 700; font-size: 8.5px; color: #333; padding: 1px 0; border-bottom: 1px solid #eee; margin-bottom: 1px; }
+  
+  .doc { display: flex; justify-content: space-between; padding: 1px 0 1px 8px; font-size: 8px; line-height: 1.3; }
+  .doc .name { flex: 1; }
+  .doc .norm { color: #777; font-size: 7px; text-align: right; white-space: nowrap; margin-left: 4px; }
+  
+  .st-exist { color: #16a34a; } .st-exist::before { content: "✅ "; }
+  .st-audit { color: #dc2626; font-weight: 700; } .st-audit::before { content: "🔴 "; }
+  .st-norma { color: #2563eb; } .st-norma::before { content: "🟢 "; }
+  .st-future { color: #ca8a04; } .st-future::before { content: "🟡 "; }
+  .st-machine { color: #6b7280; } .st-machine::before { content: "⬜ "; }
+  .st-restrict { color: #9333ea; } .st-restrict::before { content: "⚠️ "; }
+  
+  .bg-pub { background: #0d9488; }
+  .bg-cal { background: #2563eb; }
+  .bg-seg { background: #dc2626; }
+  .bg-sw { background: #7c3aed; }
+  .bg-man { background: #0891b2; }
+  .bg-tpl { background: #6366f1; }
+  .bg-proy { background: #d97706; }
+  .bg-ing { background: #ea580c; }
+  .bg-plc { background: #b91c1c; }
+  .bg-cfg { background: #4f46e5; }
+  .bg-ops { background: #059669; }
+  .bg-int { background: #374151; }
+  
+  .separator { text-align: center; font-weight: 700; font-size: 10px; color: #555; padding: 4px; margin: 4px 0; background: #f0f0f0; border-radius: 4px; border: 1px dashed #999; }
+  
+  .summary { display: flex; gap: 15px; justify-content: center; margin-top: 6px; padding: 5px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
+  .summary-item { font-size: 9px; font-weight: 600; }
+  
+  .footer { text-align: center; margin-top: 6px; font-size: 7px; color: #999; border-top: 1px solid #ddd; padding-top: 3px; }
+  
+  @media print {
+    body { padding: 0; }
+    .category { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏭 AQUAFRISCH — ÁRBOL DOCUMENTAL v5.1 MULTINORMATIVA</h1>
+  <div class="subtitle">Sistema de Gestión Documental — ISO 9001 · ISO 27001 · IEC 62443 · EU CRA</div>
+  <div class="meta">Código: ARB-2026-001 | Versión 5.1 | 16 febrero 2026 | Numeración: XX.Y-ZZ (inmune a inserciones) | Para revisión con Dirección</div>
+</div>
+
+<div class="legends">
+  <div class="legend-group">
+    <span class="label">ESTADOS:</span>
+    <span class="legend-item">✅ Existe (49)</span>
+    <span class="legend-item" style="color:#dc2626;font-weight:700">🔴 Auditoría IEC abr'26 (14)</span>
+    <span class="legend-item" style="color:#2563eb">🟢 Normativa ISO/CRA (22)</span>
+    <span class="legend-item" style="color:#ca8a04">🟡 Futuro (28)</span>
+    <span class="legend-item" style="color:#6b7280">⬜ Per-machine (46)</span>
+    <span class="legend-item" style="color:#9333ea">⚠️ Restringido (3)</span>
+  </div>
+  <div class="legend-group">
+    <span class="label">UBICACIÓN:</span>
+    <span class="legend-item">🏢 DMS Empresa (interno)</span>
+    <span class="legend-item">🖥️M Supervisor Master (igual todas)</span>
+    <span class="legend-item">🖥️P Supervisor Project (por máquina)</span>
+  </div>
+  <div class="legend-group">
+    <span class="label">NORMAS:</span>
+    <span class="legend-item">Q = ISO 9001</span>
+    <span class="legend-item">S = ISO 27001</span>
+    <span class="legend-item">I = IEC 62443</span>
+    <span class="legend-item">C = EU CRA</span>
+  </div>
+</div>
+
+<div class="columns">
+
+<!-- COLUMNA 1 -->
+<div class="column">
+
+<div class="separator">📦 MASTER — Se escribe UNA VEZ, sirve para TODAS las máquinas</div>
+
+<!-- 00 PÚBLICO -->
+<div class="category">
+  <div class="cat-header bg-pub">🌐 00 PÚBLICO <span class="tags">🏢+🖥️M · C:V, C:II, I:S7</span></div>
+  <div class="cat-body">
+    <div class="subcat"><div class="subcat-title">00.1 Certificaciones</div>
+      <div class="doc"><span class="name st-future">Certificado ISO 9001</span><span class="norm">Q:toda</span></div>
+      <div class="doc"><span class="name st-future">Certificado ISO 27001</span><span class="norm">S:toda</span></div>
+      <div class="doc"><span class="name st-future">Declaración IEC 62443</span><span class="norm">I:toda</span></div>
+      <div class="doc"><span class="name st-future">Certificado EU CRA</span><span class="norm">C:toda</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">00.2 Presentación Comercial</div>
+      <div class="doc"><span class="name st-exist">Presentación Aquafrisch Supervisor</span><span class="norm">—</span></div>
+      <div class="doc"><span class="name st-exist">Email comercial tipo</span><span class="norm">—</span></div>
+      <div class="doc"><span class="name st-exist">Screenshots funcionales (10)</span><span class="norm">—</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">00.3 Fichas Técnicas (Datasheets)</div>
+      <div class="doc"><span class="name st-future">Datasheet Aquafrisch Supervisor (SW)</span><span class="norm">C:II · Q:8.2</span></div>
+      <div class="doc"><span class="name st-future">Datasheet Lavadora de Bogies</span><span class="norm">Q:8.2</span></div>
+      <div class="doc"><span class="name st-future">Datasheet Torno de Ruedas</span><span class="norm">Q:8.2</span></div>
+      <div class="doc"><span class="name st-future">Datasheet [modelo N]</span><span class="norm">Q:8.2</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">00.4 Declaración Conformidad</div>
+      <div class="doc"><span class="name st-norma">Declaración conformidad EU CRA</span><span class="norm">C:V</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">00.5 Política Vulnerabilidades</div>
+      <div class="doc"><span class="name st-exist">Informe vulnerabilidades conocidas</span><span class="norm">C:I.2 · C:II</span></div>
+      <div class="doc"><span class="name st-audit">DOC-13: Gestión Vulnerabilidades</span><span class="norm">I:S7.1-2 · C:I.2 · S:A.8.8</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 01 CALIDAD -->
+<div class="category">
+  <div class="cat-header bg-cal">📋 01 CALIDAD <span class="tags">🏢 · Q:4-10</span></div>
+  <div class="cat-body">
+    <div class="subcat"><div class="subcat-title">01.1 SGC — Sistema Gestión Calidad</div>
+      <div class="doc"><span class="name st-norma">Manual del SGC</span><span class="norm">Q:4.4, Q:5.3, Q:7.1</span></div>
+      <div class="doc"><span class="name st-norma">Política de Calidad</span><span class="norm">Q:5.2</span></div>
+      <div class="doc"><span class="name st-norma">Alcance del SGC</span><span class="norm">Q:4.3</span></div>
+      <div class="doc"><span class="name st-norma">Contexto org. + partes interesadas</span><span class="norm">Q:4.1, Q:4.2</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">01.2 Gestión Documental</div>
+      <div class="doc"><span class="name st-exist">PGD (Plan Gestión Documental)</span><span class="norm">Q:7.5 · S:7.5</span></div>
+      <div class="doc"><span class="name st-exist">Estructura multinormativa</span><span class="norm">Q:7.5</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">01.3 Objetivos y Medición</div>
+      <div class="doc"><span class="name st-norma">Objetivos calidad anuales 2026</span><span class="norm">Q:6.2</span></div>
+      <div class="doc"><span class="name st-norma">Indicadores y medición (KPIs)</span><span class="norm">Q:9.1.1</span></div>
+      <div class="doc"><span class="name st-norma">Satisfacción del cliente</span><span class="norm">Q:9.1.2</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">01.4 No Conformidades</div>
+      <div class="doc"><span class="name st-norma">Registro de no conformidades</span><span class="norm">Q:10.2 · S:10.1</span></div>
+      <div class="doc"><span class="name st-norma">Procedimiento acciones correctivas</span><span class="norm">Q:10.2 · S:10.1</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">01.5 Mejora Continua</div>
+      <div class="doc"><span class="name st-norma">Plan mejora continua</span><span class="norm">Q:10.3 · S:10.2</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">01.6 Auditoría Interna y Revisión Dirección</div>
+      <div class="doc"><span class="name st-norma">Programa de auditoría interna</span><span class="norm">Q:9.2 · S:9.2</span></div>
+      <div class="doc"><span class="name st-norma">Procedimiento de auditoría interna</span><span class="norm">Q:9.2 · S:9.2</span></div>
+      <div class="doc"><span class="name st-norma">Actas revisión por dirección</span><span class="norm">Q:9.3 · S:9.3</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">01.7 Riesgos y Oportunidades</div>
+      <div class="doc"><span class="name st-norma">Análisis riesgos y oportunidades</span><span class="norm">Q:6.1</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">01.8 Procedimientos Generales del SGC (PGs existentes)</div>
+      <div class="doc"><span class="name st-exist">MSG 00 Manual Sistema de Gestión</span><span class="norm">Q:4.4, Q:5.1-3</span></div>
+      <div class="doc"><span class="name st-exist">PG 01 Control Info Documentada</span><span class="norm">Q:7.5</span></div>
+      <div class="doc"><span class="name st-exist">PG 02 Gestión NC y Reclamaciones</span><span class="norm">Q:8.7, Q:10.2</span></div>
+      <div class="doc"><span class="name st-exist">PG 04 Gestión de Recursos</span><span class="norm">Q:7.1</span></div>
+      <div class="doc"><span class="name st-exist">PG 05 Control Producto y Servicio</span><span class="norm">Q:8.1-8.7</span></div>
+      <div class="doc"><span class="name st-exist">PG 06 Gestión de Compras</span><span class="norm">Q:8.4</span></div>
+      <div class="doc"><span class="name st-exist">PG 07 Preparación y Rpta Emergencias</span><span class="norm">Q:6.1 · S:A.5.29-30</span></div>
+      <div class="doc"><span class="name st-exist">PG 08 Ventas de Producto y Servicio</span><span class="norm">Q:8.2, Q:9.1.2</span></div>
+      <div class="doc"><span class="name st-exist">PG 09 Servicio Postventa</span><span class="norm">Q:8.5.5, Q:9.1.2</span></div>
+      <div class="doc"><span class="name st-exist">PG 10 Gestión Riesgos y Oportunidades</span><span class="norm">Q:6.1, Q:4.1</span></div>
+      <div class="doc"><span class="name st-exist">PG 11 Comunicación, Participación</span><span class="norm">Q:7.4</span></div>
+      <div class="doc"><span class="name st-exist">PG 12 Control Operacional (MA+SST)</span><span class="norm">Q:8.1</span></div>
+      <div class="doc"><span class="name st-exist">PG 13 Seguridad de la Información ⚠️</span><span class="norm">S:5.2, S:A.5-A.8</span></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- fin col 1 -->
+
+<!-- COLUMNA 2 -->
+<div class="column">
+
+<!-- 02 SEGURIDAD -->
+<div class="category">
+  <div class="cat-header bg-seg">🔒 02 SEGURIDAD <span class="tags">🏢 · S:4-10, I:S1-S3, C:I</span></div>
+  <div class="cat-body">
+    <div class="subcat"><div class="subcat-title">02.1 Políticas de Seguridad de la Información</div>
+      <div class="doc"><span class="name st-exist">Security overview</span><span class="norm">S:A.5.1</span></div>
+      <div class="doc"><span class="name st-exist">Resumen ciberseguridad</span><span class="norm">S:A.5.1</span></div>
+      <div class="doc"><span class="name st-exist">Roles y permisos del sistema</span><span class="norm">S:A.5.2 · I:S1.4</span></div>
+      <div class="doc"><span class="name st-exist">Quickstart roles</span><span class="norm">S:A.5.2</span></div>
+      <div class="doc"><span class="name st-audit">DOC-01: Política Ciberseguridad</span><span class="norm">S:5.2, A.5.1 · I:S1.1</span></div>
+      <div class="doc"><span class="name st-audit">DOC-03: Organigrama + RACI Ciber</span><span class="norm">S:5.3, A.5.2 · I:S1.4-5</span></div>
+      <div class="doc"><span class="name st-audit">DOC-05: Protección Física y TI</span><span class="norm">S:A.7.1-4 · I:S2.1-2,S2.5</span></div>
+      <div class="doc"><span class="name st-audit">DOC-06: Gestión Cuentas TI</span><span class="norm">S:A.5.15-18 · I:S2.3</span></div>
+      <div class="doc"><span class="name st-audit">DOC-07: Seguridad OT (TwinCAT/PLC)</span><span class="norm">S:A.8.9 · I:S3.1-3</span></div>
+      <div class="doc"><span class="name st-norma">Alcance del SGSI</span><span class="norm">S:4.3</span></div>
+      <div class="doc"><span class="name st-norma">Declaración Aplicabilidad (SoA)</span><span class="norm">S:6.1.3d</span></div>
+      <div class="doc"><span class="name st-norma">Objetivos seguridad información</span><span class="norm">S:6.2</span></div>
+      <div class="doc"><span class="name st-norma">Política clasificación información</span><span class="norm">S:A.5.12-13</span></div>
+      <div class="doc"><span class="name st-norma">Política de criptografía</span><span class="norm">S:A.8.24 · C:I.1(c)</span></div>
+      <div class="doc"><span class="name st-norma">Política seguridad de red</span><span class="norm">S:A.8.20-22 · I:S3.1</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">02.2 CRA EU — Cumplimiento Europeo</div>
+      <div class="doc"><span class="name st-exist">Roadmap cumplimiento CRA</span><span class="norm">C:I.1, C:I.2</span></div>
+      <div class="doc"><span class="name st-exist">Gestión usuarios CRA</span><span class="norm">C:I.1(d) · S:A.5.15</span></div>
+      <div class="doc"><span class="name st-exist">Sistema de logs CRA</span><span class="norm">C:I.1(g) · S:A.8.15</span></div>
+      <div class="doc"><span class="name st-audit">DOC-04: Plan Gestión Incidentes</span><span class="norm">I:S2.4 · S:A.5.24-26 · C:I.1(f)</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">02.3 Integridad</div>
+      <div class="doc"><span class="name st-exist">Software Integrity (firma, checksums)</span><span class="norm">I:S5.2 · C:I.1(h) · S:A.8.25</span></div>
+      <div class="doc"><span class="name st-exist">Estado integridad actual</span><span class="norm">I:S5.2</span></div>
+      <div class="doc"><span class="name st-exist">Versión deploy producción</span><span class="norm">I:S5.2 · C:I.1(h)</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">02.4 Auditorías y Evaluaciones</div>
+      <div class="doc"><span class="name st-audit">DOC-02: Estrategia Ciberseg. + KPIs</span><span class="norm">I:S1.2-3 · S:9.1</span></div>
+      <div class="doc"><span class="name st-audit">DOC-12: Evaluación Terceros</span><span class="norm">I:S6.3 · S:A.5.19-21 · Q:8.4</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">02.5 Gestión de Riesgos</div>
+      <div class="doc"><span class="name st-norma">Metodología evaluación de riesgos</span><span class="norm">S:6.1.2 · Q:6.1</span></div>
+      <div class="doc"><span class="name st-norma">Registro riesgos + Plan tratamiento</span><span class="norm">S:6.1.3, S:8.3 · Q:6.1</span></div>
+      <div class="doc"><span class="name st-norma">Inventario activos de información</span><span class="norm">S:A.5.9-11</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">02.6 Continuidad de Negocio</div>
+      <div class="doc"><span class="name st-norma">Plan Continuidad Negocio (BCP)</span><span class="norm">S:A.5.29-30</span></div>
+      <div class="doc"><span class="name st-norma">Plan Recuperación Desastres (DRP)</span><span class="norm">S:A.5.30 · Q:6.1</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">02.7 Seguridad del Personal</div>
+      <div class="doc"><span class="name st-norma">Procedimiento seguridad RRHH</span><span class="norm">S:A.6.1-6</span></div>
+      <div class="doc"><span class="name st-norma">Plan concienciación seguridad</span><span class="norm">S:A.6.3 · Q:7.3 · I:S1.1</span></div>
+      <div class="doc"><span class="name st-norma">Acuerdos confidencialidad (NDA)</span><span class="norm">S:A.6.6 · S:A.5.14</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 03 SOFTWARE -->
+<div class="category">
+  <div class="cat-header bg-sw">💻 03 SOFTWARE <span class="tags">🏢 · I:S4-S5, C:VII, Q:8.3</span></div>
+  <div class="cat-body">
+    <div class="subcat"><div class="subcat-title">03.1 Arquitectura del Sistema</div>
+      <div class="doc"><span class="name st-exist">Arquitectura y despliegue</span><span class="norm">Q:8.3 · C:VII · S:A.8.25</span></div>
+      <div class="doc"><span class="name st-exist">Arquitectura de logs</span><span class="norm">C:I.1(g) · S:A.8.15</span></div>
+      <div class="doc"><span class="name st-exist">Gestión de datos (backup, restore)</span><span class="norm">S:A.8.13 · C:I.1(f)</span></div>
+      <div class="doc"><span class="name st-exist">Sistema gestión documental</span><span class="norm">Q:7.5</span></div>
+      <div class="doc"><span class="name st-exist">Implementación modelos 3D</span><span class="norm">Q:8.3</span></div>
+      <div class="doc"><span class="name st-exist">Sistema multi-proyecto</span><span class="norm">Q:8.3 · S:A.8.31</span></div>
+      <div class="doc"><span class="name st-exist">System Config implementation</span><span class="norm">Q:8.3 · C:I.1(b)</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">03.2 SDL — Desarrollo Seguro</div>
+      <div class="doc"><span class="name st-exist">Guía de desarrollo</span><span class="norm">Q:8.3 · S:A.8.25</span></div>
+      <div class="doc"><span class="name st-exist">Ejemplo API Backend</span><span class="norm">Q:8.3</span></div>
+      <div class="doc"><span class="name st-exist">Integración Backend</span><span class="norm">Q:8.3</span></div>
+      <div class="doc"><span class="name st-exist">Integración Frontend bombas</span><span class="norm">Q:8.3</span></div>
+      <div class="doc"><span class="name st-exist">Implementación pump elements</span><span class="norm">Q:8.3</span></div>
+      <div class="doc"><span class="name st-audit">DOC-08: SDL — Desarrollo Seguro</span><span class="norm">I:S4.1-2,S4.4 · S:A.8.25-27</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">03.3 Guías Codificación Segura</div>
+      <div class="doc"><span class="name st-audit">DOC-09: Secure Coding Guidelines</span><span class="norm">I:S4.3 · S:A.8.28 · C:I.1(a)</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">03.4 SBOM y Terceros</div>
+      <div class="doc"><span class="name st-exist">Índice de terceros</span><span class="norm">I:S5.1 · S:A.5.19 · Q:8.4</span></div>
+      <div class="doc"><span class="name st-exist">README Beckhoff</span><span class="norm">I:S5.1 · S:A.5.19</span></div>
+      <div class="doc"><span class="name st-exist">Config Beckhoff propia</span><span class="norm">I:S5.1</span></div>
+      <div class="doc"><span class="name st-audit">DOC-10: SBOM Formal</span><span class="norm">I:S5.1 · C:VII · S:A.5.19</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">03.5 Testing y Changelog</div>
+      <div class="doc"><span class="name st-exist">Estado integración</span><span class="norm">Q:8.6 · I:S4.4</span></div>
+      <div class="doc"><span class="name st-exist">Resumen trabajo nocturno</span><span class="norm">Q:8.3</span></div>
+      <div class="doc"><span class="name st-future">Plan de testing formal</span><span class="norm">Q:8.6 · I:S4.4 · S:A.8.29</span></div>
+      <div class="doc"><span class="name st-norma">Release Notes / Changelog formal</span><span class="norm">C:II · I:S5.2 · Q:8.6</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">03.6 Documentación Técnica CRA</div>
+      <div class="doc"><span class="name st-norma">Doc técnica formal EU CRA</span><span class="norm">C:VII</span></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- fin col 2 -->
+
+<!-- COLUMNA 3 -->
+<div class="column">
+
+<!-- 04 MANUALES -->
+<div class="category">
+  <div class="cat-header bg-man">📖 04 MANUALES <span class="tags">🖥️M · C:II, Q:7.2-7.3</span></div>
+  <div class="cat-body">
+    <div class="subcat"><div class="subcat-title">04.1 Manual de Usuario</div>
+      <div class="doc"><span class="name st-exist">Manual recuperación usuario</span><span class="norm">C:II · Q:8.5</span></div>
+      <div class="doc"><span class="name st-norma">Manual usuario completo (CRA Anexo II)</span><span class="norm">C:II</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">04.2 Manual de Instalación</div>
+      <div class="doc"><span class="name st-exist">Instalación producción completa</span><span class="norm">C:II · Q:8.5</span></div>
+      <div class="doc"><span class="name st-exist">Cómo usar nueva versión</span><span class="norm">C:I.1(h) · C:II</span></div>
+      <div class="doc"><span class="name st-exist">Configuración modo Kiosk</span><span class="norm">Q:8.5</span></div>
+      <div class="doc"><span class="name st-exist">Deploy servidor empresa</span><span class="norm">Q:8.5</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">04.3 Formación</div>
+      <div class="doc"><span class="name st-future">Material formación operadores</span><span class="norm">Q:7.2-3 · S:A.6.3</span></div>
+      <div class="doc"><span class="name st-future">Guía rápida de arranque</span><span class="norm">C:II · Q:7.2</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">04.4 FAQ / Troubleshooting</div>
+      <div class="doc"><span class="name st-exist">Troubleshooting animación PLC</span><span class="norm">Q:8.7</span></div>
+      <div class="doc"><span class="name st-future">FAQ general del producto</span><span class="norm">C:II</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 05 PLANTILLAS -->
+<div class="category">
+  <div class="cat-header bg-tpl">📐 05 PLANTILLAS <span class="tags">🏢 · Q:8.1, Q:8.4</span></div>
+  <div class="cat-body">
+    <div class="subcat"><div class="subcat-title">05.1 Checklist Nuevo Proyecto</div>
+      <div class="doc"><span class="name st-future">Checklist arranque proyecto nuevo</span><span class="norm">Q:8.1</span></div>
+      <div class="doc"><span class="name st-future">Checklist entrega final</span><span class="norm">Q:8.6</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">05.2 Formatos Estándar</div>
+      <div class="doc"><span class="name st-future">Template informe ingeniería</span><span class="norm">Q:7.5</span></div>
+      <div class="doc"><span class="name st-future">Template acta reunión</span><span class="norm">Q:7.4</span></div>
+      <div class="doc"><span class="name st-future">Template informe test</span><span class="norm">Q:8.6 · I:S4.4</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">05.3 Componentes Homologados</div>
+      <div class="doc"><span class="name st-exist">Vocabulario máquina (glosario)</span><span class="norm">Q:7.4</span></div>
+      <div class="doc"><span class="name st-future">Lista componentes aprobados</span><span class="norm">Q:8.4 · S:A.5.19</span></div>
+      <div class="doc"><span class="name st-future">Proveedores homologados</span><span class="norm">Q:8.4 · S:A.5.19 · I:S6.3</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">05.4 Criterios de Aceptación</div>
+      <div class="doc"><span class="name st-future">Criterios aceptación SW (SAT/FAT)</span><span class="norm">Q:8.6 · I:S4.4</span></div>
+      <div class="doc"><span class="name st-future">Criterios aceptación HW</span><span class="norm">Q:8.6</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="separator">🔧 PER-MACHINE — Se repite para CADA instalación</div>
+
+<!-- 06 PROYECTO -->
+<div class="category">
+  <div class="cat-header bg-proy">🏗️ 06 PROYECTO — ① Vender <span class="tags">🏢 · Q:8.2, I:S6, I:S8</span></div>
+  <div class="cat-body">
+    <div class="subcat"><div class="subcat-title">06.1 Oferta Comercial</div>
+      <div class="doc"><span class="name st-machine">Oferta técnica-económica</span><span class="norm">Q:8.2</span></div>
+      <div class="doc"><span class="name st-machine">Presupuesto detallado</span><span class="norm">Q:8.2</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">06.2 Especificaciones Cliente</div>
+      <div class="doc"><span class="name st-exist">Análisis estándares IT del cliente</span><span class="norm">S:A.5.36 · I:S6.1</span></div>
+      <div class="doc"><span class="name st-audit">DOC-11: Requisitos Ciber Producto</span><span class="norm">I:S6.1-2 · S:A.5.19 · C:I.1</span></div>
+      <div class="doc"><span class="name st-machine">Especificaciones técnicas del cliente</span><span class="norm">Q:8.2.2-3</span></div>
+      <div class="doc"><span class="name st-norma">Revisión requisitos del contrato</span><span class="norm">Q:8.2.3</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">06.3 Contrato</div>
+      <div class="doc"><span class="name st-machine">Contrato firmado</span><span class="norm">Q:8.2.3</span></div>
+      <div class="doc"><span class="name st-machine">Condiciones de garantía</span><span class="norm">Q:8.2.1 · C:II</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">06.4 Plan de Proyecto</div>
+      <div class="doc"><span class="name st-machine">Cronograma proyecto (Gantt)</span><span class="norm">Q:8.1 · I:S8.2</span></div>
+      <div class="doc"><span class="name st-audit">DOC-14: Roles Ciber por Proyecto</span><span class="norm">I:S8.1-2 · S:A.5.2</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">06.5 Actas y Comunicaciones</div>
+      <div class="doc"><span class="name st-machine">Actas reunión con cliente</span><span class="norm">Q:7.4</span></div>
+      <div class="doc"><span class="name st-machine">Correspondencia técnica relevante</span><span class="norm">Q:7.4</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 07 INGENIERÍA -->
+<div class="category">
+  <div class="cat-header bg-ing">⚡ 07 INGENIERÍA — ② Diseñar <span class="tags">🏢 · Q:8.3</span></div>
+  <div class="cat-body">
+    <div class="subcat"><div class="subcat-title">07.1-07.8 Esquemas, P&ID, Layout, Mecánicos, Neumáticos, BOM, Datasheets, As-Built</div>
+      <div class="doc"><span class="name st-machine">14 documentos per-machine</span><span class="norm">Q:8.3.5, Q:8.4, Q:8.5.6</span></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- fin col 3 -->
+
+<!-- COLUMNA 4 -->
+<div class="column">
+
+<!-- 08 TWINCAT -->
+<div class="category">
+  <div class="cat-header bg-plc">🔧 08 TWINCAT / PLC — ③ Programar <span class="tags">🏢 · I:S3, Q:8.3</span></div>
+  <div class="cat-body">
+    <div class="subcat"><div class="subcat-title">08.1-08.5 Proyecto, I/O, EtherCAT, Recetas, Doc PLC</div>
+      <div class="doc"><span class="name st-machine">10 documentos per-machine</span><span class="norm">Q:8.3.5, I:S3.1-3, I:S5.1</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 09 CONFIG SW -->
+<div class="category">
+  <div class="cat-header bg-cfg">⚙️ 09 CONFIG SW — ④ Configurar <span class="tags">🖥️M+🖥️P · Q:8.3, C:I.1(b)</span></div>
+  <div class="cat-body">
+    <div class="subcat"><div class="subcat-title">09.1 Excel Config</div>
+      <div class="doc"><span class="name st-exist">Referencia estructura Excel 15 cols</span><span class="norm">Q:8.3.5</span></div>
+      <div class="doc"><span class="name st-exist">Mapeo columnas Excel</span><span class="norm">Q:8.3.5</span></div>
+      <div class="doc"><span class="name st-exist">System Config sheet</span><span class="norm">Q:8.3.5 · C:I.1(b)</span></div>
+      <div class="doc"><span class="name st-exist">Configuración elementos 3D</span><span class="norm">Q:8.3.5</span></div>
+      <div class="doc"><span class="name st-machine">ProjectConfig.xlsm de esta máquina</span><span class="norm">Q:8.3.5 · S:A.8.9</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">09.2 Modelos 3D</div>
+      <div class="doc"><span class="name st-machine">Archivos .glb de esta máquina</span><span class="norm">Q:8.3.5</span></div>
+      <div class="doc"><span class="name st-future">Guía configuración modelos 3D</span><span class="norm">Q:8.3.5</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">09.3 Base de Datos Proyecto</div>
+      <div class="doc"><span class="name st-machine">project.db de esta máquina</span><span class="norm">S:A.8.13</span></div>
+      <div class="doc"><span class="name st-future">Esquema/documentación de la DB</span><span class="norm">Q:8.3.5 · S:A.8.13</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 10 OPERACIONES -->
+<div class="category">
+  <div class="cat-header bg-ops">🛠️ 10 OPERACIONES — ⑤ Mantener <span class="tags">🖥️P · Q:8.5-8.6</span></div>
+  <div class="cat-body">
+    <div class="subcat"><div class="subcat-title">10.1 Mantenimiento Preventivo</div>
+      <div class="doc"><span class="name st-machine">Plan mantenimiento preventivo</span><span class="norm">Q:8.5.1 · S:A.7.13</span></div>
+      <div class="doc"><span class="name st-machine">Checklist inspección periódica</span><span class="norm">Q:8.5.1</span></div>
+      <div class="doc"><span class="name st-machine">Calendario de mantenimiento</span><span class="norm">Q:8.5.1</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">10.2 Mantenimiento Correctivo</div>
+      <div class="doc"><span class="name st-machine">Registro de averías</span><span class="norm">Q:8.7 · Q:10.2</span></div>
+      <div class="doc"><span class="name st-machine">Informes de reparación</span><span class="norm">Q:8.7</span></div>
+      <div class="doc"><span class="name st-machine">Análisis causa raíz</span><span class="norm">Q:10.2</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">10.3 Repuestos</div>
+      <div class="doc"><span class="name st-machine">Lista repuestos recomendados</span><span class="norm">Q:8.5.3 · C:II</span></div>
+      <div class="doc"><span class="name st-machine">Stock mínimo</span><span class="norm">Q:8.5.3</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">10.4 Histórico Máquina</div>
+      <div class="doc"><span class="name st-machine">Libro de máquina</span><span class="norm">Q:8.5.2 · Q:7.5</span></div>
+      <div class="doc"><span class="name st-machine">Registro de modificaciones</span><span class="norm">Q:8.5.6 · S:A.8.32</span></div>
+      <div class="doc"><span class="name st-machine">Histórico de alarmas</span><span class="norm">C:I.1(g) · S:A.8.15</span></div>
+    </div>
+    <div class="subcat"><div class="subcat-title">10.5 Puesta en Marcha</div>
+      <div class="doc"><span class="name st-machine">Protocolo puesta en marcha</span><span class="norm">Q:8.6 · I:S4.4</span></div>
+      <div class="doc"><span class="name st-machine">Checklist commissioning</span><span class="norm">Q:8.6</span></div>
+      <div class="doc"><span class="name st-machine">Acta de recepción firmada</span><span class="norm">Q:8.6 · Q:8.2.3</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- INTERNO -->
+<div class="category">
+  <div class="cat-header bg-int">⛔ INTERNO — Restringido <span class="tags">🏢 · S:A.5.17</span></div>
+  <div class="cat-body">
+    <div class="doc"><span class="name st-restrict">Credenciales iniciales clientes</span><span class="norm">S:A.5.17</span></div>
+    <div class="doc"><span class="name st-restrict">Credenciales internas Aquafrisch</span><span class="norm">S:A.5.17</span></div>
+    <div class="doc"><span class="name st-restrict">Documentación interna varios</span><span class="norm">—</span></div>
+  </div>
+</div>
+
+<!-- RESUMEN FINAL -->
+<div style="margin-top:6px; padding: 6px; background: #1a1a2e; color: #fff; border-radius: 5px; font-size: 9px;">
+  <div style="text-align:center; font-weight:700; font-size: 11px; margin-bottom: 4px;">📊 RESUMEN TOTAL: ~172 POSICIONES</div>
+  <div style="display:flex; justify-content:space-around;">
+    <div>
+      <div>✅ <strong>49</strong> Existentes</div>
+      <div style="color:#f87171">🔴 <strong>14</strong> Auditoría IEC (abr 2026)</div>
+      <div style="color:#60a5fa">🟢 <strong>22</strong> Normativa ISO/CRA</div>
+      <div style="color:#fbbf24">🟡 <strong>28</strong> Futuro</div>
+      <div style="color:#9ca3af">⬜ <strong>46</strong> Per-machine</div>
+      <div style="color:#c084fc">⚠️ <strong>3</strong> Restringido</div>
+    </div>
+    <div>
+      <div><strong>Por ubicación:</strong></div>
+      <div>🏢 DMS Empresa: ~121</div>
+      <div>🖥️M Supervisor Master: ~18</div>
+      <div>🖥️P Supervisor Project: ~23</div>
+    </div>
+    <div>
+      <div><strong>Cobertura normativa:</strong></div>
+      <div>Q ISO 9001: ~60 docs</div>
+      <div>S ISO 27001: ~46 docs</div>
+      <div>I IEC 62443: ~25 docs</div>
+      <div>C EU CRA: ~20 docs</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- fin col 4 -->
+
+</div><!-- fin columns -->
+
+<div class="footer">
+  🏭 AQUAFRISCH — Árbol Raíz Documental v5.1 Multinormativa | ARB-2026-001 | 16 febrero 2026 | Para revisión con Dirección
+</div>
+
+</body>
+</html>
