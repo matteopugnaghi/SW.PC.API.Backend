@@ -63,6 +63,9 @@ public interface IDocumentService
     /// <summary>Sincronizar solo AQSdocs_project (escanea carpetas, auto-crea categorías, registra docs)</summary>
     Task<DocumentOperationResponse> SyncProjectAsync(string userName);
     
+    /// <summary>Procesar notificación push del DMS Enterprise (upsert directo de un documento)</summary>
+    Task<DocumentOperationResponse> ProcessDmsNotifyAsync(DmsPublishNotifyRequest request, string userName);
+    
     // === Historial ===
     
     /// <summary>Obtener historial de cambios de un documento</summary>

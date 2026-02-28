@@ -344,6 +344,31 @@ public class Document
     [MaxLength(1000)]
     public string? RelatedDocIds { get; set; }
     
+    // === Origen DMS Enterprise ===
+    
+    /// <summary>Origen del documento: "local" (sync filesystem) o "DMS_Enterprise" (publicado desde DMS)</summary>
+    [MaxLength(50)]
+    public string Source { get; set; } = "local";
+    
+    /// <summary>Código del documento en el DMS Enterprise (ej: "02.5-03"). Null si es local.</summary>
+    [MaxLength(50)]
+    public string? DocumentCode { get; set; }
+    
+    /// <summary>Código de subcategoría del DMS (ej: "02.5"). Solo metadato, no genera carpeta.</summary>
+    [MaxLength(50)]
+    public string? DmsSubcategoryCode { get; set; }
+    
+    /// <summary>Nombre de subcategoría del DMS (ej: "Asset/Risk Management")</summary>
+    [MaxLength(200)]
+    public string? DmsSubcategoryName { get; set; }
+    
+    /// <summary>Autor del documento según el DMS Enterprise</summary>
+    [MaxLength(200)]
+    public string? DmsAuthor { get; set; }
+    
+    /// <summary>Timestamp de publicación desde el DMS Enterprise (ISO 8601 UTC)</summary>
+    public DateTime? DmsPublishedAt { get; set; }
+
     // === Búsqueda ===
     
     /// <summary>Contenido indexable en texto plano (para FTS)</summary>
@@ -560,6 +585,14 @@ public class DocumentInfo
     public string? UpdatedBy { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public long FileSize { get; set; }
+    
+    // === DMS Enterprise ===
+    public string Source { get; set; } = "local";
+    public string? DocumentCode { get; set; }
+    public string? DmsSubcategoryCode { get; set; }
+    public string? DmsSubcategoryName { get; set; }
+    public string? DmsAuthor { get; set; }
+    public DateTime? DmsPublishedAt { get; set; }
 }
 
 /// <summary>

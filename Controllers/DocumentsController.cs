@@ -440,6 +440,33 @@ public class DocumentsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Notificación push desde DMS Enterprise: un documento ha sido publicado/actualizado.
+    /// POST /api/documents/dms-notify
+    /// El DMS Enterprise llama este endpoint DESPUÉS de copiar el archivo al filesystem.
+    /// Si el body tiene source="DMS_Enterprise", hace upsert directo sin escanear carpetas.
+    /// </summary>
+    [HttpPost("dms-notify")]
+    public async Task<IActionResult> DmsPublishNotify([FromBody] DmsPublishNotifyRequest request)
+    {
+        try
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.File))
+                return BadRequest(new { error = "El campo 'file' es obligatorio" });
+
+            if (string.IsNullOrWhiteSpace(request.Source))
+                request.Source = "DMS_Enterprise";
+
+            var result = await _documentService.ProcessDmsNotifyAsync(request, UserName);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error en POST /api/documents/dms-notify");
+            return StatusCode(500, new { error = "Error procesando notificación DMS", details = ex.Message });
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Historial
     // ═══════════════════════════════════════════════════════════════════

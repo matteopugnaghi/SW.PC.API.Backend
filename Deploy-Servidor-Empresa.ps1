@@ -281,6 +281,28 @@ if (Test-Path $publishPath) {
 }
 
 # ============================================
+# PASO 6.1: Crear docs/ global si no existe (fuente AQSdocs_master)
+# ============================================
+Write-Header "PASO 6.1: Verificando docs/ global (fuente AQSdocs_master)"
+
+# IMPORTANTE: La carpeta docs/ en el servidor la gestiona SOLO el DMS Enterprise.
+# Este script NUNCA sobreescribe ni modifica su contenido.
+# Solo crea la carpeta si no existe (primera instalacion).
+
+$docsDest = Join-Path $remoteBackendPath "docs"
+
+if (Test-Path $docsDest) {
+    $mdCount = (Get-ChildItem -Path $docsDest -Filter "*.md" -Recurse -ErrorAction SilentlyContinue).Count
+    Write-Success "docs/ ya existe ($mdCount archivos .md) — NO SE TOCA"
+    Write-Info "  Gestionado por DMS Enterprise"
+} else {
+    New-Item -ItemType Directory -Path $docsDest -Force | Out-Null
+    Write-Success "docs/ creado (vacio, DMS Enterprise escribira el contenido)"
+    Write-Info "  Ruta: $docsDest"
+    Write-Info "  SyncMaster distribuira estos docs a cada proyecto"
+}
+
+# ============================================
 # PASO 7: Copiar Frontend
 # ============================================
 Write-Header "PASO 7: Copiando Frontend"
@@ -394,6 +416,9 @@ Write-Host ""
 Write-Host "  COPIADO:" -ForegroundColor Green
 Write-Host "     - Backend (ejecutables, DLLs)" -ForegroundColor White
 Write-Host "     - Frontend (interfaz web)" -ForegroundColor White
+Write-Host ""
+Write-Host "  CREADO SI NO EXISTIA:" -ForegroundColor Green
+Write-Host "     - docs/ global (fuente AQSdocs_master, gestionado por DMS Enterprise)" -ForegroundColor White
 Write-Host ""
 Write-Host "  NO TOCADO (los ingenieros lo gestionan):" -ForegroundColor Yellow
 Write-Host "     - Projects/ (Excel, modelos 3D, bases de datos)" -ForegroundColor White

@@ -1059,6 +1059,19 @@ public static class AquafrischDbContextFactory
             catch { /* columna ya existe */ }
             try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN Iec62443Article TEXT"); }
             catch { /* columna ya existe */ }
+            // Migrar Documents: añadir campos DMS Enterprise (Source, DocumentCode, DmsSubcategory*, DmsAuthor, DmsPublishedAt)
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN Source TEXT NOT NULL DEFAULT 'local'"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN DocumentCode TEXT"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN DmsSubcategoryCode TEXT"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN DmsSubcategoryName TEXT"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN DmsAuthor TEXT"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Documents ADD COLUMN DmsPublishedAt TEXT"); }
+            catch { /* columna ya existe */ }
             await context.Database.ExecuteSqlRawAsync(@"
                 CREATE TABLE IF NOT EXISTS Documents (
                     Id TEXT PRIMARY KEY,
@@ -1092,7 +1105,13 @@ public static class AquafrischDbContextFactory
                     UpdatedAt TEXT,
                     ParentDocId TEXT,
                     RelatedDocIds TEXT,
-                    SearchContent TEXT
+                    SearchContent TEXT,
+                    Source TEXT NOT NULL DEFAULT 'local',
+                    DocumentCode TEXT,
+                    DmsSubcategoryCode TEXT,
+                    DmsSubcategoryName TEXT,
+                    DmsAuthor TEXT,
+                    DmsPublishedAt TEXT
                 )");
             
             // Índices para Documents
@@ -1103,6 +1122,8 @@ public static class AquafrischDbContextFactory
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_AccessLevel ON Documents(AccessLevel, MinimumRole)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_CraRelevant ON Documents(CraRelevant)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_FilePath ON Documents(FilePath)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_Source ON Documents(Source)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_DocumentCode ON Documents(DocumentCode)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_Documents_CreatedAt ON Documents(CreatedAt)");
             
             // Tabla DocumentHistory (Historial de cambios)
