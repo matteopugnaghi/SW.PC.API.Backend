@@ -7,10 +7,10 @@
 .DESCRIPTION
     Este script:
     1. Compila Backend y Frontend (codigo)
-    2. Para el servidor si esta corriendo
+    2. Para el servidor si esta corriendo (servicio o proceso)
     3. Copia SOLO codigo (backend + frontend)
     4. NO TOCA los proyectos (Excel, modelos 3D, bases de datos)
-    5. Reinicia el servidor en modo Development
+    5. Registra y arranca como Servicio de Windows (auto-start)
 
     IMPORTANTE: Los proyectos en Projects/ NO se tocan.
     Los ingenieros gestionan sus propios Excel, modelos y backups.
@@ -168,32 +168,27 @@ $remoteBackendPath = "$remoteInstallPath\Backend"
 # ============================================
 Write-Header "PASO 4: Parando servidor remoto"
 
-Write-Step "Deteniendo proceso SW.PC.API.Backend..."
+$serviceName = "AquafrischSupervisor"
 
-# Metodo 1: taskkill remoto (no requiere WinRM)
-$taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
-if ($taskkillResult -match "correctamente|SUCCESS") {
-    Write-Success "Servidor parado con taskkill"
+# Metodo 1: Parar servicio Windows via sc.exe remoto (usa conexion SMB)
+Write-Step "Parando servicio '$serviceName' via sc.exe remoto..."
+$scQuery = sc.exe \\$TargetIP query $serviceName 2>&1
+if ($scQuery -match "RUNNING") {
+    sc.exe \\$TargetIP stop $serviceName | Out-Null
+    Write-Success "Servicio '$serviceName' detenido"
     Write-Info "Esperando 3 segundos para que se liberen los archivos..."
     Start-Sleep -Seconds 3
-} elseif ($taskkillResult -match "no se encontr|not found|no se pudo encontrar") {
-    Write-Info "El servidor no estaba corriendo"
+} elseif ($scQuery -match "STOPPED|STOP_PENDING") {
+    Write-Info "Servicio ya estaba parado"
 } else {
-    Write-Info "taskkill: $taskkillResult"
-    
-    # Metodo 2: Intentar con WMI (alternativa)
-    Write-Step "Intentando con WMI..."
-    try {
-        $processes = Get-WmiObject -Class Win32_Process -ComputerName $TargetIP -Credential $credential -Filter "Name='SW.PC.API.Backend.exe'" -ErrorAction SilentlyContinue
-        if ($processes) {
-            $processes | ForEach-Object { $_.Terminate() | Out-Null }
-            Write-Success "Servidor parado con WMI"
-            Start-Sleep -Seconds 3
-        } else {
-            Write-Info "No se encontro el proceso (probablemente no esta corriendo)"
-        }
-    } catch {
-        Write-Info "WMI no disponible: $_"
+    Write-Info "Servicio no instalado todavia (primera instalacion)"
+    # Fallback: taskkill en caso de que este corriendo como consola (modo legacy)
+    $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
+    if ($taskkillResult -match "correctamente|SUCCESS") {
+        Write-Success "Proceso legacy parado con taskkill"
+        Start-Sleep -Seconds 3
+    } elseif ($taskkillResult -match "no se encontr|not found") {
+        Write-Info "Ningun proceso corriendo (limpio)"
     }
 }
 
@@ -358,31 +353,70 @@ if ((Test-Path $templateSource) -and (-not (Test-Path $templateDest))) {
 }
 
 # ============================================
-# PASO 9: Copiar script de arranque
+# PASO 9: Registrar como Servicio de Windows
 # ============================================
-Write-Header "PASO 9: Copiando script de arranque"
+Write-Header "PASO 9: Registrando Servicio de Windows"
 
-$startBatSource = Join-Path $ScriptPath "Installers\Start-ServidorEmpresa.bat"
-$startBatDest = Join-Path $remoteBackendPath "Start-ServidorEmpresa.bat"
+$serviceDisplayName = "Aquafrisch Supervisor"
+$serviceDescription = "Aquafrisch Supervisor - SCADA/HMI Backend (Development Mode)"
+$serviceExePath = "$InstallPath\Backend\SW.PC.API.Backend.exe"
+# --environment Development se pasa por linea de comandos al exe
+# Esto configura ASPNETCORE_ENVIRONMENT=Development sin tocar variables de entorno del servidor
+$serviceBinPath = """$serviceExePath"" --environment Development"
 
-if (Test-Path $startBatSource) {
-    Copy-Item -Path $startBatSource -Destination $startBatDest -Force
-    Write-Success "Start-ServidorEmpresa.bat copiado"
-} else {
-    Write-Info "Start-ServidorEmpresa.bat no encontrado en Installers/"
+Write-Step "Configurando servicio '$serviceName' remotamente via sc.exe..."
+
+# Si ya existe, eliminar para recrear con configuracion actualizada
+$scQuery = sc.exe \\$TargetIP query $serviceName 2>&1
+if ($scQuery -match "SERVICE_NAME") {
+    Write-Info "Servicio existente encontrado, eliminando para recrear..."
+    sc.exe \\$TargetIP stop $serviceName 2>$null | Out-Null
+    Start-Sleep -Seconds 2
+    sc.exe \\$TargetIP delete $serviceName | Out-Null
+    Start-Sleep -Seconds 2
+    Write-Info "Servicio anterior eliminado"
 }
 
-# Crear acceso directo en escritorio
-$desktopPath = "${driveLetter}:\Users\$TargetUser\Desktop"
-if (Test-Path $desktopPath) {
-    $shortcutPath = Join-Path $desktopPath "Aquafrisch Servidor.lnk"
-    $WshShell = New-Object -ComObject WScript.Shell
-    $shortcut = $WshShell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = "C:\Aquafrisch Supervisor\Backend\Start-ServidorEmpresa.bat"
-    $shortcut.WorkingDirectory = "C:\Aquafrisch Supervisor\Backend"
-    $shortcut.Description = "Iniciar Aquafrisch Supervisor (Servidor Empresa)"
-    $shortcut.Save()
-    Write-Success "Acceso directo creado en escritorio"
+# Crear servicio nuevo (start=auto = arranca con Windows)
+Write-Step "Creando servicio..."
+$createResult = sc.exe \\$TargetIP create $serviceName binPath= $serviceBinPath start= auto DisplayName= $serviceDisplayName 2>&1
+if ($createResult -match "SUCCESS|EXITO") {
+    Write-Success "Servicio '$serviceName' creado"
+} else {
+    Write-Error2 "Error creando servicio: $createResult"
+    Read-Host "Presiona Enter para cerrar"
+    exit 1
+}
+
+# Configurar descripcion
+sc.exe \\$TargetIP description $serviceName $serviceDescription 2>$null | Out-Null
+
+# Configurar recovery: reinicio automatico a los 10s, 30s, 60s
+sc.exe \\$TargetIP failure $serviceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 2>$null | Out-Null
+Write-Success "Recovery configurado (reinicio automatico en caso de fallo)"
+
+# Arrancar el servicio
+Write-Step "Arrancando servicio..."
+$startResult = sc.exe \\$TargetIP start $serviceName 2>&1
+if ($startResult -match "START_PENDING|RUNNING") {
+    Start-Sleep -Seconds 3
+    # Verificar que arranco
+    $scStatus = sc.exe \\$TargetIP query $serviceName 2>&1
+    if ($scStatus -match "RUNNING") {
+        Write-Success "Servicio '$serviceName' CORRIENDO en $TargetIP"
+    } else {
+        Write-Error2 "El servicio no arranco correctamente. Revisa los logs en el servidor."
+    }
+} else {
+    Write-Error2 "Error arrancando servicio: $startResult"
+}
+
+# Copiar .bat legacy por si se necesita modo consola (debugging)
+$startBatSource = Join-Path $ScriptPath "Installers\Start-ServidorEmpresa.bat"
+$startBatDest = Join-Path $remoteBackendPath "Start-ServidorEmpresa.bat"
+if (Test-Path $startBatSource) {
+    Copy-Item -Path $startBatSource -Destination $startBatDest -Force
+    Write-Info "Start-ServidorEmpresa.bat copiado (modo consola para debugging)"
 }
 
 # ============================================
@@ -412,44 +446,39 @@ Write-Host ""
 Write-Host "  Destino:       $TargetIP" -ForegroundColor White
 Write-Host "  Ruta:          $InstallPath\Backend" -ForegroundColor White
 Write-Host "  Modo:          DEVELOPMENT (selector habilitado)" -ForegroundColor Cyan
+Write-Host "  Servicio:      $serviceName (Windows Service, auto-start)" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  COPIADO:" -ForegroundColor Green
 Write-Host "     - Backend (ejecutables, DLLs)" -ForegroundColor White
 Write-Host "     - Frontend (interfaz web)" -ForegroundColor White
 Write-Host ""
-Write-Host "  CREADO SI NO EXISTIA:" -ForegroundColor Green
-Write-Host "     - docs/ global (fuente AQSdocs_master, gestionado por DMS Enterprise)" -ForegroundColor White
-Write-Host ""
 Write-Host "  NO TOCADO (los ingenieros lo gestionan):" -ForegroundColor Yellow
 Write-Host "     - Projects/ (Excel, modelos 3D, bases de datos)" -ForegroundColor White
 Write-Host ""
-Write-Host "  PARA ARRANCAR EL SERVIDOR:" -ForegroundColor Yellow
-Write-Host "  1. En el servidor, doble clic en:" -ForegroundColor White
-Write-Host "     'Aquafrisch Servidor' (acceso directo en escritorio)" -ForegroundColor White
+Write-Host "  SERVICIO DE WINDOWS:" -ForegroundColor Yellow
+Write-Host "     Nombre:     $serviceName" -ForegroundColor White
+Write-Host "     Auto-start: SI (arranca con Windows)" -ForegroundColor White
+Write-Host "     Recovery:   Reinicio automatico en caso de fallo" -ForegroundColor White
+Write-Host "     Entorno:    Development (via --environment)" -ForegroundColor White
 Write-Host ""
-Write-Host "  O ejecutar:" -ForegroundColor White
-Write-Host "     C:\Aquafrisch Supervisor\Backend\Start-ServidorEmpresa.bat" -ForegroundColor Gray
+Write-Host "  COMANDOS DESDE TU PC (remoto):" -ForegroundColor Yellow
+Write-Host "     sc.exe \\$TargetIP query $serviceName     - Ver estado" -ForegroundColor Gray
+Write-Host "     sc.exe \\$TargetIP stop $serviceName      - Parar" -ForegroundColor Gray
+Write-Host "     sc.exe \\$TargetIP start $serviceName     - Arrancar" -ForegroundColor Gray
 Write-Host ""
 Write-Host "  URLs DE ACCESO:" -ForegroundColor Yellow
 Write-Host "     HTTP:  http://${TargetIP}:5000" -ForegroundColor White
 Write-Host "     HTTPS: https://${TargetIP}:5001" -ForegroundColor White
 Write-Host ""
 
-# Preguntar si arrancar el servidor
-$startNow = Read-Host "Arrancar el servidor ahora? (S/n)"
-if ($startNow -ne 'n' -and $startNow -ne 'N') {
-    Write-Step "Arrancando servidor remoto..."
-    try {
-        $startScript = {
-            Start-Process -FilePath "C:\Aquafrisch Supervisor\Backend\Start-ServidorEmpresa.bat" -WorkingDirectory "C:\Aquafrisch Supervisor\Backend"
-        }
-        Invoke-Command -ComputerName $TargetIP -Credential $credential -ScriptBlock $startScript
-        Write-Success "Servidor arrancado"
-        Write-Host ""
-        Write-Host "  Abre en tu navegador: http://${TargetIP}:5000" -ForegroundColor Cyan
-    } catch {
-        Write-Info "No se pudo arrancar remotamente. Arranca manualmente en el servidor."
-    }
+# Verificar estado final del servicio
+$scFinal = sc.exe \\$TargetIP query $serviceName 2>&1
+if ($scFinal -match "RUNNING") {
+    Write-Success "Servicio CORRIENDO en $TargetIP - Deploy exitoso!"
+} elseif ($scFinal -match "STOPPED") {
+    Write-Error2 "Servicio instalado pero PARADO. Revisa los logs del servidor."
+} else {
+    Write-Error2 "No se pudo verificar el servicio. Verifica conectividad."
 }
 
 Write-Host ""

@@ -11,7 +11,29 @@ using System.Text;
 // QuestPDF — licencia Community (requerida antes de cualquier uso)
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
-var builder = WebApplication.CreateBuilder(args);
+// Cuando se ejecuta como servicio de Windows, el working directory es System32.
+// Solo forzar ContentRoot si no estamos en desarrollo (dotnet run ya lo gestiona).
+string? serviceContentRoot = null;
+if (Environment.ProcessPath is string exePath
+    && !string.IsNullOrEmpty(exePath)
+    && !File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json")))
+{
+    // El working dir no tiene appsettings.json → estamos corriendo como servicio
+    serviceContentRoot = Path.GetDirectoryName(exePath);
+}
+
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = serviceContentRoot  // null = usar default (desarrollo), ruta = servicio
+});
+
+// 🪟 Windows Service: permite ejecutar como servicio de Windows (sc.exe)
+// En modo consola/desarrollo funciona igual que antes
+builder.Host.UseWindowsService(o =>
+{
+    o.ServiceName = "AquafrischSupervisor";
+});
 
 // Add services to the container.
 builder.Services.AddControllers()
