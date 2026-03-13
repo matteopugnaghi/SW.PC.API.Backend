@@ -672,32 +672,69 @@ if ($LASTEXITCODE -ne 0) {
 Write-Success "Conexion establecida con $TargetIP"
 
 # ============================================
-# PASO 4.5: Parar proceso existente (si esta corriendo)
+# PASO 4.5: Parar servicio/proceso existente
 # ============================================
-Write-Header "PASO 4.5: Verificando procesos existentes"
+Write-Header "PASO 4.5: Parando servidor remoto"
 
-Write-Step "Comprobando si SW.PC.API.Backend esta corriendo..."
-try {
-    $result = Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
-        $proc = Get-Process -Name "SW.PC.API.Backend" -ErrorAction SilentlyContinue
-        if ($proc) {
-            Stop-Process -Name "SW.PC.API.Backend" -Force
-            Start-Sleep -Seconds 2
-            return "Proceso detenido"
-        } else {
-            return "No hay proceso corriendo"
-        }
-    } -ErrorAction SilentlyContinue
-    
-    if ($result) {
-        Write-Success $result
-    } else {
-        Write-Info "No se pudo verificar remotamente (WinRM no disponible)"
-        Write-Info "Si hay un proceso corriendo, detenlo manualmente antes de continuar"
+$serviceName = "AquafrischSupervisor"
+
+# Metodo 1: Parar servicio Windows via sc.exe remoto (usa conexion SMB)
+Write-Step "Parando servicio '$serviceName' via sc.exe remoto..."
+$scQuery = sc.exe \\$TargetIP query $serviceName 2>&1
+if ($scQuery -match "RUNNING") {
+    sc.exe \\$TargetIP stop $serviceName | Out-Null
+    Write-Success "Servicio '$serviceName' detenido"
+    Write-Info "Esperando 3 segundos para que se liberen los archivos..."
+    Start-Sleep -Seconds 3
+} elseif ($scQuery -match "STOPPED|STOP_PENDING") {
+    Write-Info "Servicio ya estaba parado"
+} else {
+    Write-Info "Servicio no instalado todavia (primera instalacion)"
+    # Fallback: taskkill en caso de que este corriendo como consola (modo legacy)
+    $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
+    if ($taskkillResult -match "correctamente|SUCCESS") {
+        Write-Success "Proceso legacy parado con taskkill"
+        Start-Sleep -Seconds 3
+    } elseif ($taskkillResult -match "no se encontr|not found") {
+        Write-Info "Ningun proceso corriendo (limpio)"
     }
-} catch {
-    Write-Info "No se pudo verificar proceso remoto: $_"
-    Write-Info "Si hay un proceso corriendo, detenlo manualmente"
+}
+
+# Verificar que los archivos estan liberados
+Write-Step "Verificando que los DLLs estan liberados..."
+$testFile = "$RemotePath\Backend\SW.PC.API.Backend.dll"
+$retryCount = 0
+$maxRetries = 5
+
+while ($retryCount -lt $maxRetries) {
+    if (Test-Path $testFile) {
+        try {
+            $stream = [System.IO.File]::Open($testFile, 'Open', 'Read', 'None')
+            $stream.Close()
+            Write-Success "Archivos liberados, continuando..."
+            break
+        } catch {
+            $retryCount++
+            if ($retryCount -lt $maxRetries) {
+                Write-Info "Archivos aun bloqueados, esperando... (intento $retryCount/$maxRetries)"
+                Start-Sleep -Seconds 2
+            } else {
+                Write-Error2 "Los archivos siguen bloqueados despues de $maxRetries intentos"
+                Write-Host ""
+                Write-Host "  SOLUCION: Debes cerrar el servidor manualmente en $TargetIP" -ForegroundColor Yellow
+                Write-Host "  1. Abre services.msc o Administrador de Tareas en el servidor" -ForegroundColor White
+                Write-Host "  2. Busca el servicio '$serviceName' o SW.PC.API.Backend" -ForegroundColor White
+                Write-Host "  3. Detenlo manualmente" -ForegroundColor White
+                Write-Host "  4. Vuelve a ejecutar este script" -ForegroundColor White
+                Write-Host ""
+                Read-Host "Presiona Enter para cerrar"
+                exit 1
+            }
+        }
+    } else {
+        Write-Info "Primera instalacion (no hay archivos previos)"
+        break
+    }
 }
 
 # ============================================
@@ -1267,57 +1304,19 @@ if ((Test-Path $integritySource) -and -not (Test-Path $integrityDest)) {
 # ============================================================
 Write-Header "PASO 9.4: Generando certificado SSL"
 
-# Ruta LOCAL en el PC remoto (no UNC path)
-$certLocalPath = "$InstallPath\Backend\certificate.pfx"
 $certPassword = "Aquafrisch2024!"
+$certRemoteDest = "$RemotePath\Backend\certificate.pfx"
 
-Write-Step "Generando certificado SSL autofirmado en PC remoto..."
-try {
-    $certResult = Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
-        param($CertPath, $CertPassword, $TargetIP)
-        
-        # Eliminar certificado existente si hay
-        Remove-Item -Path $CertPath -Force -ErrorAction SilentlyContinue
-        
-        # Crear certificado autofirmado
-        $cert = New-SelfSignedCertificate `
-            -DnsName "localhost", $env:COMPUTERNAME, $TargetIP, "aquafrisch-supervisor" `
-            -CertStoreLocation "Cert:\LocalMachine\My" `
-            -NotAfter (Get-Date).AddYears(10) `
-            -FriendlyName "Aquafrisch Supervisor SSL" `
-            -KeyUsage DigitalSignature, KeyEncipherment `
-            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.1")
-        
-        # Exportar a PFX
-        $securePassword = ConvertTo-SecureString -String $CertPassword -Force -AsPlainText
-        Export-PfxCertificate -Cert $cert -FilePath $CertPath -Password $securePassword | Out-Null
-        
-        # Añadir al almacén de certificados raíz de confianza (para evitar advertencias locales)
-        $store = New-Object System.Security.Cryptography.X509Certificates.X509Store("Root", "LocalMachine")
-        $store.Open("ReadWrite")
-        $store.Add($cert)
-        $store.Close()
-        
-        # Verificar que el archivo existe
-        if (Test-Path $CertPath) {
-            return "OK: Certificado SSL generado: $CertPath"
-        } else {
-            return "ERROR: No se pudo crear el archivo de certificado"
-        }
-    } -ArgumentList $certLocalPath, $certPassword, $TargetIP -ErrorAction Stop
-    
-    Write-Success $certResult
-    Write-Info "El certificado es valido por 10 años"
-    Write-Info "Contraseña del certificado: $certPassword"
-} catch {
-    Write-Error2 "No se pudo generar certificado SSL via WinRM: $_"
-    Write-Info "Generando certificado localmente y copiando..."
-    
-    # Plan B: Generar localmente y copiar via SMB
+# Solo generar si no existe (preservar certificado existente)
+if (Test-Path $certRemoteDest) {
+    Write-Info "Certificado SSL ya existe en destino — NO se sobreescribe"
+    Write-Info "Para regenerar, elimina manualmente: $InstallPath\Backend\certificate.pfx"
+} else {
+    Write-Step "Generando certificado SSL localmente y copiando via SMB..."
     try {
         $localCertPath = "$BackendPath\publish\certificate.pfx"
         
-        # Crear certificado local
+        # Crear certificado autofirmado en el almacen local
         $cert = New-SelfSignedCertificate `
             -DnsName "localhost", $TargetIP, "aquafrisch-supervisor" `
             -CertStoreLocation "Cert:\CurrentUser\My" `
@@ -1326,19 +1325,20 @@ try {
             -KeyUsage DigitalSignature, KeyEncipherment `
             -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.1")
         
-        # Exportar
+        # Exportar a PFX
         $securePassword = ConvertTo-SecureString -String $certPassword -Force -AsPlainText
         Export-PfxCertificate -Cert $cert -FilePath $localCertPath -Password $securePassword | Out-Null
         
-        # Copiar al remoto
-        Copy-Item -Path $localCertPath -Destination "$RemotePath\Backend\certificate.pfx" -Force
+        # Copiar al remoto via SMB
+        Copy-Item -Path $localCertPath -Destination $certRemoteDest -Force
         
-        # Limpiar certificado local del almacén
+        # Limpiar certificado local del almacen
         Remove-Item -Path "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
         Remove-Item -Path $localCertPath -Force -ErrorAction SilentlyContinue
         
-        Write-Success "Certificado generado localmente y copiado al servidor"
+        Write-Success "Certificado SSL generado y copiado al servidor"
         Write-Info "El certificado es valido por 10 años"
+        Write-Info "Contraseña del certificado: $certPassword"
     } catch {
         Write-Error2 "No se pudo generar certificado: $_"
         Write-Info "IMPORTANTE: Debes generar el certificado manualmente en el servidor:"
@@ -1374,124 +1374,119 @@ if (Test-Path $dotnetInstallerLocal) {
 }
 
 # ============================================
-# PASO 10: Crear script de inicio
+# PASO 10: Registrar como Servicio de Windows
 # ============================================
-Write-Header "PASO 10: Creando script de inicio"
+Write-Header "PASO 10: Registrando Servicio de Windows"
 
+$serviceDisplayName = "Aquafrisch Supervisor"
+$serviceDescription = "Aquafrisch Supervisor - SCADA/HMI Backend (Production)"
+$serviceExePath = "$InstallPath\Backend\SW.PC.API.Backend.exe"
+# En produccion NO se pasa --environment (por defecto usa Production)
+$serviceBinPath = """$serviceExePath"""
+
+Write-Step "Configurando servicio '$serviceName' remotamente via sc.exe..."
+
+# Si ya existe, eliminar para recrear con configuracion actualizada
+$scQuery = sc.exe \\$TargetIP query $serviceName 2>&1
+if ($scQuery -match "SERVICE_NAME") {
+    Write-Info "Servicio existente encontrado, eliminando para recrear..."
+    sc.exe \\$TargetIP stop $serviceName 2>$null | Out-Null
+    Start-Sleep -Seconds 2
+    sc.exe \\$TargetIP delete $serviceName | Out-Null
+    Start-Sleep -Seconds 2
+    Write-Info "Servicio anterior eliminado"
+}
+
+# Crear servicio nuevo (start=auto = arranca con Windows)
+Write-Step "Creando servicio..."
+$createResult = sc.exe \\$TargetIP create $serviceName binPath= $serviceBinPath start= auto DisplayName= $serviceDisplayName 2>&1
+if ($createResult -match "SUCCESS|EXITO") {
+    Write-Success "Servicio '$serviceName' creado"
+} else {
+    Write-Error2 "Error creando servicio: $createResult"
+    Read-Host "Presiona Enter para cerrar"
+    exit 1
+}
+
+# Configurar descripcion
+sc.exe \\$TargetIP description $serviceName $serviceDescription 2>$null | Out-Null
+
+# Configurar recovery: reinicio automatico a los 10s, 30s, 60s
+sc.exe \\$TargetIP failure $serviceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 2>$null | Out-Null
+Write-Success "Recovery configurado (reinicio automatico en caso de fallo)"
+
+# Arrancar el servicio
+Write-Step "Arrancando servicio..."
+$startResult = sc.exe \\$TargetIP start $serviceName 2>&1
+if ($startResult -match "START_PENDING|RUNNING") {
+    Start-Sleep -Seconds 3
+    # Verificar que arranco
+    $scStatus = sc.exe \\$TargetIP query $serviceName 2>&1
+    if ($scStatus -match "RUNNING") {
+        Write-Success "Servicio '$serviceName' CORRIENDO en $TargetIP"
+    } else {
+        Write-Error2 "El servicio no arranco correctamente. Revisa los logs en el servidor."
+    }
+} else {
+    Write-Error2 "Error arrancando servicio: $startResult"
+}
+
+# Copiar .bat para modo consola (debugging)
 $batContent = @"
 @echo off
 echo ============================================
-echo  AQUAFRISCH SUPERVISOR - Inicio Manual
+echo  AQUAFRISCH SUPERVISOR - Modo Consola (Debug)
 echo ============================================
 echo.
-
-:: Verificar si .NET 8 ASP.NET Core Runtime esta instalado
-echo [*] Verificando .NET Runtime...
-set "DOTNET_PATH=C:\Program Files\dotnet\shared\Microsoft.AspNetCore.App"
-if exist "%DOTNET_PATH%\8.*" (
-    echo [OK] .NET 8 Runtime encontrado
-    goto :START_APP
-)
-
-:: Si no existe, intentar instalar
-echo [!] .NET 8 Runtime no encontrado
-set "INSTALLER=C:\Aquafrisch Supervisor\Installers\aspnetcore-runtime-8.0.22-win-x64.exe"
-if not exist "%INSTALLER%" (
-    echo [X] No se encontro el instalador de .NET
-    echo     Descargalo de: https://dotnet.microsoft.com/download/dotnet/8.0
-    echo     Y copialo a: %INSTALLER%
-    pause
-    exit /b 1
-)
-
-echo [*] Instalando .NET 8 Runtime...
-echo     Esto puede tardar unos minutos, por favor espera...
-"%INSTALLER%" /install /quiet /norestart
-if %ERRORLEVEL% EQU 0 (
-    echo [OK] .NET 8 Runtime instalado correctamente
-) else if %ERRORLEVEL% EQU 1638 (
-    echo [OK] .NET 8 Runtime ya estaba instalado
-) else if %ERRORLEVEL% EQU 3010 (
-    echo [OK] .NET 8 Runtime instalado - Se requiere reinicio
-    echo     Por favor reinicia el PC y vuelve a ejecutar este script
-    pause
-    exit /b 0
-) else (
-    echo [X] Error instalando .NET Runtime (codigo: %ERRORLEVEL%)
-    echo     Intenta instalar manualmente: %INSTALLER%
-    pause
-    exit /b 1
-)
-
-:START_APP
+echo NOTA: El modo normal es via servicio Windows.
+echo       Este .bat es solo para depuracion.
 echo.
-echo Iniciando servidor...
+echo Deteniendo servicio primero...
+sc stop $serviceName 2>nul
+timeout /t 2 /nobreak >nul
+echo.
+echo Iniciando en modo consola...
 echo   HTTP:  http://localhost:5000
 echo   HTTPS: https://localhost:5001 (seguro)
 echo.
-echo Acceso remoto:
-echo   HTTP:  http://%COMPUTERNAME%:5000
-echo   HTTPS: https://%COMPUTERNAME%:5001 (recomendado)
-echo.
 echo Presiona Ctrl+C para detener
 echo.
-cd /d "C:\Aquafrisch Supervisor\Backend"
+cd /d "$InstallPath\Backend"
 SW.PC.API.Backend.exe
 pause
 "@
 
 $startScriptPath = "$RemotePath\Start-Supervisor.bat"
 Set-Content -Path $startScriptPath -Value $batContent -Encoding ASCII
-Write-Success "Script de inicio creado: $startScriptPath"
+Write-Info "Start-Supervisor.bat copiado (modo consola para debugging)"
 
 # ============================================
 # PASO 10.5: Configurar Firewall
 # ============================================
 Write-Header "PASO 10.5: Configurando Firewall"
 
-Write-Step "Anadiendo reglas de firewall para puertos 5000 (HTTP) y 5001 (HTTPS)..."
-try {
-    $firewallResult = Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
-        Remove-NetFirewallRule -DisplayName "Aquafrisch Supervisor HTTP" -ErrorAction SilentlyContinue
-        Remove-NetFirewallRule -DisplayName "Aquafrisch Supervisor HTTPS" -ErrorAction SilentlyContinue
-        Remove-NetFirewallRule -DisplayName "Aquafrisch Supervisor" -ErrorAction SilentlyContinue
-        New-NetFirewallRule -DisplayName "Aquafrisch Supervisor HTTP" -Direction Inbound -Port 5000 -Protocol TCP -Action Allow -Description "Permite acceso HTTP al servidor Aquafrisch Supervisor"
-        New-NetFirewallRule -DisplayName "Aquafrisch Supervisor HTTPS" -Direction Inbound -Port 5001 -Protocol TCP -Action Allow -Description "Permite acceso HTTPS al servidor Aquafrisch Supervisor"
-        return "Reglas de firewall creadas (HTTP:5000, HTTPS:5001)"
-    } -ErrorAction SilentlyContinue
-    
-    if ($firewallResult) {
-        Write-Success $firewallResult
-    } else {
-        Write-Info "No se pudo configurar firewall remotamente"
-        Write-Info "Ejecuta manualmente en el PC destino (como Admin):"
-        Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTP' -Direction Inbound -Port 5000 -Protocol TCP -Action Allow" -ForegroundColor Yellow
-        Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -Direction Inbound -Port 5001 -Protocol TCP -Action Allow" -ForegroundColor Yellow
-    }
-} catch {
-    Write-Info "No se pudo configurar firewall: $_"
-    Write-Info "Ejecuta manualmente en el PC destino (como Admin):"
-    Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTP' -Direction Inbound -Port 5000 -Protocol TCP -Action Allow" -ForegroundColor Yellow
-    Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -Direction Inbound -Port 5001 -Protocol TCP -Action Allow" -ForegroundColor Yellow
-}
+Write-Info "Para que el servidor sea accesible desde la red, ejecuta esto en el PC destino (como Admin):"
+Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTP' -Direction Inbound -Port 5000 -Protocol TCP -Action Allow" -ForegroundColor Yellow
+Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -Direction Inbound -Port 5001 -Protocol TCP -Action Allow" -ForegroundColor Yellow
+Write-Info "(Solo necesario la primera vez)"
 
 # ============================================
 # PASO 11: Crear acceso directo en escritorio
 # ============================================
-Write-Header "PASO 11: Creando acceso directo"
+Write-Header "PASO 11: Acceso directo (modo debug)"
 
 try {
     $WshShell = New-Object -ComObject WScript.Shell
     $DesktopPath = "\\$TargetIP\C`$\Users\$TargetUser\Desktop"
     
     if (Test-Path $DesktopPath) {
-        $ShortcutPath = "$DesktopPath\Aquafrisch Supervisor.lnk"
+        $ShortcutPath = "$DesktopPath\Aquafrisch Supervisor (Debug).lnk"
         $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
         $Shortcut.TargetPath = "$InstallPath\Start-Supervisor.bat"
         $Shortcut.WorkingDirectory = "$InstallPath\Backend"
-        $Shortcut.Description = "Iniciar Aquafrisch Supervisor"
+        $Shortcut.Description = "Aquafrisch Supervisor - Modo Consola (Debug)"
         $Shortcut.Save()
-        Write-Success "Acceso directo creado en el escritorio"
+        Write-Success "Acceso directo creado en escritorio (modo debug)"
     } else {
         Write-Info "No se pudo acceder al escritorio remoto"
     }
@@ -1514,7 +1509,7 @@ Write-Header "DESPLIEGUE COMPLETADO"
 Write-Host ""
 Write-Host "  PC Destino: $TargetIP" -ForegroundColor White
 Write-Host "  Ruta: $InstallPath" -ForegroundColor White
-Write-Host "  Modo: MANUAL (self-contained)" -ForegroundColor Yellow
+Write-Host "  Modo: SERVICIO WINDOWS (self-contained)" -ForegroundColor Green
 Write-Host ""
 Write-Host "  PROYECTO DESPLEGADO:" -ForegroundColor Green
 Write-Host "  =====================" -ForegroundColor Green
@@ -1531,6 +1526,17 @@ Write-Host "  - Frontend (React)         -> $InstallPath\Backend\wwwroot\" -Fore
 Write-Host "  - Certificado SSL          -> $InstallPath\Backend\certificate.pfx" -ForegroundColor Gray
 Write-Host "  - active-project.json      -> $InstallPath\Backend\ (proyecto: $ProjectId)" -ForegroundColor Gray
 Write-Host ""
+Write-Host "  Servicio Windows:" -ForegroundColor Cyan
+Write-Host "  - Nombre: $serviceName" -ForegroundColor White
+Write-Host "  - Inicio: Automatico (arranca con Windows)" -ForegroundColor White
+Write-Host "  - Recovery: Reinicio automatico (10s/30s/60s)" -ForegroundColor White
+Write-Host "  - Entorno: Production" -ForegroundColor White
+Write-Host ""
+Write-Host "  Comandos remotos utiles (desde este PC):" -ForegroundColor Cyan
+Write-Host "    sc.exe \\$TargetIP query $serviceName        # Ver estado" -ForegroundColor Yellow
+Write-Host "    sc.exe \\$TargetIP stop $serviceName         # Parar" -ForegroundColor Yellow
+Write-Host "    sc.exe \\$TargetIP start $serviceName        # Arrancar" -ForegroundColor Yellow
+Write-Host ""
 Write-Host "  Base de datos:" -ForegroundColor Cyan
 $dbPath = "$RemotePath\Backend\Projects\$ProjectId\data\project.db"
 if (Test-Path $dbPath) {
@@ -1545,16 +1551,13 @@ if ($SaveLocalCopy -and -not [string]::IsNullOrEmpty($LocalCopyPath)) {
     Write-Host "  - Info: $LocalCopyPath\DEPLOY_INFO.txt" -ForegroundColor Gray
     Write-Host ""
 }
-Write-Host "  Para iniciar el supervisor:" -ForegroundColor Cyan
-Write-Host "  1. Conectar al PC: $TargetIP (RDP o presencial)" -ForegroundColor White
-Write-Host "  2. Ejecutar: $InstallPath\Start-Supervisor.bat" -ForegroundColor White
-Write-Host ""
 Write-Host "  URLs de acceso:" -ForegroundColor Cyan
 Write-Host "  - HTTP:  http://${TargetIP}:5000" -ForegroundColor White
 Write-Host "  - HTTPS: https://${TargetIP}:5001 (SEGURO - RECOMENDADO)" -ForegroundColor Green
 Write-Host ""
-Write-Host "  NOTA: El servidor arrancara automaticamente con el proyecto:" -ForegroundColor Yellow
-Write-Host "        $ProjectId" -ForegroundColor Yellow
+Write-Host "  NOTA: El servidor esta corriendo como servicio Windows." -ForegroundColor Yellow
+Write-Host "        Se inicia automaticamente con el PC y se reinicia en caso de fallo." -ForegroundColor Yellow
+Write-Host "        Para depuracion, usa: $InstallPath\Start-Supervisor.bat" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  NOTA: El certificado SSL es autofirmado. El navegador mostrara" -ForegroundColor Yellow
 Write-Host "        una advertencia la primera vez. Esto es normal en redes internas." -ForegroundColor Yellow

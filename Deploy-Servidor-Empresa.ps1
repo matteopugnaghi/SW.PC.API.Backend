@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Deploy al Servidor de Empresa (Modo Development)
@@ -133,15 +133,31 @@ $remotePath = "\\$TargetIP\C$"
 
 Write-Step "Conectando a $remotePath..."
 try {
-    Write-Info "Desconectando conexiones previas a $TargetIP..."
-    net use "\\$TargetIP\C$" /delete /y 2>$null
-    net use "\\$TargetIP\IPC$" /delete /y 2>$null
+    Write-Info "Desconectando TODAS las conexiones previas a $TargetIP..."
+    # Desconectar todas las conexiones al servidor (evita error 1219)
+    $existingConns = net use 2>&1 | Select-String -Pattern ([regex]::Escape("\\$TargetIP\"))
+    foreach ($conn in $existingConns) {
+        $parts = $conn.ToString().Trim() -split '\s+'
+        foreach ($part in $parts) {
+            if ($part -match "^\\\\$([regex]::Escape($TargetIP))\\") {
+                net use $part /delete /y 2>$null | Out-Null
+                Write-Info "  Desconectado: $part"
+            }
+            if ($part -match '^[A-Z]:$') {
+                net use $part /delete /y 2>$null | Out-Null
+                Write-Info "  Desconectada unidad: $part"
+            }
+        }
+    }
+    # Tambien intentar las habituales por si acaso
+    net use "\\$TargetIP\C`$" /delete /y 2>$null | Out-Null
+    net use "\\$TargetIP\IPC`$" /delete /y 2>$null | Out-Null
     
     if (Test-Path "${driveLetter}:") {
-        net use "${driveLetter}:" /delete /y 2>$null
+        net use "${driveLetter}:" /delete /y 2>$null | Out-Null
     }
     
-    Start-Sleep -Seconds 1
+    Start-Sleep -Seconds 2
     
     $netResult = net use "${driveLetter}:" $remotePath /user:$TargetUser $TargetPassword 2>&1
     if ($LASTEXITCODE -ne 0) {
@@ -288,7 +304,7 @@ $docsDest = Join-Path $remoteBackendPath "docs"
 
 if (Test-Path $docsDest) {
     $mdCount = (Get-ChildItem -Path $docsDest -Filter "*.md" -Recurse -ErrorAction SilentlyContinue).Count
-    Write-Success "docs/ ya existe ($mdCount archivos .md) — NO SE TOCA"
+    Write-Success "docs/ ya existe ($mdCount archivos .md) - NO SE TOCA"
     Write-Info "  Gestionado por DMS Enterprise"
 } else {
     New-Item -ItemType Directory -Path $docsDest -Force | Out-Null
@@ -362,26 +378,45 @@ $serviceDescription = "Aquafrisch Supervisor - SCADA/HMI Backend (Development Mo
 $serviceExePath = "$InstallPath\Backend\SW.PC.API.Backend.exe"
 # --environment Development se pasa por linea de comandos al exe
 # Esto configura ASPNETCORE_ENVIRONMENT=Development sin tocar variables de entorno del servidor
-$serviceBinPath = """$serviceExePath"" --environment Development"
+$serviceBinPath = "`"$serviceExePath`" --environment Development"
 
 Write-Step "Configurando servicio '$serviceName' remotamente via sc.exe..."
 
 # Si ya existe, eliminar para recrear con configuracion actualizada
 $scQuery = sc.exe \\$TargetIP query $serviceName 2>&1
-if ($scQuery -match "SERVICE_NAME") {
+if ($scQuery -match "SERVICE_NAME|NOMBRE_SERVICIO|RUNNING|STOPPED") {
     Write-Info "Servicio existente encontrado, eliminando para recrear..."
     sc.exe \\$TargetIP stop $serviceName 2>$null | Out-Null
-    Start-Sleep -Seconds 2
-    sc.exe \\$TargetIP delete $serviceName | Out-Null
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 3
+    sc.exe \\$TargetIP delete $serviceName 2>$null | Out-Null
+    Start-Sleep -Seconds 3
     Write-Info "Servicio anterior eliminado"
 }
 
 # Crear servicio nuevo (start=auto = arranca con Windows)
+# NOTA: sc.exe requiere formato MUY especifico: binPath= "valor" (espacio despues del =)
 Write-Step "Creando servicio..."
-$createResult = sc.exe \\$TargetIP create $serviceName binPath= $serviceBinPath start= auto DisplayName= $serviceDisplayName 2>&1
-if ($createResult -match "SUCCESS|EXITO") {
+$scCreateCmd = "sc.exe \\$TargetIP create $serviceName binPath= `"$serviceExePath --environment Development`" start= auto DisplayName= `"$serviceDisplayName`""
+Write-Info "Comando: $scCreateCmd"
+$createResult = cmd.exe /c $scCreateCmd 2>&1
+if ($createResult -match "SUCCESS|EXITO|CORRECTO") {
     Write-Success "Servicio '$serviceName' creado"
+} elseif ($createResult -match "1073|ya existe|already exists") {
+    # El servicio ya existe (el delete no se completo a tiempo), reintentamos
+    Write-Info "Servicio aun existe, esperando y reintentando..."
+    sc.exe \\$TargetIP stop $serviceName 2>$null | Out-Null
+    Start-Sleep -Seconds 5
+    sc.exe \\$TargetIP delete $serviceName 2>$null | Out-Null
+    Start-Sleep -Seconds 5
+    $createResult2 = cmd.exe /c $scCreateCmd 2>&1
+    if ($createResult2 -match "SUCCESS|EXITO|CORRECTO") {
+        Write-Success "Servicio '$serviceName' creado (segundo intento)"
+    } else {
+        Write-Error2 "Error creando servicio: $createResult2"
+        Write-Info "Puedes eliminarlo manualmente: sc.exe \\$TargetIP delete $serviceName"
+        Read-Host "Presiona Enter para cerrar"
+        exit 1
+    }
 } else {
     Write-Error2 "Error creando servicio: $createResult"
     Read-Host "Presiona Enter para cerrar"
@@ -389,7 +424,7 @@ if ($createResult -match "SUCCESS|EXITO") {
 }
 
 # Configurar descripcion
-sc.exe \\$TargetIP description $serviceName $serviceDescription 2>$null | Out-Null
+cmd.exe /c "sc.exe \\$TargetIP description $serviceName `"$serviceDescription`"" 2>$null | Out-Null
 
 # Configurar recovery: reinicio automatico a los 10s, 30s, 60s
 sc.exe \\$TargetIP failure $serviceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 2>$null | Out-Null
