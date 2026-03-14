@@ -391,21 +391,21 @@ function Generate-Changelog {
             $allCommits = git log --format="%H|%s|%ai|%an" --reverse 2>$null
             if (-not $allCommits) { return $null }
             
-            $md = "# CHANGELOG — $ComponentName`n`n"
+            $md = "# CHANGELOG - $ComponentName`n`n"
             $md += "> Auto-generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n`n"
             $md += "## Sin publicar`n`n"
             foreach ($line in $allCommits) {
                 $parts = $line -split '\|', 4
                 if ($parts.Count -ge 4) {
                     $shortHash = $parts[0].Substring(0, 7)
-                    $md += "- ``$shortHash`` $($parts[1]) — *$($parts[3])*`n"
+                    $md += "- ``$shortHash`` $($parts[1]) - *$($parts[3])*`n"
                 }
             }
             return $md
         }
         
         $tagList = @($tags | Select-Object -First $MaxReleases)
-        $md = "# CHANGELOG — $ComponentName`n`n"
+        $md = "# CHANGELOG - $ComponentName`n`n"
         $md += "> Auto-generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n`n"
         
         # Unreleased changes (latest tag → HEAD)
@@ -419,7 +419,7 @@ function Generate-Changelog {
                 $parts = $line -split '\|', 4
                 if ($parts.Count -ge 4) {
                     $shortHash = $parts[0].Substring(0, 7)
-                    $md += "- ``$shortHash`` $($parts[1]) — *$($parts[3])*`n"
+                    $md += "- ``$shortHash`` $($parts[1]) - *$($parts[3])*`n"
                 }
             }
             $md += "`n---`n`n"
@@ -453,7 +453,7 @@ function Generate-Changelog {
                     $parts = $line -split '\|', 4
                     if ($parts.Count -ge 4) {
                         $shortHash = $parts[0].Substring(0, 7)
-                        $md += "- ``$shortHash`` $($parts[1]) — *$($parts[3])*`n"
+                        $md += "- ``$shortHash`` $($parts[1]) - *$($parts[3])*`n"
                     }
                 }
             } else {
@@ -491,7 +491,7 @@ if ($frontendChangelog) {
 # Combined project CHANGELOG (Backend + Frontend + TwinCAT → Projects/{ProjectId}/)
 $projectFolder = Join-Path $ProjectsPath $ProjectId
 if ($ProjectId -ne "default" -and (Test-Path $projectFolder)) {
-    $combinedMd = "# CHANGELOG — Proyecto Unificado`n`n"
+    $combinedMd = "# CHANGELOG - Proyecto Unificado`n`n"
     $combinedMd += "> Auto-generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n"
     $combinedMd += "> Backend + Frontend + TwinCAT`n`n"
     
@@ -656,8 +656,25 @@ $Credential = New-Object System.Management.Automation.PSCredential ($TargetUser,
 
 Write-Step "Estableciendo conexion de red..."
 
-# Primero desconectar cualquier conexion existente (ignorar errores completamente)
+# Desconectar TODAS las conexiones previas al servidor (evita error 1219)
+Write-Info "Desconectando conexiones previas a $TargetIP..."
+$existingConns = net use 2>&1 | Select-String -Pattern ([regex]::Escape("\\$TargetIP\"))
+foreach ($conn in $existingConns) {
+    $parts = $conn.ToString().Trim() -split '\s+'
+    foreach ($part in $parts) {
+        if ($part -match "^\\\\$([regex]::Escape($TargetIP))\\") {
+            net use $part /delete /y 2>$null | Out-Null
+            Write-Info "  Desconectado: $part"
+        }
+        if ($part -match '^[A-Z]:$') {
+            net use $part /delete /y 2>$null | Out-Null
+            Write-Info "  Desconectada unidad: $part"
+        }
+    }
+}
+# Tambien intentar las habituales por si acaso
 try { net use "\\$TargetIP\C`$" /delete /y 2>&1 | Out-Null } catch { }
+Start-Sleep -Seconds 2
 
 # Conectar al recurso compartido
 $netArgs = @("use", "\\$TargetIP\C`$", "/user:$TargetIP\$TargetUser", $TargetPassword)
@@ -1309,7 +1326,7 @@ $certRemoteDest = "$RemotePath\Backend\certificate.pfx"
 
 # Solo generar si no existe (preservar certificado existente)
 if (Test-Path $certRemoteDest) {
-    Write-Info "Certificado SSL ya existe en destino — NO se sobreescribe"
+    Write-Info "Certificado SSL ya existe en destino - NO se sobreescribe"
     Write-Info "Para regenerar, elimina manualmente: $InstallPath\Backend\certificate.pfx"
 } else {
     Write-Step "Generando certificado SSL localmente y copiando via SMB..."
@@ -1388,20 +1405,39 @@ Write-Step "Configurando servicio '$serviceName' remotamente via sc.exe..."
 
 # Si ya existe, eliminar para recrear con configuracion actualizada
 $scQuery = sc.exe \\$TargetIP query $serviceName 2>&1
-if ($scQuery -match "SERVICE_NAME") {
+if ($scQuery -match "SERVICE_NAME|NOMBRE_SERVICIO|RUNNING|STOPPED") {
     Write-Info "Servicio existente encontrado, eliminando para recrear..."
     sc.exe \\$TargetIP stop $serviceName 2>$null | Out-Null
-    Start-Sleep -Seconds 2
-    sc.exe \\$TargetIP delete $serviceName | Out-Null
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 3
+    sc.exe \\$TargetIP delete $serviceName 2>$null | Out-Null
+    Start-Sleep -Seconds 3
     Write-Info "Servicio anterior eliminado"
 }
 
 # Crear servicio nuevo (start=auto = arranca con Windows)
+# NOTA: sc.exe requiere formato MUY especifico: binPath= "valor" (espacio despues del =)
 Write-Step "Creando servicio..."
-$createResult = sc.exe \\$TargetIP create $serviceName binPath= $serviceBinPath start= auto DisplayName= $serviceDisplayName 2>&1
-if ($createResult -match "SUCCESS|EXITO") {
+$scCreateCmd = "sc.exe \\$TargetIP create $serviceName binPath= `"$serviceExePath`" start= auto DisplayName= `"$serviceDisplayName`""
+Write-Info "Comando: $scCreateCmd"
+$createResult = cmd.exe /c $scCreateCmd 2>&1
+if ($createResult -match "SUCCESS|EXITO|CORRECTO") {
     Write-Success "Servicio '$serviceName' creado"
+} elseif ($createResult -match "1073|ya existe|already exists") {
+    # El servicio ya existe (el delete no se completo a tiempo), reintentamos
+    Write-Info "Servicio aun existe, esperando y reintentando..."
+    sc.exe \\$TargetIP stop $serviceName 2>$null | Out-Null
+    Start-Sleep -Seconds 5
+    sc.exe \\$TargetIP delete $serviceName 2>$null | Out-Null
+    Start-Sleep -Seconds 5
+    $createResult2 = cmd.exe /c $scCreateCmd 2>&1
+    if ($createResult2 -match "SUCCESS|EXITO|CORRECTO") {
+        Write-Success "Servicio '$serviceName' creado (segundo intento)"
+    } else {
+        Write-Error2 "Error creando servicio: $createResult2"
+        Write-Info "Puedes eliminarlo manualmente: sc.exe \\$TargetIP delete $serviceName"
+        Read-Host "Presiona Enter para cerrar"
+        exit 1
+    }
 } else {
     Write-Error2 "Error creando servicio: $createResult"
     Read-Host "Presiona Enter para cerrar"
@@ -1409,7 +1445,7 @@ if ($createResult -match "SUCCESS|EXITO") {
 }
 
 # Configurar descripcion
-sc.exe \\$TargetIP description $serviceName $serviceDescription 2>$null | Out-Null
+cmd.exe /c "sc.exe \\$TargetIP description $serviceName `"$serviceDescription`"" 2>$null | Out-Null
 
 # Configurar recovery: reinicio automatico a los 10s, 30s, 60s
 sc.exe \\$TargetIP failure $serviceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 2>$null | Out-Null
