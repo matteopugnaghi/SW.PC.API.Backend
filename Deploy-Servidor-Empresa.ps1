@@ -121,6 +121,96 @@ if ($SkipFrontendBuild) {
 }
 
 # ============================================
+# PASO 2.1: Generar deploy-version.json (Software Integrity)
+# ============================================
+Write-Header "PASO 2.1: Generando deploy-version.json"
+
+function Get-GitVersionInfo {
+    param (
+        [string]$RepoPath,
+        [string]$ComponentName
+    )
+    
+    Push-Location $RepoPath
+    try {
+        $gitDir = Join-Path $RepoPath ".git"
+        if (-not (Test-Path $gitDir)) {
+            Write-Warning "No es repositorio Git: $RepoPath"
+            return $null
+        }
+        
+        $sha = (git rev-parse HEAD 2>$null) -replace "`n|`r", ""
+        $shaShort = (git rev-parse --short HEAD 2>$null) -replace "`n|`r", ""
+        $branch = (git rev-parse --abbrev-ref HEAD 2>$null) -replace "`n|`r", ""
+        $version = (git describe --tags --always 2>$null) -replace "`n|`r", ""
+        $commitDate = (git log -1 --format=%ci 2>$null) -replace "`n|`r", ""
+        $author = (git log -1 --format=%an 2>$null) -replace "`n|`r", ""
+        $authorEmail = (git log -1 --format=%ae 2>$null) -replace "`n|`r", ""
+        $message = (git log -1 --format=%s 2>$null) -replace "`n|`r", ""
+        $signatureCode = (git log -1 --format=%G? 2>$null) -replace "`n|`r", ""
+        $signatureSigner = (git log -1 --format=%GS 2>$null) -replace "`n|`r", ""
+        $signatureKey = (git log -1 --format=%GK 2>$null) -replace "`n|`r", ""
+        $latestTag = (git tag --sort=-version:refname -l "20*" | Select-Object -First 1) -replace "`n|`r", ""
+        
+        $signatureStatus = switch ($signatureCode) {
+            "G" { "SIGNED" }
+            "B" { "BAD" }
+            "U" { "UNTRUSTED" }
+            "X" { "EXPIRED" }
+            "Y" { "EXPIRED_KEY" }
+            "R" { "REVOKED" }
+            "E" { "NO_PUBKEY" }
+            "N" { "UNSIGNED" }
+            default { "N/A" }
+        }
+        
+        $isSigned = $signatureCode -in @("G", "B", "U", "X", "Y", "R")
+        
+        return @{
+            ComponentName = $ComponentName
+            Version = if ($version) { $version } else { "0.0.0" }
+            CommitSha = if ($shaShort) { $shaShort } else { "unknown" }
+            CommitShaFull = if ($sha) { $sha } else { "unknown" }
+            Branch = if ($branch) { $branch } else { "unknown" }
+            CommitDate = if ($commitDate) { $commitDate } else { "" }
+            CommitAuthor = if ($author) { $author } else { "" }
+            CommitAuthorEmail = if ($authorEmail) { $authorEmail } else { "" }
+            CommitMessage = if ($message) { $message } else { "" }
+            LatestRelease = if ($latestTag) { $latestTag } else { "" }
+            LatestReleaseDate = ""
+            IsSigned = $isSigned
+            SignatureStatus = $signatureStatus
+            SignatureSigner = if ($signatureSigner) { $signatureSigner } else { "" }
+            SignatureKey = if ($signatureKey) { $signatureKey } else { "" }
+            DeployedAt = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+            DeployedFrom = $env:COMPUTERNAME
+            DeployedBy = $env:USERNAME
+        }
+    } catch {
+        Write-Warning "Error obteniendo info Git de $ComponentName : $_"
+        return $null
+    } finally {
+        Pop-Location
+    }
+}
+
+Write-Step "Obteniendo version del Backend..."
+$backendVersionInfo = Get-GitVersionInfo -RepoPath $BackendPath -ComponentName "Backend"
+if ($backendVersionInfo) {
+    Write-Success "Backend: v$($backendVersionInfo.Version) ($($backendVersionInfo.CommitSha)) - $($backendVersionInfo.SignatureStatus)"
+} else {
+    Write-Warning "No se pudo obtener version del Backend"
+}
+
+Write-Step "Obteniendo version del Frontend..."
+$frontendVersionInfo = Get-GitVersionInfo -RepoPath $FrontendPath -ComponentName "Frontend"
+if ($frontendVersionInfo) {
+    Write-Success "Frontend: v$($frontendVersionInfo.Version) ($($frontendVersionInfo.CommitSha)) - $($frontendVersionInfo.SignatureStatus)"
+} else {
+    Write-Warning "No se pudo obtener version del Frontend"
+}
+
+# ============================================
 # PASO 3: Conectar al servidor
 # ============================================
 Write-Header "PASO 3: Conectando al servidor"
@@ -366,6 +456,32 @@ $templateDest = Join-Path $remoteProjectsPath "_template"
 if ((Test-Path $templateSource) -and (-not (Test-Path $templateDest))) {
     Copy-Item -Path $templateSource -Destination $templateDest -Recurse -Force
     Write-Info "_template copiado (para crear nuevos proyectos)"
+}
+
+# ============================================
+# PASO 8.1: Generar deploy-version.json en raiz de Backend
+# ============================================
+Write-Header "PASO 8.1: Generando deploy-version.json"
+
+if ($backendVersionInfo -or $frontendVersionInfo) {
+    $deployVersionProject = @{
+        DeployedAt = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+        DeployedFrom = $env:COMPUTERNAME
+        DeployedBy = $env:USERNAME
+        Backend = $backendVersionInfo
+        Frontend = $frontendVersionInfo
+    }
+    
+    $deployVersionJson = $deployVersionProject | ConvertTo-Json -Depth 10
+    # Guardar deploy-version.json en raiz de Backend (NO dentro de Projects/)
+    # Asi copiar carpetas de proyecto nunca afecta la version del servidor
+    $deployVersionPath = "$remoteBackendPath\deploy-version.json"
+    Set-Content -Path $deployVersionPath -Value $deployVersionJson -Encoding UTF8
+    Write-Success "deploy-version.json guardado en Backend/ (raiz)"
+    Write-Info "Backend: v$($backendVersionInfo.Version) ($($backendVersionInfo.CommitSha))"
+    Write-Info "Frontend: v$($frontendVersionInfo.Version) ($($frontendVersionInfo.CommitSha))"
+} else {
+    Write-Warning "No hay info de version - deploy-version.json no generado"
 }
 
 # ============================================

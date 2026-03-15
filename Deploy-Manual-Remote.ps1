@@ -26,6 +26,7 @@
     .\Deploy-Manual-Remote.ps1
     .\Deploy-Manual-Remote.ps1 -TargetIP "192.168.2.161"
     .\Deploy-Manual-Remote.ps1 -ProjectId "A70.AMITWP"
+    .\Deploy-Manual-Remote.ps1 -ProjectId "A70.AMITWP" -CodeOnly  # Solo actualizar codigo
 #>
 
 param(
@@ -38,7 +39,8 @@ param(
     [switch]$SkipBackendBuild,
     [switch]$SkipFrontendBuild,
     [switch]$BackupExisting,
-    [switch]$SaveLocalCopy  # Guardar copia local antes de enviar a remoto
+    [switch]$SaveLocalCopy,  # Guardar copia local antes de enviar a remoto
+    [switch]$CodeOnly  # Solo actualizar Backend+Frontend, NO tocar Projects/
 )
 
 # ============================================
@@ -63,7 +65,11 @@ function Write-Error2 { param($text) Write-Host "[X] $text" -ForegroundColor Red
 Clear-Host
 Write-Header "AQUAFRISCH SUPERVISOR - DEPLOY MANUAL (REMOTE)"
 Write-Host ""
-Write-Info "Modo de ejecucion: MANUAL (no servicio)"
+if ($CodeOnly) {
+    Write-Host "  MODO: SOLO CODIGO (Backend + Frontend)" -ForegroundColor Green
+    Write-Host "  Los proyectos NO se tocan" -ForegroundColor Yellow
+    Write-Host ""
+}
 Write-Info "PC Destino: $TargetIP"
 Write-Info "Ruta destino: $InstallPath"
 Write-Host ""
@@ -1033,14 +1039,14 @@ Write-Info "📦 SBOM: se copiará a Projects/$ProjectId/sbom/ (paso 9.0)"
 # El SBOM es por proyecto (cada instalación puede tener diferentes versiones)
 
 # ============================================
-# PASO 9: Verificar ProjectId (NO legacy en producción)
+# PASO 9: Verificar ProjectId (NO legacy en produccion)
 # ============================================
-Write-Header "PASO 9: Verificando configuración de proyecto"
+Write-Header "PASO 9: Verificando configuracion de proyecto"
 
 if ($ProjectId -eq "default") {
-    Write-Error2 "❌ ERROR: Modo legacy (default) NO está permitido en producción"
-    Write-Error2 "   Debes especificar un ProjectId válido (ej: -ProjectId 'cliente-abc')"
-    Write-Info "   Los proyectos disponibles están en: $ProjectsPath"
+    Write-Error2 "ERROR: Modo legacy (default) NO esta permitido en produccion"
+    Write-Error2 "   Debes especificar un ProjectId valido (ej: -ProjectId 'cliente-abc')"
+    Write-Info "   Los proyectos disponibles estan en: $ProjectsPath"
     $availableProjects = Get-ChildItem -Path $ProjectsPath -Directory | Where-Object { $_.Name -ne '_template' }
     if ($availableProjects.Count -gt 0) {
         Write-Info "   Proyectos encontrados: $($availableProjects.Name -join ', ')"
@@ -1049,7 +1055,40 @@ if ($ProjectId -eq "default") {
     exit 1
 }
 
-Write-Success "✅ Proyecto configurado: $ProjectId"
+Write-Success "Proyecto configurado: $ProjectId"
+
+if ($CodeOnly) {
+    # ============================================================
+    # MODO -CodeOnly: Solo actualizar Backend + Frontend, NO tocar Projects/
+    # ============================================================
+    Write-Header "PASO 9.0: MODO SOLO CODIGO (-CodeOnly)"
+    Write-Info "Backend y Frontend actualizados"
+    Write-Info "Proyectos NO modificados (config, modelos, DB se mantienen)"
+    
+    # Verificar que el proyecto existe en el servidor
+    $projectDestPath = "$RemotePath\Backend\Projects\$ProjectId"
+    if (Test-Path $projectDestPath) {
+        Write-Success "Proyecto '$ProjectId' existe en el servidor (NO modificado)"
+    } else {
+        Write-Warning "Proyecto '$ProjectId' NO existe en el servidor"
+        Write-Info "Para primera instalacion, ejecuta SIN -CodeOnly"
+    }
+    
+    # Configurar active-project.json (por si cambio el proyecto seleccionado)
+    Write-Step "Configurando active-project.json..."
+    $activeProjectContent = @"
+{
+  "activeProject": "$ProjectId",
+  "description": "Proyecto configurado automaticamente por Deploy-Manual-Remote.ps1 (-CodeOnly)",
+  "deployedAt": "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
+  "deployedFrom": "$env:COMPUTERNAME"
+}
+"@
+    $activeProjectPath = "$RemotePath\Backend\active-project.json"
+    Set-Content -Path $activeProjectPath -Value $activeProjectContent -Encoding UTF8
+    Write-Success "active-project.json configurado con proyecto: $ProjectId"
+
+} else {
 
 # ============================================================
 # PASO 9.0: Copiar Proyecto (OBLIGATORIO - no hay modo legacy)
@@ -1179,10 +1218,12 @@ $activeProjectPath = "$RemotePath\Backend\active-project.json"
 Set-Content -Path $activeProjectPath -Value $activeProjectContent -Encoding UTF8
 Write-Success "active-project.json configurado con proyecto: $ProjectId"
 
+} # Fin del else (modo normal vs -CodeOnly)
+
 # ============================================================
-# PASO 9.0.1: Generar deploy-version.json en carpeta del proyecto
+# PASO 9.0.1: Generar deploy-version.json en raiz de Backend
 # ============================================================
-Write-Step "Generando deploy-version.json para el proyecto..."
+Write-Step "Generando deploy-version.json..."
 
 # Crear objeto combinado con info de Backend y Frontend
 $deployVersionProject = @{
@@ -1196,10 +1237,11 @@ $deployVersionProject = @{
 
 $deployVersionJson = $deployVersionProject | ConvertTo-Json -Depth 10
 
-# Guardar deploy-version.json en carpeta del proyecto (siempre multi-proyecto)
-$projectVersionPath = "$RemotePath\Backend\Projects\$ProjectId\deploy-version.json"
+# Guardar deploy-version.json en raiz de Backend (NO dentro de Projects/)
+# Asi copiar carpetas de proyecto nunca afecta la version del servidor
+$projectVersionPath = "$RemotePath\Backend\deploy-version.json"
 Set-Content -Path $projectVersionPath -Value $deployVersionJson -Encoding UTF8
-Write-Success "deploy-version.json guardado en proyecto '$ProjectId'"
+Write-Success "deploy-version.json guardado en Backend/ (raiz)"
 Write-Info "  Backend: v$($backendVersionInfo.Version) ($($backendVersionInfo.CommitSha))"
 Write-Info "  Frontend: v$($frontendVersionInfo.Version) ($($frontendVersionInfo.CommitSha))"
 
@@ -1545,16 +1587,20 @@ Write-Header "DESPLIEGUE COMPLETADO"
 Write-Host ""
 Write-Host "  PC Destino: $TargetIP" -ForegroundColor White
 Write-Host "  Ruta: $InstallPath" -ForegroundColor White
-Write-Host "  Modo: SERVICIO WINDOWS (self-contained)" -ForegroundColor Green
+if ($CodeOnly) {
+    Write-Host "  Modo: SOLO CODIGO (Backend + Frontend actualizados)" -ForegroundColor Yellow
+    Write-Host "  Proyectos: NO modificados" -ForegroundColor Green
+} else {
+    Write-Host "  Modo: SERVICIO WINDOWS (self-contained)" -ForegroundColor Green
+}
 Write-Host ""
-Write-Host "  PROYECTO DESPLEGADO:" -ForegroundColor Green
+Write-Host "  PROYECTO:" -ForegroundColor Green
 Write-Host "  =====================" -ForegroundColor Green
 Write-Host "  Proyecto: $ProjectId" -ForegroundColor White
-Write-Host "  Modo: MULTI-PROYECTO" -ForegroundColor Gray
 Write-Host "  Config: $InstallPath\Backend\Projects\$ProjectId\config\" -ForegroundColor Gray
 Write-Host "  Modelos: $InstallPath\Backend\Projects\$ProjectId\models\" -ForegroundColor Gray
 Write-Host "  Database: $InstallPath\Backend\Projects\$ProjectId\data\project.db" -ForegroundColor Gray
-Write-Host "  Version: $InstallPath\Backend\Projects\$ProjectId\deploy-version.json" -ForegroundColor Gray
+Write-Host "  Version: $InstallPath\Backend\deploy-version.json" -ForegroundColor Gray
 Write-Host ""
 Write-Host "  Archivos desplegados:" -ForegroundColor Cyan
 Write-Host "  - Backend (exe + dlls)     -> $InstallPath\Backend\" -ForegroundColor Gray

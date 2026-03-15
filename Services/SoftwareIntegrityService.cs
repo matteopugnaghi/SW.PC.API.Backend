@@ -335,23 +335,14 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
-        /// Obtener la ruta del deploy-version.json del proyecto activo
+        /// Obtener la ruta del deploy-version.json (siempre en raiz de Backend)
         /// </summary>
         private string GetProjectDeployVersionPath()
         {
-            var projectId = _projectContext.ActiveProjectId;
             var basePath = AppDomain.CurrentDomain.BaseDirectory;
-            
-            if (projectId != "default")
-            {
-                // Multi-proyecto: Projects/{projectId}/deploy-version.json
-                return Path.Combine(basePath, "Projects", projectId, "deploy-version.json");
-            }
-            else
-            {
-                // Legacy: deploy-version.json en raíz
-                return Path.Combine(basePath, "deploy-version.json");
-            }
+            // deploy-version.json siempre en raiz de Backend (no dentro de Projects/)
+            // Asi copiar carpetas de proyecto nunca afecta la version del servidor
+            return Path.Combine(basePath, "deploy-version.json");
         }
 
         /// <summary>

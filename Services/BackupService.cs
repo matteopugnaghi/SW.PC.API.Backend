@@ -316,8 +316,9 @@ namespace SW.PC.API.Backend.Services
                         }
                     }
                     
-                    // Agregar deploy-version.json (trazabilidad de versión - EU CRA)
-                    var deployVersionPath = Path.Combine(projectPaths.ProjectRoot, "deploy-version.json");
+                    // Agregar deploy-version.json como metadata de trazabilidad (desde raiz de Backend, NO del proyecto)
+                    // Se incluye en el backup como referencia read-only pero NO se restaura
+                    var deployVersionPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "deploy-version.json");
                     if (File.Exists(deployVersionPath))
                     {
                         var relativePath = "deploy-version.json";
@@ -595,9 +596,14 @@ namespace SW.PC.API.Backend.Services
                             shouldRestore = true;
                             _logger.LogInformation("✅ Restaurando Audit Log: {FileName}", entry.FullName);
                         }
-                        else if (entry.FullName == "deploy-version.json" || entry.FullName == "README.md")
+                        else if (entry.FullName == "deploy-version.json")
                         {
-                            // Siempre restaurar archivos de trazabilidad y documentación
+                            // deploy-version.json NO se restaura - refleja la version del servidor, no del backup
+                            _logger.LogInformation("⏭️ Saltando deploy-version.json (version del servidor no se sobreescribe)");
+                        }
+                        else if (entry.FullName == "README.md")
+                        {
+                            // Siempre restaurar documentacion
                             shouldRestore = true;
                             _logger.LogInformation("✅ Restaurando {FileName}", entry.FullName);
                         }
