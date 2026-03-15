@@ -707,7 +707,7 @@ public class GitOperationsService : IGitOperationsService
         {
             using var process = new Process
             {
-                StartInfo = new ProcessStartInfo { FileName = "git", Arguments = arguments, WorkingDirectory = workingDirectory, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 }
+                StartInfo = new ProcessStartInfo { FileName = "git", Arguments = $"-c safe.directory=* {arguments}", WorkingDirectory = workingDirectory, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 }
             };
             var outputBuilder = new StringBuilder();
             var errorBuilder = new StringBuilder();
