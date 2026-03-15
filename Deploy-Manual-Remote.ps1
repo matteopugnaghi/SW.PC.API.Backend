@@ -809,6 +809,17 @@ foreach ($folder in $folders) {
     }
 }
 
+# Permisos de TwinCAT: el servicio corre como LocalSystem, tecnicos clonan como Administrator
+$twinCatRemotePath = "$RemotePath\TwinCAT"
+if (Test-Path $twinCatRemotePath) {
+    $icaclsResult = icacls.exe $twinCatRemotePath /grant Everyone:"(OI)(CI)F" /T /Q 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "Permisos TwinCAT configurados (Everyone: Full Control)"
+    } else {
+        Write-Info "No se pudieron configurar permisos TwinCAT (configurar manualmente)"
+    }
+}
+
 # ============================================
 # PASO 5.1: Limpiar archivos/carpetas innecesarios (si existen)
 # ============================================

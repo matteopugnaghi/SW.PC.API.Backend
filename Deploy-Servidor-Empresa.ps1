@@ -357,6 +357,19 @@ foreach ($folder in $folders) {
     }
 }
 
+# Permisos de TwinCAT: el servicio corre como LocalSystem, tecnicos clonan como Administrator
+$twinCatRemotePath = "$remoteInstallPath\TwinCAT"
+if (Test-Path $twinCatRemotePath) {
+    # Convertir ruta SMB a ruta local para icacls remoto
+    $twinCatLocalPath = "C:\Aquafrisch Supervisor\TwinCAT"
+    $icaclsResult = icacls.exe $twinCatRemotePath /grant Everyone:"(OI)(CI)F" /T /Q 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "Permisos TwinCAT configurados (Everyone: Full Control)"
+    } else {
+        Write-Info "No se pudieron configurar permisos TwinCAT (configurar manualmente)"
+    }
+}
+
 # ============================================
 # PASO 6: Copiar Backend (SOLO CODIGO)
 # ============================================
