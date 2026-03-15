@@ -119,6 +119,9 @@ namespace SW.PC.API.Backend.Models
         /// <summary>Incluye base de datos</summary>
         public bool HasDatabase { get; set; }
         
+        /// <summary>Incluye repositorio TwinCAT PLC</summary>
+        public bool HasTwinCAT { get; set; }
+        
         /// <summary>Número de archivos de configuración</summary>
         public int ConfigFilesCount { get; set; }
         
@@ -127,6 +130,9 @@ namespace SW.PC.API.Backend.Models
         
         /// <summary>Tamaño de la base de datos</summary>
         public long DatabaseSizeBytes { get; set; }
+        
+        /// <summary>Número de archivos TwinCAT</summary>
+        public int TwinCatFilesCount { get; set; }
     }
 
     /// <summary>
@@ -276,6 +282,9 @@ namespace SW.PC.API.Backend.Models
         
         /// <summary>Incluir base de datos</summary>
         public bool IncludeDatabase { get; set; } = true;
+        
+        /// <summary>Incluir repositorio TwinCAT PLC</summary>
+        public bool IncludeTwinCAT { get; set; } = true;
     }
 
     /// <summary>
@@ -297,6 +306,9 @@ namespace SW.PC.API.Backend.Models
         
         /// <summary>Restaurar base de datos</summary>
         public bool RestoreDatabase { get; set; } = true;
+        
+        /// <summary>Restaurar repositorio TwinCAT PLC</summary>
+        public bool RestoreTwinCAT { get; set; } = true;
     }
 
     /// <summary>

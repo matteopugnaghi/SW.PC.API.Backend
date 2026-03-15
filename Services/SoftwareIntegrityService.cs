@@ -164,8 +164,9 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Auto-detecta la ruta del repositorio TwinCAT PLC:
         /// 1. Desarrollo: ../SW.PC.TwinCAT.PLC (repo hermano)
-        /// 2. Desplegado: ../TwinCAT/ (carpeta hermana de Backend/, busca primer subfolder con .git)
-        /// 3. Fallback: ruta de desarrollo (aunque no exista todavía)
+        /// 2. Desplegado: ../TwinCAT/{activeProjectId}/ (vinculado al proyecto activo)
+        /// 3. Desplegado: ../TwinCAT/ primer subfolder con .git (fallback genérico)
+        /// 4. Fallback: ruta de desarrollo (aunque no exista todavía)
         /// </summary>
         private string AutoDetectTwinCatPath()
         {
@@ -183,6 +184,26 @@ namespace SW.PC.API.Backend.Services
             var twinCatFolder = Path.Combine(parentDir, "TwinCAT");
             if (Directory.Exists(twinCatFolder))
             {
+                // 2a. Preferir subfolder con mismo nombre que proyecto activo
+                try
+                {
+                    var activeProjectId = _projectContext.ActiveProjectId;
+                    if (!string.IsNullOrEmpty(activeProjectId) && activeProjectId != "default")
+                    {
+                        var projectTwinCatPath = Path.Combine(twinCatFolder, activeProjectId);
+                        if (Directory.Exists(Path.Combine(projectTwinCatPath, ".git")))
+                        {
+                            _logger.LogInformation("🔧 TwinCAT auto-detected (project '{ProjectId}'): {Path}", activeProjectId, projectTwinCatPath);
+                            return projectTwinCatPath;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not read active project ID for TwinCAT path detection");
+                }
+
+                // 2b. Fallback: primer subfolder con .git
                 try
                 {
                     foreach (var subDir in Directory.GetDirectories(twinCatFolder))

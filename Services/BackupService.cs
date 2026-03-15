@@ -31,6 +31,7 @@ namespace SW.PC.API.Backend.Services
         public string TranslationsPath { get; set; } = ""; // Translations per project
         public string DocsPath { get; set; } = "";       // DMS: Document Management System
         public string LogsPath { get; set; } = "";       // NxLog JSONL Export (SOC PIVOT TISSEO)
+        public string TwinCatPath { get; set; } = "";    // TwinCAT PLC repo (hermano de Backend/)
     }
 
     public interface IBackupService
@@ -125,7 +126,8 @@ namespace SW.PC.API.Backend.Services
                     AuditPath = Path.Combine(webRoot, "audit"),          // Legacy: wwwroot/audit
                     TranslationsPath = Path.Combine(contentRoot, "translations"), // Legacy: root/translations
                     DocsPath = Path.Combine(contentRoot, "docs"),          // Legacy: root/docs
-                    LogsPath = Path.Combine(Path.Combine(webRoot, "logs")) // Legacy: wwwroot/logs
+                    LogsPath = Path.Combine(Path.Combine(webRoot, "logs")), // Legacy: wwwroot/logs
+                    TwinCatPath = "" // Legacy: no TwinCAT
                 };
             }
             
@@ -145,7 +147,8 @@ namespace SW.PC.API.Backend.Services
                 AuditPath = Path.Combine(projectRoot, "audit"),          // Multi-proyecto: Projects/{id}/audit
                 TranslationsPath = Path.Combine(projectRoot, "translations"), // Multi-proyecto: Projects/{id}/translations
                 DocsPath = Path.Combine(projectRoot, "docs"),              // Multi-proyecto: Projects/{id}/docs
-                LogsPath = Path.Combine(projectRoot, "logs")               // Multi-proyecto: Projects/{id}/logs (NxLog JSONL)
+                LogsPath = Path.Combine(projectRoot, "logs"),               // Multi-proyecto: Projects/{id}/logs (NxLog JSONL)
+                TwinCatPath = Path.Combine(Path.GetFullPath(Path.Combine(contentRoot, "..")), "TwinCAT", projectId) // ../TwinCAT/{projectId}/
             };
         }
 
@@ -312,6 +315,36 @@ namespace SW.PC.API.Backend.Services
                                 {
                                     try { File.Delete(tempDbPath); } catch { /* ignore */ }
                                 }
+                            }
+                        }
+                    }
+                    
+                    // Agregar repositorio TwinCAT PLC (carpeta hermana: ../TwinCAT/{projectId}/)
+                    if (request.IncludeTwinCAT && !string.IsNullOrEmpty(projectPaths.TwinCatPath))
+                    {
+                        var twinCatPath = projectPaths.TwinCatPath;
+                        if (Directory.Exists(twinCatPath))
+                        {
+                            var twinCatFiles = Directory.GetFiles(twinCatPath, "*.*", SearchOption.AllDirectories);
+                            foreach (var file in twinCatFiles)
+                            {
+                                var relativePath = Path.Combine("twincat", Path.GetRelativePath(twinCatPath, file));
+                                await AddFileToZipAsync(zipArchive, file, relativePath);
+                                
+                                manifest.Files.Add(new BackupFileEntry
+                                {
+                                    RelativePath = relativePath,
+                                    Hash = await ComputeFileHashAsync(file),
+                                    SizeBytes = new FileInfo(file).Length,
+                                    ModifiedAt = File.GetLastWriteTimeUtc(file)
+                                });
+                            }
+                            backupInfo.Contents.HasTwinCAT = true;
+                            backupInfo.Contents.TwinCatFilesCount = twinCatFiles.Length;
+                            
+                            if (twinCatFiles.Length > 0)
+                            {
+                                _logger.LogInformation("✅ TwinCAT PLC incluido en backup ({Count} archivos)", twinCatFiles.Length);
                             }
                         }
                     }
@@ -554,7 +587,8 @@ namespace SW.PC.API.Backend.Services
                         Description = $"Backup automático antes de restaurar {request.BackupId}",
                         IncludeConfig = request.RestoreConfig,
                         IncludeModels = request.RestoreModels,
-                        IncludeDatabase = request.RestoreDatabase
+                        IncludeDatabase = request.RestoreDatabase,
+                        IncludeTwinCAT = request.RestoreTwinCAT
                     };
                     
                     var preBackupResponse = await CreateBackupAsync(projectId, preBackupRequest, userId);
@@ -618,6 +652,24 @@ namespace SW.PC.API.Backend.Services
                             // Siempre restaurar Translations
                             shouldRestore = true;
                             _logger.LogInformation("✅ Restaurando Translation: {FileName}", entry.FullName);
+                        }
+                        else if (entry.FullName.StartsWith("twincat/") && request.RestoreTwinCAT)
+                        {
+                            // TwinCAT se restaura a su carpeta propia (fuera de ProjectRoot)
+                            if (!string.IsNullOrEmpty(projectPaths.TwinCatPath))
+                            {
+                                var twinCatRelative = entry.FullName.Substring("twincat/".Length);
+                                var twinCatFullPath = Path.Combine(projectPaths.TwinCatPath, twinCatRelative);
+                                var twinCatDir = Path.GetDirectoryName(twinCatFullPath);
+                                if (!string.IsNullOrEmpty(twinCatDir))
+                                {
+                                    Directory.CreateDirectory(twinCatDir);
+                                }
+                                entry.ExtractToFile(twinCatFullPath, overwrite: true);
+                                _logger.LogInformation("✅ Restaurando TwinCAT: {FileName}", entry.FullName);
+                            }
+                            // Skip normal restore flow — already handled
+                            continue;
                         }
                         
                         if (shouldRestore)
