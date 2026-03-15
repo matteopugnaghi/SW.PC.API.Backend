@@ -518,12 +518,22 @@ if ($ProjectId -ne "default" -and (Test-Path $projectFolder)) {
         $combinedMd += "# Frontend`n`n*Sin changelog disponible.*`n`n---`n`n"
     }
     
-    # TwinCAT (if repo exists)
+    # TwinCAT (if repo exists - try dev path first, then deployed TwinCAT/ folder)
     $twinCATRoot = Split-Path -Parent (Split-Path -Parent $BackendPath)
     $twinCATPath = Join-Path $twinCATRoot "SW.PC.TWINCAT.PLC"
     $twinCATChangelog = $null
     if (Test-Path (Join-Path $twinCATPath ".git")) {
         $twinCATChangelog = Generate-Changelog -RepoPath $twinCATPath -ComponentName "TwinCAT"
+    } else {
+        # Try TwinCAT/ folder (deployed structure) - scan for first subfolder with .git
+        $twinCATFolder = Join-Path $twinCATRoot "TwinCAT"
+        if (Test-Path $twinCATFolder) {
+            $twinCATRepo = Get-ChildItem -Path $twinCATFolder -Directory -ErrorAction SilentlyContinue |
+                Where-Object { Test-Path (Join-Path $_.FullName ".git") } | Select-Object -First 1
+            if ($twinCATRepo) {
+                $twinCATChangelog = Generate-Changelog -RepoPath $twinCATRepo.FullName -ComponentName "TwinCAT"
+            }
+        }
     }
     if ($twinCATChangelog) {
         $combinedMd += "# TwinCAT`n`n"
@@ -772,7 +782,8 @@ Write-Header "PASO 5: Creando estructura de carpetas"
 $folders = @(
     $RemotePath,
     "$RemotePath\Backend",
-    "$RemotePath\Backend\wwwroot"
+    "$RemotePath\Backend\wwwroot",
+    "$RemotePath\TwinCAT"             # Carpeta para repos TwinCAT PLC (tecnicos clonan aqui)
 )
 
 # Añadir carpeta del proyecto activo (SOLO el proyecto que se despliega)

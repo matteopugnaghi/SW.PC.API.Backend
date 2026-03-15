@@ -344,7 +344,8 @@ $folders = @(
     $remoteInstallPath,
     $remoteBackendPath,
     "$remoteBackendPath\Projects",
-    "$remoteBackendPath\wwwroot"
+    "$remoteBackendPath\wwwroot",
+    "$remoteInstallPath\TwinCAT"      # Carpeta para repos TwinCAT PLC (tecnicos clonan aqui)
 )
 
 foreach ($folder in $folders) {

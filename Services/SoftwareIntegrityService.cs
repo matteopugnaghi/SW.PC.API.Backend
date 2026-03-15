@@ -103,7 +103,7 @@ namespace SW.PC.API.Backend.Services
 
             _frontendRepoPath = Path.GetFullPath(Path.Combine(_backendRepoPath, "..", "SW.PC.REACT.Frontend", "my-3d-app"));
 
-            _twinCatPlcRepoPath = Path.GetFullPath(Path.Combine(_backendRepoPath, "..", "SW.PC.TwinCAT.PLC"));
+            _twinCatPlcRepoPath = AutoDetectTwinCatPath();
 
             // 🔐 Ruta del archivo de persistencia de estado
             _stateFilePath = Path.Combine(_backendRepoPath, "integrity-state.json");
@@ -159,6 +159,53 @@ namespace SW.PC.API.Backend.Services
                 // Re-inicializar con las nuevas rutas
                 _ = InitializeGitInfoAsync();
             }
+        }
+
+        /// <summary>
+        /// Auto-detecta la ruta del repositorio TwinCAT PLC:
+        /// 1. Desarrollo: ../SW.PC.TwinCAT.PLC (repo hermano)
+        /// 2. Desplegado: ../TwinCAT/ (carpeta hermana de Backend/, busca primer subfolder con .git)
+        /// 3. Fallback: ruta de desarrollo (aunque no exista todavía)
+        /// </summary>
+        private string AutoDetectTwinCatPath()
+        {
+            var parentDir = Path.GetFullPath(Path.Combine(_backendRepoPath, ".."));
+            
+            // 1. Desarrollo: repo hermano SW.PC.TwinCAT.PLC
+            var devPath = Path.Combine(parentDir, "SW.PC.TwinCAT.PLC");
+            if (Directory.Exists(Path.Combine(devPath, ".git")))
+            {
+                _logger.LogInformation("🔧 TwinCAT auto-detected (dev): {Path}", devPath);
+                return devPath;
+            }
+
+            // 2. Desplegado: carpeta TwinCAT/ hermana de Backend/
+            var twinCatFolder = Path.Combine(parentDir, "TwinCAT");
+            if (Directory.Exists(twinCatFolder))
+            {
+                try
+                {
+                    foreach (var subDir in Directory.GetDirectories(twinCatFolder))
+                    {
+                        if (Directory.Exists(Path.Combine(subDir, ".git")))
+                        {
+                            _logger.LogInformation("🔧 TwinCAT auto-detected (deployed): {Path}", subDir);
+                            return subDir;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error scanning TwinCAT folder: {Path}", twinCatFolder);
+                }
+                // TwinCAT/ exists but no .git subfolder yet — return the folder itself
+                _logger.LogInformation("🔧 TwinCAT folder exists but no repo found yet: {Path}", twinCatFolder);
+                return twinCatFolder;
+            }
+
+            // 3. Fallback: ruta de desarrollo
+            _logger.LogInformation("🔧 TwinCAT path (fallback): {Path}", devPath);
+            return devPath;
         }
 
         private async Task InitializeGitInfoAsync()
