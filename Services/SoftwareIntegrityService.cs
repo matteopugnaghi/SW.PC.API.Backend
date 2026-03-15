@@ -467,6 +467,24 @@ namespace SW.PC.API.Backend.Services
                 RepoPath = repoPath
             };
 
+            try
+            {
+                // 🚀 PRODUCCIÓN: Primero intentar leer deploy-version.json (generado durante deploy)
+                // IMPORTANTE: Esto debe ejecutarse ANTES de verificar si el directorio del repo existe,
+                // porque en producción el directorio del frontend no existe (está embebido en wwwroot/)
+                var deployVersionPath = Path.Combine(repoPath, "deploy-version.json");
+                var deployedComponent = await TryLoadDeployVersionAsync(name, deployVersionPath);
+                if (deployedComponent != null)
+                {
+                    _logger.LogInformation("📦 {Name}: Loaded from deploy-version.json (production mode)", name);
+                    return deployedComponent;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "📦 deploy-version.json not available for {Name}, falling back to Git", name);
+            }
+
             if (!Directory.Exists(repoPath))
             {
                 _logger.LogWarning("⚠️ Repository path not found: {Path}", repoPath);
@@ -476,15 +494,6 @@ namespace SW.PC.API.Backend.Services
 
             try
             {
-                // 🚀 PRODUCCIÓN: Primero intentar leer deploy-version.json (generado durante deploy)
-                var deployVersionPath = Path.Combine(repoPath, "deploy-version.json");
-                var deployedComponent = await TryLoadDeployVersionAsync(name, deployVersionPath);
-                if (deployedComponent != null)
-                {
-                    _logger.LogInformation("📦 {Name}: Loaded from deploy-version.json (production mode)", name);
-                    return deployedComponent;
-                }
-
                 // 🔧 DESARROLLO: Verificar si es un repositorio Git
                 var gitDir = Path.Combine(repoPath, ".git");
                 if (!Directory.Exists(gitDir) && !File.Exists(gitDir))
