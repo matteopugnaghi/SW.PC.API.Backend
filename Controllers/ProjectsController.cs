@@ -61,25 +61,35 @@ namespace SW.PC.API.Backend.Controllers
         
         /// <summary>
         /// Obtiene información del proyecto activo para este request
-        /// isDevelopmentMode viene del Excel (System Config → EnvironmentMode)
+        /// 
+        /// allowProjectSelection: viene de ASPNETCORE_ENVIRONMENT (Development = true)
+        ///   → Controla si el frontend muestra el selector de proyectos
+        ///   → El servidor empresa usa --environment Development para permitirlo
+        /// 
+        /// environmentMode: viene del Excel (System Config → EnvironmentMode)
+        ///   → Controla el Git panel (production = solo TwinCAT editable)
         /// </summary>
         [HttpGet("active")]
         public ActionResult<object> GetActiveProject()
         {
             try
             {
-                // Leer EnvironmentMode del Excel (System Config)
+                // Leer EnvironmentMode del Excel (System Config) → controla Git panel
                 var systemConfig = _excelConfigService.LoadSystemConfigurationAsync("ProjectConfig.xlsm").GetAwaiter().GetResult();
                 var environmentMode = systemConfig?.EnvironmentMode?.ToLower() ?? "development";
-                var isDevelopment = environmentMode == "development";
+                
+                // ASPNETCORE_ENVIRONMENT → controla si se permite seleccionar proyectos
+                // El servidor empresa usa --environment Development para multi-tenant
+                var allowProjectSelection = _environment.IsDevelopment();
                 
                 return Ok(new
                 {
                     projectId = _requestContext.ProjectId,
                     isMultiProjectMode = _requestContext.IsMultiProjectMode,
-                    isDevelopmentMode = isDevelopment, // Ahora viene del Excel!
-                    environmentMode = environmentMode, // También exponer el valor raw
-                    globalProjectId = _globalContext.ActiveProjectId, // El configurado en active-project.json
+                    isDevelopmentMode = environmentMode == "development", // Mantener por compatibilidad
+                    allowProjectSelection = allowProjectSelection, // NUEVO: basado en ASPNETCORE_ENVIRONMENT
+                    environmentMode = environmentMode,
+                    globalProjectId = _globalContext.ActiveProjectId,
                     paths = new
                     {
                         basePath = _requestContext.ProjectBasePath,
