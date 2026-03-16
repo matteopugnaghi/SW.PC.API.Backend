@@ -563,7 +563,7 @@ if ($ProjectId -ne "default" -and (Test-Path $projectFolder)) {
     }
     
     # TwinCAT (if repo exists - try dev path first, then deployed TwinCAT/ folder)
-    $twinCATRoot = Split-Path -Parent (Split-Path -Parent $BackendPath)
+    $twinCATRoot = Split-Path -Parent $BackendPath
     $twinCATPath = Join-Path $twinCATRoot "SW.PC.TWINCAT.PLC"
     $twinCATChangelog = $null
     if (Test-Path (Join-Path $twinCATPath ".git")) {
@@ -1330,7 +1330,7 @@ $dbDestPath = "$projectDestPath\data\project.db"
 Write-Header "PASO 9.0a: Copiando SW.PC.Twincat_3 (TwinCAT PLC)"
 
 # Detectar carpeta TwinCAT local (misma logica que changelog)
-$twinCATRoot = Split-Path -Parent (Split-Path -Parent $BackendPath)
+$twinCATRoot = Split-Path -Parent $BackendPath
 $twinCATLocalPath = $null
 
 # Intentar ruta dev primero: ../SW.PC.TWINCAT.PLC
