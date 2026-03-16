@@ -864,9 +864,12 @@ foreach ($folder in $folders) {
 # Permisos de TwinCAT: el servicio corre como LocalSystem, tecnicos clonan como Administrator
 $twinCatRemotePath = "$RemotePath\SW.PC.Twincat_3"
 if (Test-Path $twinCatRemotePath) {
-    $icaclsResult = icacls.exe $twinCatRemotePath /grant Everyone:"(OI)(CI)F" /T /Q 2>&1
+    # Usar SID *S-1-1-0 (Everyone/Todos) - funciona en cualquier idioma de Windows
+    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
+    $icaclsResult = icacls.exe $twinCatRemotePath /grant *S-1-1-0:"(OI)(CI)F" /T /Q 2>&1
+    $ErrorActionPreference = $prevEAP
     if ($LASTEXITCODE -eq 0) {
-        Write-Success "Permisos TwinCAT configurados (Everyone: Full Control)"
+        Write-Success "Permisos TwinCAT configurados (Everyone/Todos: Full Control)"
     } else {
         Write-Info "No se pudieron configurar permisos TwinCAT (configurar manualmente)"
     }
