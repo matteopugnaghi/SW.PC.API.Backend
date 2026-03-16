@@ -645,8 +645,14 @@ namespace SW.PC.API.Backend.Services
                 {
                     foreach (var entry in zipArchive.Entries)
                     {
+                        // Normalizar separadores a forward slash para comparaciones consistentes
+                        var entryPath = entry.FullName.Replace('\\', '/');
                         // Saltar archivos de metadata
                         if (entry.Name == "manifest.json" || entry.Name == "backup_certificate.json")
+                            continue;
+                        
+                        // Saltar entradas de directorio (sin nombre de archivo)
+                        if (string.IsNullOrEmpty(entry.Name))
                             continue;
                         
                         var fullPath = Path.Combine(projectPaths.ProjectRoot, entry.FullName);
@@ -654,53 +660,53 @@ namespace SW.PC.API.Backend.Services
                         
                         // Determinar si debemos restaurar este archivo
                         bool shouldRestore = false;
-                        if (entry.FullName.StartsWith("config/") && request.RestoreConfig)
+                        if (entryPath.StartsWith("config/") && request.RestoreConfig)
                             shouldRestore = true;
-                        else if (entry.FullName.StartsWith("models/") && request.RestoreModels)
+                        else if (entryPath.StartsWith("models/") && request.RestoreModels)
                             shouldRestore = true;
-                        else if (entry.FullName.StartsWith("data/") && request.RestoreDatabase)
+                        else if (entryPath.StartsWith("data/") && request.RestoreDatabase)
                             shouldRestore = true;
-                        else if (entry.FullName.StartsWith("sbom/"))
+                        else if (entryPath.StartsWith("sbom/"))
                         {
                             // Siempre restaurar SBOM (EU CRA Compliance)
                             shouldRestore = true;
-                            _logger.LogInformation("✅ Restaurando SBOM: {FileName}", entry.FullName);
+                            _logger.LogInformation("✅ Restaurando SBOM: {FileName}", entryPath);
                         }
-                        else if (entry.FullName.StartsWith("audit/"))
+                        else if (entryPath.StartsWith("audit/"))
                         {
                             // Siempre restaurar Audit Logs (EU CRA Compliance)
                             shouldRestore = true;
-                            _logger.LogInformation("✅ Restaurando Audit Log: {FileName}", entry.FullName);
+                            _logger.LogInformation("✅ Restaurando Audit Log: {FileName}", entryPath);
                         }
-                        else if (entry.FullName == "deploy-version.json")
+                        else if (entryPath == "deploy-version.json")
                         {
                             // deploy-version.json NO se restaura - refleja la version del servidor, no del backup
                             _logger.LogInformation("⏭️ Saltando deploy-version.json (version del servidor no se sobreescribe)");
                         }
-                        else if (entry.FullName == "README.md")
+                        else if (entryPath == "README.md")
                         {
                             // Siempre restaurar documentacion
                             shouldRestore = true;
-                            _logger.LogInformation("✅ Restaurando {FileName}", entry.FullName);
+                            _logger.LogInformation("✅ Restaurando {FileName}", entryPath);
                         }
-                        else if (entry.FullName.StartsWith("logs/"))
+                        else if (entryPath.StartsWith("logs/"))
                         {
                             // Siempre restaurar NxLog JSONL logs (TISSEO Compliance)
                             shouldRestore = true;
-                            _logger.LogInformation("✅ Restaurando NxLog JSONL: {FileName}", entry.FullName);
+                            _logger.LogInformation("✅ Restaurando NxLog JSONL: {FileName}", entryPath);
                         }
-                        else if (entry.FullName.StartsWith("translations/"))
+                        else if (entryPath.StartsWith("translations/"))
                         {
                             // Siempre restaurar Translations
                             shouldRestore = true;
-                            _logger.LogInformation("✅ Restaurando Translation: {FileName}", entry.FullName);
+                            _logger.LogInformation("✅ Restaurando Translation: {FileName}", entryPath);
                         }
-                        else if (entry.FullName.StartsWith("twincat/") && request.RestoreTwinCAT)
+                        else if (entryPath.StartsWith("twincat/") && request.RestoreTwinCAT)
                         {
                             // TwinCAT se restaura a su carpeta propia (fuera de ProjectRoot)
                             if (!string.IsNullOrEmpty(projectPaths.TwinCatPath))
                             {
-                                var twinCatRelative = entry.FullName.Substring("twincat/".Length);
+                                var twinCatRelative = entryPath.Substring("twincat/".Length);
                                 var twinCatFullPath = Path.Combine(projectPaths.TwinCatPath, twinCatRelative);
                                 var twinCatDir = Path.GetDirectoryName(twinCatFullPath);
                                 if (!string.IsNullOrEmpty(twinCatDir))
@@ -708,7 +714,7 @@ namespace SW.PC.API.Backend.Services
                                     Directory.CreateDirectory(twinCatDir);
                                 }
                                 entry.ExtractToFile(twinCatFullPath, overwrite: true);
-                                _logger.LogInformation("✅ Restaurando TwinCAT: {FileName}", entry.FullName);
+                                _logger.LogInformation("✅ Restaurando TwinCAT: {FileName}", entryPath);
                             }
                             // Skip normal restore flow — already handled
                             continue;
@@ -1333,7 +1339,9 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         private static async Task AddFileToZipAsync(ZipArchive zipArchive, string sourceFilePath, string entryName)
         {
-            var entry = zipArchive.CreateEntry(entryName);
+            // Normalizar separadores a forward slash (estándar ZIP)
+            var normalizedName = entryName.Replace('\\', '/');
+            var entry = zipArchive.CreateEntry(normalizedName);
             using var sourceStream = new FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var entryStream = entry.Open();
             await sourceStream.CopyToAsync(entryStream);
