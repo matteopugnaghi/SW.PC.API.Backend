@@ -1412,58 +1412,91 @@ if ($twinCATLocalPath) {
     
     # Limpiar indice git en destino: dejar de trackear ficheros machine-specific
     # Necesario porque el repo remoto tiene .xti y .~u en el indice de antes del fix
-    # NOTA: git -C NO funciona con rutas UNC (\\IP\C$\...) — mapeamos unidad temporal
+    # NOTA: git -C NO funciona con rutas de red (UNC ni unidades mapeadas)
+    #       Solucion: crear script .bat en remoto via SMB, ejecutar via schtasks
     if (Test-Path "$twinCatRemoteDestPath\.git") {
-        Write-Step "Limpiando indice git (rm --cached de ficheros machine-specific)..."
+        Write-Step "Limpiando indice git (ejecutando git EN la maquina remota via schtasks)..."
         
-        # Buscar letra de unidad libre para mapear \\IP\C$
-        $tempDriveLetter = $null
-        foreach ($letter in @('T','U','V','W','X','Y','Z')) {
-            if (-not (Test-Path "${letter}:\")) {
-                $tempDriveLetter = $letter
-                break
-            }
-        }
+        # Ruta LOCAL en la maquina remota (no UNC)
+        $remoteLocalRepoPath = "$InstallPath\SW.PC.Twincat_3\$twinCATLocalName"
+        $remoteLocalResultFile = "$remoteLocalRepoPath\git-cleanup-result.txt"
         
-        if ($tempDriveLetter) {
-            try {
-                # Mapear unidad temporal (la conexion a \\IP\C$ ya esta establecida en PASO 4)
-                net use "${tempDriveLetter}:" "\\$TargetIP\C`$" /persistent:no 2>&1 | Out-Null
-                $twinCatDrivePath = "${tempDriveLetter}:\$($InstallPath.TrimStart('C:\'))\SW.PC.Twincat_3\$twinCATLocalName"
-                
-                Write-Info "Git via unidad temporal ${tempDriveLetter}: -> $twinCatDrivePath"
-                
-                # Quitar .xti, .~u, .~u1 del tracking (--ignore-unmatch evita error si no estan en index)
-                $gitOut = git -C "$twinCatDrivePath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.xti" 2>&1
-                if ($gitOut) { Write-Info "  rm --cached .xti: $gitOut" }
-                
-                $gitOut = git -C "$twinCatDrivePath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.~u" 2>&1
-                if ($gitOut) { Write-Info "  rm --cached .~u: $gitOut" }
-                
-                $gitOut = git -C "$twinCatDrivePath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.~u1" 2>&1
-                if ($gitOut) { Write-Info "  rm --cached .~u1: $gitOut" }
-                
-                # Descartar cambios locales en .sln y .plcproj (AMS NetId de esta maquina)
-                $gitOut = git -C "$twinCatDrivePath" -c safe.directory=* checkout -- "*.sln" "*.plcproj" 2>&1
-                if ($gitOut) { Write-Info "  checkout .sln/.plcproj: $gitOut" }
-                
-                # Verificar estado final
-                $statusOut = git -C "$twinCatDrivePath" -c safe.directory=* status --short 2>&1
-                if ($statusOut) {
-                    Write-Warning "Estado git despues de limpiar:"
-                    $statusOut | ForEach-Object { Write-Info "  $_" }
-                } else {
-                    Write-Success "Repositorio TwinCAT limpio (sin diferencias git)"
+        # Crear script .bat que se ejecutara EN la maquina remota
+        $batContent = @"
+@echo off
+cd /d "$remoteLocalRepoPath"
+echo === Git Cleanup Start === > "$remoteLocalResultFile"
+echo Repo: $remoteLocalRepoPath >> "$remoteLocalResultFile"
+git rm --cached -r --ignore-unmatch "*.xti" >> "$remoteLocalResultFile" 2>&1
+git rm --cached -r --ignore-unmatch "*.~u" >> "$remoteLocalResultFile" 2>&1
+git rm --cached -r --ignore-unmatch "*.~u1" >> "$remoteLocalResultFile" 2>&1
+git update-index --assume-unchanged "Twincat_Prog.sln" >> "$remoteLocalResultFile" 2>&1
+git update-index --assume-unchanged "Twincat_Prog/PLC/PLC.plcproj" >> "$remoteLocalResultFile" 2>&1
+git status --short >> "$remoteLocalResultFile" 2>&1
+echo === Git Cleanup Done === >> "$remoteLocalResultFile"
+"@
+        
+        # Escribir el .bat en el remoto via SMB (esto SI funciona con UNC)
+        $remoteBatPath = "$twinCatRemoteDestPath\git-cleanup.bat"
+        $remoteResultPath = "$twinCatRemoteDestPath\git-cleanup-result.txt"
+        Set-Content -Path $remoteBatPath -Value $batContent -Encoding ASCII
+        Write-Info "Script creado: $remoteBatPath"
+        
+        # Ejecutar via schtasks en la maquina remota
+        $taskName = "AquafrischGitCleanup"
+        try {
+            # Eliminar tarea previa si existe
+            schtasks /delete /s $TargetIP /u "$TargetIP\$TargetUser" /p "$TargetPassword" /tn $taskName /f 2>&1 | Out-Null
+            
+            # Crear tarea programada
+            $createResult = schtasks /create /s $TargetIP /u "$TargetIP\$TargetUser" /p "$TargetPassword" `
+                /tn $taskName /tr "cmd /c `"$remoteLocalRepoPath\git-cleanup.bat`"" `
+                /sc once /st 00:00 /f /ru "$TargetUser" /rp "$TargetPassword" /rl HIGHEST 2>&1
+            Write-Info "schtasks create: $createResult"
+            
+            # Ejecutar la tarea
+            $runResult = schtasks /run /s $TargetIP /u "$TargetIP\$TargetUser" /p "$TargetPassword" /tn $taskName 2>&1
+            Write-Info "schtasks run: $runResult"
+            
+            # Esperar a que termine (max 30 seg)
+            $waited = 0
+            $maxWait = 30
+            while ($waited -lt $maxWait) {
+                Start-Sleep -Seconds 2
+                $waited += 2
+                if (Test-Path $remoteResultPath) {
+                    $content = Get-Content $remoteResultPath -Raw -ErrorAction SilentlyContinue
+                    if ($content -and $content -match "Git Cleanup Done") {
+                        break
+                    }
                 }
-            } catch {
-                Write-Warning "Error limpiando indice git: $_"
-            } finally {
-                # Desmapear unidad temporal
-                net use "${tempDriveLetter}:" /delete /y 2>&1 | Out-Null
-                Write-Info "Unidad temporal ${tempDriveLetter}: desmapeada"
             }
-        } else {
-            Write-Warning "No hay letra de unidad libre (T-Z) para mapear git remoto"
+            
+            # Leer resultado
+            if (Test-Path $remoteResultPath) {
+                $resultContent = Get-Content $remoteResultPath -ErrorAction SilentlyContinue
+                Write-Info "--- Resultado git cleanup remoto ---"
+                foreach ($line in $resultContent) {
+                    if ($line.Trim()) { Write-Info "  $line" }
+                }
+                Write-Info "--- Fin resultado ---"
+                
+                # Comprobar si quedo limpio
+                $statusLines = $resultContent | Where-Object { $_ -notmatch '(===|Repo:|rm |\.xti|\.~u|\.plcproj|\.sln)' -and $_.Trim() }
+                if (-not $statusLines -or ($resultContent -match "Git Cleanup Done")) {
+                    Write-Success "Git cleanup ejecutado correctamente en maquina remota"
+                }
+            } else {
+                Write-Warning "No se encontro resultado despues de ${maxWait}s - verificar manualmente"
+            }
+            
+            # Limpieza
+            schtasks /delete /s $TargetIP /u "$TargetIP\$TargetUser" /p "$TargetPassword" /tn $taskName /f 2>&1 | Out-Null
+            Remove-Item $remoteBatPath -ErrorAction SilentlyContinue
+            Remove-Item $remoteResultPath -ErrorAction SilentlyContinue
+            
+        } catch {
+            Write-Warning "Error ejecutando git cleanup remoto: $_"
         }
     }
 } else {
