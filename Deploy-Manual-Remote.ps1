@@ -924,7 +924,10 @@ $cleanupItems = @(
     "$RemotePath\Backend\wwwroot\models",                 # Modelos legacy (ahora en Projects/{id}/models)
     "$RemotePath\Backend\wwwroot\sbom",                   # SBOM legacy (ahora en Projects/{id}/sbom)
     "$RemotePath\Backend\wwwroot\locales",                # Archivos de traducción (se copian de build)
-    "$RemotePath\Backend\Projects\_template"              # Template de proyecto (solo para desarrollo)
+    "$RemotePath\Backend\Projects\_template",             # Template de proyecto (solo para desarrollo)
+    "$RemotePath\Installers",                             # Runtime installer (deploy es self-contained)
+    "$RemotePath\Backend\Installers",                     # Runtime installer dentro de Backend
+    "$RemotePath\Start-Supervisor.bat"                    # Script arranque manual legacy (servicio Windows)
 )
 
 Write-Info "Verificando $($cleanupItems.Count) elementos para limpiar..."
