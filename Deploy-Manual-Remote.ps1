@@ -1414,11 +1414,37 @@ if ($twinCATLocalPath) {
     # Necesario porque el repo remoto tiene .xti y .~u en el indice de antes del fix
     # NOTA: git -C NO funciona con rutas de red (UNC ni unidades mapeadas)
     #       Solucion: crear script .bat en remoto via SMB, ejecutar via schtasks
+    
+    # Buscar .git en el directorio del proyecto O un nivel arriba (SW.PC.Twincat_3)
+    $gitRepoUncPath = $null
+    $gitRepoLocalPath = $null  # Ruta local en la maquina remota
     if (Test-Path "$twinCatRemoteDestPath\.git") {
+        $gitRepoUncPath = $twinCatRemoteDestPath
+        $gitRepoLocalPath = "$InstallPath\SW.PC.Twincat_3\$twinCATLocalName"
+        Write-Info "Git repo encontrado en: $twinCatRemoteDestPath\.git"
+    } elseif (Test-Path "$RemotePath\SW.PC.Twincat_3\.git") {
+        $gitRepoUncPath = "$RemotePath\SW.PC.Twincat_3"
+        $gitRepoLocalPath = "$InstallPath\SW.PC.Twincat_3"
+        Write-Info "Git repo encontrado un nivel arriba: $RemotePath\SW.PC.Twincat_3\.git"
+    } else {
+        Write-Warning "No se encontro .git en ninguno de estos directorios:"
+        Write-Info "  1) $twinCatRemoteDestPath\.git"
+        Write-Info "  2) $RemotePath\SW.PC.Twincat_3\.git"
+        # Listar contenido para diagnostico
+        Write-Info "  Contenido de $twinCatRemoteDestPath :"
+        Get-ChildItem -Path $twinCatRemoteDestPath -Force -ErrorAction SilentlyContinue | 
+            Select-Object -First 15 | ForEach-Object { Write-Info "    $($_.Name)$(if($_.PSIsContainer){'/'} else {''})" }
+        $parentPath = "$RemotePath\SW.PC.Twincat_3"
+        Write-Info "  Contenido de ${parentPath}:"
+        Get-ChildItem -Path $parentPath -Force -ErrorAction SilentlyContinue | 
+            Select-Object -First 15 | ForEach-Object { Write-Info "    $($_.Name)$(if($_.PSIsContainer){'/'} else {''})" }
+    }
+    
+    if ($gitRepoLocalPath) {
         Write-Step "Limpiando indice git (ejecutando git EN la maquina remota via schtasks)..."
         
         # Ruta LOCAL en la maquina remota (no UNC)
-        $remoteLocalRepoPath = "$InstallPath\SW.PC.Twincat_3\$twinCATLocalName"
+        $remoteLocalRepoPath = $gitRepoLocalPath
         $remoteLocalResultFile = "$remoteLocalRepoPath\git-cleanup-result.txt"
         
         # Crear script .bat que se ejecutara EN la maquina remota
@@ -1427,6 +1453,9 @@ if ($twinCATLocalPath) {
 cd /d "$remoteLocalRepoPath"
 echo === Git Cleanup Start === > "$remoteLocalResultFile"
 echo Repo: $remoteLocalRepoPath >> "$remoteLocalResultFile"
+echo Working dir: >> "$remoteLocalResultFile"
+cd >> "$remoteLocalResultFile"
+dir .git >> "$remoteLocalResultFile" 2>&1
 git rm --cached -r --ignore-unmatch "*.xti" >> "$remoteLocalResultFile" 2>&1
 git rm --cached -r --ignore-unmatch "*.~u" >> "$remoteLocalResultFile" 2>&1
 git rm --cached -r --ignore-unmatch "*.~u1" >> "$remoteLocalResultFile" 2>&1
@@ -1437,8 +1466,8 @@ echo === Git Cleanup Done === >> "$remoteLocalResultFile"
 "@
         
         # Escribir el .bat en el remoto via SMB (esto SI funciona con UNC)
-        $remoteBatPath = "$twinCatRemoteDestPath\git-cleanup.bat"
-        $remoteResultPath = "$twinCatRemoteDestPath\git-cleanup-result.txt"
+        $remoteBatPath = "$gitRepoUncPath\git-cleanup.bat"
+        $remoteResultPath = "$gitRepoUncPath\git-cleanup-result.txt"
         Set-Content -Path $remoteBatPath -Value $batContent -Encoding ASCII
         Write-Info "Script creado: $remoteBatPath"
         
