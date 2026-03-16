@@ -1380,6 +1380,27 @@ if ($twinCATLocalPath) {
     }
     Write-Success "TwinCAT copiado: $copiedCount archivos (sin .git/)"
     Write-Info "Nota: .git/ no se copia - los tecnicos clonan el repo en el servidor"
+    
+    # Limpiar cambios de maquina (AMS NetId, .xti, .plcproj, ficheros temporales)
+    # Si el repo tiene .git, hacer checkout para descartar diferencias de configuracion local
+    $remoteGitDir = Join-Path $twinCatRemoteDestPath ".git"
+    if (Test-Path $remoteGitDir) {
+        Write-Step "Limpiando diferencias de maquina en TwinCAT (git checkout + clean)..."
+        Push-Location $twinCatRemoteDestPath
+        try {
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
+            $checkoutResult = git checkout -- . 2>&1
+            $cleanResult = git clean -fd 2>&1
+            $ErrorActionPreference = $prevEAP
+            Write-Success "TwinCAT repo limpiado (descartados cambios de maquina y temporales)"
+        } catch {
+            Write-Info "No se pudo limpiar el repo TwinCAT (no critico)"
+        } finally {
+            Pop-Location
+        }
+    } else {
+        Write-Info "No hay .git en destino - los tecnicos clonaran el repo manualmente"
+    }
 } else {
     Write-Warning "⚠️ No se encontro repositorio TwinCAT local - Saltando"
     Write-Info "   Buscado en: $twinCATDevPath y $twinCATRoot\SW.PC.Twincat_3\"
