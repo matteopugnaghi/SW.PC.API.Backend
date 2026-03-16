@@ -1366,11 +1366,19 @@ if ($twinCATLocalPath) {
         New-Item -ItemType Directory -Path $twinCatRemoteDestPath -Force | Out-Null
     }
     
-    # Copiar archivos (excluyendo .git para no romper el repo en destino si ya tiene uno)
+    # Copiar archivos excluyendo:
+    # - .git/ (no romper repo en destino)
+    # - *.~u, *.~u1 (ficheros temporales de usuario TwinCAT)
+    # - _Config/PLC/*.xti (config de target AMS NetId, especifica de cada maquina)
     $twinCATFiles = Get-ChildItem -Path $twinCATLocalPath -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' }
+        Where-Object { 
+            $_.FullName -notmatch '[\\/]\.git[\\/]' -and
+            $_.Name -notmatch '\.~u\d?$' -and
+            $_.FullName -notmatch '[\\/]_Config[\\/]PLC[\\/].*\.xti$'
+        }
     
     $copiedCount = 0
+    $skippedCount = 0
     foreach ($file in $twinCATFiles) {
         $relativePath = $file.FullName.Substring($twinCATLocalPath.Length)
         $destFile = Join-Path $twinCatRemoteDestPath $relativePath
@@ -1378,31 +1386,21 @@ if ($twinCATLocalPath) {
         if (-not (Test-Path $destDir)) {
             New-Item -ItemType Directory -Path $destDir -Force | Out-Null
         }
+        
+        # .sln y .plcproj: solo copiar si NO existen en destino (evitar sobreescribir config de maquina)
+        if ($file.Extension -in '.sln', '.plcproj') {
+            if (Test-Path $destFile) {
+                $skippedCount++
+                continue
+            }
+        }
+        
         Copy-Item -Path $file.FullName -Destination $destFile -Force -ErrorAction SilentlyContinue
         $copiedCount++
     }
-    Write-Success "TwinCAT copiado: $copiedCount archivos (sin .git/)"
-    Write-Info "Nota: .git/ no se copia - los tecnicos clonan el repo en el servidor"
-    
-    # Limpiar cambios de maquina (AMS NetId, .xti, .plcproj, ficheros temporales)
-    # Si el repo tiene .git, hacer checkout para descartar diferencias de configuracion local
-    $remoteGitDir = Join-Path $twinCatRemoteDestPath ".git"
-    if (Test-Path $remoteGitDir) {
-        Write-Step "Limpiando diferencias de maquina en TwinCAT (git checkout + clean)..."
-        Push-Location $twinCatRemoteDestPath
-        try {
-            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
-            $checkoutResult = git checkout -- . 2>&1
-            $cleanResult = git clean -fd 2>&1
-            $ErrorActionPreference = $prevEAP
-            Write-Success "TwinCAT repo limpiado (descartados cambios de maquina y temporales)"
-        } catch {
-            Write-Info "No se pudo limpiar el repo TwinCAT (no critico)"
-        } finally {
-            Pop-Location
-        }
-    } else {
-        Write-Info "No hay .git en destino - los tecnicos clonaran el repo manualmente"
+    Write-Success "TwinCAT copiado: $copiedCount archivos (sin .git/, .xti, .~u)"
+    if ($skippedCount -gt 0) {
+        Write-Info "Preservados $skippedCount archivos de maquina (.sln, .plcproj ya existentes)"
     }
 } else {
     Write-Warning "⚠️ No se encontro repositorio TwinCAT local - Saltando"
