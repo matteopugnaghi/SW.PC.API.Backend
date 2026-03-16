@@ -1618,31 +1618,6 @@ if (Test-Path $certRemoteDest) {
     }
 }
 
-# ============================================================
-# PASO 9.5: Copiar instalador de .NET Runtime
-# ============================================================
-Write-Header "PASO 9.5: Preparando instalador de .NET Runtime"
-
-$dotnetInstallerLocal = "$BackendPath\Installers\aspnetcore-runtime-8.0.22-win-x64.exe"
-$dotnetInstallerRemote = "$RemotePath\Installers\aspnetcore-runtime-8.0.22-win-x64.exe"
-
-if (Test-Path $dotnetInstallerLocal) {
-    Write-Step "Copiando instalador de .NET Runtime..."
-    
-    # Crear carpeta Installers en remoto
-    if (-not (Test-Path "$RemotePath\Installers")) {
-        New-Item -ItemType Directory -Path "$RemotePath\Installers" -Force | Out-Null
-    }
-    
-    # Copiar instalador
-    Copy-Item -Path $dotnetInstallerLocal -Destination $dotnetInstallerRemote -Force
-    Write-Success "Instalador copiado a: C:\Aquafrisch Supervisor\Installers\"
-    Write-Info "El script de inicio verificara e instalara .NET automaticamente si es necesario"
-} else {
-    Write-Info "No se encontro instalador de .NET en: $dotnetInstallerLocal"
-    Write-Info "Si el PC destino no tiene .NET 8, descargalo de: https://dotnet.microsoft.com/download/dotnet/8.0"
-}
-
 # ============================================
 # PASO 10: Registrar como Servicio de Windows
 # ============================================
@@ -1719,35 +1694,6 @@ if ($startResult -match "START_PENDING|RUNNING") {
 } else {
     Write-Error2 "Error arrancando servicio: $startResult"
 }
-
-# Copiar .bat para modo consola (debugging)
-$batContent = @"
-@echo off
-echo ============================================
-echo  AQUAFRISCH SUPERVISOR - Modo Consola (Debug)
-echo ============================================
-echo.
-echo NOTA: El modo normal es via servicio Windows.
-echo       Este .bat es solo para depuracion.
-echo.
-echo Deteniendo servicio primero...
-sc stop $serviceName 2>nul
-timeout /t 2 /nobreak >nul
-echo.
-echo Iniciando en modo consola...
-echo   HTTP:  http://localhost:5000
-echo   HTTPS: https://localhost:5001 (seguro)
-echo.
-echo Presiona Ctrl+C para detener
-echo.
-cd /d "$InstallPath\Backend"
-SW.PC.API.Backend.exe
-pause
-"@
-
-$startScriptPath = "$RemotePath\Start-Supervisor.bat"
-Set-Content -Path $startScriptPath -Value $batContent -Encoding ASCII
-Write-Info "Start-Supervisor.bat copiado (modo consola para debugging)"
 
 # ============================================
 # PASO 10.5: Configurar Firewall
@@ -1826,7 +1772,6 @@ Write-Host "  - HTTPS: https://${TargetIP}:5001 (SEGURO - RECOMENDADO)" -Foregro
 Write-Host ""
 Write-Host "  NOTA: El servidor esta corriendo como servicio Windows." -ForegroundColor Yellow
 Write-Host "        Se inicia automaticamente con el PC y se reinicia en caso de fallo." -ForegroundColor Yellow
-Write-Host "        Para depuracion, usa: $InstallPath\Start-Supervisor.bat" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  NOTA: El certificado SSL es autofirmado. El navegador mostrara" -ForegroundColor Yellow
 Write-Host "        una advertencia la primera vez. Esto es normal en redes internas." -ForegroundColor Yellow
