@@ -48,6 +48,21 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         /// <summary>
+        /// Diagnóstico: ver las rutas de repositorios detectadas
+        /// </summary>
+        [HttpGet("repo-paths")]
+        public IActionResult GetRepoPaths()
+        {
+            var paths = _integrityService.GetRepositoryPaths();
+            return Ok(new
+            {
+                backend = new { path = paths.Backend, exists = Directory.Exists(paths.Backend), hasGit = Directory.Exists(Path.Combine(paths.Backend ?? "", ".git")) },
+                frontend = new { path = paths.Frontend, exists = Directory.Exists(paths.Frontend), hasGit = Directory.Exists(Path.Combine(paths.Frontend ?? "", ".git")) },
+                twincat = new { path = paths.TwinCAT, exists = Directory.Exists(paths.TwinCAT), hasGit = Directory.Exists(Path.Combine(paths.TwinCAT ?? "", ".git")) }
+            });
+        }
+
+        /// <summary>
         /// Forzar re-verificación de integridad de todos los componentes
         /// </summary>
         /// <remarks>

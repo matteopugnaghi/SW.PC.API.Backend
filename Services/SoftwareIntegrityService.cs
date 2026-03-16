@@ -104,6 +104,8 @@ namespace SW.PC.API.Backend.Services
             _frontendRepoPath = Path.GetFullPath(Path.Combine(_backendRepoPath, "..", "SW.PC.REACT.Frontend", "my-3d-app"));
 
             _twinCatPlcRepoPath = AutoDetectTwinCatPath();
+            _logger.LogInformation("🔧 Paths configured: Backend={Backend}, Frontend={Frontend}, TwinCAT={TwinCAT}",
+                _backendRepoPath, _frontendRepoPath, _twinCatPlcRepoPath);
 
             // 🔐 Ruta del archivo de persistencia de estado
             _stateFilePath = Path.Combine(_backendRepoPath, "integrity-state.json");
@@ -808,7 +810,25 @@ namespace SW.PC.API.Backend.Services
 
                 process.Start();
                 var output = await process.StandardOutput.ReadToEndAsync();
-                await process.WaitForExitAsync();
+                
+                // Timeout de 15 segundos para evitar que git fetch se cuelgue pidiendo credenciales
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                try
+                {
+                    await process.WaitForExitAsync(cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("⏱️ Git command timed out after 15s: git {Args} (in {Dir})", arguments, workingDir);
+                    try { process.Kill(true); } catch { }
+                    return "";
+                }
+
+                if (process.ExitCode != 0)
+                {
+                    var stderr = await process.StandardError.ReadToEndAsync();
+                    _logger.LogDebug("Git command exited with code {Code}: git {Args} | stderr: {Err}", process.ExitCode, arguments, stderr);
+                }
 
                 return output;
             }
@@ -1047,9 +1067,22 @@ namespace SW.PC.API.Backend.Services
         {
             var syncInfo = new RemoteSyncInfo { ComponentName = name };
 
+            _logger.LogInformation("🔄 Checking sync for {Name}: path={Path}", name, repoPath);
+
             if (!Directory.Exists(repoPath))
             {
+                _logger.LogWarning("🔄 {Name}: directory does not exist: {Path}", name, repoPath);
                 syncInfo.Status = "no-repo";
+                return syncInfo;
+            }
+
+            // Verificar que es un repo Git antes de ejecutar comandos que se pueden colgar
+            var gitDir = Path.Combine(repoPath, ".git");
+            if (!Directory.Exists(gitDir) && !File.Exists(gitDir))
+            {
+                _logger.LogWarning("🔄 {Name}: path exists but no .git found: {Path}", name, repoPath);
+                syncInfo.Status = "no-repo";
+                syncInfo.Message = $"No .git in: {repoPath}";
                 return syncInfo;
             }
 
