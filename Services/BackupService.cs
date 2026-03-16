@@ -78,6 +78,7 @@ namespace SW.PC.API.Backend.Services
         private readonly IExcelConfigService _excelConfig;
         private readonly IAuditLogService _auditLog;
         private readonly IWebHostEnvironment _environment;
+        private readonly ISoftwareIntegrityService _integrityService;
         
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -91,7 +92,8 @@ namespace SW.PC.API.Backend.Services
             IBackupCertificateService certificateService,
             IExcelConfigService excelConfig,
             IAuditLogService auditLog,
-            IWebHostEnvironment environment)
+            IWebHostEnvironment environment,
+            ISoftwareIntegrityService integrityService)
         {
             _logger = logger;
             _projectContext = projectContext;
@@ -99,6 +101,7 @@ namespace SW.PC.API.Backend.Services
             _excelConfig = excelConfig;
             _auditLog = auditLog;
             _environment = environment;
+            _integrityService = integrityService;
         }
 
         /// <summary>
@@ -148,8 +151,33 @@ namespace SW.PC.API.Backend.Services
                 TranslationsPath = Path.Combine(projectRoot, "translations"), // Multi-proyecto: Projects/{id}/translations
                 DocsPath = Path.Combine(projectRoot, "docs"),              // Multi-proyecto: Projects/{id}/docs
                 LogsPath = Path.Combine(projectRoot, "logs"),               // Multi-proyecto: Projects/{id}/logs (NxLog JSONL)
-                TwinCatPath = Path.Combine(Path.GetFullPath(Path.Combine(contentRoot, "..")), "TwinCAT", projectId) // ../TwinCAT/{projectId}/
+                TwinCatPath = ResolveActualTwinCatPath(contentRoot, projectId) // Auto-detectado via ISoftwareIntegrityService
             };
+        }
+
+        /// <summary>
+        /// Resuelve la ruta real del repo TwinCAT usando la auto-detección de SoftwareIntegrityService.
+        /// El repo puede tener un nombre diferente al projectId (ej: A72.TOUTWP vs test-proyecto).
+        /// </summary>
+        private string ResolveActualTwinCatPath(string contentRoot, string projectId)
+        {
+            try
+            {
+                // Usar la ruta auto-detectada por SoftwareIntegrityService (que ya maneja fallbacks)
+                var (_, _, twinCatPath) = _integrityService.GetRepositoryPaths();
+                if (!string.IsNullOrEmpty(twinCatPath) && Directory.Exists(twinCatPath))
+                {
+                    _logger.LogInformation("🔧 Backup TwinCAT path (auto-detected): {Path}", twinCatPath);
+                    return twinCatPath;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not get TwinCAT path from IntegrityService, using fallback");
+            }
+
+            // Fallback: ruta estática ../TwinCAT/{projectId}/
+            return Path.Combine(Path.GetFullPath(Path.Combine(contentRoot, "..")), "TwinCAT", projectId);
         }
 
         public async Task<BackupOperationResponse> CreateBackupAsync(string projectId, CreateBackupRequest request, string? userId = null)
