@@ -1410,53 +1410,43 @@ if ($twinCATLocalPath) {
         Write-Info "Preservados $skippedCount archivos de maquina (.sln, .plcproj ya existentes)"
     }
     
-    # Limpiar indice git en destino: dejar de trackear ficheros machine-specific
-    # Necesario porque el repo remoto tiene .xti y .~u en el indice de antes del fix
+    # ==========================================
+    # Git en destino: asegurar que existe .git y limpiar indice
+    # ==========================================
+    # El deploy copia archivos pero NO .git/ — si produccion no tiene .git, copiarlo desde local
+    # Luego limpiar indice: rm --cached de .xti/.~u y assume-unchanged de .sln/.plcproj
     # NOTA: git -C NO funciona con rutas de red (UNC ni unidades mapeadas)
     #       Solucion: crear script .bat en remoto via SMB, ejecutar via schtasks
     
-    # Buscar .git en el directorio del proyecto O un nivel arriba (SW.PC.Twincat_3)
-    # NOTA: .git puede ser carpeta oculta (atributo Hidden) - Test-Path la ve pero Get-ChildItem no sin -Force
-    $gitRepoUncPath = $null
-    $gitRepoLocalPath = $null  # Ruta local en la maquina remota
-    
-    # Probar con Get-Item -Force porque .git es carpeta oculta en Windows
+    # Buscar .git en produccion (puede ser carpeta oculta)
     $gitInProject = Get-Item "$twinCatRemoteDestPath\.git" -Force -ErrorAction SilentlyContinue
-    $gitInParent = Get-Item "$RemotePath\SW.PC.Twincat_3\.git" -Force -ErrorAction SilentlyContinue
     
-    if ($gitInProject) {
-        $gitRepoUncPath = $twinCatRemoteDestPath
-        $gitRepoLocalPath = "$InstallPath\SW.PC.Twincat_3\$twinCATLocalName"
-        Write-Info "Git repo encontrado en: $twinCatRemoteDestPath\.git ($(if($gitInProject.PSIsContainer){'carpeta'}else{'fichero'}))"
-    } elseif ($gitInParent) {
-        $gitRepoUncPath = "$RemotePath\SW.PC.Twincat_3"
-        $gitRepoLocalPath = "$InstallPath\SW.PC.Twincat_3"
-        Write-Info "Git repo encontrado un nivel arriba: $RemotePath\SW.PC.Twincat_3\.git"
+    if (-not $gitInProject) {
+        # No hay .git en produccion — copiar desde local
+        $localGitDir = Join-Path $twinCATLocalPath ".git"
+        if (Test-Path $localGitDir) {
+            Write-Step "Copiando .git/ a produccion (primera vez)..."
+            $remoteGitDir = "$twinCatRemoteDestPath\.git"
+            # Copiar toda la carpeta .git recursivamente
+            Copy-Item -Path $localGitDir -Destination $remoteGitDir -Recurse -Force -ErrorAction SilentlyContinue
+            $gitInProject = Get-Item $remoteGitDir -Force -ErrorAction SilentlyContinue
+            if ($gitInProject) {
+                Write-Success ".git/ copiado a produccion ($((Get-ChildItem $remoteGitDir -Recurse -File | Measure-Object).Count) archivos)"
+            } else {
+                Write-Warning "Error: no se pudo copiar .git/ a produccion"
+            }
+        } else {
+            Write-Warning "No hay .git en local ($localGitDir) — no se puede copiar a produccion"
+        }
     } else {
-        Write-Warning "No se encontro .git en ninguno de estos directorios:"
-        Write-Info "  1) $twinCatRemoteDestPath\.git"
-        Write-Info "  2) $RemotePath\SW.PC.Twincat_3\.git"
-        # Listar contenido con -Force para ver carpetas ocultas
-        Write-Info "  Contenido de $twinCatRemoteDestPath (con -Force):"
-        Get-ChildItem -Path $twinCatRemoteDestPath -Force -ErrorAction SilentlyContinue | 
-            Select-Object -First 20 | ForEach-Object { 
-                $attr = if($_.Attributes -match 'Hidden'){'[H]'}else{''}
-                Write-Info "    $($_.Name)$(if($_.PSIsContainer){'/'} else {''}) $attr" 
-            }
-        $parentPath = "$RemotePath\SW.PC.Twincat_3"
-        Write-Info "  Contenido de ${parentPath} (con -Force):"
-        Get-ChildItem -Path $parentPath -Force -ErrorAction SilentlyContinue | 
-            Select-Object -First 20 | ForEach-Object { 
-                $attr = if($_.Attributes -match 'Hidden'){'[H]'}else{''}
-                Write-Info "    $($_.Name)$(if($_.PSIsContainer){'/'} else {''}) $attr"
-            }
+        Write-Info "Git repo ya existe en produccion: $twinCatRemoteDestPath\.git"
     }
     
-    if ($gitRepoLocalPath) {
+    # Ejecutar limpieza de indice git EN la maquina remota via schtasks
+    if ($gitInProject) {
         Write-Step "Limpiando indice git (ejecutando git EN la maquina remota via schtasks)..."
         
-        # Ruta LOCAL en la maquina remota (no UNC)
-        $remoteLocalRepoPath = $gitRepoLocalPath
+        $remoteLocalRepoPath = "$InstallPath\SW.PC.Twincat_3\$twinCATLocalName"
         $remoteLocalResultFile = "$remoteLocalRepoPath\git-cleanup-result.txt"
         
         # Crear script .bat que se ejecutara EN la maquina remota
@@ -1464,10 +1454,7 @@ if ($twinCATLocalPath) {
 @echo off
 cd /d "$remoteLocalRepoPath"
 echo === Git Cleanup Start === > "$remoteLocalResultFile"
-echo Repo: $remoteLocalRepoPath >> "$remoteLocalResultFile"
-echo Working dir: >> "$remoteLocalResultFile"
-cd >> "$remoteLocalResultFile"
-dir .git >> "$remoteLocalResultFile" 2>&1
+echo Repo: %CD% >> "$remoteLocalResultFile"
 git rm --cached -r --ignore-unmatch "*.xti" >> "$remoteLocalResultFile" 2>&1
 git rm --cached -r --ignore-unmatch "*.~u" >> "$remoteLocalResultFile" 2>&1
 git rm --cached -r --ignore-unmatch "*.~u1" >> "$remoteLocalResultFile" 2>&1
@@ -1477,43 +1464,34 @@ git status --short >> "$remoteLocalResultFile" 2>&1
 echo === Git Cleanup Done === >> "$remoteLocalResultFile"
 "@
         
-        # Escribir el .bat en el remoto via SMB (esto SI funciona con UNC)
-        $remoteBatPath = "$gitRepoUncPath\git-cleanup.bat"
-        $remoteResultPath = "$gitRepoUncPath\git-cleanup-result.txt"
+        $remoteBatPath = "$twinCatRemoteDestPath\git-cleanup.bat"
+        $remoteResultPath = "$twinCatRemoteDestPath\git-cleanup-result.txt"
         Set-Content -Path $remoteBatPath -Value $batContent -Encoding ASCII
-        Write-Info "Script creado: $remoteBatPath"
         
-        # Ejecutar via schtasks en la maquina remota
         $taskName = "AquafrischGitCleanup"
         try {
-            # Eliminar tarea previa si existe
             schtasks /delete /s $TargetIP /u "$TargetIP\$TargetUser" /p "$TargetPassword" /tn $taskName /f 2>&1 | Out-Null
             
-            # Crear tarea programada
             $createResult = schtasks /create /s $TargetIP /u "$TargetIP\$TargetUser" /p "$TargetPassword" `
                 /tn $taskName /tr "cmd /c `"$remoteLocalRepoPath\git-cleanup.bat`"" `
                 /sc once /st 00:00 /f /ru "$TargetUser" /rp "$TargetPassword" /rl HIGHEST 2>&1
             Write-Info "schtasks create: $createResult"
             
-            # Ejecutar la tarea
             $runResult = schtasks /run /s $TargetIP /u "$TargetIP\$TargetUser" /p "$TargetPassword" /tn $taskName 2>&1
             Write-Info "schtasks run: $runResult"
             
             # Esperar a que termine (max 30 seg)
             $waited = 0
-            $maxWait = 30
-            while ($waited -lt $maxWait) {
+            while ($waited -lt 30) {
                 Start-Sleep -Seconds 2
                 $waited += 2
                 if (Test-Path $remoteResultPath) {
                     $content = Get-Content $remoteResultPath -Raw -ErrorAction SilentlyContinue
-                    if ($content -and $content -match "Git Cleanup Done") {
-                        break
-                    }
+                    if ($content -and $content -match "Git Cleanup Done") { break }
                 }
             }
             
-            # Leer resultado
+            # Mostrar resultado
             if (Test-Path $remoteResultPath) {
                 $resultContent = Get-Content $remoteResultPath -ErrorAction SilentlyContinue
                 Write-Info "--- Resultado git cleanup remoto ---"
@@ -1521,14 +1499,9 @@ echo === Git Cleanup Done === >> "$remoteLocalResultFile"
                     if ($line.Trim()) { Write-Info "  $line" }
                 }
                 Write-Info "--- Fin resultado ---"
-                
-                # Comprobar si quedo limpio
-                $statusLines = $resultContent | Where-Object { $_ -notmatch '(===|Repo:|rm |\.xti|\.~u|\.plcproj|\.sln)' -and $_.Trim() }
-                if (-not $statusLines -or ($resultContent -match "Git Cleanup Done")) {
-                    Write-Success "Git cleanup ejecutado correctamente en maquina remota"
-                }
+                Write-Success "Git cleanup ejecutado en maquina remota"
             } else {
-                Write-Warning "No se encontro resultado despues de ${maxWait}s - verificar manualmente"
+                Write-Warning "No se encontro resultado despues de 30s — verificar manualmente"
             }
             
             # Limpieza
