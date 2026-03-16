@@ -375,7 +375,7 @@ $folders = @(
     $remoteBackendPath,
     "$remoteBackendPath\Projects",
     "$remoteBackendPath\wwwroot",
-    "$remoteInstallPath\TwinCAT"      # Carpeta para repos TwinCAT PLC (tecnicos clonan aqui)
+    "$remoteInstallPath\SW.PC.Twincat_3"      # Carpeta para repos TwinCAT PLC (tecnicos clonan aqui)
 )
 
 foreach ($folder in $folders) {
@@ -388,10 +388,10 @@ foreach ($folder in $folders) {
 }
 
 # Permisos de TwinCAT: el servicio corre como LocalSystem, tecnicos clonan como Administrator
-$twinCatRemotePath = "$remoteInstallPath\TwinCAT"
+$twinCatRemotePath = "$remoteInstallPath\SW.PC.Twincat_3"
 if (Test-Path $twinCatRemotePath) {
     # Convertir ruta SMB a ruta local para icacls remoto
-    $twinCatLocalPath = "C:\Aquafrisch Supervisor\TwinCAT"
+    $twinCatLocalPath = "C:\Aquafrisch Supervisor\SW.PC.Twincat_3"
     $icaclsResult = icacls.exe $twinCatRemotePath /grant Everyone:"(OI)(CI)F" /T /Q 2>&1
     if ($LASTEXITCODE -eq 0) {
         Write-Success "Permisos TwinCAT configurados (Everyone: Full Control)"

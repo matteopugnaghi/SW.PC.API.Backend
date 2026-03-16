@@ -526,7 +526,7 @@ if ($ProjectId -ne "default" -and (Test-Path $projectFolder)) {
         $twinCATChangelog = Generate-Changelog -RepoPath $twinCATPath -ComponentName "TwinCAT"
     } else {
         # Try TwinCAT/ folder (deployed structure) - scan for first subfolder with .git
-        $twinCATFolder = Join-Path $twinCATRoot "TwinCAT"
+        $twinCATFolder = Join-Path $twinCATRoot "SW.PC.Twincat_3"
         if (Test-Path $twinCATFolder) {
             $twinCATRepo = Get-ChildItem -Path $twinCATFolder -Directory -ErrorAction SilentlyContinue |
                 Where-Object { Test-Path (Join-Path $_.FullName ".git") } | Select-Object -First 1
@@ -813,7 +813,7 @@ $folders = @(
     $RemotePath,
     "$RemotePath\Backend",
     "$RemotePath\Backend\wwwroot",
-    "$RemotePath\TwinCAT"             # Carpeta para repos TwinCAT PLC (tecnicos clonan aqui)
+    "$RemotePath\SW.PC.Twincat_3"             # Carpeta para repos TwinCAT PLC (tecnicos clonan aqui)
 )
 
 # Añadir carpeta del proyecto activo (SOLO el proyecto que se despliega)
@@ -840,7 +840,7 @@ foreach ($folder in $folders) {
 }
 
 # Permisos de TwinCAT: el servicio corre como LocalSystem, tecnicos clonan como Administrator
-$twinCatRemotePath = "$RemotePath\TwinCAT"
+$twinCatRemotePath = "$RemotePath\SW.PC.Twincat_3"
 if (Test-Path $twinCatRemotePath) {
     $icaclsResult = icacls.exe $twinCatRemotePath /grant Everyone:"(OI)(CI)F" /T /Q 2>&1
     if ($LASTEXITCODE -eq 0) {

@@ -176,8 +176,8 @@ namespace SW.PC.API.Backend.Services
                 _logger.LogWarning(ex, "Could not get TwinCAT path from IntegrityService, using fallback");
             }
 
-            // Fallback: ruta estática ../TwinCAT/{projectId}/
-            return Path.Combine(Path.GetFullPath(Path.Combine(contentRoot, "..")), "TwinCAT", projectId);
+            // Fallback: ruta estática ../SW.PC.Twincat_3/{projectId}/
+            return Path.Combine(Path.GetFullPath(Path.Combine(contentRoot, "..")), "SW.PC.Twincat_3", projectId);
         }
 
         public async Task<BackupOperationResponse> CreateBackupAsync(string projectId, CreateBackupRequest request, string? userId = null)
@@ -348,7 +348,7 @@ namespace SW.PC.API.Backend.Services
                         }
                     }
                     
-                    // Agregar repositorio TwinCAT PLC (carpeta hermana: ../TwinCAT/{projectId}/)
+                    // Agregar repositorio TwinCAT PLC (carpeta hermana: ../SW.PC.Twincat_3/{projectId}/)
                     if (request.IncludeTwinCAT && !string.IsNullOrEmpty(projectPaths.TwinCatPath))
                     {
                         var twinCatPath = projectPaths.TwinCatPath;

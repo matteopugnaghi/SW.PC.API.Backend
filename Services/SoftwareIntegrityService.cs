@@ -182,8 +182,8 @@ namespace SW.PC.API.Backend.Services
                 return devPath;
             }
 
-            // 2. Desplegado: carpeta TwinCAT/ hermana de Backend/
-            var twinCatFolder = Path.Combine(parentDir, "TwinCAT");
+            // 2. Desplegado: carpeta SW.PC.Twincat_3/ hermana de Backend/
+            var twinCatFolder = Path.Combine(parentDir, "SW.PC.Twincat_3");
             if (Directory.Exists(twinCatFolder))
             {
                 // 2a. Preferir subfolder con mismo nombre que proyecto activo
