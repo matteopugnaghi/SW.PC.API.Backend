@@ -250,7 +250,8 @@ namespace SW.PC.API.Backend.Services
                         var configPath = projectPaths.ConfigPath;
                         if (Directory.Exists(configPath))
                         {
-                            var configFiles = Directory.GetFiles(configPath, "*.*", SearchOption.AllDirectories);
+                            var configFiles = Directory.GetFiles(configPath, "*.*", SearchOption.AllDirectories)
+                                .Where(f => !Path.GetFileName(f).StartsWith("~$")).ToArray(); // Excluir archivos temporales de Excel
                             foreach (var file in configFiles)
                             {
                                 var relativePath = Path.GetRelativePath(projectPaths.ProjectRoot, file);
@@ -722,12 +723,21 @@ namespace SW.PC.API.Backend.Services
                         
                         if (shouldRestore)
                         {
-                            // Crear directorio si existe, o extraer directamente en raíz
-                            if (!string.IsNullOrEmpty(directory))
+                            try
                             {
-                                Directory.CreateDirectory(directory);
+                                // Crear directorio si existe, o extraer directamente en raíz
+                                if (!string.IsNullOrEmpty(directory))
+                                {
+                                    Directory.CreateDirectory(directory);
+                                }
+                                entry.ExtractToFile(fullPath, overwrite: true);
                             }
-                            entry.ExtractToFile(fullPath, overwrite: true);
+                            catch (IOException ex) when (ex.Message.Contains("denied") || ex.Message.Contains("used by another process"))
+                            {
+                                // Archivo bloqueado (ej: ~$Excel temp) — warning, no abortar
+                                response.Warnings.Add($"Could not overwrite locked file: {entryPath}");
+                                _logger.LogWarning("⚠️ Skipping locked file during restore: {File} — {Error}", entryPath, ex.Message);
+                            }
                         }
                     }
                 }
