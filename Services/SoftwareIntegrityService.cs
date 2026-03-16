@@ -219,6 +219,14 @@ namespace SW.PC.API.Backend.Services
                 {
                     _logger.LogWarning(ex, "Error scanning TwinCAT folder: {Path}", twinCatFolder);
                 }
+
+                // 2c. Comprobar si TwinCAT/ raíz tiene .git directamente (clonado sin subfolder)
+                if (Directory.Exists(Path.Combine(twinCatFolder, ".git")))
+                {
+                    _logger.LogInformation("🔧 TwinCAT auto-detected (root): {Path}", twinCatFolder);
+                    return twinCatFolder;
+                }
+
                 // TwinCAT/ exists but no .git subfolder yet — return the folder itself
                 _logger.LogInformation("🔧 TwinCAT folder exists but no repo found yet: {Path}", twinCatFolder);
                 return twinCatFolder;
