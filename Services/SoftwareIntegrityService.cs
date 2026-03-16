@@ -784,7 +784,7 @@ namespace SW.PC.API.Backend.Services
                     StartInfo = new ProcessStartInfo
                     {
                         FileName = "git",
-                        Arguments = arguments,
+                        Arguments = $"-c safe.directory=* {arguments}",
                         WorkingDirectory = workingDir,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
