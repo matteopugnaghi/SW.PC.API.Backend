@@ -1412,19 +1412,58 @@ if ($twinCATLocalPath) {
     
     # Limpiar indice git en destino: dejar de trackear ficheros machine-specific
     # Necesario porque el repo remoto tiene .xti y .~u en el indice de antes del fix
+    # NOTA: git -C NO funciona con rutas UNC (\\IP\C$\...) — mapeamos unidad temporal
     if (Test-Path "$twinCatRemoteDestPath\.git") {
         Write-Step "Limpiando indice git (rm --cached de ficheros machine-specific)..."
-        try {
-            # Quitar .xti, .~u, .~u1 del tracking (--ignore-unmatch evita error si no estan en index)
-            # Usa globs de git, no necesita que los ficheros existan en disco
-            git -C "$twinCatRemoteDestPath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.xti" 2>&1 | Out-Null
-            git -C "$twinCatRemoteDestPath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.~u" 2>&1 | Out-Null
-            git -C "$twinCatRemoteDestPath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.~u1" 2>&1 | Out-Null
-            # Descartar cambios locales en .sln y .plcproj (AMS NetId de esta maquina)
-            git -C "$twinCatRemoteDestPath" -c safe.directory=* checkout -- "*.sln" "*.plcproj" 2>&1 | Out-Null
-            Write-Success "Indice git limpio (machine-specific files untracked)"
-        } catch {
-            Write-Info "No se pudo limpiar indice git: $_"
+        
+        # Buscar letra de unidad libre para mapear \\IP\C$
+        $tempDriveLetter = $null
+        foreach ($letter in @('T','U','V','W','X','Y','Z')) {
+            if (-not (Test-Path "${letter}:\")) {
+                $tempDriveLetter = $letter
+                break
+            }
+        }
+        
+        if ($tempDriveLetter) {
+            try {
+                # Mapear unidad temporal (la conexion a \\IP\C$ ya esta establecida en PASO 4)
+                net use "${tempDriveLetter}:" "\\$TargetIP\C`$" /persistent:no 2>&1 | Out-Null
+                $twinCatDrivePath = "${tempDriveLetter}:\$($InstallPath.TrimStart('C:\'))\SW.PC.Twincat_3\$twinCATLocalName"
+                
+                Write-Info "Git via unidad temporal ${tempDriveLetter}: -> $twinCatDrivePath"
+                
+                # Quitar .xti, .~u, .~u1 del tracking (--ignore-unmatch evita error si no estan en index)
+                $gitOut = git -C "$twinCatDrivePath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.xti" 2>&1
+                if ($gitOut) { Write-Info "  rm --cached .xti: $gitOut" }
+                
+                $gitOut = git -C "$twinCatDrivePath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.~u" 2>&1
+                if ($gitOut) { Write-Info "  rm --cached .~u: $gitOut" }
+                
+                $gitOut = git -C "$twinCatDrivePath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.~u1" 2>&1
+                if ($gitOut) { Write-Info "  rm --cached .~u1: $gitOut" }
+                
+                # Descartar cambios locales en .sln y .plcproj (AMS NetId de esta maquina)
+                $gitOut = git -C "$twinCatDrivePath" -c safe.directory=* checkout -- "*.sln" "*.plcproj" 2>&1
+                if ($gitOut) { Write-Info "  checkout .sln/.plcproj: $gitOut" }
+                
+                # Verificar estado final
+                $statusOut = git -C "$twinCatDrivePath" -c safe.directory=* status --short 2>&1
+                if ($statusOut) {
+                    Write-Warning "Estado git despues de limpiar:"
+                    $statusOut | ForEach-Object { Write-Info "  $_" }
+                } else {
+                    Write-Success "Repositorio TwinCAT limpio (sin diferencias git)"
+                }
+            } catch {
+                Write-Warning "Error limpiando indice git: $_"
+            } finally {
+                # Desmapear unidad temporal
+                net use "${tempDriveLetter}:" /delete /y 2>&1 | Out-Null
+                Write-Info "Unidad temporal ${tempDriveLetter}: desmapeada"
+            }
+        } else {
+            Write-Warning "No hay letra de unidad libre (T-Z) para mapear git remoto"
         }
     }
 } else {
