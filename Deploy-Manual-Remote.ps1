@@ -1753,33 +1753,9 @@ Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -Di
 Write-Info "(Solo necesario la primera vez)"
 
 # ============================================
-# PASO 11: Crear acceso directo en escritorio
+# PASO 11: Desconectar
 # ============================================
-Write-Header "PASO 11: Acceso directo (modo debug)"
-
-try {
-    $WshShell = New-Object -ComObject WScript.Shell
-    $DesktopPath = "\\$TargetIP\C`$\Users\$TargetUser\Desktop"
-    
-    if (Test-Path $DesktopPath) {
-        $ShortcutPath = "$DesktopPath\Aquafrisch Supervisor (Debug).lnk"
-        $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-        $Shortcut.TargetPath = "$InstallPath\Start-Supervisor.bat"
-        $Shortcut.WorkingDirectory = "$InstallPath\Backend"
-        $Shortcut.Description = "Aquafrisch Supervisor - Modo Consola (Debug)"
-        $Shortcut.Save()
-        Write-Success "Acceso directo creado en escritorio (modo debug)"
-    } else {
-        Write-Info "No se pudo acceder al escritorio remoto"
-    }
-} catch {
-    Write-Info "No se pudo crear acceso directo: $_"
-}
-
-# ============================================
-# PASO 12: Desconectar
-# ============================================
-Write-Header "PASO 12: Limpieza"
+Write-Header "PASO 11: Limpieza"
 
 & net use "\\$TargetIP\C`$" /delete /y 2>&1 | Out-Null
 Write-Success "Conexion de red cerrada"
