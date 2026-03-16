@@ -1409,6 +1409,24 @@ if ($twinCATLocalPath) {
     if ($skippedCount -gt 0) {
         Write-Info "Preservados $skippedCount archivos de maquina (.sln, .plcproj ya existentes)"
     }
+    
+    # Limpiar indice git en destino: dejar de trackear ficheros machine-specific
+    # Necesario porque el repo remoto tiene .xti y .~u en el indice de antes del fix
+    if (Test-Path "$twinCatRemoteDestPath\.git") {
+        Write-Step "Limpiando indice git (rm --cached de ficheros machine-specific)..."
+        try {
+            # Quitar .xti, .~u, .~u1 del tracking (--ignore-unmatch evita error si no estan en index)
+            # Usa globs de git, no necesita que los ficheros existan en disco
+            git -C "$twinCatRemoteDestPath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.xti" 2>&1 | Out-Null
+            git -C "$twinCatRemoteDestPath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.~u" 2>&1 | Out-Null
+            git -C "$twinCatRemoteDestPath" -c safe.directory=* rm --cached -r --ignore-unmatch "*.~u1" 2>&1 | Out-Null
+            # Descartar cambios locales en .sln y .plcproj (AMS NetId de esta maquina)
+            git -C "$twinCatRemoteDestPath" -c safe.directory=* checkout -- "*.sln" "*.plcproj" 2>&1 | Out-Null
+            Write-Success "Indice git limpio (machine-specific files untracked)"
+        } catch {
+            Write-Info "No se pudo limpiar indice git: $_"
+        }
+    }
 } else {
     Write-Warning "⚠️ No se encontro repositorio TwinCAT local - Saltando"
     Write-Info "   Buscado en: $twinCATDevPath y $twinCATRoot\SW.PC.Twincat_3\"
