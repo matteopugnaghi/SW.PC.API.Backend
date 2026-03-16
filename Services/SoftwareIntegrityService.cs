@@ -1018,12 +1018,18 @@ namespace SW.PC.API.Backend.Services
                 status.FrontendSync = await GetRemoteSyncStatusAsync("Frontend", _frontendRepoPath);
                 status.TwinCatPlcSync = await GetRemoteSyncStatusAsync("TwinCAT PLC", _twinCatPlcRepoPath);
 
-                // Calcular estado general
-                var allSynced = status.BackendSync.Status == "synced" &&
-                               status.FrontendSync.Status == "synced" &&
-                               status.TwinCatPlcSync.Status == "synced";
+                // Calcular estado general: solo considerar componentes que tienen repo real
+                // Componentes desplegados sin .git ("no-repo") son normales y no cuentan como out-of-sync
+                var repoComponents = new[] { status.BackendSync, status.FrontendSync, status.TwinCatPlcSync }
+                    .Where(c => c.Status != "no-repo")
+                    .ToList();
 
-                status.OverallSyncStatus = allSynced ? "synced" : "out-of-sync";
+                if (repoComponents.Count == 0)
+                    status.OverallSyncStatus = "deployed"; // Ningún componente tiene repo (todo desplegado)
+                else if (repoComponents.All(c => c.Status == "synced"))
+                    status.OverallSyncStatus = "synced";
+                else
+                    status.OverallSyncStatus = "out-of-sync";
             }
             else
             {
@@ -1319,7 +1325,7 @@ namespace SW.PC.API.Backend.Services
     {
         public string CheckedAt { get; set; } = "";
         public bool? HasInternetConnection { get; set; } // null = desconocido, true = online, false = offline
-        public string OverallSyncStatus { get; set; } = "unknown"; // synced, out-of-sync, offline, unknown
+        public string OverallSyncStatus { get; set; } = "unknown"; // synced, out-of-sync, deployed, offline, unknown
         public RemoteSyncInfo BackendSync { get; set; } = new();
         public RemoteSyncInfo FrontendSync { get; set; } = new();
         public RemoteSyncInfo TwinCatPlcSync { get; set; } = new();
