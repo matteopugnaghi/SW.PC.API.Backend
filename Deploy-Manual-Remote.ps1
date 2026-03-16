@@ -1293,6 +1293,67 @@ $dbDestPath = "$projectDestPath\data\project.db"
         }
     }
 
+# ============================================================
+# PASO 9.0a: Copiar SW.PC.Twincat_3 (repositorio TwinCAT PLC)
+# ============================================================
+Write-Header "PASO 9.0a: Copiando SW.PC.Twincat_3 (TwinCAT PLC)"
+
+# Detectar carpeta TwinCAT local (misma logica que changelog)
+$twinCATRoot = Split-Path -Parent (Split-Path -Parent $BackendPath)
+$twinCATLocalPath = $null
+
+# Intentar ruta dev primero: ../SW.PC.TWINCAT.PLC
+$twinCATDevPath = Join-Path $twinCATRoot "SW.PC.TWINCAT.PLC"
+if (Test-Path $twinCATDevPath) {
+    $twinCATLocalPath = $twinCATDevPath
+    $twinCATLocalName = "SW.PC.TWINCAT.PLC"
+    Write-Info "TwinCAT encontrado (dev): $twinCATDevPath"
+} else {
+    # Intentar ruta deployed: ../SW.PC.Twincat_3/{subproyecto}
+    $twinCATFolder = Join-Path $twinCATRoot "SW.PC.Twincat_3"
+    if (Test-Path $twinCATFolder) {
+        $twinCATRepo = Get-ChildItem -Path $twinCATFolder -Directory -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path (Join-Path $_.FullName ".git") } | Select-Object -First 1
+        if ($twinCATRepo) {
+            $twinCATLocalPath = $twinCATRepo.FullName
+            $twinCATLocalName = $twinCATRepo.Name
+            Write-Info "TwinCAT encontrado (deployed): $($twinCATRepo.FullName)"
+        }
+    }
+}
+
+if ($twinCATLocalPath) {
+    $twinCatRemoteDestPath = "$RemotePath\SW.PC.Twincat_3\$twinCATLocalName"
+    
+    Write-Step "Copiando TwinCAT a: $twinCatRemoteDestPath"
+    
+    # Crear carpeta destino si no existe
+    if (-not (Test-Path $twinCatRemoteDestPath)) {
+        New-Item -ItemType Directory -Path $twinCatRemoteDestPath -Force | Out-Null
+    }
+    
+    # Copiar archivos (excluyendo .git para no romper el repo en destino si ya tiene uno)
+    $twinCATFiles = Get-ChildItem -Path $twinCATLocalPath -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' }
+    
+    $copiedCount = 0
+    foreach ($file in $twinCATFiles) {
+        $relativePath = $file.FullName.Substring($twinCATLocalPath.Length)
+        $destFile = Join-Path $twinCatRemoteDestPath $relativePath
+        $destDir = Split-Path -Parent $destFile
+        if (-not (Test-Path $destDir)) {
+            New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+        }
+        Copy-Item -Path $file.FullName -Destination $destFile -Force -ErrorAction SilentlyContinue
+        $copiedCount++
+    }
+    Write-Success "TwinCAT copiado: $copiedCount archivos (sin .git/)"
+    Write-Info "Nota: .git/ no se copia - los tecnicos clonan el repo en el servidor"
+} else {
+    Write-Warning "⚠️ No se encontro repositorio TwinCAT local - Saltando"
+    Write-Info "   Buscado en: $twinCATDevPath y $twinCATRoot\SW.PC.Twincat_3\"
+}
+
 # Configurar active-project.json
 Write-Step "Configurando active-project.json..."
 $activeProjectContent = @"
