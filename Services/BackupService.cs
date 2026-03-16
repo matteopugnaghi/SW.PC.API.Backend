@@ -254,7 +254,7 @@ namespace SW.PC.API.Backend.Services
                                 .Where(f => !Path.GetFileName(f).StartsWith("~$")).ToArray(); // Excluir archivos temporales de Excel
                             foreach (var file in configFiles)
                             {
-                                var relativePath = Path.GetRelativePath(projectPaths.ProjectRoot, file);
+                                var relativePath = Path.GetRelativePath(projectPaths.ProjectRoot, file).Replace('\\', '/');
                                 
                                 // Usar FileShare.ReadWrite para copiar archivos que pueden estar en uso (ej: Excel abierto por EPPlus)
                                 var entry = zipArchive.CreateEntry(relativePath);
@@ -288,7 +288,7 @@ namespace SW.PC.API.Backend.Services
                             
                             foreach (var file in allModelFiles)
                             {
-                                var relativePath = Path.GetRelativePath(projectPaths.ProjectRoot, file);
+                                var relativePath = Path.GetRelativePath(projectPaths.ProjectRoot, file).Replace('\\', '/');
                                 await AddFileToZipAsync(zipArchive, file, relativePath);
                                 
                                 manifest.Files.Add(new BackupFileEntry
@@ -311,7 +311,7 @@ namespace SW.PC.API.Backend.Services
                         var dbPath = projectPaths.DatabasePath;
                         if (File.Exists(dbPath))
                         {
-                            var relativePath = Path.GetRelativePath(projectPaths.ProjectRoot, dbPath);
+                            var relativePath = Path.GetRelativePath(projectPaths.ProjectRoot, dbPath).Replace('\\', '/');
                             
                             // SQLite: Crear copia temporal para evitar bloqueo
                             var tempDbPath = Path.Combine(Path.GetTempPath(), $"backup_db_{Guid.NewGuid()}.db");
@@ -369,7 +369,7 @@ namespace SW.PC.API.Backend.Services
 
                             foreach (var file in twinCatFiles)
                             {
-                                var relativePath = Path.Combine("twincat", Path.GetRelativePath(twinCatPath, file));
+                                var relativePath = Path.Combine("twincat", Path.GetRelativePath(twinCatPath, file)).Replace('\\', '/');
                                 await AddFileToZipAsync(zipArchive, file, relativePath);
                                 
                                 manifest.Files.Add(new BackupFileEntry
@@ -432,7 +432,7 @@ namespace SW.PC.API.Backend.Services
                         var sbomFiles = Directory.GetFiles(sbomPath, "*.*", SearchOption.AllDirectories);
                         foreach (var sbomFile in sbomFiles)
                         {
-                            var relativePath = Path.Combine("sbom", Path.GetRelativePath(sbomPath, sbomFile));
+                            var relativePath = Path.Combine("sbom", Path.GetRelativePath(sbomPath, sbomFile)).Replace('\\', '/');
                             await AddFileToZipAsync(zipArchive, sbomFile, relativePath);
                             
                             manifest.Files.Add(new BackupFileEntry
@@ -460,7 +460,7 @@ namespace SW.PC.API.Backend.Services
                         var auditFiles = Directory.GetFiles(auditPath, "*.json", SearchOption.AllDirectories);
                         foreach (var auditFile in auditFiles)
                         {
-                            var relativePath = Path.Combine("audit", Path.GetRelativePath(auditPath, auditFile));
+                            var relativePath = Path.Combine("audit", Path.GetRelativePath(auditPath, auditFile)).Replace('\\', '/');
                             await AddFileToZipAsync(zipArchive, auditFile, relativePath);
                             
                             manifest.Files.Add(new BackupFileEntry
@@ -485,7 +485,7 @@ namespace SW.PC.API.Backend.Services
                         var translationFiles = Directory.GetFiles(translationsPath, "*.*", SearchOption.AllDirectories);
                         foreach (var transFile in translationFiles)
                         {
-                            var relativePath = Path.Combine("translations", Path.GetRelativePath(translationsPath, transFile));
+                            var relativePath = Path.Combine("translations", Path.GetRelativePath(translationsPath, transFile)).Replace('\\', '/');
                             await AddFileToZipAsync(zipArchive, transFile, relativePath);
                             
                             manifest.Files.Add(new BackupFileEntry
@@ -510,7 +510,7 @@ namespace SW.PC.API.Backend.Services
                         var logFiles = Directory.GetFiles(logsPath, "*.log", SearchOption.AllDirectories);
                         foreach (var logFile in logFiles)
                         {
-                            var relativePath = Path.Combine("logs", Path.GetRelativePath(logsPath, logFile));
+                            var relativePath = Path.Combine("logs", Path.GetRelativePath(logsPath, logFile)).Replace('\\', '/');
                             await AddFileToZipAsync(zipArchive, logFile, relativePath);
                             
                             manifest.Files.Add(new BackupFileEntry
@@ -1029,7 +1029,8 @@ namespace SW.PC.API.Backend.Services
                 
                 foreach (var fileEntry in manifest.Files)
                 {
-                    var zipEntry = zipArchive.GetEntry(fileEntry.RelativePath);
+                    var normalizedPath = fileEntry.RelativePath.Replace('\\', '/');
+                    var zipEntry = zipArchive.GetEntry(normalizedPath);
                     if (zipEntry == null)
                     {
                         invalidFiles++;
