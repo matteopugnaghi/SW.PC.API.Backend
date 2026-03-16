@@ -716,11 +716,25 @@ Write-Step "Parando servicio '$serviceName' via sc.exe remoto..."
 $scQuery = sc.exe \\$TargetIP query $serviceName 2>&1
 if ($scQuery -match "RUNNING") {
     sc.exe \\$TargetIP stop $serviceName | Out-Null
-    Write-Success "Servicio '$serviceName' detenido"
-    Write-Info "Esperando 3 segundos para que se liberen los archivos..."
-    Start-Sleep -Seconds 3
+    Write-Success "Servicio '$serviceName' detenido via sc.exe"
+    Start-Sleep -Seconds 2
+    # Siempre forzar taskkill despues de sc.exe stop para asegurar que el proceso muere
+    $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
+    if ($taskkillResult -match "correctamente|SUCCESS") {
+        Write-Success "Proceso forzado a cerrar con taskkill (belt & suspenders)"
+    } else {
+        Write-Info "taskkill: proceso ya no existia (limpio)"
+    }
+    Write-Info "Esperando 5 segundos para que se liberen los archivos..."
+    Start-Sleep -Seconds 5
 } elseif ($scQuery -match "STOPPED|STOP_PENDING") {
     Write-Info "Servicio ya estaba parado"
+    # Aun asi taskkill por si quedo un proceso zombie
+    $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
+    if ($taskkillResult -match "correctamente|SUCCESS") {
+        Write-Success "Proceso zombie eliminado con taskkill"
+        Start-Sleep -Seconds 3
+    }
 } else {
     Write-Info "Servicio no instalado todavia (primera instalacion)"
     # Fallback: taskkill en caso de que este corriendo como consola (modo legacy)
@@ -735,9 +749,13 @@ if ($scQuery -match "RUNNING") {
 
 # Verificar que los archivos estan liberados
 Write-Step "Verificando que los DLLs estan liberados..."
-$testFile = "$RemotePath\Backend\SW.PC.API.Backend.dll"
+# Testear hostfxr.dll (DLL nativa que tarda mas en liberarse que la managed DLL)
+$testFile = "$RemotePath\Backend\hostfxr.dll"
+if (-not (Test-Path $testFile)) {
+    $testFile = "$RemotePath\Backend\SW.PC.API.Backend.dll"
+}
 $retryCount = 0
-$maxRetries = 5
+$maxRetries = 8
 $killedProcess = $false
 
 while ($retryCount -lt $maxRetries) {
@@ -1014,7 +1032,23 @@ Write-Step "Copiando archivos del backend..."
 $backendFiles = Get-ChildItem -Path $publishPath -Recurse
 $totalFiles = $backendFiles.Count
 
-Copy-Item -Path "$publishPath\*" -Destination "$RemotePath\Backend" -Recurse -Force
+$copySuccess = $false
+for ($copyAttempt = 1; $copyAttempt -le 3; $copyAttempt++) {
+    try {
+        Copy-Item -Path "$publishPath\*" -Destination "$RemotePath\Backend" -Recurse -Force -ErrorAction Stop
+        $copySuccess = $true
+        break
+    } catch {
+        if ($copyAttempt -lt 3) {
+            Write-Info "Error copiando (intento $copyAttempt/3), reintentando en 3s..."
+            Start-Sleep -Seconds 3
+        } else {
+            Write-Error2 "No se pudo copiar el backend despues de 3 intentos: $_"
+            Read-Host "Presiona Enter para cerrar"
+            exit 1
+        }
+    }
+}
 Write-Success "Backend copiado: $totalFiles archivos"
 
 # ============================================
