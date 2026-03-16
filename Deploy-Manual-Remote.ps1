@@ -1361,8 +1361,15 @@ if ($twinCATLocalPath) {
     
     Write-Step "Copiando TwinCAT a: $twinCatRemoteDestPath"
     
-    # Crear carpeta destino si no existe
-    if (-not (Test-Path $twinCatRemoteDestPath)) {
+    # Limpiar carpeta destino (excepto .git/, .sln, .plcproj) para eliminar residuos de deploys anteriores
+    if (Test-Path $twinCatRemoteDestPath) {
+        Write-Info "Limpiando archivos antiguos en destino (preservando .git, .sln, .plcproj)..."
+        Get-ChildItem -Path $twinCatRemoteDestPath -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.FullName -notmatch '[\\/]\.git[\\/]' -and
+                $_.Extension -notin '.sln', '.plcproj'
+            } | Remove-Item -Force -ErrorAction SilentlyContinue
+    } else {
         New-Item -ItemType Directory -Path $twinCatRemoteDestPath -Force | Out-Null
     }
     
