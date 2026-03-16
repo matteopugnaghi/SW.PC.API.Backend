@@ -48,7 +48,14 @@ namespace SW.PC.API.Backend.Services
 
                 var elements = new List<PumpElement3D>();
 
-                using (var package = new XLWorkbook(fullPath))
+                // Read all bytes into memory to avoid issues when Excel has the file open
+                using var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var ms = new MemoryStream();
+                fs.CopyTo(ms);
+                ms.Position = 0;
+                fs.Close();
+
+                using (var package = new XLWorkbook(ms))
                 {
                     var sheet = FindWorksheet(package, "3D Elements");
 

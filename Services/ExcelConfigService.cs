@@ -182,7 +182,7 @@ namespace SW.PC.API.Backend.Services
         /// <param name="maxRetries">Número máximo de reintentos (default: 3)</param>
         /// <param name="initialDelayMs">Delay inicial en milisegundos (default: 100)</param>
         /// <returns>FileStream abierto en modo lectura con FileShare.ReadWrite</returns>
-        private FileStream OpenExcelFileWithRetry(string fullPath, int maxRetries = 3, int initialDelayMs = 100)
+        private Stream OpenExcelFileWithRetry(string fullPath, int maxRetries = 3, int initialDelayMs = 100)
         {
             int attempt = 0;
             int delayMs = initialDelayMs;
@@ -191,7 +191,13 @@ namespace SW.PC.API.Backend.Services
             {
                 try
                 {
-                    return new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    // Read all bytes into memory to avoid holding the file lock
+                    // This prevents issues when Excel has the file open
+                    using var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    var ms = new MemoryStream();
+                    fs.CopyTo(ms);
+                    ms.Position = 0;
+                    return ms;
                 }
                 catch (IOException ex) when (attempt < maxRetries)
                 {
@@ -3440,12 +3446,18 @@ namespace SW.PC.API.Backend.Services
                 
                 // 🔄 Usar método con reintentos para manejar bloqueos temporales de Excel
                 using (var stream = OpenExcelFileWithRetry(fullPath))
-                using (var package = new XLWorkbook(stream))
                 {
-                    var models = await LoadModels3DFromSheetAsync(package);
-                    _logger.LogInformation("✅ Loaded {Count} 3D models (with {ChildCount} total children)", 
-                        models.Count, models.Sum(m => m.Children.Count));
-                    return models;
+                    _logger.LogInformation("📂 Excel stream opened: {Type}, Length={Length}, CanRead={CanRead}", 
+                        stream.GetType().Name, stream.Length, stream.CanRead);
+                    using (var package = new XLWorkbook(stream))
+                    {
+                        var sheetNames = package.Worksheets.Select(ws => ws.Name).ToList();
+                        _logger.LogInformation("📂 Excel sheets found: [{Sheets}]", string.Join(", ", sheetNames));
+                        var models = await LoadModels3DFromSheetAsync(package);
+                        _logger.LogInformation("✅ Loaded {Count} 3D models (with {ChildCount} total children)", 
+                            models.Count, models.Sum(m => m.Children.Count));
+                        return models;
+                    }
                 }
             }
             catch (Exception ex)
