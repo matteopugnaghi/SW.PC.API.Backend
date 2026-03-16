@@ -168,6 +168,22 @@ Write-Success "Proyecto seleccionado: $ProjectId"
 Write-Info "Modo: MULTI-PROYECTO (usa Projects/$ProjectId/)"
 Write-Host ""
 
+# Preguntar tipo de deploy si no se especifico -CodeOnly
+if (-not $CodeOnly) {
+    Write-Host "  Tipo de despliegue:" -ForegroundColor Cyan
+    Write-Host "    [1] COMPLETO - Backend + Frontend + Proyecto (config, modelos, datos)" -ForegroundColor White
+    Write-Host "    [2] SOLO CODIGO - Backend + Frontend (no toca Projects/)" -ForegroundColor White
+    Write-Host ""
+    $deployType = Read-Host "Selecciona tipo de despliegue (1/2) [1]"
+    if ($deployType -eq '2') {
+        $CodeOnly = $true
+        Write-Info "Modo SOLO CODIGO activado - Los proyectos NO se tocan"
+    } else {
+        Write-Info "Modo COMPLETO - Se desplegara todo incluyendo el proyecto"
+    }
+    Write-Host ""
+}
+
 # Preguntar si guardar copia local
 if (-not $SaveLocalCopy) {
     $saveLocal = Read-Host "¿Guardar copia local del deploy? (s/N)"
@@ -719,7 +735,9 @@ if ($scQuery -match "RUNNING") {
     Write-Success "Servicio '$serviceName' detenido via sc.exe"
     Start-Sleep -Seconds 2
     # Siempre forzar taskkill despues de sc.exe stop para asegurar que el proceso muere
+    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
     $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
+    $ErrorActionPreference = $prevEAP
     if ($taskkillResult -match "correctamente|SUCCESS") {
         Write-Success "Proceso forzado a cerrar con taskkill (belt & suspenders)"
     } else {
@@ -730,7 +748,9 @@ if ($scQuery -match "RUNNING") {
 } elseif ($scQuery -match "STOPPED|STOP_PENDING") {
     Write-Info "Servicio ya estaba parado"
     # Aun asi taskkill por si quedo un proceso zombie
+    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
     $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
+    $ErrorActionPreference = $prevEAP
     if ($taskkillResult -match "correctamente|SUCCESS") {
         Write-Success "Proceso zombie eliminado con taskkill"
         Start-Sleep -Seconds 3
@@ -738,7 +758,9 @@ if ($scQuery -match "RUNNING") {
 } else {
     Write-Info "Servicio no instalado todavia (primera instalacion)"
     # Fallback: taskkill en caso de que este corriendo como consola (modo legacy)
+    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
     $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
+    $ErrorActionPreference = $prevEAP
     if ($taskkillResult -match "correctamente|SUCCESS") {
         Write-Success "Proceso legacy parado con taskkill"
         Start-Sleep -Seconds 3
