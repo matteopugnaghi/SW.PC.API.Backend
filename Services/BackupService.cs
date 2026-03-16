@@ -354,7 +354,19 @@ namespace SW.PC.API.Backend.Services
                         var twinCatPath = projectPaths.TwinCatPath;
                         if (Directory.Exists(twinCatPath))
                         {
-                            var twinCatFiles = Directory.GetFiles(twinCatPath, "*.*", SearchOption.AllDirectories);
+                            // Machine-specific extensions to EXCLUDE from backup
+                            // .xti = AMS NetId target config (different per machine)
+                            // .~u/.~u1 = TwinCAT temp user files
+                            // .sln/.plcproj = modified with machine AMS NetId when opened
+                            var excludedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                                { ".xti", ".~u", ".~u1", ".sln", ".plcproj" };
+
+                            var allFiles = Directory.GetFiles(twinCatPath, "*.*", SearchOption.AllDirectories);
+                            var twinCatFiles = allFiles
+                                .Where(f => !excludedExtensions.Contains(Path.GetExtension(f)))
+                                .ToArray();
+                            var skippedCount = allFiles.Length - twinCatFiles.Length;
+
                             foreach (var file in twinCatFiles)
                             {
                                 var relativePath = Path.Combine("twincat", Path.GetRelativePath(twinCatPath, file));
@@ -373,7 +385,7 @@ namespace SW.PC.API.Backend.Services
                             
                             if (twinCatFiles.Length > 0)
                             {
-                                _logger.LogInformation("✅ TwinCAT PLC incluido en backup ({Count} archivos)", twinCatFiles.Length);
+                                _logger.LogInformation("✅ TwinCAT PLC incluido en backup ({Count} archivos, {Skipped} machine-specific excluidos)", twinCatFiles.Length, skippedCount);
                             }
                         }
                     }
@@ -715,6 +727,19 @@ namespace SW.PC.API.Backend.Services
                             if (!string.IsNullOrEmpty(projectPaths.TwinCatPath))
                             {
                                 var twinCatRelative = entryPath.Substring("twincat/".Length);
+
+                                // Skip machine-specific files that should never travel between machines
+                                var ext = Path.GetExtension(twinCatRelative);
+                                if (ext.Equals(".xti", StringComparison.OrdinalIgnoreCase) ||
+                                    ext.Equals(".~u", StringComparison.OrdinalIgnoreCase) ||
+                                    ext.Equals(".~u1", StringComparison.OrdinalIgnoreCase) ||
+                                    ext.Equals(".sln", StringComparison.OrdinalIgnoreCase) ||
+                                    ext.Equals(".plcproj", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    _logger.LogInformation("⏭️ Skipping machine-specific TwinCAT file: {FileName}", entryPath);
+                                    continue;
+                                }
+
                                 var twinCatFullPath = Path.Combine(projectPaths.TwinCatPath, twinCatRelative);
                                 var twinCatDir = Path.GetDirectoryName(twinCatFullPath);
                                 if (!string.IsNullOrEmpty(twinCatDir))
