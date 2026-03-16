@@ -70,6 +70,33 @@ if ($CodeOnly) {
     Write-Host "  Los proyectos NO se tocan" -ForegroundColor Yellow
     Write-Host ""
 }
+
+# Preguntar configuracion de conexion
+Write-Host "  Configuracion de conexion:" -ForegroundColor Cyan
+Write-Host "    IP destino:   $TargetIP" -ForegroundColor White
+Write-Host "    Usuario:      $TargetUser" -ForegroundColor White
+Write-Host "    Ruta destino: $InstallPath" -ForegroundColor White
+Write-Host ""
+$changeConfig = Read-Host "¿Modificar configuracion de conexion? (s/N)"
+if ($changeConfig -eq 's' -or $changeConfig -eq 'S') {
+    $newIP = Read-Host "  IP destino [$TargetIP]"
+    if (-not [string]::IsNullOrEmpty($newIP)) { $TargetIP = $newIP }
+    
+    $newUser = Read-Host "  Usuario [$TargetUser]"
+    if (-not [string]::IsNullOrEmpty($newUser)) { $TargetUser = $newUser }
+    
+    $newPassword = Read-Host "  Password [$('*' * 8)]"
+    if (-not [string]::IsNullOrEmpty($newPassword)) { $TargetPassword = $newPassword }
+    
+    $newPath = Read-Host "  Ruta instalacion [$InstallPath]"
+    if (-not [string]::IsNullOrEmpty($newPath)) { $InstallPath = $newPath }
+    
+    Write-Host ""
+    Write-Success "Configuracion actualizada:"
+    Write-Info "  IP: $TargetIP | Usuario: $TargetUser | Ruta: $InstallPath"
+}
+
+Write-Host ""
 Write-Info "PC Destino: $TargetIP"
 Write-Info "Ruta destino: $InstallPath"
 Write-Host ""
@@ -682,7 +709,7 @@ if ($SkipFrontendBuild) {
 # ============================================
 Write-Header "PASO 4: Conectando al PC remoto ($TargetIP)"
 
-$RemotePath = "\\$TargetIP\C`$\Aquafrisch Supervisor"
+$RemotePath = "\\$TargetIP\C`$\$($InstallPath.TrimStart('C:\'))"
 $SecurePassword = ConvertTo-SecureString $TargetPassword -AsPlainText -Force
 $Credential = New-Object System.Management.Automation.PSCredential ($TargetUser, $SecurePassword)
 
