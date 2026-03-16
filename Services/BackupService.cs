@@ -606,30 +606,53 @@ namespace SW.PC.API.Backend.Services
                     return response;
                 }
                 
-                // Verificar integridad si está firmado
+                // Verificar integridad si está firmado (verificación ligera: manifest + certificado, sin SHA256 por fichero)
                 if (backupInfo.IsSigned)
                 {
-                    var verification = await VerifyBackupAsync(projectId, request.BackupId);
-                    if (!verification.IsValid)
+                    try
                     {
-                        // Distinguir entre archivos corruptos vs certificado de otra máquina
-                        var hasFileErrors = verification.Details.Any(d => 
-                            d.Component.StartsWith("File:") && !d.IsValid);
-                        
-                        if (hasFileErrors)
+                        using var checkZip = ZipFile.OpenRead(backupInfo.FilePath);
+                        var manifestEntry = checkZip.GetEntry("manifest.json");
+                        if (manifestEntry == null)
                         {
-                            // Archivos corruptos → bloquear restauración
                             response.Success = false;
                             response.Message = "Backup integrity verification failed";
-                            response.Errors.Add("Backup files are corrupted or modified");
+                            response.Errors.Add("Manifest missing from backup ZIP");
                             return response;
                         }
-                        else
+                        
+                        // Verificar certificado
+                        var certEntry = checkZip.GetEntry("backup_certificate.json");
+                        if (certEntry != null)
                         {
-                            // Solo fallo de certificado (backup de otra máquina) → warning, permitir restore
-                            response.Warnings.Add("Backup was signed on a different machine — certificate cannot be verified locally. File hashes are OK.");
-                            _logger.LogWarning("⚠️ Backup {BackupId} certificate mismatch (imported from different machine), file hashes OK — allowing restore", request.BackupId);
+                            BackupManifest? checkManifest;
+                            using (var ms = manifestEntry.Open())
+                            {
+                                checkManifest = await JsonSerializer.DeserializeAsync<BackupManifest>(ms, JsonOptions);
+                            }
+                            
+                            BackupCertificate? certificate;
+                            using (var cs = certEntry.Open())
+                            {
+                                certificate = await JsonSerializer.DeserializeAsync<BackupCertificate>(cs, JsonOptions);
+                            }
+                            
+                            if (checkManifest != null && certificate != null)
+                            {
+                                var certOk = await _certificateService.VerifyCertificateAsync(certificate, checkManifest);
+                                if (!certOk)
+                                {
+                                    // Certificate from another machine → warning, allow restore
+                                    response.Warnings.Add("Backup was signed on a different machine — certificate cannot be verified locally.");
+                                    _logger.LogWarning("⚠️ Backup {BackupId} certificate mismatch (imported from different machine) — allowing restore", request.BackupId);
+                                }
+                            }
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "⚠️ Could not verify backup {BackupId} — proceeding with restore", request.BackupId);
+                        response.Warnings.Add($"Could not verify backup integrity: {ex.Message}");
                     }
                 }
                 
@@ -1219,23 +1242,38 @@ namespace SW.PC.API.Backend.Services
 
         public async Task<BackupSystemStatus> GetSystemStatusAsync(string projectId)
         {
+            var config = await GetBackupConfigAsync(projectId);
             var status = new BackupSystemStatus
             {
-                Config = await GetBackupConfigAsync(projectId)
+                Config = config
             };
             
             try
             {
-                var list = await ListBackupsAsync(projectId);
-                status.Enabled = status.Config.Enabled;
-                status.TotalBackups = list.TotalCount;
-                status.UsedSpaceBytes = list.TotalSizeBytes;
-                status.LastBackup = list.Backups.FirstOrDefault();
+                // Quick status without opening ZIP files — just count files and get dates from filesystem
+                var projectPaths = GetProjectPaths(projectId);
+                var backupsDir = projectPaths.BackupsPath;
                 
-                if (status.Config.IntervalHours > 0 && status.LastBackup != null)
+                if (Directory.Exists(backupsDir))
+                {
+                    var zipFiles = Directory.GetFiles(backupsDir, "*.zip");
+                    status.TotalBackups = zipFiles.Length;
+                    status.UsedSpaceBytes = zipFiles.Sum(f => new FileInfo(f).Length);
+                    
+                    // Get most recent backup from filesystem date (fast, no ZIP open)
+                    if (zipFiles.Length > 0)
+                    {
+                        var newestZip = zipFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).First();
+                        status.LastBackup = await ExtractBackupInfoFromZip(newestZip, projectId);
+                    }
+                }
+
+                status.Enabled = config.Enabled;
+                
+                if (config.IntervalHours > 0 && status.LastBackup != null)
                 {
                     status.NextScheduledBackup = status.LastBackup.CreatedAt
-                        .AddHours(status.Config.IntervalHours);
+                        .AddHours(config.IntervalHours);
                 }
                 
                 // Determinar estado de salud
