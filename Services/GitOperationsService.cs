@@ -678,6 +678,13 @@ public class GitOperationsService : IGitOperationsService
         catch (Exception ex) { _logger.LogError(ex, "Error reverting to commit {Hash} in {Path}", commitHash, repoPath); return new GitOperationResult { Success = false, Message = $"Exception: {ex.Message}" }; }
     }
 
+    // Machine-specific TwinCAT extensions that should NEVER appear as changes
+    // .xti = AMS NetId target config (different per machine)
+    // .~u/.~u1 = TwinCAT temp user files
+    // .sln/.plcproj = modified with machine AMS NetId when TwinCAT opens them
+    private static readonly HashSet<string> _machineSpecificExtensions = new(StringComparer.OrdinalIgnoreCase)
+        { ".xti", ".~u", ".~u1", ".sln", ".plcproj" };
+
     public async Task<List<ModifiedFile>> GetModifiedFilesAsync(string repoPath)
     {
         var files = new List<ModifiedFile>();
@@ -691,7 +698,16 @@ public class GitOperationsService : IGitOperationsService
                     if (line.Length > 3)
                     {
                         var status = line[..2].Trim();
-                        var fileName = line[3..];
+                        var fileName = line[3..].TrimEnd('\r');
+                        
+                        // Filter out machine-specific files (never travel between machines)
+                        var ext = Path.GetExtension(fileName);
+                        if (_machineSpecificExtensions.Contains(ext))
+                        {
+                            _logger.LogDebug("Filtering machine-specific file from git status: {File}", fileName);
+                            continue;
+                        }
+                        
                         files.Add(new ModifiedFile { Path = fileName, Status = ParseGitStatus(status), StatusCode = status });
                     }
                 }
