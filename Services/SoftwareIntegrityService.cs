@@ -789,6 +789,8 @@ namespace SW.PC.API.Backend.Services
         {
             try
             {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                
                 using var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
@@ -809,13 +811,15 @@ namespace SW.PC.API.Backend.Services
                 process.StartInfo.EnvironmentVariables["USERPROFILE"] = userProfile;
 
                 process.Start();
-                var output = await process.StandardOutput.ReadToEndAsync();
                 
-                // Timeout de 15 segundos para evitar que git fetch se cuelgue pidiendo credenciales
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                // Leer stdout, stderr y esperar exit TODO en paralelo con timeout global
+                var stdoutTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+                var stderrTask = process.StandardError.ReadToEndAsync(cts.Token);
+                var exitTask = process.WaitForExitAsync(cts.Token);
+
                 try
                 {
-                    await process.WaitForExitAsync(cts.Token);
+                    await Task.WhenAll(stdoutTask, stderrTask, exitTask);
                 }
                 catch (OperationCanceledException)
                 {
@@ -826,11 +830,15 @@ namespace SW.PC.API.Backend.Services
 
                 if (process.ExitCode != 0)
                 {
-                    var stderr = await process.StandardError.ReadToEndAsync();
-                    _logger.LogDebug("Git command exited with code {Code}: git {Args} | stderr: {Err}", process.ExitCode, arguments, stderr);
+                    _logger.LogDebug("Git exit code {Code}: git {Args} | stderr: {Err}", process.ExitCode, arguments, stderrTask.Result);
                 }
 
-                return output;
+                return stdoutTask.Result;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("⏱️ Git command cancelled: git {Args}", arguments);
+                return "";
             }
             catch (Exception ex)
             {
