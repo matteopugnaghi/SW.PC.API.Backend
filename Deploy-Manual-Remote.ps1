@@ -75,6 +75,7 @@ if ($CodeOnly) {
 Write-Host "  Configuracion de conexion:" -ForegroundColor Cyan
 Write-Host "    IP destino:   $TargetIP" -ForegroundColor White
 Write-Host "    Usuario:      $TargetUser" -ForegroundColor White
+Write-Host "    Password:     $('*' * $TargetPassword.Length)" -ForegroundColor White
 Write-Host "    Ruta destino: $InstallPath" -ForegroundColor White
 Write-Host ""
 $changeConfig = Read-Host "¿Modificar configuracion de conexion? (s/N)"
