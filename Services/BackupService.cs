@@ -656,6 +656,13 @@ namespace SW.PC.API.Backend.Services
                         if (string.IsNullOrEmpty(entry.Name))
                             continue;
                         
+                        // Saltar archivos temporales de Excel (~$) que no deberían haberse incluido
+                        if (entry.Name.StartsWith("~$"))
+                        {
+                            _logger.LogInformation("⏭️ Saltando archivo temporal: {FileName}", entryPath);
+                            continue;
+                        }
+                        
                         var fullPath = Path.Combine(projectPaths.ProjectRoot, entry.FullName);
                         var directory = Path.GetDirectoryName(fullPath);
                         
@@ -732,11 +739,11 @@ namespace SW.PC.API.Backend.Services
                                 }
                                 entry.ExtractToFile(fullPath, overwrite: true);
                             }
-                            catch (IOException ex) when (ex.Message.Contains("denied") || ex.Message.Contains("used by another process"))
+                            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
                             {
-                                // Archivo bloqueado (ej: ~$Excel temp) — warning, no abortar
-                                response.Warnings.Add($"Could not overwrite locked file: {entryPath}");
-                                _logger.LogWarning("⚠️ Skipping locked file during restore: {File} — {Error}", entryPath, ex.Message);
+                                // Archivo bloqueado o sin permisos — warning, no abortar
+                                response.Warnings.Add($"Could not overwrite file: {entryPath}");
+                                _logger.LogWarning("⚠️ Skipping file during restore: {File} — {Error}", entryPath, ex.Message);
                             }
                         }
                     }
