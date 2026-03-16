@@ -1014,9 +1014,16 @@ namespace SW.PC.API.Backend.Services
             // 2. Si hay internet, verificar estado de sincronización con remotos
             if (status.HasInternetConnection == true)
             {
-                status.BackendSync = await GetRemoteSyncStatusAsync("Backend", _backendRepoPath);
-                status.FrontendSync = await GetRemoteSyncStatusAsync("Frontend", _frontendRepoPath);
-                status.TwinCatPlcSync = await GetRemoteSyncStatusAsync("TwinCAT PLC", _twinCatPlcRepoPath);
+                // Ejecutar los 3 fetch en paralelo (cada uno hace git fetch al remoto)
+                var backendSyncTask = GetRemoteSyncStatusAsync("Backend", _backendRepoPath);
+                var frontendSyncTask = GetRemoteSyncStatusAsync("Frontend", _frontendRepoPath);
+                var twinCatSyncTask = GetRemoteSyncStatusAsync("TwinCAT PLC", _twinCatPlcRepoPath);
+                
+                await Task.WhenAll(backendSyncTask, frontendSyncTask, twinCatSyncTask);
+                
+                status.BackendSync = backendSyncTask.Result;
+                status.FrontendSync = frontendSyncTask.Result;
+                status.TwinCatPlcSync = twinCatSyncTask.Result;
 
                 // Calcular estado general: solo considerar componentes que tienen repo real
                 // Componentes desplegados sin .git ("no-repo") son normales y no cuentan como out-of-sync
