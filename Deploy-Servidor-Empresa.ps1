@@ -303,6 +303,7 @@ Write-Step "Verificando que los DLLs estan liberados..."
 $testFile = "${driveLetter}:\Aquafrisch Supervisor\Backend\SW.PC.API.Backend.dll"
 $retryCount = 0
 $maxRetries = 5
+$killedProcess = $false
 
 while ($retryCount -lt $maxRetries) {
     if (Test-Path $testFile) {
@@ -313,7 +314,18 @@ while ($retryCount -lt $maxRetries) {
             break
         } catch {
             $retryCount++
-            if ($retryCount -lt $maxRetries) {
+            # Despues de 2 intentos fallidos, forzar taskkill remoto
+            if ($retryCount -eq 2 -and -not $killedProcess) {
+                Write-Info "Servicio no libero archivos, forzando taskkill remoto..."
+                $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
+                if ($taskkillResult -match "correctamente|SUCCESS") {
+                    Write-Success "Proceso forzado a cerrar con taskkill"
+                } else {
+                    Write-Info "taskkill: $taskkillResult"
+                }
+                $killedProcess = $true
+                Start-Sleep -Seconds 3
+            } elseif ($retryCount -lt $maxRetries) {
                 Write-Info "Archivos aun bloqueados, esperando... (intento $retryCount/$maxRetries)"
                 Start-Sleep -Seconds 2
             } else {
