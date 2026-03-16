@@ -1416,13 +1416,19 @@ if ($twinCATLocalPath) {
     #       Solucion: crear script .bat en remoto via SMB, ejecutar via schtasks
     
     # Buscar .git en el directorio del proyecto O un nivel arriba (SW.PC.Twincat_3)
+    # NOTA: .git puede ser carpeta oculta (atributo Hidden) - Test-Path la ve pero Get-ChildItem no sin -Force
     $gitRepoUncPath = $null
     $gitRepoLocalPath = $null  # Ruta local en la maquina remota
-    if (Test-Path "$twinCatRemoteDestPath\.git") {
+    
+    # Probar con Get-Item -Force porque .git es carpeta oculta en Windows
+    $gitInProject = Get-Item "$twinCatRemoteDestPath\.git" -Force -ErrorAction SilentlyContinue
+    $gitInParent = Get-Item "$RemotePath\SW.PC.Twincat_3\.git" -Force -ErrorAction SilentlyContinue
+    
+    if ($gitInProject) {
         $gitRepoUncPath = $twinCatRemoteDestPath
         $gitRepoLocalPath = "$InstallPath\SW.PC.Twincat_3\$twinCATLocalName"
-        Write-Info "Git repo encontrado en: $twinCatRemoteDestPath\.git"
-    } elseif (Test-Path "$RemotePath\SW.PC.Twincat_3\.git") {
+        Write-Info "Git repo encontrado en: $twinCatRemoteDestPath\.git ($(if($gitInProject.PSIsContainer){'carpeta'}else{'fichero'}))"
+    } elseif ($gitInParent) {
         $gitRepoUncPath = "$RemotePath\SW.PC.Twincat_3"
         $gitRepoLocalPath = "$InstallPath\SW.PC.Twincat_3"
         Write-Info "Git repo encontrado un nivel arriba: $RemotePath\SW.PC.Twincat_3\.git"
@@ -1430,14 +1436,20 @@ if ($twinCATLocalPath) {
         Write-Warning "No se encontro .git en ninguno de estos directorios:"
         Write-Info "  1) $twinCatRemoteDestPath\.git"
         Write-Info "  2) $RemotePath\SW.PC.Twincat_3\.git"
-        # Listar contenido para diagnostico
-        Write-Info "  Contenido de $twinCatRemoteDestPath :"
+        # Listar contenido con -Force para ver carpetas ocultas
+        Write-Info "  Contenido de $twinCatRemoteDestPath (con -Force):"
         Get-ChildItem -Path $twinCatRemoteDestPath -Force -ErrorAction SilentlyContinue | 
-            Select-Object -First 15 | ForEach-Object { Write-Info "    $($_.Name)$(if($_.PSIsContainer){'/'} else {''})" }
+            Select-Object -First 20 | ForEach-Object { 
+                $attr = if($_.Attributes -match 'Hidden'){'[H]'}else{''}
+                Write-Info "    $($_.Name)$(if($_.PSIsContainer){'/'} else {''}) $attr" 
+            }
         $parentPath = "$RemotePath\SW.PC.Twincat_3"
-        Write-Info "  Contenido de ${parentPath}:"
+        Write-Info "  Contenido de ${parentPath} (con -Force):"
         Get-ChildItem -Path $parentPath -Force -ErrorAction SilentlyContinue | 
-            Select-Object -First 15 | ForEach-Object { Write-Info "    $($_.Name)$(if($_.PSIsContainer){'/'} else {''})" }
+            Select-Object -First 20 | ForEach-Object { 
+                $attr = if($_.Attributes -match 'Hidden'){'[H]'}else{''}
+                Write-Info "    $($_.Name)$(if($_.PSIsContainer){'/'} else {''}) $attr"
+            }
     }
     
     if ($gitRepoLocalPath) {
