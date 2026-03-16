@@ -384,7 +384,7 @@ function Generate-Changelog {
     param([string]$RepoPath, [string]$ComponentName, [int]$MaxReleases = 20)
     
     if (-not (Test-Path (Join-Path $RepoPath ".git"))) {
-        Write-Warning "$ComponentName: No es un repositorio Git, saltando CHANGELOG"
+        Write-Warning "${ComponentName}: No es un repositorio Git, saltando CHANGELOG"
         return $null
     }
     
@@ -393,7 +393,7 @@ function Generate-Changelog {
         # Get all tags sorted by version descending
         $tags = git tag -l --sort=-version:refname 2>$null
         if (-not $tags) {
-            Write-Warning "$ComponentName: Sin tags, generando changelog desde todos los commits"
+            Write-Warning "${ComponentName}: Sin tags, generando changelog desde todos los commits"
             $allCommits = git log --format="%H|%s|%ai|%an" --reverse 2>$null
             if (-not $allCommits) { return $null }
             
