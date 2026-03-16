@@ -7,6 +7,7 @@
 
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using SW.PC.API.Backend.Models;
@@ -589,10 +590,11 @@ namespace SW.PC.API.Backend.Services
         public async Task<BackupOperationResponse> RestoreBackupAsync(string projectId, RestoreBackupRequest request, string? userId = null)
         {
             var response = new BackupOperationResponse();
+            var sw = Stopwatch.StartNew();
             
             try
             {
-                _logger.LogInformation("Restoring backup {BackupId} for project {ProjectId}", 
+                _logger.LogInformation("⏱️ Restore START — backup {BackupId} for project {ProjectId}", 
                     request.BackupId, projectId);
                 
                 var projectPaths = GetProjectPaths(projectId);
@@ -656,20 +658,22 @@ namespace SW.PC.API.Backend.Services
                     }
                 }
                 
-                // Crear backup previo si está configurado
+                // Crear backup previo si está configurado (solo config+DB, sin modelos/TwinCAT para rapidez)
                 if (request.CreateBackupFirst)
                 {
+                    _logger.LogInformation("⏱️ [{Elapsed}ms] Pre-backup START", sw.ElapsedMilliseconds);
                     var preBackupRequest = new CreateBackupRequest
                     {
                         Name = $"Pre-Restore",
                         Description = $"Backup automático antes de restaurar {request.BackupId}",
                         IncludeConfig = request.RestoreConfig,
-                        IncludeModels = request.RestoreModels,
+                        IncludeModels = false,  // Skip models — they're large and rarely change
                         IncludeDatabase = request.RestoreDatabase,
-                        IncludeTwinCAT = request.RestoreTwinCAT
+                        IncludeTwinCAT = false   // Skip TwinCAT — large and machine-specific
                     };
                     
                     var preBackupResponse = await CreateBackupAsync(projectId, preBackupRequest, userId);
+                    _logger.LogInformation("⏱️ [{Elapsed}ms] Pre-backup END", sw.ElapsedMilliseconds);
                     if (!preBackupResponse.Success)
                     {
                         response.Warnings.Add("Could not create pre-restore backup, continuing anyway");
@@ -677,6 +681,7 @@ namespace SW.PC.API.Backend.Services
                 }
                 
                 // Restaurar desde ZIP
+                _logger.LogInformation("⏱️ [{Elapsed}ms] Extract START", sw.ElapsedMilliseconds);
                 using (var zipArchive = ZipFile.OpenRead(backupInfo.FilePath))
                 {
                     foreach (var entry in zipArchive.Entries)
@@ -810,7 +815,7 @@ namespace SW.PC.API.Backend.Services
                 response.Message = $"Backup restored successfully: {backupInfo.Name}";
                 response.BackupInfo = backupInfo;
                 
-                _logger.LogInformation("Backup restored successfully: {BackupId}", request.BackupId);
+                _logger.LogInformation("⏱️ [{Elapsed}ms] Restore COMPLETE — {BackupId}", sw.ElapsedMilliseconds, request.BackupId);
             }
             catch (Exception ex)
             {
