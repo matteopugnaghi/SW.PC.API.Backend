@@ -599,10 +599,24 @@ namespace SW.PC.API.Backend.Services
                     var verification = await VerifyBackupAsync(projectId, request.BackupId);
                     if (!verification.IsValid)
                     {
-                        response.Success = false;
-                        response.Message = "Backup integrity verification failed";
-                        response.Errors.Add("The backup certificate is invalid or the content has been modified");
-                        return response;
+                        // Distinguir entre archivos corruptos vs certificado de otra máquina
+                        var hasFileErrors = verification.Details.Any(d => 
+                            d.Component.StartsWith("File:") && !d.IsValid);
+                        
+                        if (hasFileErrors)
+                        {
+                            // Archivos corruptos → bloquear restauración
+                            response.Success = false;
+                            response.Message = "Backup integrity verification failed";
+                            response.Errors.Add("Backup files are corrupted or modified");
+                            return response;
+                        }
+                        else
+                        {
+                            // Solo fallo de certificado (backup de otra máquina) → warning, permitir restore
+                            response.Warnings.Add("Backup was signed on a different machine — certificate cannot be verified locally. File hashes are OK.");
+                            _logger.LogWarning("⚠️ Backup {BackupId} certificate mismatch (imported from different machine), file hashes OK — allowing restore", request.BackupId);
+                        }
                     }
                 }
                 
