@@ -88,6 +88,12 @@ namespace SW.PC.API.Backend.Services
         private string _twinCatPlcRepoPath;
         private bool _pathsConfigured = false;
 
+        // Machine-specific TwinCAT file extensions to ignore in git status
+        private static readonly HashSet<string> _machineSpecificExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".xti", ".~u", ".~u1", ".sln", ".plcproj"
+        };
+
         public SoftwareIntegrityService(
             ILogger<SoftwareIntegrityService> logger,
             IConfiguration configuration,
@@ -652,12 +658,29 @@ namespace SW.PC.API.Backend.Services
                 }
                 else
                 {
-                    var modifiedLines = statusOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-                    component.WorkingDirStatus = "dirty";
-                    component.ModifiedFiles = modifiedLines.Length;
-                    component.Integrity = "modified";
+                    // Filter out machine-specific TwinCAT files (.xti, .~u, .~u1, .sln, .plcproj)
+                    var modifiedLines = statusOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                        .Where(line => {
+                            if (line.Length <= 3) return true;
+                            var fileName = line[3..].TrimEnd('\r');
+                            var ext = Path.GetExtension(fileName);
+                            return !_machineSpecificExtensions.Contains(ext);
+                        })
+                        .ToArray();
                     
-                    _logger.LogWarning("⚠️ {Name} has {Count} uncommitted changes", name, modifiedLines.Length);
+                    if (modifiedLines.Length == 0)
+                    {
+                        component.WorkingDirStatus = "clean";
+                        component.ModifiedFiles = 0;
+                        component.Integrity = "verified";
+                    }
+                    else
+                    {
+                        component.WorkingDirStatus = "dirty";
+                        component.ModifiedFiles = modifiedLines.Length;
+                        component.Integrity = "modified";
+                        _logger.LogWarning("⚠️ {Name} has {Count} uncommitted changes", name, modifiedLines.Length);
+                    }
                 }
 
                 _logger.LogInformation("📦 {Name}: {Version} ({Sha}) [{Status}]", 
