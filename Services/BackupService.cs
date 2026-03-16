@@ -1024,13 +1024,21 @@ namespace SW.PC.API.Backend.Services
                 }
                 
                 // Verificar archivos
+                // Build a normalized lookup for ZIP entries (handles both \ and / in old/new backups)
+                var zipEntryLookup = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
+                foreach (var entry in zipArchive.Entries)
+                {
+                    var key = entry.FullName.Replace('\\', '/');
+                    zipEntryLookup.TryAdd(key, entry);
+                }
+                
                 int validFiles = 0;
                 int invalidFiles = 0;
                 
                 foreach (var fileEntry in manifest.Files)
                 {
                     var normalizedPath = fileEntry.RelativePath.Replace('\\', '/');
-                    var zipEntry = zipArchive.GetEntry(normalizedPath);
+                    zipEntryLookup.TryGetValue(normalizedPath, out var zipEntry);
                     if (zipEntry == null)
                     {
                         invalidFiles++;
