@@ -171,7 +171,7 @@ Write-Host ""
 # Preguntar tipo de deploy si no se especifico -CodeOnly
 if (-not $CodeOnly) {
     Write-Host "  Tipo de despliegue:" -ForegroundColor Cyan
-    Write-Host "    [1] COMPLETO - Backend + Frontend + Proyecto (config, modelos, datos)" -ForegroundColor White
+    Write-Host "    [1] COMPLETO - Backend + Frontend + Proyecto + TwinCAT" -ForegroundColor White
     Write-Host "    [2] SOLO CODIGO - Backend + Frontend (no toca Projects/)" -ForegroundColor White
     Write-Host ""
     $deployType = Read-Host "Selecciona tipo de despliegue (1/2) [1]"
