@@ -85,7 +85,9 @@ namespace SW.PC.API.Backend.Models
         /// <summary>Backup automático antes de actualización</summary>
         PreUpdate,
         /// <summary>Backup antes de restauración</summary>
-        PreRestore
+        PreRestore,
+        /// <summary>Backup importado desde archivo externo</summary>
+        Imported
     }
 
     /// <summary>
@@ -285,6 +287,9 @@ namespace SW.PC.API.Backend.Models
         
         /// <summary>Incluir repositorio TwinCAT PLC</summary>
         public bool IncludeTwinCAT { get; set; } = true;
+        
+        /// <summary>Tipo de backup (Manual, Scheduled, PreUpdate, PreRestore). Default: Manual</summary>
+        public BackupType Type { get; set; } = BackupType.Manual;
     }
 
     /// <summary>

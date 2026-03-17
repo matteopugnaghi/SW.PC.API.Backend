@@ -119,8 +119,8 @@ namespace SW.PC.API.Backend.Services
                 
                 var request = new CreateBackupRequest
                 {
-                    Name = $"Scheduled Backup {DateTime.Now:yyyy-MM-dd HH:mm}",
-                    Description = "Automatic scheduled backup",
+                    Description = "Backup automático programado",
+                    Type = BackupType.Scheduled,
                     IncludeConfig = true,
                     IncludeModels = true,
                     IncludeDatabase = true

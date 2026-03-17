@@ -197,17 +197,22 @@ namespace SW.PC.API.Backend.Services
                 var timestamp = DateTime.Now;
                 var backupId = $"backup_{projectId}_{timestamp:yyyyMMdd_HHmmss}";
                 
-                // Nombre automático: [Proyecto] - Fecha Hora (o nombre personalizado + fecha)
+                // Nombre limpio: solo la descripción del usuario o nombre por tipo
+                // La fecha, proyecto y tipo se muestran en la UI desde metadata
                 string backupName;
                 if (!string.IsNullOrWhiteSpace(request.Name))
                 {
-                    // Si el usuario puso nombre, añadir proyecto y fecha
-                    backupName = $"[{projectId}] {request.Name} - {timestamp:yyyy-MM-dd HH:mm}";
+                    backupName = request.Name;
                 }
                 else
                 {
-                    // Nombre automático con proyecto y fecha
-                    backupName = $"[{projectId}] Backup {timestamp:yyyy-MM-dd HH:mm}";
+                    backupName = request.Type switch
+                    {
+                        BackupType.Scheduled => $"Backup programado",
+                        BackupType.PreRestore => $"Backup pre-restauración",
+                        BackupType.PreUpdate => $"Backup pre-actualización",
+                        _ => $"Backup manual"
+                    };
                 }
                 
                 var zipFileName = $"{backupId}.zip";
@@ -222,7 +227,7 @@ namespace SW.PC.API.Backend.Services
                     Description = request.Description,
                     CreatedAt = timestamp,
                     CreatedBy = userId ?? "system",
-                    Type = BackupType.Manual,
+                    Type = request.Type,
                     FilePath = zipPath,
                     AppVersion = GetAppVersion(),
                     Contents = new BackupContents()
@@ -362,9 +367,13 @@ namespace SW.PC.API.Backend.Services
                             var excludedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                                 { ".xti", ".~u", ".~u1", ".sln", ".plcproj" };
 
+                            // Directories to EXCLUDE — IDE temp files only (.git MUST be included for offline production)
+                            var excludedDirs = new[] { $"{Path.DirectorySeparatorChar}.vs{Path.DirectorySeparatorChar}" };
+
                             var allFiles = Directory.GetFiles(twinCatPath, "*.*", SearchOption.AllDirectories);
                             var twinCatFiles = allFiles
-                                .Where(f => !excludedExtensions.Contains(Path.GetExtension(f)))
+                                .Where(f => !excludedExtensions.Contains(Path.GetExtension(f))
+                                         && !excludedDirs.Any(d => f.Contains(d, StringComparison.OrdinalIgnoreCase)))
                                 .ToArray();
                             var skippedCount = allFiles.Length - twinCatFiles.Length;
 
@@ -664,12 +673,12 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogInformation("⏱️ [{Elapsed}ms] Pre-backup START", sw.ElapsedMilliseconds);
                     var preBackupRequest = new CreateBackupRequest
                     {
-                        Name = $"Pre-Restore",
                         Description = $"Backup automático antes de restaurar {request.BackupId}",
                         IncludeConfig = request.RestoreConfig,
                         IncludeModels = false,  // Skip models — they're large and rarely change
                         IncludeDatabase = request.RestoreDatabase,
-                        IncludeTwinCAT = false   // Skip TwinCAT — large and machine-specific
+                        IncludeTwinCAT = false,  // Skip TwinCAT — large and machine-specific
+                        Type = BackupType.PreRestore
                     };
                     
                     var preBackupResponse = await CreateBackupAsync(projectId, preBackupRequest, userId);
@@ -1190,6 +1199,30 @@ namespace SW.PC.API.Backend.Services
                     response.Success = false;
                     response.Message = "Invalid backup file format";
                     return response;
+                }
+                
+                // Marcar como importado — reescribir manifest dentro del ZIP
+                backupInfo.Type = BackupType.Imported;
+                try
+                {
+                    using var zipArchive = ZipFile.Open(targetPath, ZipArchiveMode.Update);
+                    var manifestEntry = zipArchive.GetEntry("manifest.json");
+                    if (manifestEntry != null)
+                    {
+                        using var stream = manifestEntry.Open();
+                        var manifest = await JsonSerializer.DeserializeAsync<BackupManifest>(stream, JsonOptions);
+                        if (manifest?.BackupInfo != null)
+                        {
+                            manifest.BackupInfo.Type = BackupType.Imported;
+                            stream.SetLength(0);
+                            stream.Position = 0;
+                            await JsonSerializer.SerializeAsync(stream, manifest, JsonOptions);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not update manifest type to Imported — cosmetic only");
                 }
                 
                 // Registrar en audit log (en el proyecto correcto)

@@ -176,7 +176,12 @@
         "data.no_backups",
         "data.verify_integrity",
         "data.download",
-        "data.delete"
+        "data.delete",
+        "data.type_manual",
+        "data.type_scheduled",
+        "data.type_pre_restore",
+        "data.type_pre_update",
+        "data.type_imported"
       ]
     },
     "EPIC_SIDE_MENU": {
@@ -5953,6 +5958,36 @@
       "ENG": "Delete",
       "FRA": "Supprimer",
       "ITA": "Elimina"
+    },
+    "data.type_manual": {
+      "SPA": "Manual",
+      "ENG": "Manual",
+      "FRA": "Manuel",
+      "ITA": "Manuale"
+    },
+    "data.type_scheduled": {
+      "SPA": "Programado",
+      "ENG": "Scheduled",
+      "FRA": "Programmé",
+      "ITA": "Programmato"
+    },
+    "data.type_pre_restore": {
+      "SPA": "Pre-restauración",
+      "ENG": "Pre-restore",
+      "FRA": "Pré-restauration",
+      "ITA": "Pre-ripristino"
+    },
+    "data.type_pre_update": {
+      "SPA": "Pre-actualización",
+      "ENG": "Pre-update",
+      "FRA": "Pré-mise à jour",
+      "ITA": "Pre-aggiornamento"
+    },
+    "data.type_imported": {
+      "SPA": "Importado",
+      "ENG": "Imported",
+      "FRA": "Importé",
+      "ITA": "Importato"
     },
 
     "infoPanel.InfoPanel_Excel_Plc_InfoPanel_A1": {

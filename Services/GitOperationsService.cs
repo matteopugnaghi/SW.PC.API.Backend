@@ -547,6 +547,10 @@ public class GitOperationsService : IGitOperationsService
             }
 
             _logger.LogInformation("Creating commit in {Path}: {Message}", repoPath, message);
+            
+            // 🔧 Auto-reparación: verificar y corregir estado del repo antes de operar
+            var repairs = await EnsureRepoHealthAsync(repoPath);
+            
             // 60s timeout para add (puede haber muchos archivos)
             var addResult = await RunGitCommandAsync(repoPath, "add -A", 60000);
             if (!addResult.Success) return new GitOperationResult { Success = false, Message = $"Failed to stage changes: {addResult.Error}" };
@@ -555,12 +559,14 @@ public class GitOperationsService : IGitOperationsService
             var commitResult = await RunGitCommandAsync(repoPath, $"commit -m \"{escapedMessage}\"", 60000);
             if (commitResult.Success) 
             {
-                // ?? Actualizar informaci�n de firma en el servicio de integridad
+                // 🔄 Actualizar información de firma en el servicio de integridad
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after commit"); }
                 });
-                return new GitOperationResult { Success = true, Message = "Commit created successfully", Output = commitResult.Output };
+                var msg = "Commit created successfully";
+                if (repairs.Count > 0) msg += $"\n🔧 Auto-repairs applied: {string.Join("; ", repairs)}";
+                return new GitOperationResult { Success = true, Message = msg, Output = commitResult.Output };
             }
             if (commitResult.Output?.Contains("nothing to commit") == true) return new GitOperationResult { Success = true, Message = "Nothing to commit - working tree clean" };
             return new GitOperationResult { Success = false, Message = $"Commit failed: {commitResult.Error}" };
@@ -737,6 +743,97 @@ public class GitOperationsService : IGitOperationsService
             return (process.ExitCode == 0, outputBuilder.ToString(), errorBuilder.ToString());
         }
         catch (Exception ex) { _logger.LogError(ex, "Error running git command: {Args}", arguments); return (false, null, ex.Message); }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Auto-reparación Git — ejecutar antes de commit para corregir problemas
+    // comunes que un técnico no debería tener que arreglar manualmente.
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    /// <summary>
+    /// Verifica y repara automáticamente el estado del repositorio Git:
+    /// 1. Configura identidad si falta (user.email/user.name)
+    /// 2. Repara reflog corrupto
+    /// 3. Regenera objetos faltantes (blobs de archivos actuales)
+    /// 4. Reconstruye index corrupto
+    /// Devuelve lista de reparaciones aplicadas (vacía si todo OK).
+    /// </summary>
+    private async Task<List<string>> EnsureRepoHealthAsync(string repoPath)
+    {
+        var repairs = new List<string>();
+        
+        try
+        {
+            // 1. Identidad: configurar user.email y user.name si falta (evita "Author identity unknown")
+            var emailCheck = await RunGitCommandAsync(repoPath, "config user.email");
+            if (!emailCheck.Success || string.IsNullOrWhiteSpace(emailCheck.Output))
+            {
+                await RunGitCommandAsync(repoPath, "config user.email \"electronico@aquafrsich.com\"");
+                await RunGitCommandAsync(repoPath, "config user.name \"Aquafrisch Supervisor\"");
+                repairs.Add("Configured git identity (user.email + user.name)");
+                _logger.LogInformation("🔧 Auto-configured git identity in {Path}", repoPath);
+            }
+
+            // 2. Verificar integridad rápida (git fsck sin --full para velocidad)
+            var fsckResult = await RunGitCommandAsync(repoPath, "fsck --no-full --no-dangling", 30000);
+            var fsckOutput = $"{fsckResult.Output} {fsckResult.Error}";
+            
+            bool hasCorruptIndex = fsckOutput.Contains("invalid sha1 pointer in resolve-undo", StringComparison.OrdinalIgnoreCase);
+            bool hasMissingBlob = fsckOutput.Contains("missing blob", StringComparison.OrdinalIgnoreCase);
+            bool hasInvalidReflog = fsckOutput.Contains("invalid reflog entry", StringComparison.OrdinalIgnoreCase);
+
+            // 3. Reflog corrupto → limpiar
+            if (hasInvalidReflog)
+            {
+                await RunGitCommandAsync(repoPath, "reflog expire --expire=now --all");
+                repairs.Add("Cleaned corrupted reflog entries");
+                _logger.LogWarning("🔧 Auto-cleaned corrupted reflog in {Path}", repoPath);
+            }
+
+            // 4. Blob faltante → regenerar objetos de los archivos que existen en disco
+            if (hasMissingBlob)
+            {
+                var lsFiles = await RunGitCommandAsync(repoPath, "ls-files");
+                if (lsFiles.Success && !string.IsNullOrWhiteSpace(lsFiles.Output))
+                {
+                    foreach (var file in lsFiles.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var filePath = Path.Combine(repoPath, file.Trim());
+                        if (File.Exists(filePath))
+                        {
+                            await RunGitCommandAsync(repoPath, $"hash-object -w \"{file.Trim()}\"");
+                        }
+                    }
+                }
+                repairs.Add("Regenerated missing blob objects from working tree");
+                _logger.LogWarning("🔧 Auto-regenerated missing blobs in {Path}", repoPath);
+            }
+
+            // 5. Index corrupto → reconstruir
+            if (hasCorruptIndex)
+            {
+                var indexPath = Path.Combine(repoPath, ".git", "index");
+                if (File.Exists(indexPath))
+                {
+                    File.Delete(indexPath);
+                }
+                await RunGitCommandAsync(repoPath, "reset");
+                repairs.Add("Rebuilt corrupted git index");
+                _logger.LogWarning("🔧 Auto-rebuilt corrupted index in {Path}", repoPath);
+            }
+
+            if (repairs.Count > 0)
+            {
+                _logger.LogInformation("🔧 Auto-repair completed for {Path}: {Repairs}", repoPath, string.Join("; ", repairs));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "🔧 Auto-repair encountered an error in {Path} — continuing with commit", repoPath);
+            repairs.Add($"Auto-repair warning: {ex.Message}");
+        }
+
+        return repairs;
     }
 
     private static string ParseGitStatus(string code) => code switch { "M" => "Modified", "A" => "Added", "D" => "Deleted", "R" => "Renamed", "C" => "Copied", "U" => "Unmerged", "?" => "Untracked", "!" => "Ignored", _ => code };
