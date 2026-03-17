@@ -360,22 +360,8 @@ namespace SW.PC.API.Backend.Services
                         var twinCatPath = projectPaths.TwinCatPath;
                         if (Directory.Exists(twinCatPath))
                         {
-                            // Machine-specific extensions to EXCLUDE from backup
-                            // .xti = AMS NetId target config (different per machine)
-                            // .~u/.~u1 = TwinCAT temp user files
-                            // .sln/.plcproj = modified with machine AMS NetId when opened
-                            var excludedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                                { ".xti", ".~u", ".~u1", ".sln", ".plcproj" };
-
-                            // Directories to EXCLUDE — IDE temp files only (.git MUST be included for offline production)
-                            var excludedDirs = new[] { $"{Path.DirectorySeparatorChar}.vs{Path.DirectorySeparatorChar}" };
-
-                            var allFiles = Directory.GetFiles(twinCatPath, "*.*", SearchOption.AllDirectories);
-                            var twinCatFiles = allFiles
-                                .Where(f => !excludedExtensions.Contains(Path.GetExtension(f))
-                                         && !excludedDirs.Any(d => f.Contains(d, StringComparison.OrdinalIgnoreCase)))
-                                .ToArray();
-                            var skippedCount = allFiles.Length - twinCatFiles.Length;
+                            // Full copy — no exclusions, backup everything as-is
+                            var twinCatFiles = Directory.GetFiles(twinCatPath, "*.*", SearchOption.AllDirectories);
 
                             foreach (var file in twinCatFiles)
                             {
@@ -395,7 +381,7 @@ namespace SW.PC.API.Backend.Services
                             
                             if (twinCatFiles.Length > 0)
                             {
-                                _logger.LogInformation("✅ TwinCAT PLC incluido en backup ({Count} archivos, {Skipped} machine-specific excluidos)", twinCatFiles.Length, skippedCount);
+                                _logger.LogInformation("✅ TwinCAT PLC incluido en backup ({Count} archivos, copia completa)", twinCatFiles.Length);
                             }
                         }
                     }
@@ -765,25 +751,7 @@ namespace SW.PC.API.Backend.Services
                             {
                                 var twinCatRelative = entryPath.Substring("twincat/".Length);
 
-                                // Skip .git/ folder — managed by git, read-only objects cause access errors
-                                if (twinCatRelative.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) ||
-                                    twinCatRelative == ".git")
-                                {
-                                    continue;
-                                }
-
-                                // Skip machine-specific files that should never travel between machines
-                                var ext = Path.GetExtension(twinCatRelative);
-                                if (ext.Equals(".xti", StringComparison.OrdinalIgnoreCase) ||
-                                    ext.Equals(".~u", StringComparison.OrdinalIgnoreCase) ||
-                                    ext.Equals(".~u1", StringComparison.OrdinalIgnoreCase) ||
-                                    ext.Equals(".sln", StringComparison.OrdinalIgnoreCase) ||
-                                    ext.Equals(".plcproj", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    _logger.LogInformation("⏭️ Skipping machine-specific TwinCAT file: {FileName}", entryPath);
-                                    continue;
-                                }
-
+                                // Full restore — no exclusions, restore everything as-is
                                 try
                                 {
                                     var twinCatFullPath = Path.Combine(projectPaths.TwinCatPath, twinCatRelative);
