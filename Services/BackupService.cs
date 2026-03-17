@@ -756,6 +756,13 @@ namespace SW.PC.API.Backend.Services
                             {
                                 var twinCatRelative = entryPath.Substring("twincat/".Length);
 
+                                // Skip .git/ folder — managed by git, read-only objects cause access errors
+                                if (twinCatRelative.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) ||
+                                    twinCatRelative == ".git")
+                                {
+                                    continue;
+                                }
+
                                 // Skip machine-specific files that should never travel between machines
                                 var ext = Path.GetExtension(twinCatRelative);
                                 if (ext.Equals(".xti", StringComparison.OrdinalIgnoreCase) ||
@@ -768,14 +775,27 @@ namespace SW.PC.API.Backend.Services
                                     continue;
                                 }
 
-                                var twinCatFullPath = Path.Combine(projectPaths.TwinCatPath, twinCatRelative);
-                                var twinCatDir = Path.GetDirectoryName(twinCatFullPath);
-                                if (!string.IsNullOrEmpty(twinCatDir))
+                                try
                                 {
-                                    Directory.CreateDirectory(twinCatDir);
+                                    var twinCatFullPath = Path.Combine(projectPaths.TwinCatPath, twinCatRelative);
+                                    var twinCatDir = Path.GetDirectoryName(twinCatFullPath);
+                                    if (!string.IsNullOrEmpty(twinCatDir))
+                                    {
+                                        Directory.CreateDirectory(twinCatDir);
+                                    }
+                                    // Clear read-only attribute before overwrite (.git/objects/ are read-only)
+                                    if (File.Exists(twinCatFullPath))
+                                    {
+                                        File.SetAttributes(twinCatFullPath, FileAttributes.Normal);
+                                    }
+                                    entry.ExtractToFile(twinCatFullPath, overwrite: true);
+                                    _logger.LogInformation("✅ Restaurando TwinCAT: {FileName}", entryPath);
                                 }
-                                entry.ExtractToFile(twinCatFullPath, overwrite: true);
-                                _logger.LogInformation("✅ Restaurando TwinCAT: {FileName}", entryPath);
+                                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                                {
+                                    response.Warnings.Add($"Could not overwrite TwinCAT file: {entryPath}");
+                                    _logger.LogWarning("⚠️ Skipping TwinCAT file during restore: {File} — {Error}", entryPath, ex.Message);
+                                }
                             }
                             // Skip normal restore flow — already handled
                             continue;
