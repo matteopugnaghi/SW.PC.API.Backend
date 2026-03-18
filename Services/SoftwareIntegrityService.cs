@@ -1219,9 +1219,10 @@ namespace SW.PC.API.Backend.Services
                         component.IsSigned = true;
                         component.SignatureStatus = "signed";
                         component.SignatureType = headerSection.Contains("BEGIN SSH SIGNATURE") ? "SSH" : "GPG";
+                        component.SignatureSigner = component.CommitAuthorEmail ?? component.CommitAuthor ?? "";
                         component.SignatureMessage = $"Commit is {component.SignatureType}-signed (detected from git object)";
-                        _logger.LogInformation("🔐 {Name}: {SigType} Signature DETECTED in commit object",
-                            component.Name, component.SignatureType);
+                        _logger.LogInformation("🔐 {Name}: {SigType} Signature DETECTED in commit object (signer: {Signer})",
+                            component.Name, component.SignatureType, component.SignatureSigner);
                     }
 
                     _logger.LogInformation("📁 {Name}: Parsed commit object - author={Author}, date={Date}, msg={Msg}, signed={Signed}",
@@ -1290,9 +1291,10 @@ namespace SW.PC.API.Backend.Services
                     component.IsSigned = true;
                     component.SignatureStatus = "signed";
                     component.SignatureType = headerSection.Contains("BEGIN SSH SIGNATURE") ? "SSH" : "GPG";
+                    component.SignatureSigner = component.CommitAuthorEmail ?? component.CommitAuthor ?? "";
                     component.SignatureMessage = $"Commit is {component.SignatureType}-signed (detected from git object)";
-                    _logger.LogInformation("🔐 {Name}: {SigType} signature detected in git object (git %G? missed it)",
-                        component.Name, component.SignatureType);
+                    _logger.LogInformation("🔐 {Name}: {SigType} signature detected in git object (git %G? missed it, signer: {Signer})",
+                        component.Name, component.SignatureType, component.SignatureSigner);
                 }
             }
             catch (Exception ex)
