@@ -50,6 +50,9 @@
     <None Remove="wwwroot\audit\**" />
     <None Remove="wwwroot\models\**" />
     <None Remove="wwwroot\sbom\**" />
+    <!-- integrity-state.json es específico de cada máquina, no debe ir en publish -->
+    <Content Remove="integrity-state.json" />
+    <None Remove="integrity-state.json" />
   </ItemGroup>
 
 </Project>

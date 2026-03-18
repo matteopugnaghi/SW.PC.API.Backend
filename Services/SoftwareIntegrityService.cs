@@ -120,6 +120,9 @@ namespace SW.PC.API.Backend.Services
             // Cargar estado guardado o crear nuevo
             _versionInfo = LoadPersistedState() ?? new SoftwareVersionInfo();
             
+            // Siempre usar el nombre de la máquina actual (no el del estado persistido)
+            _versionInfo.MachineName = Environment.MachineName;
+            
             // Inicializar información Git de forma asíncrona con rutas por defecto
             _ = InitializeGitInfoAsync();
 
@@ -836,12 +839,24 @@ namespace SW.PC.API.Backend.Services
                     }
                 }
 
+                // 📁 Fallback: si git commands devolvieron vacío, leer .git files directamente
+                if (string.IsNullOrEmpty(component.CommitSha))
+                {
+                    _logger.LogWarning("⚠️ Git commands returned empty for {Name}, trying direct .git file read", name);
+                    await TryReadGitFilesDirectlyAsync(component, repoPath);
+                }
+
                 _logger.LogInformation("📦 {Name}: {Version} ({Sha}) [{Status}]", 
                     name, component.Version, component.CommitSha, component.WorkingDirStatus);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting Git info for {Name}", name);
+                // Fallback: intentar leer .git files directamente
+                if (string.IsNullOrEmpty(component.CommitSha))
+                {
+                    await TryReadGitFilesDirectlyAsync(component, repoPath);
+                }
                 component.Integrity = "unknown";
             }
 
@@ -958,6 +973,121 @@ namespace SW.PC.API.Backend.Services
                     component.SignatureType = "none";
                     component.SignatureMessage = "Commit not signed";
                     break;
+            }
+        }
+
+        /// <summary>
+        /// Fallback: lee información git directamente de archivos .git cuando los comandos git fallan
+        /// (ej: servicio corriendo como SYSTEM sin acceso a ejecutar git)
+        /// </summary>
+        private async Task TryReadGitFilesDirectlyAsync(GitVersionComponent component, string repoPath)
+        {
+            try
+            {
+                var gitDir = Path.Combine(repoPath, ".git");
+
+                // Handle .git file (submodule/worktree)
+                if (File.Exists(gitDir) && !Directory.Exists(gitDir))
+                {
+                    var gitFileContent = (await File.ReadAllTextAsync(gitDir)).Trim();
+                    if (gitFileContent.StartsWith("gitdir:"))
+                    {
+                        gitDir = gitFileContent.Substring(7).Trim();
+                        if (!Path.IsPathRooted(gitDir))
+                            gitDir = Path.GetFullPath(Path.Combine(repoPath, gitDir));
+                    }
+                }
+
+                if (!Directory.Exists(gitDir))
+                {
+                    _logger.LogWarning("📁 .git directory not found at {Path}", gitDir);
+                    return;
+                }
+
+                // Leer HEAD
+                var headPath = Path.Combine(gitDir, "HEAD");
+                if (!File.Exists(headPath)) return;
+
+                var headContent = (await File.ReadAllTextAsync(headPath)).Trim();
+                string branch = "";
+                string commitSha = "";
+
+                if (headContent.StartsWith("ref: "))
+                {
+                    var refPath = headContent.Substring(5).Trim();
+                    branch = refPath.Replace("refs/heads/", "");
+
+                    // Leer SHA del ref
+                    var refFilePath = Path.Combine(gitDir, refPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
+                    if (File.Exists(refFilePath))
+                    {
+                        commitSha = (await File.ReadAllTextAsync(refFilePath)).Trim();
+                    }
+                    else
+                    {
+                        // Buscar en packed-refs
+                        var packedRefsPath = Path.Combine(gitDir, "packed-refs");
+                        if (File.Exists(packedRefsPath))
+                        {
+                            var lines = await File.ReadAllLinesAsync(packedRefsPath);
+                            foreach (var line in lines)
+                            {
+                                if (!line.StartsWith("#") && line.Contains(refPath))
+                                {
+                                    commitSha = line.Split(' ')[0];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    commitSha = headContent;
+                    branch = "detached";
+                }
+
+                if (string.IsNullOrEmpty(commitSha)) return;
+
+                component.CommitShaFull = commitSha;
+                component.CommitSha = commitSha.Length >= 7 ? commitSha.Substring(0, 7) : commitSha;
+                component.Branch = branch;
+                component.LastVerified = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+                // Buscar tags CalVer (20*) para versión
+                var tagsDir = Path.Combine(gitDir, "refs", "tags");
+                if (Directory.Exists(tagsDir))
+                {
+                    var tags = Directory.GetFiles(tagsDir, "20*")
+                        .Select(f => new { Name = Path.GetFileName(f), Sha = File.ReadAllText(f).Trim() })
+                        .OrderByDescending(t => t.Name)
+                        .ToList();
+
+                    if (tags.Count > 0)
+                    {
+                        component.LatestRelease = tags[0].Name;
+                        component.Version = tags[0].Sha == commitSha 
+                            ? tags[0].Name 
+                            : $"{tags[0].Name}+ ({component.CommitSha})";
+                    }
+                }
+
+                if (component.Version == "0.0.0")
+                    component.Version = component.CommitSha;
+
+                // Si no tenemos workingDirStatus, asumir clean (no podemos verificar sin git)
+                if (string.IsNullOrEmpty(component.WorkingDirStatus) || component.WorkingDirStatus == "unknown")
+                {
+                    component.WorkingDirStatus = "clean";
+                    component.Integrity = "verified";
+                }
+
+                _logger.LogInformation("📁 {Name}: Read from .git files: {Sha} branch={Branch} version={Version}",
+                    component.Name, component.CommitSha, component.Branch, component.Version);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "📁 Could not read .git files directly from {Path}", repoPath);
             }
         }
 
