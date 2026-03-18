@@ -170,7 +170,12 @@ namespace SW.PC.API.Backend.Services
                 return _projectContext.ExcelConfigPath;
             }
             
-            return Path.Combine(_configFolder, "ProjectConfig.xlsm");
+            // Legacy: try .xlsm first, then .xls
+            var xlsmPath = Path.Combine(_configFolder, "ProjectConfig.xlsm");
+            if (File.Exists(xlsmPath)) return xlsmPath;
+            var xlsPath = Path.Combine(_configFolder, "ProjectConfig.xls");
+            if (File.Exists(xlsPath)) return xlsPath;
+            return xlsmPath; // Default to .xlsm (will show file-not-found error)
         }
         
         /// <summary>

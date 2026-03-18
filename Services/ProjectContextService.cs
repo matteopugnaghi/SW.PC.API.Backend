@@ -179,13 +179,18 @@ namespace SW.PC.API.Backend.Services
                     {
                         var excelFiles = Directory.GetFiles(configDir, "*.xlsm")
                             .Concat(Directory.GetFiles(configDir, "*.xlsx"))
+                            .Concat(Directory.GetFiles(configDir, "*.xls"))
                             .ToArray();
                         
                         if (excelFiles.Length > 0)
                         {
-                            // Priorizar ProjectConfig.xlsm
+                            // Priorizar ProjectConfig.xlsm, luego .xlsx, luego .xls
                             var projectConfig = excelFiles.FirstOrDefault(f => 
-                                Path.GetFileName(f).Equals("ProjectConfig.xlsm", StringComparison.OrdinalIgnoreCase));
+                                Path.GetFileName(f).Equals("ProjectConfig.xlsm", StringComparison.OrdinalIgnoreCase))
+                                ?? excelFiles.FirstOrDefault(f => 
+                                Path.GetFileName(f).Equals("ProjectConfig.xlsx", StringComparison.OrdinalIgnoreCase))
+                                ?? excelFiles.FirstOrDefault(f => 
+                                Path.GetFileName(f).Equals("ProjectConfig.xls", StringComparison.OrdinalIgnoreCase));
                             
                             return projectConfig ?? excelFiles[0];
                         }
