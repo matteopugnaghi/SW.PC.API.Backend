@@ -1408,11 +1408,29 @@ public class GitOperationsService : IGitOperationsService
                         {
                             existing.PublicKey = pubKeyContent;
                             existing.MachineName = Environment.MachineName;
-                            var json = System.Text.Json.JsonSerializer.Serialize(authorizedKeys, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-                            await File.WriteAllTextAsync(AuthorizedKeysFilePath, json);
-                            _logger.LogInformation("🔐 Updated authorized key with public key for {Owner}", existing.OwnerName);
                         }
                     }
+                    else
+                    {
+                        // Clave no existe en authorized_signing_keys → crear entrada nueva
+                        var emailResult2 = await RunGitCommandAsync(".", "config --global user.email");
+                        var keyEmail = emailResult2.Output?.Trim() ?? "electronico@aquafrisch.com";
+                        authorizedKeys.Add(new AuthorizedKey
+                        {
+                            Fingerprint = fp,
+                            OwnerName = Environment.MachineName,
+                            OwnerEmail = keyEmail,
+                            AuthorizedAt = DateTime.UtcNow,
+                            AuthorizedBy = "system-auto",
+                            PublicKey = pubKeyContent,
+                            MachineName = Environment.MachineName
+                        });
+                        _logger.LogInformation("🔐 Auto-added local SSH key to authorized_signing_keys for cross-server sync");
+                    }
+                    
+                    var json = System.Text.Json.JsonSerializer.Serialize(authorizedKeys, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                    await File.WriteAllTextAsync(AuthorizedKeysFilePath, json);
+                    _logger.LogInformation("🔐 Saved authorized_signing_keys.json with PublicKey for {Machine}", Environment.MachineName);
                 }
             }
             catch (Exception ex)
