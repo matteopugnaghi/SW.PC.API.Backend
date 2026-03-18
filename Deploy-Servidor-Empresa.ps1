@@ -415,6 +415,8 @@ if (Test-Path $publishPath) {
         
         if ($_.Name -like "appsettings*.json" -and (Test-Path $destFile)) {
             Write-Info "  Manteniendo: $($_.Name) (ya existe)"
+        } elseif ($_.Name -in @("authorized_signing_keys.json", "access_control_config.json") -and (Test-Path $destFile)) {
+            Write-Info "  Manteniendo: $($_.Name) (configuración local)"
         } else {
             $copied = $false
             for ($attempt = 1; $attempt -le 3; $attempt++) {

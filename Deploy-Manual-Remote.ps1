@@ -1088,6 +1088,30 @@ if (-not (Test-Path $publishPath)) {
     exit 1
 }
 
+# 🔐 ANTES de copiar: preservar archivos de configuración que no vienen en publish
+Write-Step "Preservando archivos de configuración del servidor..."
+$preserveFiles = @(
+    "authorized_signing_keys.json",
+    "access_control_config.json",
+    "active-project.json",
+    "certificate.pfx",
+    "appsettings.Production.json"
+)
+$tempPreserve = "$env:TEMP\deploy_preserve_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+New-Item -ItemType Directory -Path $tempPreserve -Force | Out-Null
+$preservedCount = 0
+foreach ($preserveFile in $preserveFiles) {
+    $sourceFile = "$RemotePath\Backend\$preserveFile"
+    if (Test-Path $sourceFile) {
+        Copy-Item -Path $sourceFile -Destination "$tempPreserve\$preserveFile" -Force
+        Write-Info "  🔒 Preservado: $preserveFile"
+        $preservedCount++
+    }
+}
+if ($preservedCount -eq 0) {
+    Write-Info "  (primera instalación — no hay archivos que preservar)"
+}
+
 # 🧹 Limpiar carpetas residuales que NO deberían existir en producción
 Write-Step "Limpiando carpetas residuales en destino..."
 $residualFolders = @(
@@ -1129,22 +1153,22 @@ for ($copyAttempt = 1; $copyAttempt -le 3; $copyAttempt++) {
 }
 Write-Success "Backend copiado: $totalFiles archivos"
 
-# 🔐 Restaurar archivos de configuración que no vienen en publish
+# 🔐 DESPUÉS de copiar: restaurar archivos preservados
 Write-Step "Restaurando archivos de configuración preservados..."
-$preserveFiles = @(
-    "authorized_signing_keys.json",
-    "access_control_config.json",
-    "active-project.json",
-    "certificate.pfx",
-    "appsettings.Production.json"
-)
+$restoredCount = 0
 foreach ($preserveFile in $preserveFiles) {
-    $backupFile = "$backupPath\Backend\$preserveFile"
+    $savedFile = "$tempPreserve\$preserveFile"
     $destFile = "$RemotePath\Backend\$preserveFile"
-    if ((Test-Path $backupFile) -and -not (Test-Path $destFile)) {
-        Copy-Item -Path $backupFile -Destination $destFile -Force
+    if (Test-Path $savedFile) {
+        Copy-Item -Path $savedFile -Destination $destFile -Force
         Write-Info "  ♻️ Restaurado: $preserveFile"
+        $restoredCount++
     }
+}
+# Limpiar carpeta temporal
+Remove-Item -Path $tempPreserve -Recurse -Force -ErrorAction SilentlyContinue
+if ($restoredCount -gt 0) {
+    Write-Success "Restaurados $restoredCount archivos de configuración"
 }
 
 # ============================================
