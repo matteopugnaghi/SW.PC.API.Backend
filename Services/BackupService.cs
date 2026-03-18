@@ -790,6 +790,17 @@ namespace SW.PC.API.Backend.Services
                                 {
                                     _logger.LogInformation("ℹ️ authorized_signing_keys.json del backup — sin claves nuevas");
                                 }
+                                
+                                // Reconstruir allowed_signers inmediatamente (sin esperar commit)
+                                // Esto es necesario para servidores que solo hacen push (nunca commit)
+                                try
+                                {
+                                    await RebuildAllowedSignersAsync(localKeys);
+                                }
+                                catch (Exception asEx)
+                                {
+                                    _logger.LogWarning(asEx, "⚠️ Could not rebuild allowed_signers after restore");
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -1562,6 +1573,114 @@ namespace SW.PC.API.Backend.Services
             using var sourceStream = new FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var entryStream = entry.Open();
             await sourceStream.CopyToAsync(entryStream);
+        }
+
+        /// <summary>
+        /// Reconstruye el archivo allowed_signers de git SSH a partir de las claves autorizadas.
+        /// Necesario tras restore para que git pueda verificar firmas de otros servidores.
+        /// </summary>
+        private async Task RebuildAllowedSignersAsync(List<AuthorizedKey> keys)
+        {
+            // Detectar la ruta del allowed_signers desde git config
+            var psi = new ProcessStartInfo("git", "config --global gpg.ssh.allowedSignersFile")
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            
+            string? allowedPath = null;
+            try
+            {
+                using var proc = Process.Start(psi);
+                if (proc != null)
+                {
+                    allowedPath = (await proc.StandardOutput.ReadToEndAsync()).Trim();
+                    await proc.WaitForExitAsync();
+                }
+            }
+            catch { /* git not configured for SSH signing */ }
+            
+            // Si no hay allowedSignersFile configurado, intentar detectar la ruta del signingkey
+            if (string.IsNullOrEmpty(allowedPath) || !File.Exists(allowedPath))
+            {
+                psi.Arguments = "config --global user.signingkey";
+                try
+                {
+                    using var proc = Process.Start(psi);
+                    if (proc != null)
+                    {
+                        var keyPath = (await proc.StandardOutput.ReadToEndAsync()).Trim();
+                        await proc.WaitForExitAsync();
+                        if (!string.IsNullOrEmpty(keyPath))
+                        {
+                            var sshDir = Path.GetDirectoryName(keyPath);
+                            if (!string.IsNullOrEmpty(sshDir))
+                                allowedPath = Path.Combine(sshDir, "allowed_signers");
+                        }
+                    }
+                }
+                catch { }
+            }
+            
+            if (string.IsNullOrEmpty(allowedPath))
+            {
+                _logger.LogInformation("ℹ️ SSH signing not configured — skipping allowed_signers rebuild");
+                return;
+            }
+            
+            // Obtener email de git
+            psi.Arguments = "config --global user.email";
+            var email = "electronico@aquafrisch.com";
+            try
+            {
+                using var proc = Process.Start(psi);
+                if (proc != null)
+                {
+                    var result = (await proc.StandardOutput.ReadToEndAsync()).Trim();
+                    await proc.WaitForExitAsync();
+                    if (!string.IsNullOrEmpty(result)) email = result;
+                }
+            }
+            catch { }
+            
+            // Construir allowed_signers con todas las claves que tienen PublicKey
+            var signerLines = new HashSet<string>();
+            
+            // Clave local del servidor
+            psi.Arguments = "config --global user.signingkey";
+            try
+            {
+                using var proc = Process.Start(psi);
+                if (proc != null)
+                {
+                    var keyPath = (await proc.StandardOutput.ReadToEndAsync()).Trim();
+                    await proc.WaitForExitAsync();
+                    if (!string.IsNullOrEmpty(keyPath) && File.Exists(keyPath))
+                    {
+                        var localPubKey = (await File.ReadAllTextAsync(keyPath)).Trim();
+                        signerLines.Add($"{email} namespaces=\"git\" {localPubKey}");
+                    }
+                }
+            }
+            catch { }
+            
+            // Todas las claves autorizadas con PublicKey
+            foreach (var ak in keys.Where(k => !string.IsNullOrEmpty(k.PublicKey)))
+            {
+                var akEmail = !string.IsNullOrEmpty(ak.OwnerEmail) ? ak.OwnerEmail : email;
+                signerLines.Add($"{akEmail} namespaces=\"git\" {ak.PublicKey}");
+            }
+            
+            if (signerLines.Count > 0)
+            {
+                var dir = Path.GetDirectoryName(allowedPath);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                
+                var newContent = string.Join("\n", signerLines) + "\n";
+                await File.WriteAllTextAsync(allowedPath, newContent);
+                _logger.LogInformation("✅ Rebuilt allowed_signers with {Count} key(s): {Path}", signerLines.Count, allowedPath);
+            }
         }
 
         private static async Task<string> ComputeFileHashAsync(string filePath)
