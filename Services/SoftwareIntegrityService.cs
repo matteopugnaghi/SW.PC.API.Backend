@@ -98,6 +98,12 @@ namespace SW.PC.API.Backend.Services
             ".xti", ".~u", ".~u1", ".sln", ".plcproj"
         };
 
+        // Deployment artifacts to ignore in git status (exact filenames)
+        private static readonly HashSet<string> _deploymentArtifactFiles = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "deploy-version.json"
+        };
+
         public SoftwareIntegrityService(
             ILogger<SoftwareIntegrityService> logger,
             IConfiguration configuration,
@@ -843,11 +849,13 @@ namespace SW.PC.API.Backend.Services
                 }
                 else
                 {
-                    // Filter out machine-specific TwinCAT files (.xti, .~u, .~u1, .sln, .plcproj)
+                    // Filter out machine-specific files and deployment artifacts
                     var modifiedLines = statusOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries)
                         .Where(line => {
                             if (line.Length <= 3) return true;
                             var fileName = line[3..].TrimEnd('\r');
+                            var baseName = Path.GetFileName(fileName);
+                            if (_deploymentArtifactFiles.Contains(baseName)) return false;
                             var ext = Path.GetExtension(fileName);
                             return !_machineSpecificExtensions.Contains(ext);
                         })
