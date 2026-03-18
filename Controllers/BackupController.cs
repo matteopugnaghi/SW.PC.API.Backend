@@ -160,7 +160,17 @@ namespace SW.PC.API.Backend.Controllers
             if (filePath == null || !System.IO.File.Exists(filePath))
                 return NotFound(new { message = "Backup file not found" });
             
+            // Usar nombre custom del backup si existe
+            var backupInfo = await _backupService.GetBackupAsync(projectId, backupId);
             var fileName = Path.GetFileName(filePath);
+            if (backupInfo?.Name != null && backupInfo.Name != backupInfo.Id)
+            {
+                // Sanitizar el nombre custom para uso como filename
+                var safeName = string.Join("_", backupInfo.Name.Split(Path.GetInvalidFileNameChars()));
+                if (!string.IsNullOrWhiteSpace(safeName))
+                    fileName = $"{safeName}.zip";
+            }
+            
             var fileStream = System.IO.File.OpenRead(filePath);
             
             return File(fileStream, "application/zip", fileName);
