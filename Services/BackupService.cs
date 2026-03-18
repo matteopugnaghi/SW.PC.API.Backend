@@ -386,6 +386,24 @@ namespace SW.PC.API.Backend.Services
                         }
                     }
                     
+                    // Agregar authorized_signing_keys.json (claves SSH para verificación cross-server)
+                    var authKeysPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "authorized_signing_keys.json");
+                    if (File.Exists(authKeysPath))
+                    {
+                        var relativePath = "authorized_signing_keys.json";
+                        await AddFileToZipAsync(zipArchive, authKeysPath, relativePath);
+                        
+                        manifest.Files.Add(new BackupFileEntry
+                        {
+                            RelativePath = relativePath,
+                            Hash = await ComputeFileHashAsync(authKeysPath),
+                            SizeBytes = new FileInfo(authKeysPath).Length,
+                            ModifiedAt = File.GetLastWriteTimeUtc(authKeysPath)
+                        });
+                        
+                        _logger.LogInformation("✅ authorized_signing_keys.json incluido en backup (SSH cross-server verification)");
+                    }
+                    
                     // Agregar deploy-version.json como metadata de trazabilidad (desde raiz de Backend, NO del proyecto)
                     // Se incluye en el backup como referencia read-only pero NO se restaura
                     var deployVersionPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "deploy-version.json");
@@ -721,6 +739,62 @@ namespace SW.PC.API.Backend.Services
                             // Siempre restaurar Audit Logs (EU CRA Compliance)
                             shouldRestore = true;
                             _logger.LogInformation("✅ Restaurando Audit Log: {FileName}", entryPath);
+                        }
+                        else if (entryPath == "authorized_signing_keys.json")
+                        {
+                            // Fusionar claves autorizadas del backup con las locales (no sobreescribir)
+                            try
+                            {
+                                using var akStream = entry.Open();
+                                var backupKeys = await JsonSerializer.DeserializeAsync<List<AuthorizedKey>>(akStream, JsonOptions) ?? new();
+                                
+                                var localPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "authorized_signing_keys.json");
+                                var localKeys = new List<AuthorizedKey>();
+                                if (File.Exists(localPath))
+                                {
+                                    var localJson = await File.ReadAllTextAsync(localPath);
+                                    localKeys = JsonSerializer.Deserialize<List<AuthorizedKey>>(localJson, JsonOptions) ?? new();
+                                }
+                                
+                                // Merge: añadir claves del backup que no existan localmente (por fingerprint)
+                                var localFingerprints = new HashSet<string>(localKeys.Select(k => k.Fingerprint), StringComparer.OrdinalIgnoreCase);
+                                var added = 0;
+                                foreach (var bk in backupKeys)
+                                {
+                                    if (!localFingerprints.Contains(bk.Fingerprint))
+                                    {
+                                        localKeys.Add(bk);
+                                        added++;
+                                    }
+                                    else
+                                    {
+                                        // Si la local no tiene PublicKey pero la del backup sí, actualizarla
+                                        var local = localKeys.First(k => k.Fingerprint.Equals(bk.Fingerprint, StringComparison.OrdinalIgnoreCase));
+                                        if (string.IsNullOrEmpty(local.PublicKey) && !string.IsNullOrEmpty(bk.PublicKey))
+                                        {
+                                            local.PublicKey = bk.PublicKey;
+                                            local.MachineName = bk.MachineName;
+                                            added++;
+                                        }
+                                    }
+                                }
+                                
+                                if (added > 0)
+                                {
+                                    var mergedJson = JsonSerializer.Serialize(localKeys, JsonOptions);
+                                    await File.WriteAllTextAsync(localPath, mergedJson);
+                                    _logger.LogInformation("✅ Fusionadas {Count} claves autorizadas del backup", added);
+                                    response.Warnings.Add($"Merged {added} authorized signing key(s) from backup");
+                                }
+                                else
+                                {
+                                    _logger.LogInformation("ℹ️ authorized_signing_keys.json del backup — sin claves nuevas");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "⚠️ Could not merge authorized_signing_keys.json from backup");
+                            }
                         }
                         else if (entryPath == "deploy-version.json")
                         {
