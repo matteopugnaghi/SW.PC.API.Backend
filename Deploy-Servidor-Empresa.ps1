@@ -172,6 +172,30 @@ function Get-GitVersionInfo {
                     }
                 } catch { }
             }
+        } else {
+            # 🔐 Modo verification-only: no hay SSH signing local, pero podemos verificar firmas de otros
+            $authKeysFile = Join-Path $RepoPath "authorized_signing_keys.json"
+            if (Test-Path $authKeysFile) {
+                try {
+                    $authKeys = Get-Content $authKeysFile -Raw | ConvertFrom-Json
+                    $validKeys = @($authKeys | Where-Object { $_.PublicKey -and $_.Fingerprint })
+                    if ($validKeys.Count -gt 0) {
+                        $userProfile = [Environment]::GetFolderPath("UserProfile")
+                        $sshDir = Join-Path $userProfile ".ssh"
+                        if (-not (Test-Path $sshDir)) { New-Item -ItemType Directory -Path $sshDir -Force | Out-Null }
+                        $allowedSignersPath = Join-Path $sshDir "allowed_signers"
+                        $signerLines = @()
+                        foreach ($ak in $validKeys) {
+                            $akEmail = if ($ak.OwnerEmail) { $ak.OwnerEmail } else { "electronico@aquafrisch.com" }
+                            $signerLines += "$akEmail namespaces=`"git`" $($ak.PublicKey)"
+                        }
+                        Set-Content -Path $allowedSignersPath -Value ($signerLines -join "`n") -Encoding UTF8
+                        git config --global gpg.format ssh 2>$null
+                        git config --global gpg.ssh.allowedSignersFile $allowedSignersPath 2>$null
+                        Write-Host "   🔐 Verification-only: created allowed_signers with $($validKeys.Count) key(s)" -ForegroundColor Cyan
+                    }
+                } catch { }
+            }
         }
         
         $sha = (git rev-parse HEAD 2>$null) -replace "`n|`r", ""

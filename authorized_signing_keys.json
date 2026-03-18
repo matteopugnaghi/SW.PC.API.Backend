@@ -1,9 +1,20 @@
-﻿[{
-    "Fingerprint":  "SHA256:/INjVvj2TEekiIQhcL4u3POdRbgmpJBfGJ9p417ks2U",
-    "OwnerName":  "PT62MATTEO",
-    "OwnerEmail":  "electronico@aquafrisch.com",
-    "AuthorizedAt":  "2026-03-18T12:29:34Z",
-    "AuthorizedBy":  "system-auto",
-    "PublicKey":  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGN1IKtDXlxPR5KDynmdhsdoXpO2/TVUj7Y5yv/2C6EU electronico@aquafrisch.com",
-    "MachineName":  "PT62MATTEO"
-}]
+﻿[
+  {
+    "Fingerprint": "SHA256:/INjVvj2TEekiIQhcL4u3POdRbgmpJBfGJ9p417ks2U",
+    "OwnerName": "PT62MATTEO",
+    "OwnerEmail": "electronico@aquafrisch.com",
+    "AuthorizedAt": "2026-03-18T12:29:34Z",
+    "AuthorizedBy": "system-auto",
+    "PublicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGN1IKtDXlxPR5KDynmdhsdoXpO2/TVUj7Y5yv/2C6EU electronico@aquafrisch.com",
+    "MachineName": "PT62MATTEO"
+  },
+  {
+    "Fingerprint": "SHA256:Q/Wm13oxVfCGt4XCObDioZm2fBp8Lg2vAJAmsqHg36o",
+    "OwnerName": "A90-IPC-SERVER",
+    "OwnerEmail": "mpugnaghi@aquafrisch.com",
+    "AuthorizedAt": "2026-03-18T14:00:00Z",
+    "AuthorizedBy": "manual-sync",
+    "PublicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOmduKHEP2kgCdx7ht1yNeZoFeA9W4AR2f/FKUqkluR5 mpugnaghi@aquafrisch.com",
+    "MachineName": "A90-IPC-SERVER"
+  }
+]
