@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Text;
 
 namespace SW.PC.API.Backend.Services;
@@ -52,13 +53,37 @@ public class GitOperationsService : IGitOperationsService
     private readonly ILogger<GitOperationsService> _logger;
     private readonly ISoftwareIntegrityService _integrityService;
     private readonly IExcelConfigService _excelConfigService;
+    private bool? _gitAvailable;
 
     public GitOperationsService(ILogger<GitOperationsService> logger, ISoftwareIntegrityService integrityService, IExcelConfigService excelConfigService)
     {
         _logger = logger;
         _integrityService = integrityService;
         _excelConfigService = excelConfigService;
-        _logger.LogInformation("?? GitOperationsService initialized (using paths from SoftwareIntegrityService)");
+        _logger.LogInformation("🔧 GitOperationsService initialized (using paths from SoftwareIntegrityService)");
+    }
+
+    /// <summary>
+    /// Checks if git.exe is available. Caches the result.
+    /// </summary>
+    private async Task<bool> IsGitAvailableAsync()
+    {
+        if (_gitAvailable.HasValue) return _gitAvailable.Value;
+        try
+        {
+            var result = await RunGitCommandAsync(".", "--version", 5000);
+            _gitAvailable = result.Success;
+            if (!_gitAvailable.Value)
+                _logger.LogWarning("⚠️ git.exe not available - using .git file fallbacks for read operations");
+            else
+                _logger.LogInformation("✅ git.exe available: {Version}", result.Output?.Trim());
+        }
+        catch
+        {
+            _gitAvailable = false;
+            _logger.LogWarning("⚠️ git.exe not found - using .git file fallbacks for read operations");
+        }
+        return _gitAvailable.Value;
     }
 
     /// <summary>
@@ -165,27 +190,36 @@ public class GitOperationsService : IGitOperationsService
             status.IsGitRepo = Directory.Exists(gitDir);
             if (!status.IsGitRepo) { status.Error = "Not a git repository"; return status; }
             status.IsValid = true;
-            var branchResult = await RunGitCommandAsync(repoPath, "rev-parse --abbrev-ref HEAD");
-            status.CurrentBranch = branchResult.Output?.Trim() ?? "unknown";
-            var lastCommitResult = await RunGitCommandAsync(repoPath, "log -1 --format=%H|%s|%ai|%an");
-            if (lastCommitResult.Success && !string.IsNullOrEmpty(lastCommitResult.Output))
+
+            if (await IsGitAvailableAsync())
             {
-                var parts = lastCommitResult.Output.Trim().Split('|');
-                if (parts.Length >= 4)
+                var branchResult = await RunGitCommandAsync(repoPath, "rev-parse --abbrev-ref HEAD");
+                status.CurrentBranch = branchResult.Output?.Trim() ?? "unknown";
+                var lastCommitResult = await RunGitCommandAsync(repoPath, "log -1 --format=%H|%s|%ai|%an");
+                if (lastCommitResult.Success && !string.IsNullOrEmpty(lastCommitResult.Output))
                 {
-                    status.LastCommit = new CommitInfo { Hash = parts[0], ShortHash = parts[0].Length > 7 ? parts[0][..7] : parts[0], Message = parts[1], Date = DateTime.TryParse(parts[2], out var date) ? date : DateTime.MinValue, Author = parts[3] };
+                    var parts = lastCommitResult.Output.Trim().Split('|');
+                    if (parts.Length >= 4)
+                    {
+                        status.LastCommit = new CommitInfo { Hash = parts[0], ShortHash = parts[0].Length > 7 ? parts[0][..7] : parts[0], Message = parts[1], Date = DateTime.TryParse(parts[2], out var date) ? date : DateTime.MinValue, Author = parts[3] };
+                    }
                 }
+                status.ModifiedFiles = await GetModifiedFilesAsync(repoPath);
+                status.HasChanges = status.ModifiedFiles.Count > 0;
+                var aheadBehindResult = await RunGitCommandAsync(repoPath, "rev-list --left-right --count HEAD...@{upstream}");
+                if (aheadBehindResult.Success && !string.IsNullOrEmpty(aheadBehindResult.Output))
+                {
+                    var counts = aheadBehindResult.Output.Trim().Split('\t');
+                    if (counts.Length >= 2) { status.CommitsAhead = int.TryParse(counts[0], out var ahead) ? ahead : 0; status.CommitsBehind = int.TryParse(counts[1], out var behind) ? behind : 0; }
+                }
+                var remoteResult = await RunGitCommandAsync(repoPath, "remote get-url origin");
+                status.RemoteUrl = remoteResult.Output?.Trim();
             }
-            status.ModifiedFiles = await GetModifiedFilesAsync(repoPath);
-            status.HasChanges = status.ModifiedFiles.Count > 0;
-            var aheadBehindResult = await RunGitCommandAsync(repoPath, "rev-list --left-right --count HEAD...@{upstream}");
-            if (aheadBehindResult.Success && !string.IsNullOrEmpty(aheadBehindResult.Output))
+            else
             {
-                var counts = aheadBehindResult.Output.Trim().Split('\t');
-                if (counts.Length >= 2) { status.CommitsAhead = int.TryParse(counts[0], out var ahead) ? ahead : 0; status.CommitsBehind = int.TryParse(counts[1], out var behind) ? behind : 0; }
+                // Fallback: leer directamente de .git sin git.exe
+                await GetRepositoryStatusFromGitFilesAsync(status, gitDir);
             }
-            var remoteResult = await RunGitCommandAsync(repoPath, "remote get-url origin");
-            status.RemoteUrl = remoteResult.Output?.Trim();
         }
         catch (Exception ex) { status.Error = ex.Message; _logger.LogError(ex, "Error getting repository status for {Path}", repoPath); }
         return status;
@@ -207,7 +241,543 @@ public class GitOperationsService : IGitOperationsService
             }
         }
         catch (Exception ex) { _logger.LogError(ex, "Error getting commit history for {Path}", repoPath); }
+
+        // Fallback: si git log falló (no hay git.exe), leer directamente de .git/objects
+        if (commits.Count == 0)
+        {
+            _logger.LogInformation("📁 git log returned no results for {Path}, trying direct .git object reading", repoPath);
+            commits = await GetCommitHistoryFromGitObjectsAsync(repoPath, count);
+        }
+
         return commits;
+    }
+
+    /// <summary>
+    /// Lee el historial de commits directamente desde .git/objects sin requerir git.exe.
+    /// Camina por los parent commits empezando desde HEAD.
+    /// </summary>
+    private async Task<List<CommitInfo>> GetCommitHistoryFromGitObjectsAsync(string repoPath, int count)
+    {
+        var commits = new List<CommitInfo>();
+        try
+        {
+            var gitDir = Path.Combine(repoPath, ".git");
+            if (!Directory.Exists(gitDir)) return commits;
+
+            // Leer HEAD
+            var headPath = Path.Combine(gitDir, "HEAD");
+            if (!File.Exists(headPath)) return commits;
+
+            var headContent = (await File.ReadAllTextAsync(headPath)).Trim();
+            string? currentSha = null;
+
+            if (headContent.StartsWith("ref: "))
+            {
+                var refPath = headContent.Substring(5).Trim();
+                var refFilePath = Path.Combine(gitDir, refPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
+                if (File.Exists(refFilePath))
+                {
+                    currentSha = (await File.ReadAllTextAsync(refFilePath)).Trim();
+                }
+                else
+                {
+                    // packed-refs
+                    var packedRefsPath = Path.Combine(gitDir, "packed-refs");
+                    if (File.Exists(packedRefsPath))
+                    {
+                        foreach (var line in await File.ReadAllLinesAsync(packedRefsPath))
+                        {
+                            if (!line.StartsWith("#") && line.Contains(refPath))
+                            {
+                                currentSha = line.Split(' ')[0];
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                currentSha = headContent;
+            }
+
+            // Caminar por los parent commits
+            while (!string.IsNullOrEmpty(currentSha) && commits.Count < count)
+            {
+                var commitData = ReadGitObjectContent(gitDir, currentSha);
+                if (commitData == null) break;
+
+                // Parsear: separar header de body por \0
+                var nullIndex = commitData.IndexOf('\0');
+                var body = nullIndex >= 0 ? commitData.Substring(nullIndex + 1) : commitData;
+
+                var separatorIdx = body.IndexOf("\n\n");
+                if (separatorIdx < 0) break;
+
+                var headerSection = body.Substring(0, separatorIdx);
+                var messageSection = body.Substring(separatorIdx + 2).Trim();
+
+                // Primera línea del mensaje
+                var nlIdx = messageSection.IndexOf('\n');
+                var message = nlIdx > 0 ? messageSection.Substring(0, nlIdx).Trim() : messageSection;
+
+                // Parsear author y parent
+                string author = "";
+                DateTime date = DateTime.MinValue;
+                string? parentSha = null;
+
+                foreach (var headerLine in headerSection.Split('\n'))
+                {
+                    if (headerLine.StartsWith("parent ") && parentSha == null)
+                    {
+                        parentSha = headerLine.Substring(7).Trim();
+                    }
+                    else if (headerLine.StartsWith("author "))
+                    {
+                        var authorPart = headerLine.Substring(7);
+                        var emailStart = authorPart.IndexOf('<');
+                        if (emailStart > 0) author = authorPart.Substring(0, emailStart).Trim();
+
+                        var emailEnd = authorPart.IndexOf('>');
+                        if (emailEnd > 0)
+                        {
+                            var afterEmail = authorPart.Substring(emailEnd + 1).Trim().Split(' ');
+                            if (afterEmail.Length >= 1 && long.TryParse(afterEmail[0], out var unixTime))
+                            {
+                                var dto = DateTimeOffset.FromUnixTimeSeconds(unixTime);
+                                if (afterEmail.Length >= 2)
+                                {
+                                    var tz = afterEmail[1];
+                                    if (tz.Length == 5 && (tz[0] == '+' || tz[0] == '-'))
+                                    {
+                                        var hours = int.Parse(tz.Substring(1, 2));
+                                        var mins = int.Parse(tz.Substring(3, 2));
+                                        var offset = new TimeSpan(hours, mins, 0);
+                                        if (tz[0] == '-') offset = offset.Negate();
+                                        dto = dto.ToOffset(offset);
+                                    }
+                                }
+                                date = dto.DateTime;
+                            }
+                        }
+                    }
+                }
+
+                commits.Add(new CommitInfo
+                {
+                    Hash = currentSha,
+                    ShortHash = currentSha.Length > 7 ? currentSha[..7] : currentSha,
+                    Message = message,
+                    Date = date,
+                    Author = author
+                });
+
+                currentSha = parentSha;
+            }
+
+            if (commits.Count > 0)
+                _logger.LogInformation("📁 Read {Count} commits from .git objects for {Path}", commits.Count, repoPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "📁 Could not read commit history from .git objects for {Path}", repoPath);
+        }
+        return commits;
+    }
+
+    /// <summary>
+    /// Lee y descomprime un objeto git por su SHA (loose object o packfile).
+    /// </summary>
+    private string? ReadGitObjectContent(string gitDir, string sha)
+    {
+        // 1. Loose object
+        var loosePath = Path.Combine(gitDir, "objects", sha.Substring(0, 2), sha.Substring(2));
+        if (File.Exists(loosePath))
+        {
+            return DecompressGitLooseObject(loosePath);
+        }
+
+        // 2. Packfiles
+        var packDir = Path.Combine(gitDir, "objects", "pack");
+        if (Directory.Exists(packDir))
+        {
+            foreach (var idxFile in Directory.GetFiles(packDir, "*.idx"))
+            {
+                var packFile = Path.ChangeExtension(idxFile, ".pack");
+                if (!File.Exists(packFile)) continue;
+
+                var content = ReadFromPackfile(idxFile, packFile, sha);
+                if (content != null) return content;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Descomprime un objeto git suelto (zlib: 2 bytes header + deflate).
+    /// </summary>
+    private string? DecompressGitLooseObject(string objectPath)
+    {
+        try
+        {
+            var compressed = File.ReadAllBytes(objectPath);
+            using var ms = new MemoryStream(compressed, 2, compressed.Length - 2);
+            using var deflate = new System.IO.Compression.DeflateStream(ms, System.IO.Compression.CompressionMode.Decompress);
+            using var reader = new StreamReader(deflate, Encoding.UTF8);
+            return reader.ReadToEnd();
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Lee un objeto desde un packfile git usando el índice (.idx v2).
+    /// </summary>
+    private string? ReadFromPackfile(string idxPath, string packPath, string sha)
+    {
+        try
+        {
+            var shaBytes = Convert.FromHexString(sha);
+            var idxData = File.ReadAllBytes(idxPath);
+
+            if (idxData.Length < 1032) return null;
+
+            // Verificar magic number idx v2
+            if (idxData[0] != 0xFF || idxData[1] != 0x74 || idxData[2] != 0x4F || idxData[3] != 0x63)
+                return null;
+
+            var totalObjects = (int)((idxData[1024] << 24) | (idxData[1025] << 16) | (idxData[1026] << 8) | idxData[1027]);
+
+            // Buscar SHA en hash table usando fanout
+            var hashTableOffset = 1032;
+            var firstByte = shaBytes[0];
+            var lo = firstByte > 0
+                ? (int)((idxData[8 + (firstByte - 1) * 4] << 24) | (idxData[9 + (firstByte - 1) * 4] << 16) | (idxData[10 + (firstByte - 1) * 4] << 8) | idxData[11 + (firstByte - 1) * 4])
+                : 0;
+            var hi = (int)((idxData[8 + firstByte * 4] << 24) | (idxData[9 + firstByte * 4] << 16) | (idxData[10 + firstByte * 4] << 8) | idxData[11 + firstByte * 4]);
+
+            var objectIndex = -1;
+            for (var i = lo; i < hi; i++)
+            {
+                var offset = hashTableOffset + i * 20;
+                if (offset + 20 > idxData.Length) break;
+                var match = true;
+                for (var j = 0; j < 20; j++) { if (idxData[offset + j] != shaBytes[j]) { match = false; break; } }
+                if (match) { objectIndex = i; break; }
+            }
+
+            if (objectIndex < 0) return null;
+
+            // Leer offset en pack
+            var crcTableOffset = hashTableOffset + totalObjects * 20;
+            var offsetTableOffset = crcTableOffset + totalObjects * 4;
+            var packOffsetPos = offsetTableOffset + objectIndex * 4;
+            if (packOffsetPos + 4 > idxData.Length) return null;
+
+            var packOffset = (long)((idxData[packOffsetPos] << 24) | (idxData[packOffsetPos + 1] << 16) | (idxData[packOffsetPos + 2] << 8) | idxData[packOffsetPos + 3]);
+
+            using var packStream = File.OpenRead(packPath);
+            packStream.Seek(packOffset, SeekOrigin.Begin);
+
+            // Header variable-length
+            var headerByte = packStream.ReadByte();
+            var objectType = (headerByte >> 4) & 0x7;
+            if (objectType != 1) return null; // Solo commits
+
+            long objectSize = headerByte & 0xF;
+            var shift = 4;
+            while ((headerByte & 0x80) != 0)
+            {
+                headerByte = packStream.ReadByte();
+                objectSize |= ((long)(headerByte & 0x7F)) << shift;
+                shift += 7;
+            }
+
+            using var deflate = new System.IO.Compression.DeflateStream(packStream, System.IO.Compression.CompressionMode.Decompress);
+            var buffer = new byte[objectSize];
+            var totalRead = 0;
+            while (totalRead < objectSize)
+            {
+                var read = deflate.Read(buffer, totalRead, (int)(objectSize - totalRead));
+                if (read == 0) break;
+                totalRead += read;
+            }
+
+            return "commit 0\0" + Encoding.UTF8.GetString(buffer, 0, totalRead);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Lee estado del repositorio directamente de .git/ sin git.exe.
+    /// </summary>
+    private async Task GetRepositoryStatusFromGitFilesAsync(RepositoryStatus status, string gitDir)
+    {
+        try
+        {
+            // Branch
+            var headPath = Path.Combine(gitDir, "HEAD");
+            if (!File.Exists(headPath)) return;
+            var headContent = (await File.ReadAllTextAsync(headPath)).Trim();
+            string? commitSha = null;
+
+            if (headContent.StartsWith("ref: "))
+            {
+                var refPath = headContent.Substring(5).Trim();
+                status.CurrentBranch = refPath.Replace("refs/heads/", "");
+                var refFilePath = Path.Combine(gitDir, refPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
+                if (File.Exists(refFilePath))
+                    commitSha = (await File.ReadAllTextAsync(refFilePath)).Trim();
+                else
+                {
+                    var packedRefsPath = Path.Combine(gitDir, "packed-refs");
+                    if (File.Exists(packedRefsPath))
+                    {
+                        foreach (var line in await File.ReadAllLinesAsync(packedRefsPath))
+                        {
+                            if (!line.StartsWith("#") && line.Contains(refPath))
+                            { commitSha = line.Split(' ')[0]; break; }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                status.CurrentBranch = "detached";
+                commitSha = headContent;
+            }
+
+            // Last commit
+            if (!string.IsNullOrEmpty(commitSha))
+            {
+                var commitData = ReadGitObjectContent(gitDir, commitSha);
+                if (commitData != null)
+                {
+                    var nullIndex = commitData.IndexOf('\0');
+                    var body = nullIndex >= 0 ? commitData.Substring(nullIndex + 1) : commitData;
+                    var separatorIdx = body.IndexOf("\n\n");
+                    if (separatorIdx >= 0)
+                    {
+                        var headerSection = body.Substring(0, separatorIdx);
+                        var messageSection = body.Substring(separatorIdx + 2).Trim();
+                        var nlIdx = messageSection.IndexOf('\n');
+                        var message = nlIdx > 0 ? messageSection.Substring(0, nlIdx).Trim() : messageSection;
+
+                        string author = "";
+                        DateTime date = DateTime.MinValue;
+                        foreach (var headerLine in headerSection.Split('\n'))
+                        {
+                            if (headerLine.StartsWith("author "))
+                            {
+                                var authorPart = headerLine.Substring(7);
+                                var emailStart = authorPart.IndexOf('<');
+                                if (emailStart > 0) author = authorPart.Substring(0, emailStart).Trim();
+                                var emailEnd = authorPart.IndexOf('>');
+                                if (emailEnd > 0)
+                                {
+                                    var afterEmail = authorPart.Substring(emailEnd + 1).Trim().Split(' ');
+                                    if (afterEmail.Length >= 1 && long.TryParse(afterEmail[0], out var unixTime))
+                                    {
+                                        var dto = DateTimeOffset.FromUnixTimeSeconds(unixTime);
+                                        if (afterEmail.Length >= 2)
+                                        {
+                                            var tz = afterEmail[1];
+                                            if (tz.Length == 5 && (tz[0] == '+' || tz[0] == '-'))
+                                            {
+                                                var hours = int.Parse(tz.Substring(1, 2));
+                                                var mins = int.Parse(tz.Substring(3, 2));
+                                                var offset = new TimeSpan(hours, mins, 0);
+                                                if (tz[0] == '-') offset = offset.Negate();
+                                                dto = dto.ToOffset(offset);
+                                            }
+                                        }
+                                        date = dto.DateTime;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+
+                        status.LastCommit = new CommitInfo
+                        {
+                            Hash = commitSha,
+                            ShortHash = commitSha.Length > 7 ? commitSha[..7] : commitSha,
+                            Message = message,
+                            Date = date,
+                            Author = author
+                        };
+                    }
+                }
+            }
+
+            // Remote URL from .git/config
+            var configPath = Path.Combine(gitDir, "config");
+            if (File.Exists(configPath))
+            {
+                var configLines = await File.ReadAllLinesAsync(configPath);
+                bool inRemoteOrigin = false;
+                foreach (var line in configLines)
+                {
+                    var trimmed = line.Trim();
+                    if (trimmed == "[remote \"origin\"]") { inRemoteOrigin = true; continue; }
+                    if (trimmed.StartsWith("[")) { inRemoteOrigin = false; continue; }
+                    if (inRemoteOrigin && trimmed.StartsWith("url = "))
+                    {
+                        status.RemoteUrl = trimmed.Substring(6).Trim();
+                        break;
+                    }
+                }
+            }
+
+            _logger.LogInformation("📁 Repository status from .git files: branch={Branch}, commit={Sha}, remote={Remote}",
+                status.CurrentBranch, status.LastCommit?.ShortHash ?? "none", status.RemoteUrl ?? "none");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "📁 Could not read repository status from .git files");
+        }
+    }
+
+    /// <summary>
+    /// Lee tags desde .git/refs/tags/ y packed-refs sin git.exe.
+    /// </summary>
+    private async Task<List<TagInfo>> GetTagsFromGitFilesAsync(string repoPath)
+    {
+        var tags = new List<TagInfo>();
+        try
+        {
+            var gitDir = Path.Combine(repoPath, ".git");
+            if (!Directory.Exists(gitDir)) return tags;
+
+            // 1. Tags en refs/tags/
+            var tagsDir = Path.Combine(gitDir, "refs", "tags");
+            if (Directory.Exists(tagsDir))
+            {
+                foreach (var tagFile in Directory.GetFiles(tagsDir))
+                {
+                    tags.Add(new TagInfo
+                    {
+                        Name = Path.GetFileName(tagFile),
+                        Date = File.GetLastWriteTime(tagFile),
+                        Message = ""
+                    });
+                }
+            }
+
+            // 2. Tags en packed-refs
+            var packedRefsPath = Path.Combine(gitDir, "packed-refs");
+            if (File.Exists(packedRefsPath))
+            {
+                var existingTagNames = new HashSet<string>(tags.Select(t => t.Name));
+                foreach (var line in await File.ReadAllLinesAsync(packedRefsPath))
+                {
+                    if (line.StartsWith("#") || line.StartsWith("^")) continue;
+                    var parts = line.Split(' ', 2);
+                    if (parts.Length >= 2 && parts[1].StartsWith("refs/tags/"))
+                    {
+                        var tagName = parts[1].Replace("refs/tags/", "");
+                        if (!existingTagNames.Contains(tagName))
+                        {
+                            tags.Add(new TagInfo
+                            {
+                                Name = tagName,
+                                Date = File.GetLastWriteTime(packedRefsPath),
+                                Message = ""
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (tags.Count > 0)
+                _logger.LogInformation("📁 Read {Count} tags from .git files for {Path}", tags.Count, repoPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "📁 Could not read tags from .git files for {Path}", repoPath);
+        }
+        return tags;
+    }
+
+    /// <summary>
+    /// Lee configuración global de git desde .gitconfig sin git.exe.
+    /// Busca en rutas comunes: %USERPROFILE%/.gitconfig, %PROGRAMDATA%/Git/config
+    /// </summary>
+    private async Task<Dictionary<string, string>> ReadGitConfigAsync()
+    {
+        var config = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            // Buscar .gitconfig en varias ubicaciones posibles
+            var possiblePaths = new[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gitconfig"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Git", "config"),
+                // Para SYSTEM user, puede estar en el perfil de otro usuario
+                @"C:\Users\Administrator\.gitconfig",
+            };
+
+            foreach (var configPath in possiblePaths)
+            {
+                if (!File.Exists(configPath)) continue;
+
+                var lines = await File.ReadAllLinesAsync(configPath);
+                string currentSection = "";
+                string currentSubsection = "";
+
+                foreach (var line in lines)
+                {
+                    var trimmed = line.Trim();
+                    if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#") || trimmed.StartsWith(";"))
+                        continue;
+
+                    // Section header: [section] or [section "subsection"]
+                    if (trimmed.StartsWith("["))
+                    {
+                        var closeBracket = trimmed.IndexOf(']');
+                        if (closeBracket > 0)
+                        {
+                            var sectionContent = trimmed.Substring(1, closeBracket - 1);
+                            var quoteStart = sectionContent.IndexOf('"');
+                            if (quoteStart > 0)
+                            {
+                                currentSection = sectionContent.Substring(0, quoteStart).Trim();
+                                var quoteEnd = sectionContent.IndexOf('"', quoteStart + 1);
+                                currentSubsection = quoteEnd > quoteStart
+                                    ? sectionContent.Substring(quoteStart + 1, quoteEnd - quoteStart - 1)
+                                    : "";
+                            }
+                            else
+                            {
+                                currentSection = sectionContent.Trim();
+                                currentSubsection = "";
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Key = value
+                    var eqIdx = trimmed.IndexOf('=');
+                    if (eqIdx > 0)
+                    {
+                        var key = trimmed.Substring(0, eqIdx).Trim();
+                        var value = trimmed.Substring(eqIdx + 1).Trim();
+                        // Build full key: section.subsection.key or section.key
+                        var fullKey = string.IsNullOrEmpty(currentSubsection)
+                            ? $"{currentSection}.{key}"
+                            : $"{currentSection}.{currentSubsection}.{key}";
+                        config[fullKey] = value;
+                    }
+                }
+
+                _logger.LogDebug("📁 Read git config from {Path}: {Count} entries", configPath, config.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "📁 Could not read .gitconfig files");
+        }
+        return config;
     }
 
     #region Release Notes
@@ -220,6 +790,12 @@ public class GitOperationsService : IGitOperationsService
         var commits = new List<CommitInfo>();
         try
         {
+            if (!await IsGitAvailableAsync())
+            {
+                // Sin git.exe, devolver historial completo como fallback
+                return await GetCommitHistoryFromGitObjectsAsync(repoPath, 50);
+            }
+
             string range;
             if (!string.IsNullOrEmpty(fromTag) && !string.IsNullOrEmpty(toTag))
                 range = $"{fromTag}..{toTag}";
@@ -528,6 +1104,9 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
+            if (!await IsGitAvailableAsync())
+                return new GitOperationResult { Success = false, Message = "git.exe not available on this system" };
+
             // ?? Verificar si el repo es editable en este entorno
             var editCheck = CheckEditPermission(repoPath);
             if (editCheck != null) return editCheck;
@@ -680,6 +1259,8 @@ public class GitOperationsService : IGitOperationsService
 
     public async Task<GitOperationResult> DiscardChangesAsync(string repoPath, string? filePath = null)
     {
+        if (!await IsGitAvailableAsync())
+            return new GitOperationResult { Success = false, Message = "git.exe not available on this system" };
         try
         {
             // ?? MODO PRODUCCI�N: Verificar permisos de edici�n
@@ -697,6 +1278,8 @@ public class GitOperationsService : IGitOperationsService
 
     public async Task<GitOperationResult> RevertToCommitAsync(string repoPath, string commitHash)
     {
+        if (!await IsGitAvailableAsync())
+            return new GitOperationResult { Success = false, Message = "git.exe not available on this system" };
         try
         {
             // ?? MODO PRODUCCI�N: Verificar permisos de edici�n
@@ -721,6 +1304,10 @@ public class GitOperationsService : IGitOperationsService
     public async Task<List<ModifiedFile>> GetModifiedFilesAsync(string repoPath)
     {
         var files = new List<ModifiedFile>();
+
+        // git status --porcelain requires git.exe - no fallback possible
+        if (!await IsGitAvailableAsync()) return files;
+
         try
         {
             var result = await RunGitCommandAsync(repoPath, "status --porcelain");
@@ -1025,23 +1612,29 @@ public class GitOperationsService : IGitOperationsService
         var tags = new List<TagInfo>();
         try
         {
-            // Get tags with date and message
-            var result = await RunGitCommandAsync(repoPath, "tag -l --format=%(refname:short)|%(creatordate:iso)|%(subject)");
-            if (result.Success && !string.IsNullOrEmpty(result.Output))
+            if (await IsGitAvailableAsync())
             {
-                foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                var result = await RunGitCommandAsync(repoPath, "tag -l --format=%(refname:short)|%(creatordate:iso)|%(subject)");
+                if (result.Success && !string.IsNullOrEmpty(result.Output))
                 {
-                    var parts = line.Split('|');
-                    if (parts.Length >= 1)
+                    foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
                     {
-                        tags.Add(new TagInfo
+                        var parts = line.Split('|');
+                        if (parts.Length >= 1)
                         {
-                            Name = parts[0],
-                            Date = parts.Length > 1 && DateTime.TryParse(parts[1], out var date) ? date : DateTime.MinValue,
-                            Message = parts.Length > 2 ? parts[2] : ""
-                        });
+                            tags.Add(new TagInfo
+                            {
+                                Name = parts[0],
+                                Date = parts.Length > 1 && DateTime.TryParse(parts[1], out var date) ? date : DateTime.MinValue,
+                                Message = parts.Length > 2 ? parts[2] : ""
+                            });
+                        }
                     }
                 }
+            }
+            else
+            {
+                tags = await GetTagsFromGitFilesAsync(repoPath);
             }
         }
         catch (Exception ex) { _logger.LogError(ex, "Error getting tags for {Path}", repoPath); }
@@ -1052,9 +1645,18 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            var result = await RunGitCommandAsync(repoPath, "describe --tags --abbrev=0");
-            if (result.Success && !string.IsNullOrEmpty(result.Output))
-                return result.Output.Trim();
+            if (await IsGitAvailableAsync())
+            {
+                var result = await RunGitCommandAsync(repoPath, "describe --tags --abbrev=0");
+                if (result.Success && !string.IsNullOrEmpty(result.Output))
+                    return result.Output.Trim();
+            }
+            else
+            {
+                var tags = await GetTagsFromGitFilesAsync(repoPath);
+                if (tags.Count > 0)
+                    return tags.OrderByDescending(t => t.Name).First().Name;
+            }
         }
         catch { }
         return "";
@@ -1105,7 +1707,9 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // ?? MODO PRODUCCI�N: Verificar permisos de edici�n
+            if (!await IsGitAvailableAsync())
+                return new GitOperationResult { Success = false, Message = "git.exe not available on this system" };
+
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
@@ -1148,7 +1752,9 @@ public class GitOperationsService : IGitOperationsService
     {
         try
         {
-            // ?? MODO PRODUCCI�N: Verificar permisos de edici�n
+            if (!await IsGitAvailableAsync())
+                return new GitOperationResult { Success = false, Message = "git.exe not available on this system" };
+
             var editPermission = CheckEditPermission(repoPath);
             if (editPermission != null) return editPermission;
 
@@ -1215,30 +1821,32 @@ public class GitOperationsService : IGitOperationsService
 
         try
         {
-            // Check if Git is configured to use SSH for signing
-            var gpgFormatResult = await RunGitCommandAsync(".", "config --global gpg.format");
-            status.GpgFormat = gpgFormatResult.Output?.Trim() ?? "";
-            status.IsConfiguredForSsh = status.GpgFormat.Equals("ssh", StringComparison.OrdinalIgnoreCase);
-
-            // Get the signing key path
-            var signingKeyResult = await RunGitCommandAsync(".", "config --global user.signingkey");
-            status.SigningKeyPath = signingKeyResult.Output?.Trim() ?? "";
-
-            // Check if commit signing is enabled
-            var commitSignResult = await RunGitCommandAsync(".", "config --global commit.gpgsign");
-            status.CommitSigningEnabled = commitSignResult.Output?.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
-
-            // Check if tag signing is enabled
-            var tagSignResult = await RunGitCommandAsync(".", "config --global tag.gpgsign");
-            status.TagSigningEnabled = tagSignResult.Output?.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
-
-            // Get user email configured in git
-            var emailResult = await RunGitCommandAsync(".", "config --global user.email");
-            status.GitUserEmail = emailResult.Output?.Trim() ?? "";
-
-            // Get user name configured in git
-            var nameResult = await RunGitCommandAsync(".", "config --global user.name");
-            status.GitUserName = nameResult.Output?.Trim() ?? "";
+            if (await IsGitAvailableAsync())
+            {
+                var gpgFormatResult = await RunGitCommandAsync(".", "config --global gpg.format");
+                status.GpgFormat = gpgFormatResult.Output?.Trim() ?? "";
+                var signingKeyResult = await RunGitCommandAsync(".", "config --global user.signingkey");
+                status.SigningKeyPath = signingKeyResult.Output?.Trim() ?? "";
+                var commitSignResult = await RunGitCommandAsync(".", "config --global commit.gpgsign");
+                status.CommitSigningEnabled = commitSignResult.Output?.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
+                var tagSignResult = await RunGitCommandAsync(".", "config --global tag.gpgsign");
+                status.TagSigningEnabled = tagSignResult.Output?.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
+                var emailResult = await RunGitCommandAsync(".", "config --global user.email");
+                status.GitUserEmail = emailResult.Output?.Trim() ?? "";
+                var nameResult = await RunGitCommandAsync(".", "config --global user.name");
+                status.GitUserName = nameResult.Output?.Trim() ?? "";
+            }
+            else
+            {
+                // Fallback: leer .gitconfig directamente
+                var gitConfigValues = await ReadGitConfigAsync();
+                status.GpgFormat = gitConfigValues.GetValueOrDefault("gpg.format", "");
+                status.SigningKeyPath = gitConfigValues.GetValueOrDefault("user.signingkey", "");
+                status.CommitSigningEnabled = gitConfigValues.GetValueOrDefault("commit.gpgsign", "").Equals("true", StringComparison.OrdinalIgnoreCase);
+                status.TagSigningEnabled = gitConfigValues.GetValueOrDefault("tag.gpgsign", "").Equals("true", StringComparison.OrdinalIgnoreCase);
+                status.GitUserEmail = gitConfigValues.GetValueOrDefault("user.email", "");
+                status.GitUserName = gitConfigValues.GetValueOrDefault("user.name", "");
+            }
 
             // Check for available SSH keys
             var sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
@@ -1285,6 +1893,7 @@ public class GitOperationsService : IGitOperationsService
             }
 
             status.HasSshKeys = status.SshKeysFound.Count > 0;
+            status.IsConfiguredForSsh = status.GpgFormat.Equals("ssh", StringComparison.OrdinalIgnoreCase);
             
             // Determine if signing is fully configured
             status.IsFullyConfigured = status.IsConfiguredForSsh && 
