@@ -942,23 +942,54 @@ public class GitOperationsService : IGitOperationsService
                 {
                     var keyPath = signingKey.Output!.Trim();
                     var allowedPath = allowedSigners.Output?.Trim() ?? "";
+                    var sshDir = Path.GetDirectoryName(keyPath);
                     
-                    // Si no hay allowedSignersFile o el archivo no existe → crearlo
-                    if (string.IsNullOrEmpty(allowedPath) || !File.Exists(allowedPath))
+                    if (!string.IsNullOrEmpty(sshDir))
                     {
-                        var sshDir = Path.GetDirectoryName(keyPath);
-                        if (!string.IsNullOrEmpty(sshDir))
+                        var newAllowedPath = string.IsNullOrEmpty(allowedPath) || !File.Exists(allowedPath)
+                            ? Path.Combine(sshDir, "allowed_signers")
+                            : allowedPath;
+                        
+                        // Construir allowed_signers con TODAS las claves conocidas (local + autorizadas)
+                        var email = (await RunGitCommandAsync(repoPath, "config --global user.email")).Output?.Trim() ?? "electronico@aquafrisch.com";
+                        var signerLines = new HashSet<string>();
+                        
+                        // 1. Clave local del servidor
+                        if (File.Exists(keyPath))
                         {
-                            var newAllowedPath = Path.Combine(sshDir, "allowed_signers");
-                            if (File.Exists(keyPath))
+                            var localPubKey = (await File.ReadAllTextAsync(keyPath)).Trim();
+                            signerLines.Add($"{email} namespaces=\"git\" {localPubKey}");
+                        }
+                        
+                        // 2. Todas las claves autorizadas que tienen PublicKey guardada
+                        try
+                        {
+                            var authorizedKeys = await GetAuthorizedKeysAsync();
+                            foreach (var ak in authorizedKeys.Where(k => !string.IsNullOrEmpty(k.PublicKey)))
                             {
-                                var pubKey = (await File.ReadAllTextAsync(keyPath)).Trim();
-                                var email = (await RunGitCommandAsync(repoPath, "config --global user.email")).Output?.Trim() ?? "electronico@aquafrisch.com";
-                                var line = $"{email} namespaces=\"git\" {pubKey}\n";
-                                await File.WriteAllTextAsync(newAllowedPath, line);
+                                var akEmail = !string.IsNullOrEmpty(ak.OwnerEmail) ? ak.OwnerEmail : email;
+                                signerLines.Add($"{akEmail} namespaces=\"git\" {ak.PublicKey}");
+                            }
+                        }
+                        catch { /* Si falla leer las autorizadas, al menos tenemos la local */ }
+                        
+                        if (signerLines.Count > 0)
+                        {
+                            var newContent = string.Join("\n", signerLines) + "\n";
+                            var existingContent = File.Exists(newAllowedPath) ? await File.ReadAllTextAsync(newAllowedPath) : "";
+                            
+                            // Solo reescribir si cambió (evitar I/O innecesario)
+                            if (existingContent.Trim() != newContent.Trim())
+                            {
+                                await File.WriteAllTextAsync(newAllowedPath, newContent);
+                                repairs.Add($"Updated SSH allowedSignersFile with {signerLines.Count} key(s)");
+                                _logger.LogInformation("🔧 Updated allowedSignersFile with {Count} keys: {Path}", signerLines.Count, newAllowedPath);
+                            }
+                            
+                            // Asegurar que git config apunta al archivo
+                            if (string.IsNullOrEmpty(allowedPath) || !File.Exists(allowedPath))
+                            {
                                 await RunGitCommandAsync(repoPath, $"config --global gpg.ssh.allowedSignersFile \"{newAllowedPath}\"");
-                                repairs.Add("Created SSH allowedSignersFile for signature verification");
-                                _logger.LogInformation("🔧 Auto-created allowedSignersFile: {Path}", newAllowedPath);
                             }
                         }
                     }
@@ -1358,6 +1389,35 @@ public class GitOperationsService : IGitOperationsService
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "⚠️ Could not configure allowedSignersFile - signature verification may not work");
+            }
+
+            // 🔐 Auto-guardar la clave pública en authorized_signing_keys.json para sincronización entre servidores
+            try
+            {
+                var pubKeyContent = (await File.ReadAllTextAsync(normalizedPath)).Trim();
+                var parts = pubKeyContent.Split(' ');
+                if (parts.Length >= 2)
+                {
+                    var fp = CalculateKeyFingerprint(parts[1]);
+                    var authorizedKeys = await GetAuthorizedKeysAsync();
+                    var existing = authorizedKeys.FirstOrDefault(k => k.Fingerprint.Equals(fp, StringComparison.OrdinalIgnoreCase));
+                    if (existing != null)
+                    {
+                        // Actualizar la clave pública si no la tenía
+                        if (string.IsNullOrEmpty(existing.PublicKey))
+                        {
+                            existing.PublicKey = pubKeyContent;
+                            existing.MachineName = Environment.MachineName;
+                            var json = System.Text.Json.JsonSerializer.Serialize(authorizedKeys, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                            await File.WriteAllTextAsync(AuthorizedKeysFilePath, json);
+                            _logger.LogInformation("🔐 Updated authorized key with public key for {Owner}", existing.OwnerName);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Could not update authorized key with public key");
             }
 
             return new GitOperationResult 
@@ -1780,13 +1840,33 @@ public class GitOperationsService : IGitOperationsService
                 return new GitOperationResult { Success = false, Message = "This key is already authorized." };
             }
 
+            // Intentar obtener la clave pública si es la clave local
+            var publicKeyContent = "";
+            try
+            {
+                var sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+                var pubKeyPath = Path.Combine(sshDir, "id_ed25519.pub");
+                if (File.Exists(pubKeyPath))
+                {
+                    var localPubKey = (await File.ReadAllTextAsync(pubKeyPath)).Trim();
+                    var localFingerprint = CalculateKeyFingerprint(localPubKey.Split(' ')[1]);
+                    if (localFingerprint.Equals(fingerprint, StringComparison.OrdinalIgnoreCase))
+                    {
+                        publicKeyContent = localPubKey;
+                    }
+                }
+            }
+            catch { }
+
             authorizedKeys.Add(new AuthorizedKey
             {
                 Fingerprint = fingerprint,
                 OwnerName = ownerName,
                 OwnerEmail = ownerEmail,
                 AuthorizedAt = DateTime.Now,
-                AuthorizedBy = Environment.UserName
+                AuthorizedBy = Environment.UserName,
+                PublicKey = publicKeyContent,
+                MachineName = Environment.MachineName
             });
 
             var json = System.Text.Json.JsonSerializer.Serialize(authorizedKeys, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
@@ -1998,6 +2078,8 @@ public class AuthorizedKey
     public string OwnerEmail { get; set; } = "";
     public DateTime AuthorizedAt { get; set; }
     public string AuthorizedBy { get; set; } = "";
+    public string PublicKey { get; set; } = ""; // Clave pública completa (ssh-ed25519 AAAA...)
+    public string MachineName { get; set; } = ""; // Nombre del PC donde se generó
 }
 
 // Key Authorization Check Result
