@@ -1061,6 +1061,9 @@ namespace SW.PC.API.Backend.Services
                 component.Branch = branch;
                 component.LastVerified = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
+                // Leer datos del commit directamente del objeto git (sin git.exe)
+                await TryReadCommitObjectAsync(component, gitDir, commitSha);
+
                 // Buscar tags CalVer (20*) para versión
                 var tagsDir = Path.Combine(gitDir, "refs", "tags");
                 if (Directory.Exists(tagsDir))
@@ -1089,12 +1092,249 @@ namespace SW.PC.API.Backend.Services
                     component.Integrity = "verified";
                 }
 
-                _logger.LogInformation("📁 {Name}: Read from .git files: {Sha} branch={Branch} version={Version}",
-                    component.Name, component.CommitSha, component.Branch, component.Version);
+                _logger.LogInformation("📁 {Name}: Read from .git files: {Sha} branch={Branch} version={Version} signed={Signed}",
+                    component.Name, component.CommitSha, component.Branch, component.Version, component.IsSigned);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "📁 Could not read .git files directly from {Path}", repoPath);
+            }
+        }
+
+        /// <summary>
+        /// Lee un objeto commit de git directamente desde .git/objects (loose) o packfiles.
+        /// Extrae author, date, message y detecta si tiene firma gpgsig.
+        /// </summary>
+        private async Task TryReadCommitObjectAsync(GitVersionComponent component, string gitDir, string commitSha)
+        {
+            try
+            {
+                string? commitContent = null;
+
+                // 1. Intentar objeto suelto: .git/objects/ea/34c34155fd...
+                var loosePath = Path.Combine(gitDir, "objects", commitSha.Substring(0, 2), commitSha.Substring(2));
+                if (File.Exists(loosePath))
+                {
+                    commitContent = DecompressGitObject(loosePath);
+                }
+
+                // 2. Intentar packfiles si no hay objeto suelto
+                if (commitContent == null)
+                {
+                    var packDir = Path.Combine(gitDir, "objects", "pack");
+                    if (Directory.Exists(packDir))
+                    {
+                        foreach (var idxFile in Directory.GetFiles(packDir, "*.idx"))
+                        {
+                            var packFile = Path.ChangeExtension(idxFile, ".pack");
+                            if (!File.Exists(packFile)) continue;
+
+                            commitContent = TryReadFromPackfile(idxFile, packFile, commitSha);
+                            if (commitContent != null) break;
+                        }
+                    }
+                }
+
+                if (string.IsNullOrEmpty(commitContent)) return;
+
+                // Parsear el contenido del commit
+                // Formato: "commit <size>\0tree ...\nauthor ...\ncommitter ...\n[gpgsig ...]\n\n<message>"
+                var nullIndex = commitContent.IndexOf('\0');
+                var body = nullIndex >= 0 ? commitContent.Substring(nullIndex + 1) : commitContent;
+
+                _logger.LogDebug("📁 Commit object body length: {Len}, first 200 chars: {Preview}",
+                    body.Length, body.Substring(0, Math.Min(200, body.Length)));
+
+                // Extraer mensaje: separado de los headers por \n\n (primera línea en blanco)
+                var separatorIdx = body.IndexOf("\n\n");
+                if (separatorIdx >= 0)
+                {
+                    var headerSection = body.Substring(0, separatorIdx);
+                    var messageSection = body.Substring(separatorIdx + 2).Trim();
+
+                    // Solo primera línea del mensaje
+                    var nlIdx = messageSection.IndexOf('\n');
+                    component.CommitMessage = nlIdx > 0 ? messageSection.Substring(0, nlIdx).Trim() : messageSection;
+
+                    // Parsear author del header
+                    foreach (var headerLine in headerSection.Split('\n'))
+                    {
+                        if (headerLine.StartsWith("author "))
+                        {
+                            var authorPart = headerLine.Substring(7);
+                            var emailStart = authorPart.IndexOf('<');
+                            var emailEnd = authorPart.IndexOf('>');
+                            if (emailStart >= 0 && emailEnd > emailStart)
+                            {
+                                component.CommitAuthor = authorPart.Substring(0, emailStart).Trim();
+                                component.CommitAuthorEmail = authorPart.Substring(emailStart + 1, emailEnd - emailStart - 1);
+
+                                // Parsear timestamp unix
+                                var afterEmail = authorPart.Substring(emailEnd + 1).Trim().Split(' ');
+                                if (afterEmail.Length >= 1 && long.TryParse(afterEmail[0], out var unixTime))
+                                {
+                                    var dateTime = DateTimeOffset.FromUnixTimeSeconds(unixTime);
+                                    if (afterEmail.Length >= 2)
+                                    {
+                                        var tz = afterEmail[1];
+                                        if (tz.Length == 5 && (tz[0] == '+' || tz[0] == '-'))
+                                        {
+                                            var hours = int.Parse(tz.Substring(1, 2));
+                                            var mins = int.Parse(tz.Substring(3, 2));
+                                            var offset = new TimeSpan(hours, mins, 0);
+                                            if (tz[0] == '-') offset = offset.Negate();
+                                            dateTime = dateTime.ToOffset(offset);
+                                        }
+                                    }
+                                    component.CommitDate = dateTime.ToString("yyyy-MM-dd HH:mm:ss zzz");
+                                }
+                            }
+                            break;
+                        }
+                    }
+
+                    // Detectar firma gpgsig en la sección de headers
+                    if (headerSection.Contains("\ngpgsig ") || headerSection.StartsWith("gpgsig "))
+                    {
+                        component.IsSigned = true;
+                        component.SignatureStatus = "signed-unverified";
+                        component.SignatureType = headerSection.Contains("BEGIN SSH SIGNATURE") ? "SSH" : "GPG";
+                        component.SignatureMessage = $"Commit is signed ({component.SignatureType}, verified from .git objects)";
+                        _logger.LogInformation("🔐 {Name}: {SigType} Signature DETECTED in commit object",
+                            component.Name, component.SignatureType);
+                    }
+
+                    _logger.LogInformation("📁 {Name}: Parsed commit object - author={Author}, date={Date}, msg={Msg}, signed={Signed}",
+                        component.Name, component.CommitAuthor, component.CommitDate, component.CommitMessage, component.IsSigned);
+                }
+                else
+                {
+                    _logger.LogWarning("📁 {Name}: Could not find header/message separator in commit object", component.Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "📁 Could not parse commit object for {Sha}", commitSha);
+            }
+        }
+
+        /// <summary>
+        /// Descomprime un objeto git suelto (zlib/deflate) y devuelve su contenido como string.
+        /// </summary>
+        private string? DecompressGitObject(string objectPath)
+        {
+            try
+            {
+                var compressed = File.ReadAllBytes(objectPath);
+                // Git objects use zlib (RFC 1950) = 2 byte header + deflate data
+                using var ms = new MemoryStream(compressed, 2, compressed.Length - 2);
+                using var deflate = new System.IO.Compression.DeflateStream(ms, System.IO.Compression.CompressionMode.Decompress);
+                using var reader = new StreamReader(deflate, System.Text.Encoding.UTF8);
+                return reader.ReadToEnd();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not decompress git object: {Path}", objectPath);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Intenta leer un objeto commit desde un packfile git.
+        /// Implementación simplificada que busca el SHA en el índice.
+        /// </summary>
+        private string? TryReadFromPackfile(string idxPath, string packPath, string commitSha)
+        {
+            try
+            {
+                var shaBytes = Convert.FromHexString(commitSha);
+                var idxData = File.ReadAllBytes(idxPath);
+
+                // Formato idx v2: 
+                // 4 bytes magic + 4 bytes version
+                // 256 * 4 bytes fanout table
+                // N * 20 bytes SHA1 hashes (sorted)
+                if (idxData.Length < 1032) return null;
+
+                // Verificar magic number
+                if (idxData[0] != 0xFF || idxData[1] != 0x74 || idxData[2] != 0x4F || idxData[3] != 0x63)
+                    return null;
+
+                // Leer número total de objetos del último entry del fanout
+                var totalObjects = (int)((idxData[1024] << 24) | (idxData[1025] << 16) | (idxData[1026] << 8) | idxData[1027]);
+
+                // Buscar SHA en la tabla de hashes (offset 1032)
+                var hashTableOffset = 1032;
+                var objectIndex = -1;
+
+                // Usar fanout para acotar búsqueda
+                var firstByte = shaBytes[0];
+                var lo = firstByte > 0 
+                    ? (int)((idxData[8 + (firstByte - 1) * 4] << 24) | (idxData[9 + (firstByte - 1) * 4] << 16) | (idxData[10 + (firstByte - 1) * 4] << 8) | idxData[11 + (firstByte - 1) * 4])
+                    : 0;
+                var hi = (int)((idxData[8 + firstByte * 4] << 24) | (idxData[9 + firstByte * 4] << 16) | (idxData[10 + firstByte * 4] << 8) | idxData[11 + firstByte * 4]);
+
+                for (var i = lo; i < hi; i++)
+                {
+                    var offset = hashTableOffset + i * 20;
+                    if (offset + 20 > idxData.Length) break;
+
+                    var match = true;
+                    for (var j = 0; j < 20; j++)
+                    {
+                        if (idxData[offset + j] != shaBytes[j]) { match = false; break; }
+                    }
+                    if (match) { objectIndex = i; break; }
+                }
+
+                if (objectIndex < 0) return null;
+
+                // Leer offset en packfile
+                // Offset table: hashTableOffset + totalObjects*20 + totalObjects*4 + objectIndex*4
+                var crcTableOffset = hashTableOffset + totalObjects * 20;
+                var offsetTableOffset = crcTableOffset + totalObjects * 4;
+                var packOffsetPos = offsetTableOffset + objectIndex * 4;
+
+                if (packOffsetPos + 4 > idxData.Length) return null;
+
+                var packOffset = (long)((idxData[packOffsetPos] << 24) | (idxData[packOffsetPos + 1] << 16) | (idxData[packOffsetPos + 2] << 8) | idxData[packOffsetPos + 3]);
+
+                // Leer objeto del packfile
+                using var packStream = File.OpenRead(packPath);
+                packStream.Seek(packOffset, SeekOrigin.Begin);
+
+                // Leer header variable-length
+                var headerByte = packStream.ReadByte();
+                var objectType = (headerByte >> 4) & 0x7; // tipo: 1=commit, 2=tree, 3=blob, 4=tag
+                if (objectType != 1) return null; // Solo nos interesan commits
+
+                long objectSize = headerByte & 0xF;
+                var shift = 4;
+                while ((headerByte & 0x80) != 0)
+                {
+                    headerByte = packStream.ReadByte();
+                    objectSize |= ((long)(headerByte & 0x7F)) << shift;
+                    shift += 7;
+                }
+
+                // Desomprimir data (deflate sin header zlib en packfiles)
+                using var deflate = new System.IO.Compression.DeflateStream(packStream, System.IO.Compression.CompressionMode.Decompress);
+                var buffer = new byte[objectSize];
+                var totalRead = 0;
+                while (totalRead < objectSize)
+                {
+                    var read = deflate.Read(buffer, totalRead, (int)(objectSize - totalRead));
+                    if (read == 0) break;
+                    totalRead += read;
+                }
+
+                // En packfiles el contenido NO tiene "commit <size>\0", es directo
+                return "commit 0\0" + System.Text.Encoding.UTF8.GetString(buffer, 0, totalRead);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not read from packfile: {Path}", packPath);
+                return null;
             }
         }
 
