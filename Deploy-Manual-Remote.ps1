@@ -295,13 +295,21 @@ if ($SkipBackendBuild) {
         $devFoldersToRemove = @(
             "$BackendPath\publish\wwwroot\audit",
             "$BackendPath\publish\wwwroot\models",
-            "$BackendPath\publish\wwwroot\sbom"
+            "$BackendPath\publish\wwwroot\sbom",
+            "$BackendPath\publish\CodeCoverage",
+            "$BackendPath\publish\InstrumentationEngine"
         )
+        # 🧹 Limpiar archivos de test/coverage que no deben ir a producción
+        $devFilesToRemove = Get-ChildItem -Path "$BackendPath\publish" -Filter "coverlet.*" -ErrorAction SilentlyContinue
         foreach ($devFolder in $devFoldersToRemove) {
             if (Test-Path $devFolder) {
                 Remove-Item -Path $devFolder -Recurse -Force -ErrorAction SilentlyContinue
                 Write-Info "🧹 Eliminado de publish: $($devFolder | Split-Path -Leaf)"
             }
+        }
+        foreach ($devFile in $devFilesToRemove) {
+            Remove-Item -Path $devFile.FullName -Force -ErrorAction SilentlyContinue
+            Write-Info "🧹 Eliminado de publish: $($devFile.Name)"
         }
     } finally {
         Pop-Location

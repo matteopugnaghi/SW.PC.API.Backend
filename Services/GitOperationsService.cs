@@ -598,7 +598,9 @@ public class GitOperationsService : IGitOperationsService
             }
 
             _logger.LogInformation("Pushing changes from {Path}", repoPath);
-            // 120s timeout para primera conexi�n SSH (puede tardar en establecer)
+            // Shared credentials file accessible by ALL users (Administrator, SYSTEM, etc.)
+            await ConfigureSharedCredentialsAsync(repoPath);
+            await RunGitCommandAsync(repoPath, "config http.postBuffer 524288000");
             var result = await RunGitCommandAsync(repoPath, "push", 120000);
             if (result.Success) 
             {
@@ -635,7 +637,9 @@ public class GitOperationsService : IGitOperationsService
             }
 
             _logger.LogWarning("?? FORCE PUSHING changes from {Path} - This will overwrite remote!", repoPath);
-            // 120s timeout para primera conexi�n SSH
+            // Shared credentials file accessible by ALL users
+            await ConfigureSharedCredentialsAsync(repoPath);
+            await RunGitCommandAsync(repoPath, "config http.postBuffer 524288000");
             var result = await RunGitCommandAsync(repoPath, "push --force", 120000);
             if (result.Success) 
             {
@@ -731,6 +735,9 @@ public class GitOperationsService : IGitOperationsService
             {
                 StartInfo = new ProcessStartInfo { FileName = "git", Arguments = $"-c safe.directory=* {arguments}", WorkingDirectory = workingDirectory, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 }
             };
+            // Prevent git from hanging waiting for interactive input (credentials, passphrase, etc.)
+            process.StartInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
+            process.StartInfo.Environment["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes";
             var outputBuilder = new StringBuilder();
             var errorBuilder = new StringBuilder();
             process.OutputDataReceived += (sender, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
@@ -743,6 +750,49 @@ public class GitOperationsService : IGitOperationsService
             return (process.ExitCode == 0, outputBuilder.ToString(), errorBuilder.ToString());
         }
         catch (Exception ex) { _logger.LogError(ex, "Error running git command: {Args}", arguments); return (false, null, ex.Message); }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Credenciales compartidas — usa un archivo accesible por todos los usuarios
+    // (Administrator, SYSTEM, etc.) para que el push funcione desde el servicio.
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Configures git to use a shared credentials file in C:\ProgramData\Aquafrisch\
+    /// so both interactive users and SYSTEM service account can push.
+    /// Also copies credentials from the current user's credential manager if available.
+    /// </summary>
+    private async Task ConfigureSharedCredentialsAsync(string repoPath)
+    {
+        try
+        {
+            var sharedDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Aquafrisch");
+            Directory.CreateDirectory(sharedDir);
+            var credFile = Path.Combine(sharedDir, "git-credentials").Replace('\\', '/');
+
+            // Configure git to use shared credentials file
+            await RunGitCommandAsync(repoPath, $"config credential.helper \"store --file={credFile}\"");
+
+            // If shared credentials file doesn't exist or is empty, try to copy from Windows Credential Manager
+            if (!File.Exists(credFile) || new FileInfo(credFile).Length == 0)
+            {
+                // Get the remote URL to know which host needs credentials
+                var remoteResult = await RunGitCommandAsync(repoPath, "remote get-url origin");
+                if (remoteResult.Success && !string.IsNullOrWhiteSpace(remoteResult.Output))
+                {
+                    var remoteUrl = remoteResult.Output.Trim();
+                    _logger.LogWarning("⚠️ No shared credentials found for {Remote}. First push must be done manually: open Git Bash in repo folder and run 'git push'", remoteUrl);
+                }
+            }
+            else
+            {
+                _logger.LogInformation("✅ Shared credentials configured: {File}", credFile);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not configure shared credentials, falling back to default");
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

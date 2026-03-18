@@ -679,6 +679,7 @@ namespace SW.PC.API.Backend.Services
                 _logger.LogInformation("⏱️ [{Elapsed}ms] Extract START", sw.ElapsedMilliseconds);
                 using (var zipArchive = ZipFile.OpenRead(backupInfo.FilePath))
                 {
+                    var twinCatCleaned = false; // Track if TwinCAT destination was cleaned
                     foreach (var entry in zipArchive.Entries)
                     {
                         // Normalizar separadores a forward slash para comparaciones consistentes
@@ -749,6 +750,33 @@ namespace SW.PC.API.Backend.Services
                             // TwinCAT se restaura a su carpeta propia (fuera de ProjectRoot)
                             if (!string.IsNullOrEmpty(projectPaths.TwinCatPath))
                             {
+                                // Clean destination ONCE before restoring (exact 1:1 copy)
+                                if (!twinCatCleaned && Directory.Exists(projectPaths.TwinCatPath))
+                                {
+                                    _logger.LogInformation("🧹 Cleaning TwinCAT destination before restore: {Path}", projectPaths.TwinCatPath);
+                                    foreach (var dir in Directory.GetDirectories(projectPaths.TwinCatPath))
+                                    {
+                                        try
+                                        {
+                                            // Clear read-only attributes recursively (git objects are read-only)
+                                            foreach (var f in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+                                                File.SetAttributes(f, FileAttributes.Normal);
+                                            Directory.Delete(dir, true);
+                                        }
+                                        catch (Exception ex) { _logger.LogWarning("⚠️ Could not delete dir {Dir}: {Err}", dir, ex.Message); }
+                                    }
+                                    foreach (var file in Directory.GetFiles(projectPaths.TwinCatPath))
+                                    {
+                                        try
+                                        {
+                                            File.SetAttributes(file, FileAttributes.Normal);
+                                            File.Delete(file);
+                                        }
+                                        catch (Exception ex) { _logger.LogWarning("⚠️ Could not delete file {File}: {Err}", file, ex.Message); }
+                                    }
+                                    twinCatCleaned = true;
+                                }
+
                                 var twinCatRelative = entryPath.Substring("twincat/".Length);
 
                                 // Full restore — no exclusions, restore everything as-is
