@@ -555,8 +555,29 @@ public class GitOperationsService : IGitOperationsService
             var addResult = await RunGitCommandAsync(repoPath, "add -A", 60000);
             if (!addResult.Success) return new GitOperationResult { Success = false, Message = $"Failed to stage changes: {addResult.Error}" };
             var escapedMessage = message.Replace("\"", "\\\"");
+            
+            // 🔐 Detectar si la firma SSH está configurada → usar -S
+            var signingEnabled = await IsCommitSigningEnabledAsync();
+            var commitCmd = signingEnabled 
+                ? $"commit -S -m \"{escapedMessage}\"" 
+                : $"commit -m \"{escapedMessage}\"";
+            _logger.LogInformation("🔐 Commit signing: {Enabled}, command: git {Cmd}", signingEnabled, signingEnabled ? "commit -S ..." : "commit ...");
+            
             // 60s timeout para commit
-            var commitResult = await RunGitCommandAsync(repoPath, $"commit -m \"{escapedMessage}\"", 60000);
+            var commitResult = await RunGitCommandAsync(repoPath, commitCmd, 60000);
+            
+            // Si falla con firma, reintentar sin firma para no bloquear
+            if (!commitResult.Success && signingEnabled && 
+                (commitResult.Error?.Contains("signing") == true || commitResult.Error?.Contains("gpg") == true || commitResult.Error?.Contains("ssh") == true))
+            {
+                _logger.LogWarning("⚠️ Signed commit failed, retrying without signature: {Error}", commitResult.Error);
+                commitResult = await RunGitCommandAsync(repoPath, $"commit --no-gpg-sign -m \"{escapedMessage}\"", 60000);
+                if (commitResult.Success)
+                {
+                    repairs.Add("Commit signed failed → committed unsigned");
+                }
+            }
+            
             if (commitResult.Success) 
             {
                 // 🔄 Actualizar información de firma en el servicio de integridad
@@ -908,6 +929,45 @@ public class GitOperationsService : IGitOperationsService
             {
                 _logger.LogInformation("🔧 Auto-repair completed for {Path}: {Repairs}", repoPath, string.Join("; ", repairs));
             }
+
+            // 6. SSH Signing: asegurar que allowedSignersFile existe si la firma está configurada
+            try
+            {
+                var gpgFormat = await RunGitCommandAsync(repoPath, "config --global gpg.format");
+                var signingKey = await RunGitCommandAsync(repoPath, "config --global user.signingkey");
+                var allowedSigners = await RunGitCommandAsync(repoPath, "config --global gpg.ssh.allowedSignersFile");
+                
+                if (gpgFormat.Success && gpgFormat.Output?.Trim() == "ssh" && 
+                    signingKey.Success && !string.IsNullOrWhiteSpace(signingKey.Output))
+                {
+                    var keyPath = signingKey.Output!.Trim();
+                    var allowedPath = allowedSigners.Output?.Trim() ?? "";
+                    
+                    // Si no hay allowedSignersFile o el archivo no existe → crearlo
+                    if (string.IsNullOrEmpty(allowedPath) || !File.Exists(allowedPath))
+                    {
+                        var sshDir = Path.GetDirectoryName(keyPath);
+                        if (!string.IsNullOrEmpty(sshDir))
+                        {
+                            var newAllowedPath = Path.Combine(sshDir, "allowed_signers");
+                            if (File.Exists(keyPath))
+                            {
+                                var pubKey = (await File.ReadAllTextAsync(keyPath)).Trim();
+                                var email = (await RunGitCommandAsync(repoPath, "config --global user.email")).Output?.Trim() ?? "electronico@aquafrisch.com";
+                                var line = $"{email} namespaces=\"git\" {pubKey}\n";
+                                await File.WriteAllTextAsync(newAllowedPath, line);
+                                await RunGitCommandAsync(repoPath, $"config --global gpg.ssh.allowedSignersFile \"{newAllowedPath}\"");
+                                repairs.Add("Created SSH allowedSignersFile for signature verification");
+                                _logger.LogInformation("🔧 Auto-created allowedSignersFile: {Path}", newAllowedPath);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "🔧 Could not auto-configure allowedSignersFile");
+            }
         }
         catch (Exception ex)
         {
@@ -1093,6 +1153,22 @@ public class GitOperationsService : IGitOperationsService
     #region SSH Signing Methods
 
     /// <summary>
+    /// Checks if commit signing is enabled in git config (global or local)
+    /// </summary>
+    private async Task<bool> IsCommitSigningEnabledAsync()
+    {
+        try
+        {
+            var result = await RunGitCommandAsync(".", "config --global commit.gpgsign");
+            return result.Success && result.Output?.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Gets the current SSH signing configuration status
     /// </summary>
     public async Task<SshSigningStatus> GetSshSigningStatusAsync()
@@ -1243,6 +1319,45 @@ public class GitOperationsService : IGitOperationsService
             if (!tagSignResult.Success)
             {
                 return new GitOperationResult { Success = false, Message = $"Failed to enable tag signing: {tagSignResult.Error}" };
+            }
+
+            // 🔐 Configurar allowedSignersFile para que git pueda VERIFICAR las firmas SSH
+            // Sin esto, "git log --format=%G?" siempre devuelve "N" aunque el commit esté firmado
+            var allowedSignersPath = Path.Combine(Path.GetDirectoryName(normalizedPath)!, "allowed_signers");
+            try
+            {
+                // Leer la clave pública y el email de git
+                var pubKeyContent = (await File.ReadAllTextAsync(normalizedPath)).Trim();
+                var emailResult = await RunGitCommandAsync(".", "config --global user.email");
+                var email = emailResult.Output?.Trim() ?? "electronico@aquafrisch.com";
+                
+                // Formato: email namespaces="git" <key-type> <key-data>
+                var allowedSignerLine = $"{email} namespaces=\"git\" {pubKeyContent}";
+                
+                // Crear/actualizar el archivo allowed_signers
+                var existingContent = File.Exists(allowedSignersPath) ? await File.ReadAllTextAsync(allowedSignersPath) : "";
+                if (!existingContent.Contains(pubKeyContent.Split(' ')[1])) // No duplicar por key data
+                {
+                    var newContent = string.IsNullOrWhiteSpace(existingContent) 
+                        ? allowedSignerLine 
+                        : existingContent.TrimEnd() + "\n" + allowedSignerLine;
+                    await File.WriteAllTextAsync(allowedSignersPath, newContent + "\n");
+                }
+                
+                // Configurar git para usar el archivo
+                var allowedResult = await RunGitCommandAsync(".", $"config --global gpg.ssh.allowedSignersFile \"{allowedSignersPath}\"");
+                if (!allowedResult.Success)
+                {
+                    _logger.LogWarning("⚠️ Failed to set allowedSignersFile: {Error}", allowedResult.Error);
+                }
+                else
+                {
+                    _logger.LogInformation("✅ allowedSignersFile configured: {Path}", allowedSignersPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Could not configure allowedSignersFile - signature verification may not work");
             }
 
             return new GitOperationResult 

@@ -879,11 +879,14 @@ public class GitController : ControllerBase
                     await writer.WriteAsync(certJson);
                 }
 
-                // 2. A�adir c�digo fuente (excluyendo basura)
-                var excludeFolders = GetExcludeFolders(repoName);
-                var excludeExtensions = new[] { ".exe", ".dll", ".pdb", ".cache", ".log", ".db", ".db-shm", ".db-wal", ".zip" };
+                // 2. A�adir c�digo fuente
+                // TwinCAT: copia COMPLETA sin exclusiones (igual que backup normal)
+                var isTwinCat = repoName.Equals("twincat", StringComparison.OrdinalIgnoreCase);
+                var excludeFolders = isTwinCat ? Array.Empty<string>() : GetExcludeFolders(repoName);
+                var excludeExtensions = isTwinCat ? Array.Empty<string>() : new[] { ".exe", ".dll", ".pdb", ".cache", ".log", ".db", ".db-shm", ".db-wal", ".zip" };
+                long maxFileSize = isTwinCat ? 0 : 5L * 1024 * 1024; // 0 = sin l�mite
                 
-                await AddDirectoryToZipAsync(archive, repoPath, $"source_{repoName}", excludeFolders, excludeExtensions);
+                await AddDirectoryToZipAsync(archive, repoPath, $"source_{repoName}", excludeFolders, excludeExtensions, maxFileSize);
             }
 
             memoryStream.Position = 0;
@@ -967,7 +970,7 @@ public class GitController : ControllerBase
         {
             "backend" => new[] { "bin", "obj", ".git", ".vs", "node_modules", "packages", "Data", "Projects", "backups", "publish", "wwwroot" },
             "frontend" => new[] { "node_modules", ".git", "build", "dist", ".cache", "coverage" },
-            "twincat" => new[] { ".git", "_Boot", "_CompileInfo", "__Pou" },
+            "twincat" => Array.Empty<string>(), // Copia COMPLETA sin exclusiones
             _ => new[] { ".git", "bin", "obj", "node_modules", "Data" }
         };
     }
@@ -1259,7 +1262,7 @@ public class GitController : ControllerBase
 
     #endregion
 
-    private async Task AddDirectoryToZipAsync(System.IO.Compression.ZipArchive archive, string sourceDir, string entryPrefix, string[] excludeFolders, string[] excludeExtensions)
+    private async Task AddDirectoryToZipAsync(System.IO.Compression.ZipArchive archive, string sourceDir, string entryPrefix, string[] excludeFolders, string[] excludeExtensions, long maxFileSize = 5 * 1024 * 1024)
     {
         var files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
         
@@ -1268,18 +1271,24 @@ public class GitController : ControllerBase
             var relativePath = Path.GetRelativePath(sourceDir, file);
             
             // Excluir carpetas
-            var shouldExclude = excludeFolders.Any(folder => 
-                relativePath.StartsWith(folder + Path.DirectorySeparatorChar) || 
-                relativePath.Contains(Path.DirectorySeparatorChar + folder + Path.DirectorySeparatorChar));
-            
-            if (shouldExclude) continue;
+            if (excludeFolders.Length > 0)
+            {
+                var shouldExclude = excludeFolders.Any(folder => 
+                    relativePath.StartsWith(folder + Path.DirectorySeparatorChar) || 
+                    relativePath.Contains(Path.DirectorySeparatorChar + folder + Path.DirectorySeparatorChar));
+                
+                if (shouldExclude) continue;
+            }
 
             // Excluir extensiones
-            if (excludeExtensions.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase))) continue;
+            if (excludeExtensions.Length > 0 && excludeExtensions.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase))) continue;
 
-            // Limitar tama�o de archivo (max 5MB por archivo)
-            var fileInfo = new FileInfo(file);
-            if (fileInfo.Length > 5 * 1024 * 1024) continue;
+            // Limitar tama�o de archivo (0 = sin l�mite)
+            if (maxFileSize > 0)
+            {
+                var fileInfo = new FileInfo(file);
+                if (fileInfo.Length > maxFileSize) continue;
+            }
 
             var entryName = Path.Combine(entryPrefix, relativePath).Replace('\\', '/');
             var entry = archive.CreateEntry(entryName);
