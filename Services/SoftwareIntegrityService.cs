@@ -111,6 +111,9 @@ namespace SW.PC.API.Backend.Services
             _gitExecutable = ResolveGitExecutable();
             _logger.LogInformation("\ud83d\udd27 Git executable: {GitPath}", _gitExecutable);
 
+            // Validar .gitconfig del usuario actual (SYSTEM puede tenerla corrupta)
+            ValidateAndRepairGitConfig();
+
             // Rutas por defecto (auto-detectadas) - se pueden sobrescribir desde Excel
             _backendRepoPath = FindGitRoot(AppDomain.CurrentDomain.BaseDirectory) 
                 ?? AppDomain.CurrentDomain.BaseDirectory;
@@ -1482,6 +1485,70 @@ namespace SW.PC.API.Backend.Services
             {
                 _logger.LogWarning(ex, "Git command failed: {Args}", arguments);
                 return "";
+            }
+        }
+
+        /// <summary>
+        /// Valida y repara la .gitconfig del usuario actual.
+        /// En servicios Windows (SYSTEM), la ruta es C:\Windows\system32\config\systemprofile\.gitconfig
+        /// Si tiene líneas corruptas, git falla con "fatal: bad config line N".
+        /// </summary>
+        private void ValidateAndRepairGitConfig()
+        {
+            try
+            {
+                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var gitConfigPath = Path.Combine(userProfile, ".gitconfig");
+                
+                if (!File.Exists(gitConfigPath))
+                {
+                    _logger.LogDebug("📋 No .gitconfig found at {Path}", gitConfigPath);
+                    return;
+                }
+
+                var lines = File.ReadAllLines(gitConfigPath);
+                var validLines = new List<string>();
+                var repaired = false;
+
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    var line = lines[i];
+                    var trimmed = line.TrimStart();
+
+                    // Líneas válidas en .gitconfig: vacías, comentarios (#/;), secciones [xxx], o key = value / key=value
+                    if (string.IsNullOrWhiteSpace(trimmed) || 
+                        trimmed.StartsWith("#") || 
+                        trimmed.StartsWith(";") || 
+                        trimmed.StartsWith("[") ||
+                        trimmed.Contains("="))
+                    {
+                        validLines.Add(line);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("🔧 .gitconfig line {LineNum} is malformed: [{Content}] — removing", i + 1, trimmed);
+                        repaired = true;
+                    }
+                }
+
+                if (repaired)
+                {
+                    // Backup original
+                    var backupPath = gitConfigPath + ".bak." + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    File.Copy(gitConfigPath, backupPath, true);
+                    _logger.LogInformation("📋 Backed up corrupt .gitconfig to {Path}", backupPath);
+
+                    File.WriteAllLines(gitConfigPath, validLines);
+                    _logger.LogInformation("✅ Repaired .gitconfig — removed malformed lines. Git commands should now work.");
+                }
+                else
+                {
+                    _logger.LogDebug("📋 .gitconfig at {Path} is valid ({Lines} lines)", gitConfigPath, lines.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Could not validate .gitconfig — git commands may fail");
             }
         }
 
