@@ -54,13 +54,15 @@ public class GitOperationsService : IGitOperationsService
     private readonly ISoftwareIntegrityService _integrityService;
     private readonly IExcelConfigService _excelConfigService;
     private bool? _gitAvailable;
+    private readonly string _gitExecutable;
 
     public GitOperationsService(ILogger<GitOperationsService> logger, ISoftwareIntegrityService integrityService, IExcelConfigService excelConfigService)
     {
         _logger = logger;
         _integrityService = integrityService;
         _excelConfigService = excelConfigService;
-        _logger.LogInformation("🔧 GitOperationsService initialized (using paths from SoftwareIntegrityService)");
+        _gitExecutable = ResolveGitExecutable();
+        _logger.LogInformation("🔧 GitOperationsService initialized (git: {GitPath})", _gitExecutable);
     }
 
     /// <summary>
@@ -74,14 +76,14 @@ public class GitOperationsService : IGitOperationsService
             var result = await RunGitCommandAsync(".", "--version", 5000);
             _gitAvailable = result.Success;
             if (!_gitAvailable.Value)
-                _logger.LogWarning("⚠️ git.exe not available - using .git file fallbacks for read operations");
+                _logger.LogWarning("⚠️ git.exe not available at '{GitPath}' - using .git file fallbacks", _gitExecutable);
             else
-                _logger.LogInformation("✅ git.exe available: {Version}", result.Output?.Trim());
+                _logger.LogInformation("✅ git.exe available at '{GitPath}': {Version}", _gitExecutable, result.Output?.Trim());
         }
         catch
         {
             _gitAvailable = false;
-            _logger.LogWarning("⚠️ git.exe not found - using .git file fallbacks for read operations");
+            _logger.LogWarning("⚠️ git.exe not found at '{GitPath}' - using .git file fallbacks", _gitExecutable);
         }
         return _gitAvailable.Value;
     }
@@ -1343,7 +1345,7 @@ public class GitOperationsService : IGitOperationsService
         {
             using var process = new Process
             {
-                StartInfo = new ProcessStartInfo { FileName = "git", Arguments = $"-c safe.directory=* {arguments}", WorkingDirectory = workingDirectory, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 }
+                StartInfo = new ProcessStartInfo { FileName = _gitExecutable, Arguments = $"-c safe.directory=* {arguments}", WorkingDirectory = workingDirectory, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 }
             };
             // Prevent git from hanging waiting for interactive input (credentials, passphrase, etc.)
             process.StartInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
@@ -1365,6 +1367,60 @@ public class GitOperationsService : IGitOperationsService
     /// <summary>Removes credentials from git arguments for safe logging</summary>
     private static string SanitizeGitArgs(string args) =>
         System.Text.RegularExpressions.Regex.Replace(args, @"https://[^@]+@", "https://***@");
+
+    /// <summary>
+    /// Busca git.exe en PATH y en rutas de instalación comunes.
+    /// SYSTEM user frecuentemente no tiene git en su PATH.
+    /// </summary>
+    private string ResolveGitExecutable()
+    {
+        // 1. Intentar 'git' directamente (funciona si está en PATH)
+        try
+        {
+            var testProcess = Process.Start(new ProcessStartInfo
+            {
+                FileName = "git",
+                Arguments = "--version",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            if (testProcess != null)
+            {
+                testProcess.WaitForExit(5000);
+                if (testProcess.ExitCode == 0)
+                    return "git";
+                testProcess.Kill();
+            }
+        }
+        catch { /* git not in PATH */ }
+
+        // 2. Buscar en rutas comunes de instalación
+        var commonPaths = new[]
+        {
+            @"C:\Program Files\Git\cmd\git.exe",
+            @"C:\Program Files\Git\bin\git.exe",
+            @"C:\Program Files (x86)\Git\cmd\git.exe",
+            @"C:\Program Files (x86)\Git\bin\git.exe",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Git", "cmd", "git.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Git", "bin", "git.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "cmd", "git.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "git.exe"),
+        };
+
+        foreach (var path in commonPaths)
+        {
+            if (File.Exists(path))
+            {
+                _logger.LogInformation("🔧 GitOperationsService found git at: {Path}", path);
+                return path;
+            }
+        }
+
+        _logger.LogWarning("⚠️ GitOperationsService: git.exe not found in PATH or common locations");
+        return "git";
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Credenciales compartidas — usa un archivo accesible por todos los usuarios

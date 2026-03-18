@@ -794,6 +794,24 @@ namespace SW.PC.API.Backend.Services
                 var signatureOutput = $"{sigCode} {sigSigner} {sigKey}".Trim();
                 ParseSignatureInfo(component, signatureOutput);
 
+                // Si git %G? dice "unsigned" pero el commit tiene gpgsig, corregir
+                // Esto ocurre cuando git.exe no tiene allowed_signers configurado para SSH
+                if (!component.IsSigned && !string.IsNullOrEmpty(component.CommitShaFull))
+                {
+                    var sigGitDir = Path.Combine(repoPath, ".git");
+                    if (File.Exists(sigGitDir) && !Directory.Exists(sigGitDir))
+                    {
+                        var gitFileContent = (await File.ReadAllTextAsync(sigGitDir)).Trim();
+                        if (gitFileContent.StartsWith("gitdir:"))
+                        {
+                            sigGitDir = gitFileContent.Substring(7).Trim();
+                            if (!Path.IsPathRooted(sigGitDir))
+                                sigGitDir = Path.GetFullPath(Path.Combine(repoPath, sigGitDir));
+                        }
+                    }
+                    await TryVerifySignatureFromGitObject(component, sigGitDir, component.CommitShaFull);
+                }
+
                 // Parsear último release CalVer
                 var tagOutput = latestTagTask.Result.Trim();
                 if (!string.IsNullOrEmpty(tagOutput))
@@ -1215,6 +1233,69 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "📁 Could not parse commit object for {Sha}", commitSha);
+            }
+        }
+
+        /// <summary>
+        /// Verifica si un commit tiene firma gpgsig leyendo directamente el objeto git.
+        /// Se usa cuando git %G? devuelve "N" (e.g. SSH sin allowed_signers configurado).
+        /// </summary>
+        private async Task TryVerifySignatureFromGitObject(GitVersionComponent component, string gitDir, string commitSha)
+        {
+            try
+            {
+                if (!Directory.Exists(gitDir)) return;
+
+                string? commitContent = null;
+
+                // Intentar objeto suelto
+                var loosePath = Path.Combine(gitDir, "objects", commitSha.Substring(0, 2), commitSha.Substring(2));
+                if (File.Exists(loosePath))
+                {
+                    commitContent = DecompressGitObject(loosePath);
+                }
+
+                // Intentar packfiles
+                if (commitContent == null)
+                {
+                    var packDir = Path.Combine(gitDir, "objects", "pack");
+                    if (Directory.Exists(packDir))
+                    {
+                        foreach (var idxFile in Directory.GetFiles(packDir, "*.idx"))
+                        {
+                            var packFile = Path.ChangeExtension(idxFile, ".pack");
+                            if (File.Exists(packFile))
+                            {
+                                commitContent = TryReadFromPackfile(idxFile, packFile, commitSha);
+                                if (commitContent != null) break;
+                            }
+                        }
+                    }
+                }
+
+                if (commitContent == null) return;
+
+                // Extraer solo la sección de headers (antes del doble newline)
+                var nullIndex = commitContent.IndexOf('\0');
+                var body = nullIndex >= 0 ? commitContent.Substring(nullIndex + 1) : commitContent;
+                var headerEnd = body.IndexOf("\n\n");
+                if (headerEnd < 0) return;
+
+                var headerSection = body.Substring(0, headerEnd);
+
+                if (headerSection.Contains("\ngpgsig ") || headerSection.StartsWith("gpgsig "))
+                {
+                    component.IsSigned = true;
+                    component.SignatureStatus = "signed";
+                    component.SignatureType = headerSection.Contains("BEGIN SSH SIGNATURE") ? "SSH" : "GPG";
+                    component.SignatureMessage = $"Commit is {component.SignatureType}-signed (detected from git object)";
+                    _logger.LogInformation("🔐 {Name}: {SigType} signature detected in git object (git %G? missed it)",
+                        component.Name, component.SignatureType);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not verify signature from git object for {Sha}", commitSha);
             }
         }
 
