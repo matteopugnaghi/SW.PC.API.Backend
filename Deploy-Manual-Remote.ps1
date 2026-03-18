@@ -297,7 +297,9 @@ if ($SkipBackendBuild) {
             "$BackendPath\publish\wwwroot\models",
             "$BackendPath\publish\wwwroot\sbom",
             "$BackendPath\publish\CodeCoverage",
-            "$BackendPath\publish\InstrumentationEngine"
+            "$BackendPath\publish\InstrumentationEngine",
+            "$BackendPath\publish\Projects",
+            "$BackendPath\publish\backups"
         )
         # 🧹 Limpiar archivos de test/coverage que no deben ir a producción
         $devFilesToRemove = Get-ChildItem -Path "$BackendPath\publish" -Filter "coverlet.*" -ErrorAction SilentlyContinue

@@ -598,10 +598,11 @@ public class GitOperationsService : IGitOperationsService
             }
 
             _logger.LogInformation("Pushing changes from {Path}", repoPath);
-            // Shared credentials file accessible by ALL users (Administrator, SYSTEM, etc.)
-            await ConfigureSharedCredentialsAsync(repoPath);
             await RunGitCommandAsync(repoPath, "config http.postBuffer 524288000");
-            var result = await RunGitCommandAsync(repoPath, "push", 120000);
+            // Use authenticated URL from shared credentials file
+            var authUrl = await GetAuthenticatedRemoteUrlAsync(repoPath);
+            var pushArgs = authUrl != null ? $"push {authUrl}" : "push";
+            var result = await RunGitCommandAsync(repoPath, pushArgs, 120000);
             if (result.Success) 
             {
                 // ?? Actualizar informaci�n de integridad despu�s de push
@@ -609,9 +610,9 @@ public class GitOperationsService : IGitOperationsService
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after push"); }
                 });
-                return new GitOperationResult { Success = true, Message = "Push completed successfully", Output = result.Output };
+                return new GitOperationResult { Success = true, Message = "Push completed successfully", Output = SanitizeGitArgs(result.Output ?? "") };
             }
-            return new GitOperationResult { Success = false, Message = $"Push failed: {result.Error}" };
+            return new GitOperationResult { Success = false, Message = $"Push failed: {SanitizeGitArgs(result.Error ?? "")}" };
         }
         catch (Exception ex) { _logger.LogError(ex, "Error pushing from {Path}", repoPath); return new GitOperationResult { Success = false, Message = $"Exception: {ex.Message}" }; }
     }
@@ -637,10 +638,11 @@ public class GitOperationsService : IGitOperationsService
             }
 
             _logger.LogWarning("?? FORCE PUSHING changes from {Path} - This will overwrite remote!", repoPath);
-            // Shared credentials file accessible by ALL users
-            await ConfigureSharedCredentialsAsync(repoPath);
             await RunGitCommandAsync(repoPath, "config http.postBuffer 524288000");
-            var result = await RunGitCommandAsync(repoPath, "push --force", 120000);
+            // Use authenticated URL from shared credentials file
+            var authUrl = await GetAuthenticatedRemoteUrlAsync(repoPath);
+            var pushArgs = authUrl != null ? $"push --force {authUrl}" : "push --force";
+            var result = await RunGitCommandAsync(repoPath, pushArgs, 120000);
             if (result.Success) 
             {
                 // ?? Actualizar informaci�n de integridad despu�s de force push
@@ -648,9 +650,9 @@ public class GitOperationsService : IGitOperationsService
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after force push"); }
                 });
-                return new GitOperationResult { Success = true, Message = "? Force Push completado - Remoto sincronizado con local", Output = result.Output };
+                return new GitOperationResult { Success = true, Message = "? Force Push completado - Remoto sincronizado con local", Output = SanitizeGitArgs(result.Output ?? "") };
             }
-            return new GitOperationResult { Success = false, Message = $"Force Push failed: {result.Error}" };
+            return new GitOperationResult { Success = false, Message = $"Force Push failed: {SanitizeGitArgs(result.Error ?? "")}" };
         }
         catch (Exception ex) { _logger.LogError(ex, "Error force pushing from {Path}", repoPath); return new GitOperationResult { Success = false, Message = $"Exception: {ex.Message}" }; }
     }
@@ -749,8 +751,12 @@ public class GitOperationsService : IGitOperationsService
             if (!completed) { process.Kill(); return (false, null, $"Command timed out after {timeoutMs/1000}s"); }
             return (process.ExitCode == 0, outputBuilder.ToString(), errorBuilder.ToString());
         }
-        catch (Exception ex) { _logger.LogError(ex, "Error running git command: {Args}", arguments); return (false, null, ex.Message); }
+        catch (Exception ex) { _logger.LogError(ex, "Error running git command: {Args}", SanitizeGitArgs(arguments)); return (false, null, ex.Message); }
     }
+
+    /// <summary>Removes credentials from git arguments for safe logging</summary>
+    private static string SanitizeGitArgs(string args) =>
+        System.Text.RegularExpressions.Regex.Replace(args, @"https://[^@]+@", "https://***@");
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Credenciales compartidas — usa un archivo accesible por todos los usuarios
@@ -758,40 +764,66 @@ public class GitOperationsService : IGitOperationsService
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Configures git to use a shared credentials file in C:\ProgramData\Aquafrisch\
-    /// so both interactive users and SYSTEM service account can push.
-    /// Also copies credentials from the current user's credential manager if available.
+    /// Reads shared credentials from C:\ProgramData\Aquafrisch\git-credentials
+    /// and returns an authenticated remote URL for push operations.
+    /// Returns null if no credentials found (falls back to default push).
     /// </summary>
-    private async Task ConfigureSharedCredentialsAsync(string repoPath)
+    private async Task<string?> GetAuthenticatedRemoteUrlAsync(string repoPath)
     {
         try
         {
-            var sharedDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Aquafrisch");
-            Directory.CreateDirectory(sharedDir);
-            var credFile = Path.Combine(sharedDir, "git-credentials").Replace('\\', '/');
+            var credFile = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "Aquafrisch", "git-credentials");
 
-            // Configure git to use shared credentials file
-            await RunGitCommandAsync(repoPath, $"config credential.helper \"store --file={credFile}\"");
-
-            // If shared credentials file doesn't exist or is empty, try to copy from Windows Credential Manager
             if (!File.Exists(credFile) || new FileInfo(credFile).Length == 0)
             {
-                // Get the remote URL to know which host needs credentials
-                var remoteResult = await RunGitCommandAsync(repoPath, "remote get-url origin");
-                if (remoteResult.Success && !string.IsNullOrWhiteSpace(remoteResult.Output))
+                _logger.LogWarning("⚠️ No shared credentials file at {File}. Create it with: echo https://user:TOKEN@host > \"{File}\"", credFile, credFile);
+                return null;
+            }
+
+            // Get current remote URL
+            var remoteResult = await RunGitCommandAsync(repoPath, "remote get-url origin");
+            if (!remoteResult.Success || string.IsNullOrWhiteSpace(remoteResult.Output))
+                return null;
+
+            var remoteUrl = remoteResult.Output.Trim();
+            if (!remoteUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                return null; // SSH remotes don't need this
+
+            // Parse remote URL
+            if (!Uri.TryCreate(remoteUrl, UriKind.Absolute, out var remoteUri))
+                return null;
+
+            // Read credentials and find matching host
+            var lines = await File.ReadAllLinesAsync(credFile);
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed)) continue;
+
+                if (Uri.TryCreate(trimmed, UriKind.Absolute, out var credUri) &&
+                    credUri.Host.Equals(remoteUri.Host, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrEmpty(credUri.UserInfo))
                 {
-                    var remoteUrl = remoteResult.Output.Trim();
-                    _logger.LogWarning("⚠️ No shared credentials found for {Remote}. First push must be done manually: open Git Bash in repo folder and run 'git push'", remoteUrl);
+                    // Build authenticated URL: replace userinfo in remote URL with credentials
+                    var builder = new UriBuilder(remoteUri);
+                    var parts = credUri.UserInfo.Split(':', 2);
+                    builder.UserName = parts[0];
+                    builder.Password = parts.Length > 1 ? parts[1] : "";
+                    var authUrl = builder.Uri.AbsoluteUri;
+                    _logger.LogInformation("✅ Using shared credentials for {Host}", remoteUri.Host);
+                    return authUrl;
                 }
             }
-            else
-            {
-                _logger.LogInformation("✅ Shared credentials configured: {File}", credFile);
-            }
+
+            _logger.LogWarning("⚠️ No credentials found for host {Host} in {File}", remoteUri.Host, credFile);
+            return null;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Could not configure shared credentials, falling back to default");
+            _logger.LogWarning(ex, "Could not read shared credentials");
+            return null;
         }
     }
 
