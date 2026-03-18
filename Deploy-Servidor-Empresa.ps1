@@ -160,6 +160,7 @@ function Get-GitVersionInfo {
                 Write-Host "   🔐 Configured allowedSignersFile: $allowedSignersPath" -ForegroundColor Cyan
             }
             $authKeysFile = Join-Path $RepoPath "authorized_signing_keys.json"
+            if (-not (Test-Path $authKeysFile)) { $authKeysFile = Join-Path $ScriptPath "authorized_signing_keys.json" }
             if (Test-Path $authKeysFile) {
                 try {
                     $authKeys = Get-Content $authKeysFile -Raw | ConvertFrom-Json
@@ -174,7 +175,16 @@ function Get-GitVersionInfo {
             }
         } else {
             # 🔐 Modo verification-only: no hay SSH signing local, pero podemos verificar firmas de otros
+            # Primero comprobar si ya está configurado (por una llamada anterior)
+            $existingAllowed = (git config --global gpg.ssh.allowedSignersFile 2>$null) -replace "`n|`r", ""
+            if ($existingAllowed -and (Test-Path $existingAllowed)) {
+                # Ya configurado por llamada anterior (Backend) — no hacer nada
+            } else {
             $authKeysFile = Join-Path $RepoPath "authorized_signing_keys.json"
+            # Fallback: buscar en el directorio del script (Backend) si no existe en $RepoPath
+            if (-not (Test-Path $authKeysFile)) {
+                $authKeysFile = Join-Path $ScriptPath "authorized_signing_keys.json"
+            }
             if (Test-Path $authKeysFile) {
                 try {
                     $authKeys = Get-Content $authKeysFile -Raw | ConvertFrom-Json
@@ -196,6 +206,7 @@ function Get-GitVersionInfo {
                     }
                 } catch { }
             }
+            } # end if not already configured
         }
         
         $sha = (git rev-parse HEAD 2>$null) -replace "`n|`r", ""
