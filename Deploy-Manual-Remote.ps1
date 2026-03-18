@@ -1013,7 +1013,19 @@ if ($BackupExisting -and (Test-Path "$RemotePath\Backend\SW.PC.API.Backend.exe")
         Write-Info "  - appsettings.Production.json"
     }
     
-    # 5. NO hacer backup de: wwwroot/ (frontend), exe/dlls (se regeneran)
+    # 5. authorized_signing_keys.json y access_control_config.json (SSH signing + access control)
+    $authKeysFile = "$RemotePath\Backend\authorized_signing_keys.json"
+    if (Test-Path $authKeysFile) {
+        Copy-Item -Path $authKeysFile -Destination "$backupPath\Backend\" -Force
+        Write-Info "  - authorized_signing_keys.json (SSH signing keys)"
+    }
+    $accessControlFile = "$RemotePath\Backend\access_control_config.json"
+    if (Test-Path $accessControlFile) {
+        Copy-Item -Path $accessControlFile -Destination "$backupPath\Backend\" -Force
+        Write-Info "  - access_control_config.json (access control)"
+    }
+    
+    # 6. NO hacer backup de: wwwroot/ (frontend), exe/dlls (se regeneran)
     #    Estos se pueden restaurar desde LocalDeploys/ o regenerando
     
     # Crear archivo de info del backup
@@ -1116,6 +1128,24 @@ for ($copyAttempt = 1; $copyAttempt -le 3; $copyAttempt++) {
     }
 }
 Write-Success "Backend copiado: $totalFiles archivos"
+
+# 🔐 Restaurar archivos de configuración que no vienen en publish
+Write-Step "Restaurando archivos de configuración preservados..."
+$preserveFiles = @(
+    "authorized_signing_keys.json",
+    "access_control_config.json",
+    "active-project.json",
+    "certificate.pfx",
+    "appsettings.Production.json"
+)
+foreach ($preserveFile in $preserveFiles) {
+    $backupFile = "$backupPath\Backend\$preserveFile"
+    $destFile = "$RemotePath\Backend\$preserveFile"
+    if ((Test-Path $backupFile) -and -not (Test-Path $destFile)) {
+        Copy-Item -Path $backupFile -Destination $destFile -Force
+        Write-Info "  ♻️ Restaurado: $preserveFile"
+    }
+}
 
 # ============================================
 # PASO 8: Copiar Frontend (wwwroot) - OPTIMIZADO
