@@ -1849,45 +1849,151 @@ Write-Header "PASO 9.4: Generando certificado SSL"
 
 $certPassword = "Aquafrisch2024!"
 $certRemoteDest = "$RemotePath\Backend\certificate.pfx"
+$cerRemoteDest = "$RemotePath\Backend\certificate.cer"
 
-# Solo generar si no existe (preservar certificado existente)
+# Verificar si el certificado existente tiene los SANs correctos (IP Address, no solo DNS Name)
+$needsRegeneration = $false
 if (Test-Path $certRemoteDest) {
-    Write-Info "Certificado SSL ya existe en destino - NO se sobreescribe"
-    Write-Info "Para regenerar, elimina manualmente: $InstallPath\Backend\certificate.pfx"
+    try {
+        $existingPfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            $certRemoteDest, $certPassword, 
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+        $sanExt = $existingPfx.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.17" }
+        $sanText = if ($sanExt) { $sanExt.Format($false) } else { "" }
+        $existingPfx.Dispose()
+        
+        # Verificar que tiene SAN tipo "IP Address" (no solo "DNS Name" para la IP)
+        if ($sanText -match "IP.*(Address|Direcci)" -or $sanText -match "IPAddress") {
+            Write-Info "Certificado SSL existente tiene IP SAN correcto - NO se sobreescribe"
+            Write-Info "Para regenerar, elimina manualmente: $InstallPath\Backend\certificate.pfx"
+            
+            # Asegurar que el CER siempre existe junto al PFX
+            if (-not (Test-Path $cerRemoteDest)) {
+                Write-Step "Exportando certificado publico (CER) desde PFX existente..."
+                $existingPfx2 = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+                    $certRemoteDest, $certPassword, 
+                    [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+                $cerBytes = $existingPfx2.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+                [System.IO.File]::WriteAllBytes($cerRemoteDest, $cerBytes)
+                $existingPfx2.Dispose()
+                Write-Success "Certificado publico exportado: certificate.cer"
+            }
+        } else {
+            Write-Warning "Certificado existente NO tiene IP SAN correcto (solo DNS Name)"
+            Write-Warning "Chrome/Edge requieren SAN tipo 'IP Address' para acceso por IP"
+            Write-Step "Regenerando certificado con IP SAN correcto..."
+            $needsRegeneration = $true
+        }
+    } catch {
+        Write-Warning "No se pudo leer el certificado existente: $_"
+        Write-Step "Regenerando certificado..."
+        $needsRegeneration = $true
+    }
 } else {
+    $needsRegeneration = $true
+}
+
+if ($needsRegeneration) {
     Write-Step "Generando certificado SSL localmente y copiando via SMB..."
     try {
         $localCertPath = "$BackendPath\publish\certificate.pfx"
+        $localCerPath = "$BackendPath\publish\certificate.cer"
         
-        # Crear certificado autofirmado en el almacen local
+        # Obtener hostname del IPC (para SAN)
+        $ipcHostname = "aquafrisch-supervisor"
+        try {
+            $ipcHostname = (Get-WmiObject -ComputerName $TargetIP -Class Win32_ComputerSystem -Credential $cred -ErrorAction SilentlyContinue).Name
+            if (-not $ipcHostname) { $ipcHostname = "aquafrisch-supervisor" }
+        } catch { }
+        
+        # Crear certificado autofirmado — RSA 2048 explicito (requisito IEC 62443 / Alstom TLS)
+        # IMPORTANTE: IP addresses deben ir como "IPAddress=" en SAN, no como "DNS Name="
+        # Chrome/Edge requieren SAN tipo IP Address para acceso por IP sin warnings
+        $sanBuilder = "2.5.29.17={text}"
+        $sanBuilder += "DNS=localhost&"
+        $sanBuilder += "DNS=$ipcHostname&"
+        $sanBuilder += "DNS=aquafrisch-supervisor&"
+        $sanBuilder += "IPAddress=$TargetIP&"
+        $sanBuilder += "IPAddress=127.0.0.1"
+        
         $cert = New-SelfSignedCertificate `
-            -DnsName "localhost", $TargetIP, "aquafrisch-supervisor" `
+            -Subject "CN=Aquafrisch Supervisor ($TargetIP)" `
             -CertStoreLocation "Cert:\CurrentUser\My" `
             -NotAfter (Get-Date).AddYears(10) `
-            -FriendlyName "Aquafrisch Supervisor SSL" `
+            -FriendlyName "Aquafrisch Supervisor SSL ($TargetIP)" `
+            -KeyLength 2048 `
+            -KeyAlgorithm RSA `
+            -HashAlgorithm SHA256 `
             -KeyUsage DigitalSignature, KeyEncipherment `
-            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.1")
+            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.1", $sanBuilder)
         
-        # Exportar a PFX
+        # Exportar PFX (clave privada + publica — solo para Kestrel)
         $securePassword = ConvertTo-SecureString -String $certPassword -Force -AsPlainText
         Export-PfxCertificate -Cert $cert -FilePath $localCertPath -Password $securePassword | Out-Null
         
-        # Copiar al remoto via SMB
-        Copy-Item -Path $localCertPath -Destination $certRemoteDest -Force
+        # Exportar CER (solo clave publica — para distribuir a clientes)
+        Export-Certificate -Cert $cert -FilePath $localCerPath -Type CERT | Out-Null
         
-        # Limpiar certificado local del almacen
+        # Copiar PFX y CER al remoto via SMB
+        Copy-Item -Path $localCertPath -Destination $certRemoteDest -Force
+        Copy-Item -Path $localCerPath -Destination $cerRemoteDest -Force
+        
+        # Instalar certificado en Trusted Root CA del IPC (via WinRM si disponible)
+        Write-Step "Instalando certificado en Trusted Root CA del IPC..."
+        try {
+            $certBytes = [System.IO.File]::ReadAllBytes($localCerPath)
+            $certBase64 = [Convert]::ToBase64String($certBytes)
+            
+            Invoke-Command -ComputerName $TargetIP -Credential $cred -ScriptBlock {
+                param($b64)
+                $bytes = [Convert]::FromBase64String($b64)
+                $tempCer = "$env:TEMP\aquafrisch-supervisor.cer"
+                [System.IO.File]::WriteAllBytes($tempCer, $bytes)
+                Import-Certificate -FilePath $tempCer -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null
+                Remove-Item $tempCer -Force -ErrorAction SilentlyContinue
+            } -ArgumentList $certBase64 -ErrorAction Stop
+            
+            Write-Success "Certificado instalado en Trusted Root CA del IPC"
+        } catch {
+            Write-Warning "No se pudo instalar en Trusted Root via WinRM: $_"
+            Write-Info "El certificado CER esta disponible en: $InstallPath\Backend\certificate.cer"
+            Write-Info "Instalar manualmente en el IPC con:"
+            Write-Info "  Import-Certificate -FilePath 'certificate.cer' -CertStoreLocation 'Cert:\LocalMachine\Root'"
+        }
+        
+        # Limpiar archivos temporales locales
         Remove-Item -Path "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
         Remove-Item -Path $localCertPath -Force -ErrorAction SilentlyContinue
         
         Write-Success "Certificado SSL generado y copiado al servidor"
+        Write-Info "Algoritmo: RSA 2048 / SHA256 (conforme IEC 62443 / Alstom TLS)"
+        Write-Info "SANs: DNS=localhost, DNS=$ipcHostname, IPAddress=$TargetIP, IPAddress=127.0.0.1"
         Write-Info "El certificado es valido por 10 años"
-        Write-Info "Contraseña del certificado: $certPassword"
+        Write-Info "PFX (servidor): $InstallPath\Backend\certificate.pfx"
+        Write-Info "CER (clientes): $InstallPath\Backend\certificate.cer"
+        Write-Info "  Los PCs cliente pueden descargar el CER desde: https://$TargetIP`:5001/api/certificate/public"
+        
+        # Instalar certificado en el PC LOCAL (desde donde se despliega)
+        Write-Step "Instalando certificado en Trusted Root del PC local..."
+        try {
+            Import-Certificate -FilePath $localCerPath -CertStoreLocation "Cert:\LocalMachine\Root" -ErrorAction Stop | Out-Null
+            Write-Success "Certificado instalado en Trusted Root del PC local"
+            Write-Info "Este PC podra acceder a https://$TargetIP`:5001 sin advertencias"
+        } catch {
+            Write-Warning "No se pudo instalar en Trusted Root local (requiere admin): $_"
+            Write-Info "Instalar manualmente: doble click en certificate.cer -> Entidades de certificacion raiz de confianza"
+        }
+        
+        Remove-Item -Path $localCerPath -Force -ErrorAction SilentlyContinue
     } catch {
         Write-Error2 "No se pudo generar certificado: $_"
         Write-Info "IMPORTANTE: Debes generar el certificado manualmente en el servidor:"
-        Write-Info '  $cert = New-SelfSignedCertificate -DnsName "localhost","192.168.2.161" -CertStoreLocation "Cert:\LocalMachine\My" -NotAfter (Get-Date).AddYears(10)'
+        Write-Info '  $san = "2.5.29.17={text}DNS=localhost&DNS=aquafrisch-supervisor&IPAddress=192.168.2.161&IPAddress=127.0.0.1"'
+        Write-Info '  $cert = New-SelfSignedCertificate -Subject "CN=Aquafrisch Supervisor (192.168.2.161)" -CertStoreLocation "Cert:\LocalMachine\My" -NotAfter (Get-Date).AddYears(10) -KeyLength 2048 -KeyAlgorithm RSA -HashAlgorithm SHA256 -KeyUsage DigitalSignature,KeyEncipherment -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.1", $san)'
         Write-Info '  $pwd = ConvertTo-SecureString -String "Aquafrisch2024!" -Force -AsPlainText'
         Write-Info '  Export-PfxCertificate -Cert $cert -FilePath "C:\Aquafrisch Supervisor\Backend\certificate.pfx" -Password $pwd'
+        Write-Info '  Export-Certificate -Cert $cert -FilePath "C:\Aquafrisch Supervisor\Backend\certificate.cer" -Type CERT'
+        Write-Info '  Import-Certificate -FilePath "C:\Aquafrisch Supervisor\Backend\certificate.cer" -CertStoreLocation "Cert:\LocalMachine\Root"'
     }
 }
 
@@ -1973,10 +2079,25 @@ if ($startResult -match "START_PENDING|RUNNING") {
 # ============================================
 Write-Header "PASO 10.5: Configurando Firewall"
 
-Write-Info "Para que el servidor sea accesible desde la red, ejecuta esto en el PC destino (como Admin):"
-Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTP' -Direction Inbound -Port 5000 -Protocol TCP -Action Allow" -ForegroundColor Yellow
-Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -Direction Inbound -Port 5001 -Protocol TCP -Action Allow" -ForegroundColor Yellow
-Write-Info "(Solo necesario la primera vez)"
+Write-Info "Configurando regla de firewall para HTTPS:5001..."
+Write-Info "HTTP:5000 es solo localhost - no requiere regla de firewall"
+
+try {
+    Invoke-Command -ComputerName $TargetIP -Credential $cred -ScriptBlock {
+        # Eliminar reglas antiguas si existen (evitar duplicados)
+        Get-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTP' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+        Get-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+        
+        # Solo abrir HTTPS - HTTP es localhost-only en produccion, no necesita firewall
+        New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -Direction Inbound -Port 5001 -Protocol TCP -Action Allow -Profile Any -Description 'Aquafrisch Supervisor - Puerto HTTPS (unico acceso remoto)' | Out-Null
+    }
+    Write-Success "Regla de firewall configurada: solo HTTPS:5001 (HTTP:5000 = localhost-only)"
+}
+catch {
+    Write-Warning "No se pudieron configurar las reglas de firewall automaticamente."
+    Write-Info "Ejecuta manualmente en el PC destino (como Admin):"
+    Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -Direction Inbound -Port 5001 -Protocol TCP -Action Allow" -ForegroundColor Yellow
+}
 
 # ============================================
 # PASO 11: Desconectar
@@ -2040,14 +2161,15 @@ if ($SaveLocalCopy -and -not [string]::IsNullOrEmpty($LocalCopyPath)) {
     Write-Host ""
 }
 Write-Host "  URLs de acceso:" -ForegroundColor Cyan
-Write-Host "  - HTTP:  http://${TargetIP}:5000" -ForegroundColor White
-Write-Host "  - HTTPS: https://${TargetIP}:5001 (SEGURO - RECOMENDADO)" -ForegroundColor Green
+Write-Host "  - HTTPS: https://${TargetIP}:5001 (UNICO ACCESO REMOTO)" -ForegroundColor Green
+Write-Host "  - HTTP:  http://localhost:5000 (solo emergencia desde el propio IPC)" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  NOTA: El servidor esta corriendo como servicio Windows." -ForegroundColor Yellow
 Write-Host "        Se inicia automaticamente con el PC y se reinicia en caso de fallo." -ForegroundColor Yellow
 Write-Host ""
-Write-Host "  NOTA: El certificado SSL es autofirmado. El navegador mostrara" -ForegroundColor Yellow
-Write-Host "        una advertencia la primera vez. Esto es normal en redes internas." -ForegroundColor Yellow
+Write-Host "  NOTA: El certificado SSL se instala automaticamente en el PC de despliegue." -ForegroundColor Yellow
+Write-Host "        Otros PCs pueden descargar el CER desde: https://${TargetIP}:5001/api/certificate/public" -ForegroundColor Yellow
+Write-Host "        HTTP:5000 solo accesible desde el propio IPC (127.0.0.1)" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 

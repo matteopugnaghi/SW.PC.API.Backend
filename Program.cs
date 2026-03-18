@@ -73,15 +73,17 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("ReactFrontend", policy =>
     {
-        // En desarrollo, permitir cualquier origen de la red local
+        // Permitir orígenes HTTP y HTTPS de la red local
         policy.SetIsOriginAllowed(origin =>
               {
-                  // Permitir localhost en cualquier puerto
-                  if (origin.StartsWith("http://localhost:") || origin.StartsWith("http://127.0.0.1:"))
+                  // Permitir localhost en cualquier puerto (HTTP y HTTPS)
+                  if (origin.StartsWith("http://localhost:") || origin.StartsWith("https://localhost:"))
+                      return true;
+                  if (origin.StartsWith("http://127.0.0.1:") || origin.StartsWith("https://127.0.0.1:"))
                       return true;
                   
-                  // Permitir IPs de la red local 192.168.x.x
-                  if (origin.StartsWith("http://192.168."))
+                  // Permitir IPs de la red local 192.168.x.x (HTTP y HTTPS)
+                  if (origin.StartsWith("http://192.168.") || origin.StartsWith("https://192.168."))
                       return true;
                   
                   return false;
@@ -411,8 +413,11 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Deshabilitar HTTPS redirection en desarrollo para evitar problemas de CORS
-// app.UseHttpsRedirection();
+// HTTPS redirection: solo en producción para forzar canal cifrado
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // Log paths for debugging
 var webRootPath = app.Environment.WebRootPath;
