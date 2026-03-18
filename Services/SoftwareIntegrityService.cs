@@ -89,6 +89,9 @@ namespace SW.PC.API.Backend.Services
         private string _twinCatPlcRepoPath;
         private bool _pathsConfigured = false;
 
+        // Ruta al ejecutable git (resuelto una vez al inicio)
+        private readonly string _gitExecutable;
+
         // Machine-specific TwinCAT file extensions to ignore in git status
         private static readonly HashSet<string> _machineSpecificExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -103,6 +106,10 @@ namespace SW.PC.API.Backend.Services
             _logger = logger;
             _configuration = configuration;
             _projectContext = projectContext;
+
+            // Resolver ruta de git.exe (SYSTEM user puede no tenerlo en PATH)
+            _gitExecutable = ResolveGitExecutable();
+            _logger.LogInformation("\ud83d\udd27 Git executable: {GitPath}", _gitExecutable);
 
             // Rutas por defecto (auto-detectadas) - se pueden sobrescribir desde Excel
             _backendRepoPath = FindGitRoot(AppDomain.CurrentDomain.BaseDirectory) 
@@ -1101,7 +1108,7 @@ namespace SW.PC.API.Backend.Services
                 {
                     StartInfo = new ProcessStartInfo
                     {
-                        FileName = "git",
+                        FileName = _gitExecutable,
                         Arguments = $"-c safe.directory=* {arguments}",
                         WorkingDirectory = workingDir,
                         RedirectStandardOutput = true,
@@ -1163,6 +1170,59 @@ namespace SW.PC.API.Backend.Services
                 dir = dir.Parent;
             }
             return null;
+        }
+
+        /// <summary>
+        /// Busca git.exe en PATH y en rutas de instalación comunes.
+        /// SYSTEM user frecuentemente no tiene git en su PATH.
+        /// </summary>
+        private string ResolveGitExecutable()
+        {
+            // 1. Intentar 'git' directamente (funciona si está en PATH)
+            try
+            {
+                var testProcess = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "--version",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                if (testProcess != null)
+                {
+                    testProcess.WaitForExit(5000);
+                    if (testProcess.ExitCode == 0)
+                        return "git";
+                    testProcess.Kill();
+                }
+            }
+            catch { /* git not in PATH */ }
+
+            // 2. Buscar en rutas comunes de instalación
+            var commonPaths = new[]
+            {
+                @"C:\Program Files\Git\bin\git.exe",
+                @"C:\Program Files (x86)\Git\bin\git.exe",
+                @"C:\Program Files\Git\cmd\git.exe",
+                @"C:\Program Files (x86)\Git\cmd\git.exe",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Git", "bin", "git.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "git.exe"),
+            };
+
+            foreach (var path in commonPaths)
+            {
+                if (File.Exists(path))
+                {
+                    _logger.LogInformation("🔧 Found git at: {Path}", path);
+                    return path;
+                }
+            }
+
+            // 3. Fallback: devolver "git" y dejar que falle con el fallback de .git files
+            _logger.LogWarning("⚠️ git.exe not found in PATH or common locations");
+            return "git";
         }
 
         private void UpdateSystemStatus()
