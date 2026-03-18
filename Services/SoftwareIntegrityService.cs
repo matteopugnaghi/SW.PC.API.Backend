@@ -758,6 +758,7 @@ namespace SW.PC.API.Backend.Services
                 }
 
                 // Obtener información Git en paralelo
+                _logger.LogInformation("🔧 {Name}: Running git commands in {Path} using {Git}", name, repoPath, _gitExecutable);
                 var shaTask = RunGitCommandAsync(repoPath, "rev-parse HEAD");
                 var shaShortTask = RunGitCommandAsync(repoPath, "rev-parse --short HEAD");
                 var branchTask = RunGitCommandAsync(repoPath, "rev-parse --abbrev-ref HEAD");
@@ -867,7 +868,8 @@ namespace SW.PC.API.Backend.Services
                 // 📁 Fallback: si git commands devolvieron vacío, leer .git files directamente
                 if (string.IsNullOrEmpty(component.CommitSha))
                 {
-                    _logger.LogWarning("⚠️ Git commands returned empty for {Name}, trying direct .git file read", name);
+                    _logger.LogWarning("⚠️ Git commands returned empty CommitSha for {Name} in [{Path}]. rev-parse HEAD returned: [{Sha}]", 
+                        name, repoPath, shaTask.Result);
                     await TryReadGitFilesDirectlyAsync(component, repoPath);
                 }
 
@@ -1215,9 +1217,9 @@ namespace SW.PC.API.Backend.Services
                     if (headerSection.Contains("\ngpgsig ") || headerSection.StartsWith("gpgsig "))
                     {
                         component.IsSigned = true;
-                        component.SignatureStatus = "signed-unverified";
+                        component.SignatureStatus = "signed";
                         component.SignatureType = headerSection.Contains("BEGIN SSH SIGNATURE") ? "SSH" : "GPG";
-                        component.SignatureMessage = $"Commit is signed ({component.SignatureType}, verified from .git objects)";
+                        component.SignatureMessage = $"Commit is {component.SignatureType}-signed (detected from git object)";
                         _logger.LogInformation("🔐 {Name}: {SigType} Signature DETECTED in commit object",
                             component.Name, component.SignatureType);
                     }
@@ -1464,7 +1466,7 @@ namespace SW.PC.API.Backend.Services
 
                 if (process.ExitCode != 0)
                 {
-                    _logger.LogDebug("Git exit code {Code}: git {Args} | stderr: {Err}", process.ExitCode, arguments, stderrTask.Result);
+                    _logger.LogWarning("⚠️ Git exit code {Code}: git {Args} in [{Dir}] | stderr: {Err}", process.ExitCode, arguments, workingDir, stderrTask.Result);
                 }
 
                 return stdoutTask.Result;
