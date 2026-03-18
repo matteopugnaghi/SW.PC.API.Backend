@@ -337,6 +337,45 @@ function Get-GitVersionInfo {
             return $null
         }
         
+        # 🔐 Asegurar allowed_signers ANTES de verificar firmas
+        # Sin esto, git log --format=%G? siempre devuelve "N" aunque el commit esté firmado
+        $gpgFormat = (git config --global gpg.format 2>$null) -replace "`n|`r", ""
+        $signingKey = (git config --global user.signingkey 2>$null) -replace "`n|`r", ""
+        if ($gpgFormat -eq "ssh" -and $signingKey) {
+            $sshDir = Split-Path $signingKey -Parent
+            $allowedSignersPath = Join-Path $sshDir "allowed_signers"
+            if (-not (Test-Path $allowedSignersPath)) {
+                # Crear allowed_signers con la clave local
+                if (Test-Path $signingKey) {
+                    $pubKey = (Get-Content $signingKey -Raw).Trim()
+                    $gitEmail = (git config --global user.email 2>$null) -replace "`n|`r", ""
+                    if (-not $gitEmail) { $gitEmail = "electronico@aquafrisch.com" }
+                    Set-Content -Path $allowedSignersPath -Value "$gitEmail namespaces=`"git`" $pubKey" -Encoding UTF8
+                    Write-Host "   🔐 Created allowed_signers: $allowedSignersPath" -ForegroundColor Cyan
+                }
+            }
+            # Asegurar que git config apunta al archivo
+            $currentAllowed = (git config --global gpg.ssh.allowedSignersFile 2>$null) -replace "`n|`r", ""
+            if (-not $currentAllowed -or -not (Test-Path $currentAllowed)) {
+                git config --global gpg.ssh.allowedSignersFile $allowedSignersPath 2>$null
+                Write-Host "   🔐 Configured allowedSignersFile: $allowedSignersPath" -ForegroundColor Cyan
+            }
+            # También cargar claves de authorized_signing_keys.json si existe
+            $authKeysFile = Join-Path $RepoPath "authorized_signing_keys.json"
+            if (Test-Path $authKeysFile) {
+                try {
+                    $authKeys = Get-Content $authKeysFile -Raw | ConvertFrom-Json
+                    $existingContent = if (Test-Path $allowedSignersPath) { Get-Content $allowedSignersPath -Raw } else { "" }
+                    foreach ($ak in $authKeys) {
+                        if ($ak.PublicKey -and -not $existingContent.Contains($ak.PublicKey.Split(' ')[1])) {
+                            $akEmail = if ($ak.OwnerEmail) { $ak.OwnerEmail } else { "electronico@aquafrisch.com" }
+                            Add-Content -Path $allowedSignersPath -Value "$akEmail namespaces=`"git`" $($ak.PublicKey)" -Encoding UTF8
+                        }
+                    }
+                } catch { }
+            }
+        }
+        
         # Obtener información de Git
         $sha = (git rev-parse HEAD 2>$null) -replace "`n|`r", ""
         $shaShort = (git rev-parse --short HEAD 2>$null) -replace "`n|`r", ""

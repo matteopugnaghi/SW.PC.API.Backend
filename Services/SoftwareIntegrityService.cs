@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Net.NetworkInformation;
 
 namespace SW.PC.API.Backend.Services
@@ -249,6 +250,10 @@ namespace SW.PC.API.Backend.Services
         {
             try
             {
+                // 🔐 PRIMERO: Asegurar que allowed_signers está configurado ANTES de verificar firmas
+                // Sin esto, git log --format=%G? siempre devuelve "N" aunque el commit esté firmado
+                await EnsureAllowedSignersBeforeVerificationAsync();
+
                 // Obtener info de cada componente en paralelo
                 var backendTask = GetGitComponentInfoAsync("Backend", _backendRepoPath);
                 var frontendTask = GetGitComponentInfoAsync("Frontend", _frontendRepoPath);
@@ -302,6 +307,151 @@ namespace SW.PC.API.Backend.Services
             {
                 _logger.LogError(ex, "Error initializing Git info");
             }
+        }
+
+        /// <summary>
+        /// 🔐 Asegura que allowed_signers esté configurado ANTES de ejecutar git log --format=%G?
+        /// Sin esto, git siempre devuelve "N" (unsigned) aunque el commit tenga firma SSH válida.
+        /// Lee authorized_signing_keys.json y construye el archivo allowed_signers con todas las claves.
+        /// </summary>
+        private async Task EnsureAllowedSignersBeforeVerificationAsync()
+        {
+            try
+            {
+                // Verificar si SSH signing está configurado
+                var gpgFormat = (await RunGitCommandAsync(_backendRepoPath, "config --global gpg.format")).Trim();
+                if (gpgFormat != "ssh")
+                {
+                    // SSH signing no configurado - comprobar si hay authorized_signing_keys.json
+                    // para configurar al menos la verificación
+                    var authKeysPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "authorized_signing_keys.json");
+                    if (!File.Exists(authKeysPath))
+                    {
+                        _logger.LogDebug("🔐 No SSH signing configured and no authorized keys - skipping allowed_signers setup");
+                        return;
+                    }
+
+                    // Hay claves autorizadas pero no hay SSH signing → configurar solo verificación
+                    var keys = JsonSerializer.Deserialize<List<AuthorizedKeyForVerification>>(
+                        await File.ReadAllTextAsync(authKeysPath),
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                    if (keys == null || !keys.Any(k => !string.IsNullOrEmpty(k.PublicKey)))
+                    {
+                        _logger.LogDebug("🔐 No public keys in authorized_signing_keys.json");
+                        return;
+                    }
+
+                    // Crear allowed_signers en .ssh del perfil de usuario
+                    var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    var sshDir = Path.Combine(userProfile, ".ssh");
+                    if (!Directory.Exists(sshDir))
+                    {
+                        // Fallback para LocalSystem
+                        sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "config", "systemprofile", ".ssh");
+                        if (!Directory.Exists(sshDir))
+                            Directory.CreateDirectory(sshDir);
+                    }
+
+                    var allowedSignersPath = Path.Combine(sshDir, "allowed_signers");
+                    var signerLines = new HashSet<string>();
+                    foreach (var k in keys.Where(k => !string.IsNullOrEmpty(k.PublicKey)))
+                    {
+                        var email = !string.IsNullOrEmpty(k.OwnerEmail) ? k.OwnerEmail : "electronico@aquafrisch.com";
+                        signerLines.Add($"{email} namespaces=\"git\" {k.PublicKey}");
+                    }
+
+                    if (signerLines.Count > 0)
+                    {
+                        var newContent = string.Join("\n", signerLines) + "\n";
+                        await File.WriteAllTextAsync(allowedSignersPath, newContent);
+                        await RunGitCommandAsync(_backendRepoPath, $"config --global gpg.format ssh");
+                        await RunGitCommandAsync(_backendRepoPath, $"config --global gpg.ssh.allowedSignersFile \"{allowedSignersPath}\"");
+                        _logger.LogInformation("🔐 Configured verification-only allowed_signers with {Count} keys", signerLines.Count);
+                    }
+                    return;
+                }
+
+                // SSH signing está configurado - asegurar allowed_signers
+                var signingKey = (await RunGitCommandAsync(_backendRepoPath, "config --global user.signingkey")).Trim();
+                if (string.IsNullOrEmpty(signingKey)) return;
+
+                var sshDirectory = Path.GetDirectoryName(signingKey);
+                if (string.IsNullOrEmpty(sshDirectory)) return;
+
+                var allowedPath = (await RunGitCommandAsync(_backendRepoPath, "config --global gpg.ssh.allowedSignersFile")).Trim();
+                var targetAllowedPath = string.IsNullOrEmpty(allowedPath) || !File.Exists(allowedPath)
+                    ? Path.Combine(sshDirectory, "allowed_signers")
+                    : allowedPath;
+
+                var email2 = (await RunGitCommandAsync(_backendRepoPath, "config --global user.email")).Trim();
+                if (string.IsNullOrEmpty(email2)) email2 = "electronico@aquafrisch.com";
+
+                var lines = new HashSet<string>();
+
+                // 1. Clave local
+                if (File.Exists(signingKey))
+                {
+                    var localPubKey = (await File.ReadAllTextAsync(signingKey)).Trim();
+                    lines.Add($"{email2} namespaces=\"git\" {localPubKey}");
+                }
+
+                // 2. Todas las claves autorizadas
+                var authorizedKeysPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "authorized_signing_keys.json");
+                if (File.Exists(authorizedKeysPath))
+                {
+                    try
+                    {
+                        var authKeys = JsonSerializer.Deserialize<List<AuthorizedKeyForVerification>>(
+                            await File.ReadAllTextAsync(authorizedKeysPath),
+                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        
+                        if (authKeys != null)
+                        {
+                            foreach (var ak in authKeys.Where(k => !string.IsNullOrEmpty(k.PublicKey)))
+                            {
+                                var akEmail = !string.IsNullOrEmpty(ak.OwnerEmail) ? ak.OwnerEmail : email2;
+                                lines.Add($"{akEmail} namespaces=\"git\" {ak.PublicKey}");
+                            }
+                        }
+                    }
+                    catch { /* Si falla, al menos tenemos la local */ }
+                }
+
+                if (lines.Count > 0)
+                {
+                    var newContent = string.Join("\n", lines) + "\n";
+                    var existingContent = File.Exists(targetAllowedPath) ? await File.ReadAllTextAsync(targetAllowedPath) : "";
+                    
+                    if (existingContent.Trim() != newContent.Trim())
+                    {
+                        await File.WriteAllTextAsync(targetAllowedPath, newContent);
+                        _logger.LogInformation("🔐 Updated allowed_signers with {Count} keys before signature verification", lines.Count);
+                    }
+
+                    // Asegurar que git config apunta al archivo
+                    if (string.IsNullOrEmpty(allowedPath) || !File.Exists(allowedPath))
+                    {
+                        await RunGitCommandAsync(_backendRepoPath, $"config --global gpg.ssh.allowedSignersFile \"{targetAllowedPath}\"");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "🔐 Could not ensure allowed_signers before verification - signatures may show as unsigned");
+            }
+        }
+
+        /// <summary>
+        /// Modelo simplificado para leer authorized_signing_keys.json (sin dependencia de GitOperationsService)
+        /// </summary>
+        private class AuthorizedKeyForVerification
+        {
+            public string Fingerprint { get; set; } = "";
+            public string OwnerName { get; set; } = "";
+            public string OwnerEmail { get; set; } = "";
+            public string PublicKey { get; set; } = "";
+            public string MachineName { get; set; } = "";
         }
 
         #region 🔐 PERSISTENCIA DE ESTADO

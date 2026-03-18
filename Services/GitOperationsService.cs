@@ -871,10 +871,17 @@ public class GitOperationsService : IGitOperationsService
             var emailCheck = await RunGitCommandAsync(repoPath, "config user.email");
             if (!emailCheck.Success || string.IsNullOrWhiteSpace(emailCheck.Output))
             {
-                await RunGitCommandAsync(repoPath, "config user.email \"electronico@aquafrsich.com\"");
+                await RunGitCommandAsync(repoPath, "config user.email \"electronico@aquafrisch.com\"");
                 await RunGitCommandAsync(repoPath, "config user.name \"Aquafrisch Supervisor\"");
                 repairs.Add("Configured git identity (user.email + user.name)");
                 _logger.LogInformation("🔧 Auto-configured git identity in {Path}", repoPath);
+            }
+            else if (emailCheck.Output?.Trim().Contains("aquafrsich", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                // Fix typo en email anterior (aquafrsich → aquafrisch)
+                await RunGitCommandAsync(repoPath, "config user.email \"electronico@aquafrisch.com\"");
+                repairs.Add("Fixed email typo (aquafrsich → aquafrisch)");
+                _logger.LogInformation("🔧 Fixed email typo in {Path}", repoPath);
             }
 
             // 2. Verificar integridad rápida (git fsck sin --full para velocidad)
