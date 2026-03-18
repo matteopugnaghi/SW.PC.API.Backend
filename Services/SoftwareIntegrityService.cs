@@ -336,6 +336,9 @@ namespace SW.PC.API.Backend.Services
                         await File.ReadAllTextAsync(authKeysPath),
                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
+                    // Filtrar entradas inválidas (fingerprint vacío = entrada corrupta/legacy)
+                    keys = keys?.Where(k => !string.IsNullOrWhiteSpace(k.Fingerprint)).ToList();
+
                     if (keys == null || !keys.Any(k => !string.IsNullOrEmpty(k.PublicKey)))
                     {
                         _logger.LogDebug("🔐 No public keys in authorized_signing_keys.json");

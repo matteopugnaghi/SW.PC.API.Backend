@@ -1408,20 +1408,24 @@ public class GitOperationsService : IGitOperationsService
                     var fp = CalculateKeyFingerprint(parts[1]);
                     var authorizedKeys = await GetAuthorizedKeysAsync();
                     var existing = authorizedKeys.FirstOrDefault(k => k.Fingerprint.Equals(fp, StringComparison.OrdinalIgnoreCase));
+                    // Leer email/name de git config para completar datos
+                    var emailResult2 = await RunGitCommandAsync(".", "config --global user.email");
+                    var keyEmail = emailResult2.Output?.Trim() ?? "electronico@aquafrisch.com";
+                    var nameResult2 = await RunGitCommandAsync(".", "config --global user.name");
+                    var keyName = nameResult2.Output?.Trim() ?? Environment.MachineName;
+
                     if (existing != null)
                     {
-                        // Actualizar la clave pública si no la tenía
-                        if (string.IsNullOrEmpty(existing.PublicKey))
-                        {
-                            existing.PublicKey = pubKeyContent;
-                            existing.MachineName = Environment.MachineName;
-                        }
+                        // Siempre actualizar PublicKey, y completar campos vacíos
+                        existing.PublicKey = pubKeyContent;
+                        existing.MachineName = Environment.MachineName;
+                        if (string.IsNullOrEmpty(existing.OwnerEmail))
+                            existing.OwnerEmail = keyEmail;
+                        if (string.IsNullOrEmpty(existing.OwnerName))
+                            existing.OwnerName = keyName;
                     }
                     else
                     {
-                        // Clave no existe en authorized_signing_keys → crear entrada nueva
-                        var emailResult2 = await RunGitCommandAsync(".", "config --global user.email");
-                        var keyEmail = emailResult2.Output?.Trim() ?? "electronico@aquafrisch.com";
                         authorizedKeys.Add(new AuthorizedKey
                         {
                             Fingerprint = fp,
@@ -1836,7 +1840,19 @@ public class GitOperationsService : IGitOperationsService
             }
 
             var json = await File.ReadAllTextAsync(AuthorizedKeysFilePath);
-            return System.Text.Json.JsonSerializer.Deserialize<List<AuthorizedKey>>(json) ?? new List<AuthorizedKey>();
+            var keys = System.Text.Json.JsonSerializer.Deserialize<List<AuthorizedKey>>(json) ?? new List<AuthorizedKey>();
+            
+            // Filtrar entradas inválidas (fingerprint vacío = entrada corrupta/legacy)
+            var validKeys = keys.Where(k => !string.IsNullOrWhiteSpace(k.Fingerprint)).ToList();
+            if (validKeys.Count < keys.Count)
+            {
+                _logger.LogWarning("🧹 Removed {Count} invalid authorized key entries (empty fingerprint)", keys.Count - validKeys.Count);
+                // Auto-limpiar el archivo
+                var cleanJson = System.Text.Json.JsonSerializer.Serialize(validKeys, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(AuthorizedKeysFilePath, cleanJson);
+            }
+            
+            return validKeys;
         }
         catch (Exception ex)
         {

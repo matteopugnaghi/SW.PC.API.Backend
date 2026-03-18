@@ -1210,6 +1210,37 @@ if ($restoredCount -gt 0) {
     Write-Success "Restaurados $restoredCount archivos de configuración"
 }
 
+# 🔐 Merge: sincronizar claves SSH del desarrollo al servidor
+$localAuthKeys = Join-Path $BackendPath "authorized_signing_keys.json"
+$remoteAuthKeys = "$RemotePath\Backend\authorized_signing_keys.json"
+if (Test-Path $localAuthKeys) {
+    try {
+        $localKeys = Get-Content $localAuthKeys -Raw | ConvertFrom-Json
+        $validLocalKeys = @($localKeys | Where-Object { $_.Fingerprint -and $_.PublicKey })
+        
+        if (Test-Path $remoteAuthKeys) {
+            $remoteKeys = Get-Content $remoteAuthKeys -Raw | ConvertFrom-Json
+            $validRemoteKeys = @($remoteKeys | Where-Object { $_.Fingerprint })
+            $cleaned = $remoteKeys.Count - $validRemoteKeys.Count
+            $added = 0
+            foreach ($lk in $validLocalKeys) {
+                $exists = $validRemoteKeys | Where-Object { $_.Fingerprint -eq $lk.Fingerprint }
+                if (-not $exists) {
+                    $validRemoteKeys += $lk
+                    $added++
+                }
+            }
+            if ($added -gt 0 -or $cleaned -gt 0) {
+                $validRemoteKeys | ConvertTo-Json -Depth 10 | Set-Content $remoteAuthKeys -Encoding UTF8
+                Write-Info "  🔐 authorized_signing_keys.json actualizado (+$added claves, -$cleaned invalidas)"
+            }
+        } elseif ($validLocalKeys.Count -gt 0) {
+            $validLocalKeys | ConvertTo-Json -Depth 10 | Set-Content $remoteAuthKeys -Encoding UTF8
+            Write-Info "  🔐 authorized_signing_keys.json desplegado ($($validLocalKeys.Count) claves)"
+        }
+    } catch { Write-Info "  ⚠️ No se pudo sincronizar authorized_signing_keys.json" }
+}
+
 # ============================================
 # PASO 8: Copiar Frontend (wwwroot) - OPTIMIZADO
 # ============================================

@@ -509,6 +509,60 @@ if (Test-Path $docsDest) {
 }
 
 # ============================================
+# PASO 6.2: Sincronizar authorized_signing_keys.json (SSH cross-server)
+# ============================================
+Write-Header "PASO 6.2: Sincronizando claves SSH autorizadas"
+
+$localAuthKeys = Join-Path $BackendPath "authorized_signing_keys.json"
+$remoteAuthKeys = Join-Path $remoteBackendPath "authorized_signing_keys.json"
+
+if (Test-Path $localAuthKeys) {
+    try {
+        $localKeys = Get-Content $localAuthKeys -Raw | ConvertFrom-Json
+        $validLocalKeys = @($localKeys | Where-Object { $_.Fingerprint -and $_.PublicKey })
+        
+        if (Test-Path $remoteAuthKeys) {
+            # Merge: agregar claves locales que no existan en remoto
+            $remoteKeys = Get-Content $remoteAuthKeys -Raw | ConvertFrom-Json
+            # Limpiar entradas inválidas (fingerprint vacío)
+            $validRemoteKeys = @($remoteKeys | Where-Object { $_.Fingerprint })
+            $cleaned = $remoteKeys.Count - $validRemoteKeys.Count
+            if ($cleaned -gt 0) {
+                Write-Info "  Limpiadas $cleaned entradas invalidas del servidor"
+            }
+            
+            $added = 0
+            foreach ($lk in $validLocalKeys) {
+                $exists = $validRemoteKeys | Where-Object { $_.Fingerprint -eq $lk.Fingerprint }
+                if (-not $exists) {
+                    $validRemoteKeys += $lk
+                    $added++
+                }
+            }
+            
+            if ($added -gt 0 -or $cleaned -gt 0) {
+                $validRemoteKeys | ConvertTo-Json -Depth 10 | Set-Content $remoteAuthKeys -Encoding UTF8
+                Write-Success "authorized_signing_keys.json actualizado (+$added claves, -$cleaned invalidas)"
+            } else {
+                Write-Success "authorized_signing_keys.json ya sincronizado ($($validRemoteKeys.Count) claves)"
+            }
+        } else {
+            # No existe en destino: copiar completo (solo claves válidas)
+            if ($validLocalKeys.Count -gt 0) {
+                $validLocalKeys | ConvertTo-Json -Depth 10 | Set-Content $remoteAuthKeys -Encoding UTF8
+                Write-Success "authorized_signing_keys.json desplegado ($($validLocalKeys.Count) claves)"
+            } else {
+                Write-Info "  Sin claves validas para desplegar"
+            }
+        }
+    } catch {
+        Write-Warning "No se pudo sincronizar authorized_signing_keys.json: $_"
+    }
+} else {
+    Write-Info "  Sin authorized_signing_keys.json local"
+}
+
+# ============================================
 # PASO 7: Copiar Frontend
 # ============================================
 Write-Header "PASO 7: Copiando Frontend"

@@ -768,14 +768,30 @@ namespace SW.PC.API.Backend.Services
                                     }
                                     else
                                     {
-                                        // Si la local no tiene PublicKey pero la del backup sí, actualizarla
+                                        // Actualizar campos vacíos en la clave local con datos del backup
                                         var local = localKeys.First(k => k.Fingerprint.Equals(bk.Fingerprint, StringComparison.OrdinalIgnoreCase));
+                                        var updated = false;
                                         if (string.IsNullOrEmpty(local.PublicKey) && !string.IsNullOrEmpty(bk.PublicKey))
                                         {
                                             local.PublicKey = bk.PublicKey;
-                                            local.MachineName = bk.MachineName;
-                                            added++;
+                                            updated = true;
                                         }
+                                        if (string.IsNullOrEmpty(local.OwnerEmail) && !string.IsNullOrEmpty(bk.OwnerEmail))
+                                        {
+                                            local.OwnerEmail = bk.OwnerEmail;
+                                            updated = true;
+                                        }
+                                        if (string.IsNullOrEmpty(local.OwnerName) && !string.IsNullOrEmpty(bk.OwnerName))
+                                        {
+                                            local.OwnerName = bk.OwnerName;
+                                            updated = true;
+                                        }
+                                        if (string.IsNullOrEmpty(local.MachineName) && !string.IsNullOrEmpty(bk.MachineName))
+                                        {
+                                            local.MachineName = bk.MachineName;
+                                            updated = true;
+                                        }
+                                        if (updated) added++;
                                     }
                                 }
                                 
