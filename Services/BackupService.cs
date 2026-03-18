@@ -1625,8 +1625,16 @@ namespace SW.PC.API.Backend.Services
             
             if (string.IsNullOrEmpty(allowedPath))
             {
-                _logger.LogInformation("ℹ️ SSH signing not configured — skipping allowed_signers rebuild");
-                return;
+                // Servidor sin SSH signing configurado — pero puede necesitar verificar firmas de otros servidores
+                // Crear allowed_signers en la carpeta .ssh del perfil del servicio
+                var sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+                if (string.IsNullOrEmpty(sshDir) || sshDir == "\\.ssh")
+                {
+                    // Fallback para LocalSystem: usar systemprofile
+                    sshDir = @"C:\Windows\system32\config\systemprofile\.ssh";
+                }
+                allowedPath = Path.Combine(sshDir, "allowed_signers");
+                _logger.LogInformation("ℹ️ SSH signing not configured locally — will create allowed_signers for verification: {Path}", allowedPath);
             }
             
             // Obtener email de git
@@ -1680,6 +1688,31 @@ namespace SW.PC.API.Backend.Services
                 var newContent = string.Join("\n", signerLines) + "\n";
                 await File.WriteAllTextAsync(allowedPath, newContent);
                 _logger.LogInformation("✅ Rebuilt allowed_signers with {Count} key(s): {Path}", signerLines.Count, allowedPath);
+                
+                // Asegurar que git config apunta al archivo (necesario para verificar firmas)
+                try
+                {
+                    var cfgPsi = new ProcessStartInfo("git", $"config --global gpg.ssh.allowedSignersFile \"{allowedPath}\"")
+                    {
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var cfgProc = Process.Start(cfgPsi);
+                    if (cfgProc != null) await cfgProc.WaitForExitAsync();
+                    
+                    // También asegurar gpg.format=ssh para que git entienda las firmas
+                    cfgPsi.Arguments = "config --global gpg.format ssh";
+                    using var fmtProc = Process.Start(cfgPsi);
+                    if (fmtProc != null) await fmtProc.WaitForExitAsync();
+                    
+                    _logger.LogInformation("✅ Git configured: gpg.format=ssh, allowedSignersFile={Path}", allowedPath);
+                }
+                catch (Exception cfgEx)
+                {
+                    _logger.LogWarning(cfgEx, "⚠️ Could not set git gpg.ssh.allowedSignersFile config");
+                }
             }
         }
 
