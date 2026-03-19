@@ -2083,20 +2083,23 @@ Write-Info "Configurando regla de firewall para HTTPS:5001..."
 Write-Info "HTTP:5000 es solo localhost - no requiere regla de firewall"
 
 try {
-    Invoke-Command -ComputerName $TargetIP -Credential $cred -ScriptBlock {
-        # Eliminar reglas antiguas si existen (evitar duplicados)
-        Get-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTP' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
-        Get-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
-        
-        # Solo abrir HTTPS - HTTP es localhost-only en produccion, no necesita firewall
-        New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -Direction Inbound -Port 5001 -Protocol TCP -Action Allow -Profile Any -Description 'Aquafrisch Supervisor - Puerto HTTPS (unico acceso remoto)' | Out-Null
+    # Usar netsh remoto (no requiere WinRM/TrustedHosts)
+    netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall delete rule name="Aquafrisch Supervisor HTTPS" 2>$null | Out-Null
+    netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall delete rule name="Aquafrisch Supervisor HTTP" 2>$null | Out-Null
+    
+    $netshResult = netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall add rule name="Aquafrisch Supervisor HTTPS" dir=in action=allow protocol=TCP localport=5001 profile=any 2>&1
+    
+    if ($netshResult -match "Correcto|Ok") {
+        Write-Success "Regla de firewall configurada: solo HTTPS:5001 (HTTP:5000 = localhost-only)"
+    } else {
+        Write-Warning "netsh resultado: $netshResult"
+        Write-Info "Verificar firewall manualmente en el servidor"
     }
-    Write-Success "Regla de firewall configurada: solo HTTPS:5001 (HTTP:5000 = localhost-only)"
 }
 catch {
     Write-Warning "No se pudieron configurar las reglas de firewall automaticamente."
     Write-Info "Ejecuta manualmente en el PC destino (como Admin):"
-    Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -Direction Inbound -Port 5001 -Protocol TCP -Action Allow" -ForegroundColor Yellow
+    Write-Host "  netsh advfirewall firewall add rule name=`"Aquafrisch Supervisor HTTPS`" dir=in action=allow protocol=TCP localport=5001" -ForegroundColor Yellow
 }
 
 # ============================================

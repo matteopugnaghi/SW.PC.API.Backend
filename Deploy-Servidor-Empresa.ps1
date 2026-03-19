@@ -847,26 +847,25 @@ if ($needsRegeneration) {
         Copy-Item -Path $localCertPath -Destination $certRemoteDest -Force
         Copy-Item -Path $localCerPath -Destination $cerRemoteDest -Force
         
-        # Instalar certificado en Trusted Root CA del servidor (via WinRM)
+        # Instalar certificado en Trusted Root CA del servidor (via certutil remoto)
         Write-Step "Instalando certificado en Trusted Root CA del servidor..."
         try {
-            $certBytes = [System.IO.File]::ReadAllBytes($localCerPath)
-            $certBase64 = [Convert]::ToBase64String($certBytes)
-            
-            Invoke-Command -ComputerName $TargetIP -Credential $credential -ScriptBlock {
-                param($b64)
-                $bytes = [Convert]::FromBase64String($b64)
-                $tempCer = "$env:TEMP\aquafrisch-supervisor.cer"
-                [System.IO.File]::WriteAllBytes($tempCer, $bytes)
-                Import-Certificate -FilePath $tempCer -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null
-                Remove-Item $tempCer -Force -ErrorAction SilentlyContinue
-            } -ArgumentList $certBase64 -ErrorAction Stop
-            
-            Write-Success "Certificado instalado en Trusted Root CA del servidor"
+            # Copiar CER a ruta accesible en el servidor via SMB (ya copiado arriba)
+            # Usar certutil remoto via PsExec o directamente si SMB funciona
+            $remoteCerLocalPath = "$InstallPath\Backend\certificate.cer"
+            $certutilResult = cmd.exe /c "certutil -addstore -enterprise -f \\$TargetIP\Root `"$remoteCerLocalPath`"" 2>&1
+            if ($certutilResult -match "correctamente|CertUtil|already in store") {
+                Write-Success "Certificado instalado en Trusted Root CA del servidor"
+            } else {
+                Write-Warning "certutil remoto no disponible. Instalar manualmente en el servidor:"
+                Write-Info "  certutil -addstore Root `"$remoteCerLocalPath`""
+                Write-Info "  O acceder a: https://localhost:5001/api/certificate/install-script"
+            }
         } catch {
-            Write-Warning "No se pudo instalar en Trusted Root via WinRM: $_"
+            Write-Warning "No se pudo instalar cert en el servidor: $_"
             Write-Info "Instalar manualmente en el servidor:"
-            Write-Info "  Import-Certificate -FilePath 'certificate.cer' -CertStoreLocation 'Cert:\LocalMachine\Root'"
+            Write-Info "  certutil -addstore Root `"$InstallPath\Backend\certificate.cer`""
+            Write-Info "  O acceder a: https://localhost:5001/api/certificate/install-script"
         }
         
         # Instalar certificado en el PC LOCAL (desde donde se despliega)
@@ -908,24 +907,29 @@ Write-Header "PASO 8.4: Configurando Firewall"
 Write-Info "Configurando regla de firewall para HTTPS:5001..."
 Write-Info "HTTP:5000 es accesible en Development pero HTTPS es el acceso principal"
 
+# Usar netsh remoto (no requiere WinRM/TrustedHosts)
 try {
-    Invoke-Command -ComputerName $TargetIP -Credential $credential -ScriptBlock {
-        # Eliminar reglas antiguas si existen (evitar duplicados)
-        Get-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTP' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
-        Get-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
-        
-        # Abrir HTTPS (acceso principal)
-        New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -Direction Inbound -Port 5001 -Protocol TCP -Action Allow -Profile Any -Description 'Aquafrisch Supervisor - Puerto HTTPS (acceso principal)' | Out-Null
-        # En Development tambien abrimos HTTP para compatibilidad
-        New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTP' -Direction Inbound -Port 5000 -Protocol TCP -Action Allow -Profile Any -Description 'Aquafrisch Supervisor - Puerto HTTP (desarrollo)' | Out-Null
+    # Eliminar reglas antiguas
+    netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall delete rule name="Aquafrisch Supervisor HTTPS" 2>$null | Out-Null
+    netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall delete rule name="Aquafrisch Supervisor HTTP" 2>$null | Out-Null
+    
+    # Crear regla HTTPS (acceso principal)
+    $netshHttps = netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall add rule name="Aquafrisch Supervisor HTTPS" dir=in action=allow protocol=TCP localport=5001 profile=any 2>&1
+    # Crear regla HTTP (desarrollo)
+    $netshHttp = netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall add rule name="Aquafrisch Supervisor HTTP" dir=in action=allow protocol=TCP localport=5000 profile=any 2>&1
+    
+    if ($netshHttps -match "Correcto|Ok") {
+        Write-Success "Reglas de firewall configuradas: HTTPS:5001 + HTTP:5000"
+    } else {
+        Write-Warning "netsh resultado: $netshHttps"
+        Write-Info "Verificar firewall manualmente en el servidor"
     }
-    Write-Success "Reglas de firewall configuradas: HTTPS:5001 + HTTP:5000"
 }
 catch {
     Write-Warning "No se pudieron configurar las reglas de firewall automaticamente."
     Write-Info "Ejecuta manualmente en el servidor (como Admin):"
-    Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTPS' -Direction Inbound -Port 5001 -Protocol TCP -Action Allow" -ForegroundColor Yellow
-    Write-Host "  New-NetFirewallRule -DisplayName 'Aquafrisch Supervisor HTTP' -Direction Inbound -Port 5000 -Protocol TCP -Action Allow" -ForegroundColor Yellow
+    Write-Host "  netsh advfirewall firewall add rule name=`"Aquafrisch Supervisor HTTPS`" dir=in action=allow protocol=TCP localport=5001" -ForegroundColor Yellow
+    Write-Host "  netsh advfirewall firewall add rule name=`"Aquafrisch Supervisor HTTP`" dir=in action=allow protocol=TCP localport=5000" -ForegroundColor Yellow
 }
 
 # ============================================
