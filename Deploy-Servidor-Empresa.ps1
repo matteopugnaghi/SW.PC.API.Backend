@@ -522,6 +522,32 @@ if (Test-Path $publishPath) {
 }
 
 # ============================================
+# PASO 6.05: Asegurar HTTPS en appsettings.Development.json
+# ============================================
+Write-Header "PASO 6.05: Verificando HTTPS en appsettings"
+
+$remoteDevSettings = "$remoteBackendPath\appsettings.Development.json"
+if (Test-Path $remoteDevSettings) {
+    $devConfig = Get-Content $remoteDevSettings -Raw | ConvertFrom-Json
+    if (-not $devConfig.Kestrel.Endpoints.Https) {
+        Write-Step "Anadiendo endpoint HTTPS a appsettings.Development.json..."
+        $devConfig.Kestrel.Endpoints | Add-Member -NotePropertyName "Https" -NotePropertyValue ([PSCustomObject]@{
+            Url = "https://0.0.0.0:5001"
+            Certificate = [PSCustomObject]@{
+                Path = "certificate.pfx"
+                Password = "Aquafrisch2024!"
+            }
+        })
+        $devConfig | ConvertTo-Json -Depth 10 | Set-Content $remoteDevSettings -Encoding UTF8
+        Write-Success "Endpoint HTTPS anadido a appsettings.Development.json"
+    } else {
+        Write-Success "appsettings.Development.json ya tiene HTTPS configurado"
+    }
+} else {
+    Write-Info "appsettings.Development.json no encontrado (se copiara del publish)"
+}
+
+# ============================================
 # PASO 6.1: Crear docs/ global si no existe (fuente AQSdocs_master)
 # ============================================
 Write-Header "PASO 6.1: Verificando docs/ global (fuente AQSdocs_master)"
