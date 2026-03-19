@@ -207,76 +207,71 @@ namespace SW.PC.API.Backend.Services
 
         /// <summary>
         /// Auto-detecta la ruta del repositorio TwinCAT PLC:
-        /// 1. Desarrollo: ../SW.PC.TwinCAT.PLC (repo hermano)
-        /// 2. Desplegado: ../TwinCAT/{activeProjectId}/ (vinculado al proyecto activo)
-        /// 3. Desplegado: ../TwinCAT/ primer subfolder con .git (fallback genérico)
-        /// 4. Fallback: ruta de desarrollo (aunque no exista todavía)
+        /// 1. Desarrollo: ../SW.PC.TwinCAT.PLC (repo hermano, solo si proyecto es "default")
+        /// 2. Multi-proyecto: ../SW.PC.Twincat_3/{activeProjectId}/ (EXACTO, sin fallback a otro proyecto)
+        /// 3. Legacy "default": ../SW.PC.Twincat_3/ primer subfolder con .git o raíz
+        /// Si no se encuentra para el proyecto activo, devuelve ruta inexistente (no mostrará info)
         /// </summary>
         private string AutoDetectTwinCatPath()
         {
             var parentDir = Path.GetFullPath(Path.Combine(_backendRepoPath, ".."));
+            var activeProjectId = "";
+            try { activeProjectId = _projectContext.ActiveProjectId ?? ""; } catch { }
+            var isMultiProject = !string.IsNullOrEmpty(activeProjectId) && activeProjectId != "default";
             
-            // 1. Desarrollo: repo hermano SW.PC.TwinCAT.PLC
+            // 1. Desarrollo: repo hermano SW.PC.TwinCAT.PLC (solo en modo legacy/default)
             var devPath = Path.Combine(parentDir, "SW.PC.TwinCAT.PLC");
-            if (Directory.Exists(Path.Combine(devPath, ".git")))
+            if (!isMultiProject && Directory.Exists(Path.Combine(devPath, ".git")))
             {
                 _logger.LogInformation("🔧 TwinCAT auto-detected (dev): {Path}", devPath);
                 return devPath;
             }
 
-            // 2. Desplegado: carpeta SW.PC.Twincat_3/ hermana de Backend/
+            // 2. Carpeta SW.PC.Twincat_3/
             var twinCatFolder = Path.Combine(parentDir, "SW.PC.Twincat_3");
             if (Directory.Exists(twinCatFolder))
             {
-                // 2a. Preferir subfolder con mismo nombre que proyecto activo
-                try
+                if (isMultiProject)
                 {
-                    var activeProjectId = _projectContext.ActiveProjectId;
-                    if (!string.IsNullOrEmpty(activeProjectId) && activeProjectId != "default")
+                    // Multi-proyecto: SOLO buscar la carpeta exacta del proyecto activo
+                    var projectTwinCatPath = Path.Combine(twinCatFolder, activeProjectId);
+                    if (Directory.Exists(Path.Combine(projectTwinCatPath, ".git")))
                     {
-                        var projectTwinCatPath = Path.Combine(twinCatFolder, activeProjectId);
-                        if (Directory.Exists(Path.Combine(projectTwinCatPath, ".git")))
+                        _logger.LogInformation("🔧 TwinCAT auto-detected (project '{ProjectId}'): {Path}", activeProjectId, projectTwinCatPath);
+                        return projectTwinCatPath;
+                    }
+                    // NO hay fallback — este proyecto no tiene TwinCAT
+                    _logger.LogInformation("🔧 TwinCAT: no repo found for project '{ProjectId}' in {Path}", activeProjectId, twinCatFolder);
+                    return Path.Combine(twinCatFolder, activeProjectId); // ruta inexistente → no mostrará info
+                }
+                else
+                {
+                    // Legacy/default: buscar primer subfolder con .git o raíz
+                    try
+                    {
+                        foreach (var subDir in Directory.GetDirectories(twinCatFolder))
                         {
-                            _logger.LogInformation("🔧 TwinCAT auto-detected (project '{ProjectId}'): {Path}", activeProjectId, projectTwinCatPath);
-                            return projectTwinCatPath;
+                            if (Directory.Exists(Path.Combine(subDir, ".git")))
+                            {
+                                _logger.LogInformation("🔧 TwinCAT auto-detected (deployed): {Path}", subDir);
+                                return subDir;
+                            }
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Could not read active project ID for TwinCAT path detection");
-                }
-
-                // 2b. Fallback: primer subfolder con .git
-                try
-                {
-                    foreach (var subDir in Directory.GetDirectories(twinCatFolder))
+                    catch (Exception ex)
                     {
-                        if (Directory.Exists(Path.Combine(subDir, ".git")))
-                        {
-                            _logger.LogInformation("🔧 TwinCAT auto-detected (deployed): {Path}", subDir);
-                            return subDir;
-                        }
+                        _logger.LogWarning(ex, "Error scanning TwinCAT folder: {Path}", twinCatFolder);
+                    }
+
+                    if (Directory.Exists(Path.Combine(twinCatFolder, ".git")))
+                    {
+                        _logger.LogInformation("🔧 TwinCAT auto-detected (root): {Path}", twinCatFolder);
+                        return twinCatFolder;
                     }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Error scanning TwinCAT folder: {Path}", twinCatFolder);
-                }
-
-                // 2c. Comprobar si TwinCAT/ raíz tiene .git directamente (clonado sin subfolder)
-                if (Directory.Exists(Path.Combine(twinCatFolder, ".git")))
-                {
-                    _logger.LogInformation("🔧 TwinCAT auto-detected (root): {Path}", twinCatFolder);
-                    return twinCatFolder;
-                }
-
-                // TwinCAT/ exists but no .git subfolder yet — return the folder itself
-                _logger.LogInformation("🔧 TwinCAT folder exists but no repo found yet: {Path}", twinCatFolder);
-                return twinCatFolder;
             }
 
-            // 3. Fallback: ruta de desarrollo
+            // Fallback: ruta de desarrollo (solo para legacy)
             _logger.LogInformation("🔧 TwinCAT path (fallback): {Path}", devPath);
             return devPath;
         }
