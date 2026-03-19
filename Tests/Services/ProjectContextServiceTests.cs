@@ -16,6 +16,7 @@ public class ProjectContextServiceTests : IDisposable
 {
     private readonly string _tempRoot;
     private readonly Mock<ILogger<ProjectContextService>> _loggerMock = new();
+    private readonly Mock<IServiceProvider> _serviceProviderMock = new();
 
     public ProjectContextServiceTests()
     {
@@ -64,7 +65,7 @@ public class ProjectContextServiceTests : IDisposable
     public void LegacyMode_WhenNoActiveProjectFile()
     {
         // No active-project.json → defaults to "default" (legacy)
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
 
         Assert.Equal("default", sut.ActiveProjectId);
         Assert.False(sut.IsMultiProjectMode);
@@ -75,7 +76,7 @@ public class ProjectContextServiceTests : IDisposable
     {
         WriteActiveProject("default");
 
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
 
         Assert.Equal("default", sut.ActiveProjectId);
         Assert.False(sut.IsMultiProjectMode);
@@ -86,7 +87,7 @@ public class ProjectContextServiceTests : IDisposable
     {
         WriteActiveProject("default");
 
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
 
         Assert.Equal(Path.Combine(_tempRoot, "ExcelConfigs"), sut.ConfigPath);
         Assert.Equal(Path.Combine(_tempRoot, "wwwroot", "models"), sut.ModelsPath);
@@ -103,7 +104,7 @@ public class ProjectContextServiceTests : IDisposable
         CreateProjectFolder(projectId);
         WriteActiveProject(projectId);
 
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
 
         Assert.Equal(projectId, sut.ActiveProjectId);
         Assert.True(sut.IsMultiProjectMode);
@@ -116,7 +117,7 @@ public class ProjectContextServiceTests : IDisposable
         CreateProjectFolder(projectId);
         WriteActiveProject(projectId);
 
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
 
         var expectedBase = Path.Combine(_tempRoot, "Projects", projectId);
         Assert.Equal(expectedBase, sut.ProjectBasePath);
@@ -134,7 +135,7 @@ public class ProjectContextServiceTests : IDisposable
         // Set a project ID but don't create its folder
         WriteActiveProject("nonexistent-project");
 
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
 
         Assert.Equal("default", sut.ActiveProjectId);
         Assert.False(sut.IsMultiProjectMode);
@@ -145,7 +146,7 @@ public class ProjectContextServiceTests : IDisposable
     [Fact]
     public void ProjectExists_ReturnsTrueForDefault()
     {
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
         Assert.True(sut.ProjectExists("default"));
     }
 
@@ -153,21 +154,21 @@ public class ProjectContextServiceTests : IDisposable
     public void ProjectExists_ReturnsTrueForExistingProject()
     {
         CreateProjectFolder("my-project");
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
         Assert.True(sut.ProjectExists("my-project"));
     }
 
     [Fact]
     public void ProjectExists_ReturnsFalseForMissingProject()
     {
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
         Assert.False(sut.ProjectExists("does-not-exist"));
     }
 
     [Fact]
     public async Task CreateProjectStructureAsync_CreatesAllFolders()
     {
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
 
         var result = await sut.CreateProjectStructureAsync("new-project");
 
@@ -185,7 +186,7 @@ public class ProjectContextServiceTests : IDisposable
     public async Task CreateProjectStructureAsync_ReturnsFalseIfAlreadyExists()
     {
         CreateProjectFolder("existing");
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
 
         var result = await sut.CreateProjectStructureAsync("existing");
 
@@ -197,7 +198,7 @@ public class ProjectContextServiceTests : IDisposable
     {
         CreateProjectFolder("project-a");
         CreateProjectFolder("project-b");
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
 
         var projects = sut.GetAvailableProjects().ToList();
 
@@ -211,7 +212,7 @@ public class ProjectContextServiceTests : IDisposable
     public void GetAvailableProjects_ExcludesUnderscorePrefixed()
     {
         CreateProjectFolder("_template");
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
 
         var projects = sut.GetAvailableProjects().ToList();
 
@@ -222,7 +223,7 @@ public class ProjectContextServiceTests : IDisposable
     public void ReloadActiveProject_UpdatesWhenFileChanges()
     {
         WriteActiveProject("default");
-        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object);
+        var sut = new ProjectContextService(CreateMockEnvironment(), _loggerMock.Object, _serviceProviderMock.Object);
         Assert.Equal("default", sut.ActiveProjectId);
 
         // Change the active project and reload

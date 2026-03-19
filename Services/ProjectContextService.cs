@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace SW.PC.API.Backend.Services
 {
@@ -111,6 +112,7 @@ namespace SW.PC.API.Backend.Services
     {
         private readonly ILogger<ProjectContextService> _logger;
         private readonly IWebHostEnvironment _environment;
+        private readonly IServiceProvider _serviceProvider;
         private readonly string _contentRootPath;
         private readonly string _projectsRootPath;
         private readonly string _activeProjectFilePath;
@@ -125,10 +127,12 @@ namespace SW.PC.API.Backend.Services
         
         public ProjectContextService(
             IWebHostEnvironment environment,
-            ILogger<ProjectContextService> logger)
+            ILogger<ProjectContextService> logger,
+            IServiceProvider serviceProvider)
         {
             _environment = environment;
             _logger = logger;
+            _serviceProvider = serviceProvider;
             _contentRootPath = environment.ContentRootPath;
             _projectsRootPath = Path.Combine(_contentRootPath, "Projects");
             _activeProjectFilePath = Path.Combine(_contentRootPath, "active-project.json");
@@ -384,6 +388,18 @@ Copiar el archivo ProjectConfig.xlsm a la carpeta config/ y configurar según ne
 
                 // Recargar para que el singleton refleje el cambio
                 LoadActiveProject();
+
+                // Re-detectar rutas TwinCAT para el nuevo proyecto
+                try
+                {
+                    var integrity = _serviceProvider?.GetService<ISoftwareIntegrityService>();
+                    integrity?.RedetectPaths();
+                }
+                catch (Exception redetectEx)
+                {
+                    _logger.LogWarning(redetectEx, "Could not re-detect TwinCAT paths after project change");
+                }
+
                 return true;
             }
             catch (Exception ex)

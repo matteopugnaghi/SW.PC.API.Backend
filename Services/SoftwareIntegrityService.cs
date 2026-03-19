@@ -68,6 +68,11 @@ namespace SW.PC.API.Backend.Services
         /// Obtener rutas de repositorios Git configuradas (desde Excel)
         /// </summary>
         (string Backend, string Frontend, string TwinCAT) GetRepositoryPaths();
+
+        /// <summary>
+        /// Re-detectar rutas de repositorios (llamar cuando cambia el proyecto activo)
+        /// </summary>
+        void RedetectPaths();
     }
 
     public class SoftwareIntegrityService : ISoftwareIntegrityService
@@ -154,6 +159,17 @@ namespace SW.PC.API.Backend.Services
         public (string Backend, string Frontend, string TwinCAT) GetRepositoryPaths()
         {
             return (_backendRepoPath, _frontendRepoPath, _twinCatPlcRepoPath);
+        }
+
+        public void RedetectPaths()
+        {
+            var oldPath = _twinCatPlcRepoPath;
+            _twinCatPlcRepoPath = AutoDetectTwinCatPath();
+            if (_twinCatPlcRepoPath != oldPath)
+            {
+                _logger.LogInformation("🔄 TwinCAT path changed: {Old} → {New}", oldPath, _twinCatPlcRepoPath);
+                _ = InitializeGitInfoAsync();
+            }
         }
 
         public void ConfigureGitPaths(string backendPath, string frontendPath, string twinCatPlcPath)
