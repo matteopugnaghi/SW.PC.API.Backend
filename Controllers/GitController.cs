@@ -594,10 +594,20 @@ public class GitController : ControllerBase
             // Generate new Ed25519 key using ssh-keygen
             // Resolve full path: Windows service (LocalSystem) may not have ssh-keygen in PATH
             var sshKeygenPath = "ssh-keygen";
-            var windowsSshKeygen = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "OpenSSH", "ssh-keygen.exe");
-            if (System.IO.File.Exists(windowsSshKeygen))
+            var candidatePaths = new[]
             {
-                sshKeygenPath = windowsSshKeygen;
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "OpenSSH", "ssh-keygen.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "usr", "bin", "ssh-keygen.exe"),
+                @"C:\Program Files\Git\usr\bin\ssh-keygen.exe",
+                @"C:\Program Files (x86)\Git\usr\bin\ssh-keygen.exe"
+            };
+            foreach (var candidate in candidatePaths)
+            {
+                if (System.IO.File.Exists(candidate))
+                {
+                    sshKeygenPath = candidate;
+                    break;
+                }
             }
             
             var process = new System.Diagnostics.Process
