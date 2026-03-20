@@ -1,0 +1,174 @@
+﻿{
+    "Timestamp":  "20260319_151856",
+    "Actions":  [
+                    {
+                        "Type":  "ComputerRenamed",
+                        "Data":  {
+                                     "NewName":  "A87-IPC-SERVER",
+                                     "PreviousName":  {
+                                                          "value":  "A90-IPC-SERVER",
+                                                          "PSComputerName":  "192.168.2.161",
+                                                          "RunspaceId":  "fc7b96fc-9675-4b7c-be79-ce6525d5e217",
+                                                          "PSShowComputerName":  true
+                                                      }
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "AutoAdminLogon",
+                                     "PreviousValue":  "1"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "DefaultUserName",
+                                     "PreviousValue":  "aqf"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "DefaultPassword",
+                                     "PreviousValue":  null
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\LaunchKiosk.bat"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\KioskWatchdog.ps1"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "Shell",
+                                     "PreviousValue":  "explorer.exe"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "AQF Supervisor HTTPS"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "AQF Supervisor HTTP local"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "AQF Block HTTP remote"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "AQF Block RDP"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "AQF Block SSH"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "AQF Block ADS Discovery"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceCreated",
+                        "Data":  {
+                                     "ServiceName":  "AqfSupervisor"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "XblAuthManager"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "XblGameSave"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "XboxGipSvc"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "XboxNetApiSvc"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "bthserv"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Automatic",
+                                     "ServiceName":  "MapsBroker"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "lfsvc"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "RetailDemo"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "WMPNetworkSvc"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Automatic",
+                                     "ServiceName":  "WSearch"
+                                 }
+                    }
+                ],
+    "ComputerName":  "192.168.2.161"
+}

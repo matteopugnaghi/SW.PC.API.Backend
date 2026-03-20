@@ -310,6 +310,257 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         // ========================================
+        // GET: api/system/teamviewer-status
+        // ========================================
+        /// <summary>
+        /// Consulta si el servicio de TeamViewer está corriendo
+        /// </summary>
+        [HttpGet("teamviewer-status")]
+        public async Task<IActionResult> GetTeamViewerStatus()
+        {
+            var config = await GetSystemConfigAsync();
+            if (!config.TeamViewerEnabled)
+            {
+                return Ok(new { running = false, enabled = false, message = "TeamViewer deshabilitado por configuración" });
+            }
+
+            try
+            {
+                var running = IsServiceRunning("TeamViewer");
+                return Ok(new { running, enabled = true });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error consultando estado de TeamViewer");
+                return Ok(new { running = false, enabled = true, error = ex.Message });
+            }
+        }
+
+        // ========================================
+        // POST: api/system/teamviewer-service
+        // ========================================
+        /// <summary>
+        /// Inicia o detiene el servicio de TeamViewer.
+        /// Seguridad: el acceso remoto solo está disponible cuando el cliente lo habilita explícitamente.
+        /// </summary>
+        [HttpPost("teamviewer-service")]
+        public async Task<IActionResult> ToggleTeamViewerService([FromBody] TeamViewerServiceRequest request)
+        {
+            var config = await GetSystemConfigAsync();
+            
+            if (!config.TeamViewerEnabled)
+            {
+                return BadRequest(new { success = false, message = "TeamViewer deshabilitado por configuración" });
+            }
+            
+            if (!await IsAuthorizedRoleAsync(request.Role))
+            {
+                LogSystemAction("teamviewer-service", request.Username, request.Role, false, "Unauthorized role");
+                return Unauthorized(new { success = false, message = "No autorizado para esta acción" });
+            }
+
+            var action = request.Action?.ToLowerInvariant();
+            if (action != "start" && action != "stop")
+            {
+                return BadRequest(new { success = false, message = "Acción inválida. Use 'start' o 'stop'" });
+            }
+
+            try
+            {
+                // Buscar el nombre real del servicio TeamViewer
+                var serviceName = FindTeamViewerServiceName();
+                if (serviceName == null)
+                {
+                    return NotFound(new { success = false, message = "Servicio TeamViewer no encontrado en el sistema" });
+                }
+
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "sc.exe",
+                        Arguments = $"{action} \"{serviceName}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    }
+                };
+                process.Start();
+                var output = await process.StandardOutput.ReadToEndAsync();
+                await process.WaitForExitAsync();
+
+                var running = action == "start" ? true : false;
+                // Verificar estado real tras un breve delay
+                await Task.Delay(1000);
+                running = IsServiceRunning(serviceName);
+
+                var actionLabel = action == "start" ? "iniciado" : "detenido";
+                LogSystemAction($"teamviewer-service-{action}", request.Username, request.Role, true, $"Service {serviceName} {actionLabel}");
+
+                // 📋 Audit Log L1 - EU CRA: Control de acceso remoto
+                await _auditLogService.LogAsync(
+                    AuditCategory.System,
+                    action == "start" ? AuditAction.ServiceStart : AuditAction.ServiceStop,
+                    AuditResult.Success,
+                    $"TeamViewer service {actionLabel} by {SanitizeUsername(request.Username)} (role: {SanitizeRole(request.Role)}). Service: {serviceName}",
+                    userId: request.Username,
+                    projectId: _projectContext.ProjectId
+                );
+
+                return Ok(new { 
+                    success = true, 
+                    running, 
+                    message = $"TeamViewer {actionLabel} correctamente" 
+                });
+            }
+            catch (Exception ex)
+            {
+                LogSystemAction($"teamviewer-service-{action}", request.Username, request.Role, false, ex.Message);
+                _logger.LogError(ex, "Error controlando servicio TeamViewer");
+                return StatusCode(500, new { success = false, message = "Error: " + ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Busca el nombre del servicio TeamViewer instalado
+        /// </summary>
+        private static string? FindTeamViewerServiceName()
+        {
+            var possibleNames = new[] { "TeamViewer", "TeamViewer_Service", "tvservice" };
+            foreach (var name in possibleNames)
+            {
+                try
+                {
+                    using var sc = new System.ServiceProcess.ServiceController(name);
+                    _ = sc.Status; // Provoca excepción si no existe
+                    return name;
+                }
+                catch { /* Service not found, try next */ }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Verifica si un servicio Windows está corriendo
+        /// </summary>
+        private static bool IsServiceRunning(string serviceName)
+        {
+            try
+            {
+                using var sc = new System.ServiceProcess.ServiceController(serviceName);
+                return sc.Status == System.ServiceProcess.ServiceControllerStatus.Running;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // ========================================
+        // GET: api/system/usb-status
+        // ========================================
+        /// <summary>
+        /// Consulta si el almacenamiento USB está habilitado o bloqueado
+        /// </summary>
+        [HttpGet("usb-status")]
+        public IActionResult GetUsbStatus()
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Services\USBSTOR");
+                if (key == null)
+                    return Ok(new { blocked = false, message = "Registro USBSTOR no encontrado" });
+
+                var startValue = key.GetValue("Start");
+                // Start: 3 = Manual (habilitado), 4 = Disabled (bloqueado)
+                var blocked = startValue != null && (int)startValue == 4;
+                return Ok(new { blocked });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error consultando estado USB");
+                return Ok(new { blocked = false, error = ex.Message });
+            }
+        }
+
+        // ========================================
+        // POST: api/system/usb-toggle
+        // ========================================
+        /// <summary>
+        /// Alterna el estado de almacenamiento USB (bloquear/desbloquear)
+        /// </summary>
+        [HttpPost("usb-toggle")]
+        public async Task<IActionResult> ToggleUsb([FromBody] SystemActionRequest request)
+        {
+            if (!await IsAuthorizedRoleAsync(request.Role))
+            {
+                LogSystemAction("usb-toggle", request.Username, request.Role, false, "Unauthorized role");
+                return Unauthorized(new { success = false, message = "No autorizado para esta acción" });
+            }
+
+            try
+            {
+                // Ejecutar el script PowerShell de toggle
+                var scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tools", "Kiosk", "Toggle-UsbStorage.ps1");
+                if (!System.IO.File.Exists(scriptPath))
+                {
+                    return NotFound(new { success = false, message = $"Script no encontrado: {scriptPath}" });
+                }
+
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "powershell.exe",
+                        Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                process.Start();
+                await process.WaitForExitAsync();
+
+                // Leer estado actualizado
+                bool blocked = false;
+                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Services\USBSTOR"))
+                {
+                    if (key != null)
+                    {
+                        var startValue = key.GetValue("Start");
+                        blocked = startValue != null && (int)startValue == 4;
+                    }
+                }
+
+                var stateLabel = blocked ? "bloqueado" : "habilitado";
+                LogSystemAction("usb-toggle", request.Username, request.Role, true, $"USB {stateLabel}");
+
+                await _auditLogService.LogAsync(
+                    AuditCategory.System,
+                    blocked ? AuditAction.ServiceStop : AuditAction.ServiceStart,
+                    AuditResult.Success,
+                    $"USB storage {stateLabel} by {SanitizeUsername(request.Username)} (role: {SanitizeRole(request.Role)})",
+                    userId: request.Username,
+                    projectId: _projectContext.ProjectId
+                );
+
+                return Ok(new { 
+                    success = true, 
+                    blocked, 
+                    message = $"USB {stateLabel} correctamente" 
+                });
+            }
+            catch (Exception ex)
+            {
+                LogSystemAction("usb-toggle", request.Username, request.Role, false, ex.Message);
+                _logger.LogError(ex, "Error toggling USB");
+                return StatusCode(500, new { success = false, message = "Error: " + ex.Message });
+            }
+        }
+
+        // ========================================
         // POST: api/system/restart-app
         // ========================================
         [HttpPost("restart-app")]
@@ -775,7 +1026,8 @@ namespace SW.PC.API.Backend.Controllers
                     windowsLogout = config.WindowsLogoutEnabled,
                     appRestart = config.AppRestartEnabled,
                     networkDiagnostic = config.NetworkDiagnosticEnabled,
-                    teamViewer = config.TeamViewerEnabled
+                    teamViewer = config.TeamViewerEnabled,
+                    usbToggle = config.UsbToggleEnabled
                 },
                 customTools = new[]
                 {
@@ -1127,6 +1379,13 @@ namespace SW.PC.API.Backend.Controllers
         public string Username { get; set; } = "";
         public string Role { get; set; } = "";
         public string ToolId { get; set; } = "";
+    }
+
+    public class TeamViewerServiceRequest
+    {
+        public string Username { get; set; } = "";
+        public string Role { get; set; } = "";
+        public string Action { get; set; } = ""; // "start" or "stop"
     }
 
     public class NetworkTestResult

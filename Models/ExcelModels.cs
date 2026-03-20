@@ -868,6 +868,11 @@ namespace SW.PC.API.Backend.Models.Excel
         /// </summary>
         public string KioskBrowserArgs { get; set; } = "--kiosk http://localhost:3001";
 
+        /// <summary>
+        /// Habilitar botón de toggle USB (habilitar/deshabilitar almacenamiento USB)
+        /// </summary>
+        public bool UsbToggleEnabled { get; set; } = true;
+
         // ═══════════════════════════════════════════════════════════════════════════
         // 🖥️ TEAMVIEWER - Soporte Remoto
         // ═══════════════════════════════════════════════════════════════════════════

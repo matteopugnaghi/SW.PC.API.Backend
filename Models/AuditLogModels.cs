@@ -119,6 +119,7 @@ namespace SW.PC.API.Backend.Models
         SystemStart,    // Inicio de aplicación (Program.cs)
         SystemStop,     // Detención de aplicación (Program.cs)
         ServiceStart,   // TeamViewer, restart-app, custom-tool
+        ServiceStop,    // Detención de servicio (TeamViewer, etc.)
         
         // ═══════════════════════════════════════════════════════════
         // EXPORTACIÓN

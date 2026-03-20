@@ -2955,6 +2955,11 @@ namespace SW.PC.API.Backend.Services
                                 config.KioskBrowserArgs = paramValue ?? "--kiosk http://localhost:3001";
                                 break;
 
+                            case "usbtoggleenabled":
+                            case "usb_toggle_enabled":
+                                config.UsbToggleEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+
                             // ═══════════════════════════════════════════════════════════════
                             // 🖥️ TEAMVIEWER - Soporte Remoto
                             // ═══════════════════════════════════════════════════════════════

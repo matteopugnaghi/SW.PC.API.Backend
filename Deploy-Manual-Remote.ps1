@@ -838,101 +838,129 @@ Write-Success "Conexion establecida con $TargetIP"
 Write-Header "PASO 4.5: Parando servidor remoto"
 
 $serviceName = "AquafrischSupervisor"
+$prevEAP = $ErrorActionPreference
 
-# Metodo 1: Parar servicio Windows via sc.exe remoto (usa conexion SMB)
-Write-Step "Parando servicio '$serviceName' via sc.exe remoto..."
-$scQuery = sc.exe \\$TargetIP query $serviceName 2>&1
-if ($scQuery -match "RUNNING") {
-    sc.exe \\$TargetIP stop $serviceName | Out-Null
-    Write-Success "Servicio '$serviceName' detenido via sc.exe"
-    Start-Sleep -Seconds 2
-    # Siempre forzar taskkill despues de sc.exe stop para asegurar que el proceso muere
-    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
-    $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
-    $ErrorActionPreference = $prevEAP
-    if ($taskkillResult -match "correctamente|SUCCESS") {
-        Write-Success "Proceso forzado a cerrar con taskkill (belt & suspenders)"
-    } else {
-        Write-Info "taskkill: proceso ya no existia (limpio)"
+# --- Fase 1: Deshabilitar recovery y auto-start via sc.exe (no requiere WinRM) ---
+Write-Step "Deshabilitando auto-start y recovery del servicio..."
+sc.exe \\$TargetIP failure $serviceName reset= 0 actions= "" 2>&1 | Out-Null
+sc.exe \\$TargetIP config $serviceName start= demand 2>&1 | Out-Null
+Write-Info "Recovery desactivado y start-type cambiado a Manual"
+
+# --- Fase 2: Parar servicio y matar proceso via WinRM (ejecuta LOCALMENTE en el IPC) ---
+Write-Step "Parando servicio y proceso via WinRM (Invoke-Command)..."
+try {
+    $killResult = Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+        param($svcName)
+        $output = @()
+        
+        # Parar servicio
+        $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -ne 'Stopped') {
+            Stop-Service -Name $svcName -Force -ErrorAction SilentlyContinue
+            $output += "Servicio detenido"
+        } elseif ($svc) {
+            $output += "Servicio ya estaba parado"
+        } else {
+            $output += "Servicio no existe"
+        }
+        
+        # Matar proceso (por si quedo zombie)
+        $procs = Get-Process -Name "SW.PC.API.Backend" -ErrorAction SilentlyContinue
+        if ($procs) {
+            $procs | Stop-Process -Force
+            $output += "Proceso eliminado (PID: $($procs.Id -join ', '))"
+        } else {
+            $output += "Proceso no encontrado (limpio)"
+        }
+        
+        # Verificar que no queda nada
+        Start-Sleep -Seconds 2
+        $check = Get-Process -Name "SW.PC.API.Backend" -ErrorAction SilentlyContinue
+        if ($check) {
+            $output += "ADVERTENCIA: Proceso sigue vivo tras kill"
+        } else {
+            $output += "Confirmado: proceso terminado"
+        }
+        
+        return $output
+    } -ArgumentList $serviceName -ErrorAction Stop
+    
+    foreach ($line in $killResult) {
+        if ($line -match "ADVERTENCIA") {
+            Write-Error2 $line
+        } elseif ($line -match "eliminado|detenido|Confirmado") {
+            Write-Success $line
+        } else {
+            Write-Info $line
+        }
     }
-    Write-Info "Esperando 5 segundos para que se liberen los archivos..."
+} catch {
+    Write-Info "WinRM no disponible, usando sc.exe + taskkill remoto como fallback..."
+    
+    # Fallback: sc.exe stop
+    $scQuery = sc.exe \\$TargetIP query $serviceName 2>&1
+    if ($scQuery -match "RUNNING|START_PENDING") {
+        sc.exe \\$TargetIP stop $serviceName 2>&1 | Out-Null
+        Write-Info "sc.exe stop enviado, esperando 10s..."
+        Start-Sleep -Seconds 10
+    }
+    
+    # Fallback: taskkill remoto
+    $ErrorActionPreference = 'SilentlyContinue'
+    taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1 | Out-Null
+    $ErrorActionPreference = $prevEAP
     Start-Sleep -Seconds 5
-} elseif ($scQuery -match "STOPPED|STOP_PENDING") {
-    Write-Info "Servicio ya estaba parado"
-    # Aun asi taskkill por si quedo un proceso zombie
-    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
-    $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
-    $ErrorActionPreference = $prevEAP
-    if ($taskkillResult -match "correctamente|SUCCESS") {
-        Write-Success "Proceso zombie eliminado con taskkill"
-        Start-Sleep -Seconds 3
-    }
-} else {
-    Write-Info "Servicio no instalado todavia (primera instalacion)"
-    # Fallback: taskkill en caso de que este corriendo como consola (modo legacy)
-    $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
-    $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
-    $ErrorActionPreference = $prevEAP
-    if ($taskkillResult -match "correctamente|SUCCESS") {
-        Write-Success "Proceso legacy parado con taskkill"
-        Start-Sleep -Seconds 3
-    } elseif ($taskkillResult -match "no se encontr|not found") {
-        Write-Info "Ningun proceso corriendo (limpio)"
-    }
 }
 
-# Verificar que los archivos estan liberados
+# --- Fase 3: Verificar que los DLLs estan liberados ---
 Write-Step "Verificando que los DLLs estan liberados..."
-# Testear hostfxr.dll (DLL nativa que tarda mas en liberarse que la managed DLL)
-$testFile = "$RemotePath\Backend\hostfxr.dll"
-if (-not (Test-Path $testFile)) {
-    $testFile = "$RemotePath\Backend\SW.PC.API.Backend.dll"
-}
-$retryCount = 0
-$maxRetries = 8
-$killedProcess = $false
+Start-Sleep -Seconds 2
 
-while ($retryCount -lt $maxRetries) {
-    if (Test-Path $testFile) {
+$testFile = $null
+foreach ($candidate in @("$RemotePath\Backend\hostfxr.dll", "$RemotePath\Backend\ClosedXML.dll", "$RemotePath\Backend\SW.PC.API.Backend.dll")) {
+    if (Test-Path $candidate) { $testFile = $candidate; break }
+}
+
+if (-not $testFile) {
+    Write-Info "Primera instalacion (no hay archivos previos)"
+} else {
+    $maxRetries = 10
+    $retryCount = 0
+    
+    while ($retryCount -lt $maxRetries) {
         try {
             $stream = [System.IO.File]::Open($testFile, 'Open', 'Read', 'None')
             $stream.Close()
-            Write-Success "Archivos liberados, continuando..."
+            Write-Success "Archivos liberados correctamente"
             break
         } catch {
             $retryCount++
-            # Despues de 2 intentos fallidos, forzar taskkill remoto
-            if ($retryCount -eq 2 -and -not $killedProcess) {
-                Write-Info "Servicio no libero archivos, forzando taskkill remoto..."
-                $taskkillResult = taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1
-                if ($taskkillResult -match "correctamente|SUCCESS") {
-                    Write-Success "Proceso forzado a cerrar con taskkill"
-                } else {
-                    Write-Info "taskkill: $taskkillResult"
-                }
-                $killedProcess = $true
-                Start-Sleep -Seconds 3
-            } elseif ($retryCount -lt $maxRetries) {
-                Write-Info "Archivos aun bloqueados, esperando... (intento $retryCount/$maxRetries)"
-                Start-Sleep -Seconds 2
-            } else {
+            if ($retryCount -ge $maxRetries) {
                 Write-Error2 "Los archivos siguen bloqueados despues de $maxRetries intentos"
-                Write-Host ""
-                Write-Host "  SOLUCION: Debes cerrar el servidor manualmente en $TargetIP" -ForegroundColor Yellow
-                Write-Host "  1. Abre services.msc o Administrador de Tareas en el servidor" -ForegroundColor White
-                Write-Host "  2. Busca el servicio '$serviceName' o SW.PC.API.Backend" -ForegroundColor White
-                Write-Host "  3. Detenlo manualmente" -ForegroundColor White
-                Write-Host "  4. Vuelve a ejecutar este script" -ForegroundColor White
-                Write-Host ""
+                Write-Host "  SOLUCION: En el IPC ($TargetIP) ejecuta:" -ForegroundColor Yellow
+                Write-Host "    Stop-Service $serviceName -Force" -ForegroundColor Cyan
+                Write-Host "    taskkill /IM SW.PC.API.Backend.exe /F" -ForegroundColor Cyan
                 Read-Host "Presiona Enter para cerrar"
                 exit 1
             }
+            Write-Info "DLLs bloqueados, esperando... (intento $retryCount/$maxRetries)"
+            
+            # En el intento 3, probar WinRM de nuevo por si el proceso reaparecio
+            if ($retryCount -eq 3) {
+                Write-Info "Segundo intento de kill via WinRM..."
+                try {
+                    Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+                        Get-Process -Name "SW.PC.API.Backend" -ErrorAction SilentlyContinue | Stop-Process -Force
+                    } -ErrorAction Stop
+                } catch { }
+            }
+            
+            Start-Sleep -Seconds 3
         }
-    } else {
-        Write-Info "Primera instalacion (no hay archivos previos)"
-        break
     }
 }
+
+Write-Success "Servidor remoto preparado para despliegue"
 
 # ============================================
 # PASO 5: Crear estructura de carpetas
@@ -1209,17 +1237,47 @@ $backendFiles = Get-ChildItem -Path $publishPath -Recurse
 $totalFiles = $backendFiles.Count
 
 $copySuccess = $false
-for ($copyAttempt = 1; $copyAttempt -le 3; $copyAttempt++) {
+for ($copyAttempt = 1; $copyAttempt -le 5; $copyAttempt++) {
     try {
         Copy-Item -Path "$publishPath\*" -Destination "$RemotePath\Backend" -Recurse -Force -ErrorAction Stop
         $copySuccess = $true
         break
     } catch {
-        if ($copyAttempt -lt 3) {
-            Write-Info "Error copiando (intento $copyAttempt/3), reintentando en 3s..."
-            Start-Sleep -Seconds 3
-        } else {
-            Write-Error2 "No se pudo copiar el backend despues de 3 intentos: $_"
+        Write-Info "Error copiando (intento $copyAttempt/5): $($_.Exception.Message)"
+        
+        # Matar proceso via WinRM (ejecucion local en IPC = funciona siempre)
+        Write-Info "Matando proceso via WinRM..."
+        try {
+            Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+                param($svcName)
+                Stop-Service -Name $svcName -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 1
+                Get-Process -Name "SW.PC.API.Backend" -ErrorAction SilentlyContinue | Stop-Process -Force
+            } -ArgumentList $serviceName -ErrorAction Stop
+            Write-Success "Proceso eliminado via WinRM"
+        } catch {
+            Write-Info "WinRM fallo, intentando sc.exe + taskkill..."
+            sc.exe \\$TargetIP stop $serviceName 2>&1 | Out-Null
+            $prevEAP2 = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
+            taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1 | Out-Null
+            $ErrorActionPreference = $prevEAP2
+        }
+        
+        # Desactivar recovery para que no se reinicie
+        sc.exe \\$TargetIP failure $serviceName reset= 0 actions= "" 2>&1 | Out-Null
+        
+        $waitSecs = 3 + ($copyAttempt * 2)
+        Write-Info "Esperando ${waitSecs}s para que se liberen los archivos..."
+        Start-Sleep -Seconds $waitSecs
+        
+        if ($copyAttempt -ge 5) {
+            Write-Error2 "No se pudo copiar el backend despues de 5 intentos"
+            Write-Host ""
+            Write-Host "  SOLUCION: En el IPC ($TargetIP) ejecuta:" -ForegroundColor Yellow
+            Write-Host "    Stop-Service $serviceName -Force" -ForegroundColor Cyan
+            Write-Host "    taskkill /IM SW.PC.API.Backend.exe /F" -ForegroundColor Cyan
+            Write-Host "  Luego vuelve a ejecutar este script" -ForegroundColor White
+            Write-Host ""
             Read-Host "Presiona Enter para cerrar"
             exit 1
         }

@@ -1,0 +1,74 @@
+﻿{
+    "Timestamp":  "20260320_000826",
+    "Actions":  [
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "AutoAdminLogon",
+                                     "PreviousValue":  "1"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "DefaultUserName",
+                                     "PreviousValue":  "aqf"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "DefaultPassword",
+                                     "PreviousValue":  null
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\LaunchKiosk.bat"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\KioskWatchdog.ps1"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "Shell",
+                                     "PreviousValue":  "explorer.exe"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Users\\aqf-admin.A87-IPC-SERVER\\Desktop\\Herramientas IPC\\Apply-KeyboardFilter.ps1"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Users\\aqf-admin.A87-IPC-SERVER\\Desktop\\Herramientas IPC\\Keyboard-Filter.bat"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Users\\aqf-admin.A87-IPC-SERVER\\Desktop\\Herramientas IPC\\Apply-UsbBlock.ps1"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Users\\aqf-admin.A87-IPC-SERVER\\Desktop\\Herramientas IPC\\USB-Storage.bat"
+                                 }
+                    }
+                ],
+    "ComputerName":  "192.168.2.161"
+}
