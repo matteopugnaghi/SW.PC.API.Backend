@@ -9,7 +9,9 @@
     3. Watchdog: relanza Edge si se cierra/crashea
     4. Health check: si el backend falla N veces, reinicia servicio AqfSupervisor
     5. Overlay MANTENIMIENTO: cuando un admin se conecta por RDP,
-       muestra pantalla "Mantenimiento en curso" en el kiosk
+       muestra pantalla "Mantenimiento en curso" en el kiosk (4 idiomas)
+    6. SCREENSAVER: tras 30 min de inactividad, logo rebotando (anti burn-in).
+       Cualquier input (ratón/teclado/táctil) lo cierra.
 
     Los controles de sesión están integrados en la web:
       - "Reiniciar App"         → Backend se rearranca via servicio Windows
@@ -28,6 +30,9 @@
 .PARAMETER ServiceName
     Nombre del servicio Windows del backend. Default: AqfSupervisor
 
+.PARAMETER IdleTimeoutMinutes
+    Minutos de inactividad antes de activar screensaver. Default: 30
+
 .NOTES
     Ref: 04.2-01 §23 — Autostart y Modo Kiosco
 #>
@@ -36,7 +41,8 @@ param(
     [string]$SupervisorUrl    = 'https://192.168.2.161:5001',
     [int]$WatchdogInterval    = 30,
     [int]$MaxFailures         = 10,
-    [string]$ServiceName      = 'AqfSupervisor'
+    [string]$ServiceName      = 'AqfSupervisor',
+    [int]$IdleTimeoutMinutes   = 30
 )
 
 $ErrorActionPreference = 'Continue'
@@ -44,7 +50,7 @@ $ErrorActionPreference = 'Continue'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# Win32: forzar ventana topmost sobre Edge kiosk
+# Win32: forzar ventana topmost sobre Edge kiosk + detectar inactividad
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -62,6 +68,26 @@ public class Win32TopMost {
     public static void ForceTopMost(IntPtr hWnd) {
         SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    }
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct LASTINPUTINFO {
+    public uint cbSize;
+    public uint dwTime;
+}
+
+public class Win32Idle {
+    [DllImport("user32.dll")]
+    static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+    public static uint GetIdleSeconds() {
+        LASTINPUTINFO lii = new LASTINPUTINFO();
+        lii.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+        if (GetLastInputInfo(ref lii)) {
+            return (uint)((Environment.TickCount - lii.dwTime) / 1000);
+        }
+        return 0;
     }
 }
 "@
@@ -272,10 +298,10 @@ function Show-MaintenanceOverlay {
 
     # Panel central
     $panel = New-Object System.Windows.Forms.Panel
-    $panel.Size      = New-Object System.Drawing.Size(700, 400)
+    $panel.Size      = New-Object System.Drawing.Size(800, 480)
     $panel.Location  = New-Object System.Drawing.Point(
-        [int](($screen.Width - 700) / 2),
-        [int](($screen.Height - 400) / 2)
+        [int](($screen.Width - 800) / 2),
+        [int](($screen.Height - 480) / 2)
     )
     $panel.BackColor = [System.Drawing.Color]::FromArgb(30, 35, 50)
     $form.Controls.Add($panel)
@@ -286,34 +312,38 @@ function Show-MaintenanceOverlay {
     $icon.Font      = New-Object System.Drawing.Font('Segoe UI', 64)
     $icon.ForeColor = [System.Drawing.Color]::FromArgb(0, 160, 220)
     $icon.TextAlign = 'MiddleCenter'
-    $icon.Size      = New-Object System.Drawing.Size(700, 120)
+    $icon.Size      = New-Object System.Drawing.Size(800, 120)
     $icon.Location  = New-Object System.Drawing.Point(0, 20)
     $panel.Controls.Add($icon)
 
-    # Título
+    # Título — 4 idiomas (2 líneas)
     $title = New-Object System.Windows.Forms.Label
-    $title.Text      = 'MANTENIMIENTO EN CURSO'
-    $title.Font      = New-Object System.Drawing.Font('Segoe UI', 28, [System.Drawing.FontStyle]::Bold)
+    $title.Text      = "MANTENIMIENTO EN CURSO`nMAINTENANCE IN PROGRESS"
+    $title.Font      = New-Object System.Drawing.Font('Segoe UI', 20, [System.Drawing.FontStyle]::Bold)
     $title.ForeColor = [System.Drawing.Color]::FromArgb(0, 180, 230)
     $title.TextAlign = 'MiddleCenter'
-    $title.Size      = New-Object System.Drawing.Size(700, 60)
-    $title.Location  = New-Object System.Drawing.Point(0, 150)
+    $title.Size      = New-Object System.Drawing.Size(800, 70)
+    $title.Location  = New-Object System.Drawing.Point(0, 140)
     $panel.Controls.Add($title)
 
-    # Subtítulo
+    # Subtítulo — 4 idiomas (ES / EN / DE / IT)
     $sub = New-Object System.Windows.Forms.Label
-    $sub.Text      = 'Un técnico está realizando tareas de mantenimiento.' + "`n" + 'El sistema volverá a estar disponible en breve.'
-    $sub.Font      = New-Object System.Drawing.Font('Segoe UI', 14)
+    $lineES = "Un t$([char]0x00E9)cnico est$([char]0x00E1) realizando tareas de mantenimiento."
+    $lineEN = 'A technician is performing maintenance tasks.'
+    $lineDE = "Ein Techniker f$([char]0x00FC)hrt Wartungsarbeiten durch."
+    $lineIT = 'Un tecnico sta eseguendo operazioni di manutenzione.'
+    $sub.Text      = "$lineES`n$lineEN`n$lineDE`n$lineIT"
+    $sub.Font      = New-Object System.Drawing.Font('Segoe UI', 12)
     $sub.ForeColor = [System.Drawing.Color]::FromArgb(160, 170, 190)
     $sub.TextAlign = 'MiddleCenter'
-    $sub.Size      = New-Object System.Drawing.Size(700, 80)
+    $sub.Size      = New-Object System.Drawing.Size(800, 120)
     $sub.Location  = New-Object System.Drawing.Point(0, 230)
     $panel.Controls.Add($sub)
 
     # Línea decorativa inferior
     $line = New-Object System.Windows.Forms.Panel
     $line.Size      = New-Object System.Drawing.Size(200, 3)
-    $line.Location  = New-Object System.Drawing.Point(250, 340)
+    $line.Location  = New-Object System.Drawing.Point(300, 370)
     $line.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 180)
     $panel.Controls.Add($line)
 
@@ -338,6 +368,127 @@ function Hide-MaintenanceOverlay {
     }
     $script:maintenanceVisible = $false
     Write-Log 'Overlay MANTENIMIENTO oculto (sesión RDP terminada)' 'ACTION'
+}
+
+# ============================================================================
+#  FUNCIONES — SCREENSAVER (Anti burn-in)
+# ============================================================================
+# Tras 30 min de inactividad muestra logo "AQUAFRISCH" rebotando por la pantalla.
+# Cualquier input (ratón/teclado/táctil) lo cierra automáticamente.
+
+$script:screensaverForm    = $null
+$script:screensaverVisible = $false
+$script:screensaverTimer   = $null
+$script:ssX      = 100   # posición X del logo
+$script:ssY      = 100   # posición Y del logo
+$script:ssDX     = 3     # velocidad horizontal
+$script:ssDY     = 2     # velocidad vertical
+$script:ssLabel  = $null
+$script:IdleTimeoutSeconds = $IdleTimeoutMinutes * 60  # parámetro en minutos
+
+function Show-Screensaver {
+    if ($script:screensaverVisible) { return }
+
+    $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+
+    $form = New-Object System.Windows.Forms.Form
+    $form.FormBorderStyle = 'None'
+    $form.WindowState     = 'Maximized'
+    $form.TopMost         = $true
+    $form.ShowInTaskbar   = $false
+    $form.BackColor       = [System.Drawing.Color]::Black
+    $form.StartPosition   = 'Manual'
+    $form.Location        = New-Object System.Drawing.Point(0, 0)
+    $form.Size            = New-Object System.Drawing.Size($screen.Width, $screen.Height)
+    $form.Cursor          = [System.Windows.Forms.Cursors]::None
+    $form.DoubleBuffered  = $true
+
+    # Logo flotante
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text      = 'Aquafrisch'
+    $label.Font      = New-Object System.Drawing.Font('Crillee', 48, [System.Drawing.FontStyle]::Bold)
+    $label.ForeColor = [System.Drawing.Color]::FromArgb(120, 120, 120)
+    $label.BackColor = [System.Drawing.Color]::Transparent
+    $label.AutoSize  = $true
+    $label.Location  = New-Object System.Drawing.Point($script:ssX, $script:ssY)
+    $form.Controls.Add($label)
+    $script:ssLabel = $label
+
+    # Guardar posicion inicial del mouse para detectar movimiento REAL
+    $script:ssMouseStart = [System.Windows.Forms.Cursor]::Position
+
+    # Cerrar con cualquier input real
+    $dismissAction = {
+        $this.Tag = 'dismiss'
+    }
+    $mouseMoveAction = {
+        # Solo dismiss si el mouse se movio realmente (>10 px)
+        $current = [System.Windows.Forms.Cursor]::Position
+        $dx = [Math]::Abs($current.X - $script:ssMouseStart.X)
+        $dy = [Math]::Abs($current.Y - $script:ssMouseStart.Y)
+        if (($dx + $dy) -gt 10) {
+            $this.Tag = 'dismiss'
+        }
+    }
+    $form.Add_MouseMove($mouseMoveAction)
+    $form.Add_MouseDown($dismissAction)
+    $form.Add_KeyDown($dismissAction)
+    $form.Add_Click($dismissAction)
+    $label.Add_MouseMove($mouseMoveAction)
+    $label.Add_MouseDown($dismissAction)
+    $label.Add_Click($dismissAction)
+
+    # Timer para mover el logo (cada 50ms = ~20 FPS)
+    $timer = New-Object System.Windows.Forms.Timer
+    $timer.Interval = 50
+    $timer.Add_Tick({
+        if (-not $script:ssLabel -or -not $script:screensaverForm) { return }
+        $sw = $script:screensaverForm.ClientSize.Width
+        $sh = $script:screensaverForm.ClientSize.Height
+        $lw = $script:ssLabel.Width
+        $lh = $script:ssLabel.Height
+
+        $script:ssX += $script:ssDX
+        $script:ssY += $script:ssDY
+
+        # Rebotar en bordes
+        if ($script:ssX -le 0) { $script:ssX = 0; $script:ssDX = [Math]::Abs($script:ssDX) }
+        if ($script:ssX -ge ($sw - $lw)) { $script:ssX = $sw - $lw; $script:ssDX = -[Math]::Abs($script:ssDX) }
+        if ($script:ssY -le 0) { $script:ssY = 0; $script:ssDY = [Math]::Abs($script:ssDY) }
+        if ($script:ssY -ge ($sh - $lh)) { $script:ssY = $sh - $lh; $script:ssDY = -[Math]::Abs($script:ssDY) }
+
+        $script:ssLabel.Location = New-Object System.Drawing.Point([int]$script:ssX, [int]$script:ssY)
+    })
+    $timer.Start()
+    $script:screensaverTimer = $timer
+
+    $form.Add_Shown({
+        [Win32TopMost]::ForceTopMost($form.Handle)
+    })
+
+    $form.Show()
+    [Win32TopMost]::ForceTopMost($form.Handle)
+
+    $script:screensaverForm    = $form
+    $script:screensaverVisible = $true
+    Write-Log 'Screensaver activado (inactividad detectada)' 'ACTION'
+}
+
+function Hide-Screensaver {
+    if (-not $script:screensaverVisible) { return }
+    if ($script:screensaverTimer) {
+        $script:screensaverTimer.Stop()
+        $script:screensaverTimer.Dispose()
+        $script:screensaverTimer = $null
+    }
+    if ($script:screensaverForm) {
+        $script:screensaverForm.Close()
+        $script:screensaverForm.Dispose()
+        $script:screensaverForm = $null
+    }
+    $script:ssLabel = $null
+    $script:screensaverVisible = $false
+    Write-Log 'Screensaver desactivado (input detectado)' 'ACTION'
 }
 
 # ============================================================================
@@ -367,11 +518,17 @@ $zOrderCounter  = 0
 
 # Bucle principal — usa Application.DoEvents para procesar mensajes WinForms del overlay
 while ($true) {
-    Start-Sleep -Seconds $WatchdogInterval
+    # Intervalo corto cuando screensaver activo (respuesta rápida al touch)
+    if ($script:screensaverVisible) {
+        Start-Sleep -Milliseconds 500
+    } else {
+        Start-Sleep -Seconds $WatchdogInterval
+    }
 
     # --- Detectar RDP y gestionar overlay ---
     $rdpActive = Test-RdpSessionActive
     if ($rdpActive -and -not $script:maintenanceVisible) {
+        if ($script:screensaverVisible) { Hide-Screensaver }
         Show-MaintenanceOverlay
     } elseif (-not $rdpActive -and $script:maintenanceVisible) {
         Hide-MaintenanceOverlay
@@ -383,30 +540,52 @@ while ($true) {
         [Win32TopMost]::ForceTopMost($script:maintenanceForm.Handle)
     }
 
-    # --- Verificar navegador (solo si NO hay mantenimiento) ---
-    if (-not $rdpActive) {
-        if (-not (Test-BrowserRunning)) {
-            Write-Log 'Navegador no detectado — relanzando...' 'WARN'
-            Start-Sleep -Seconds 3
-            Start-KioskBrowser
+    # --- Screensaver (anti burn-in) — solo si NO hay mantenimiento ---
+    if (-not $script:maintenanceVisible) {
+        $idleSec = [Win32Idle]::GetIdleSeconds()
+
+        if ($script:screensaverVisible) {
+            # Procesar eventos WinForms (animación del timer + input)
+            [System.Windows.Forms.Application]::DoEvents()
+            [Win32TopMost]::ForceTopMost($script:screensaverForm.Handle)
+
+            # Comprobar si el usuario hizo input (tag 'dismiss' o idle reseteado)
+            if ($script:screensaverForm.Tag -eq 'dismiss' -or $idleSec -lt 5) {
+                Hide-Screensaver
+            }
+        } elseif ($idleSec -ge $script:IdleTimeoutSeconds) {
+            Show-Screensaver
         }
     }
 
-    # --- Health check del backend ---
-    if (Test-BackendHealth) {
-        if ($failureCount -gt 0) {
-            Write-Log "Backend recuperado tras $failureCount fallos"
-        }
-        $failureCount = 0
-    } else {
-        $failureCount++
-        Write-Log "Health check fallido ($failureCount/$MaxFailures)" 'WARN'
+    # --- Verificar navegador y health check (solo en ciclo largo, no cada 500ms) ---
+    if (-not $script:screensaverVisible) {
 
-        if ($failureCount -ge $MaxFailures) {
-            Write-Log "CRITICO: $MaxFailures fallos consecutivos — reiniciando servicio" 'ERROR'
-            Restart-BackendService
+        # --- Verificar navegador (solo si NO hay mantenimiento) ---
+        if (-not $rdpActive) {
+            if (-not (Test-BrowserRunning)) {
+                Write-Log 'Navegador no detectado — relanzando...' 'WARN'
+                Start-Sleep -Seconds 3
+                Start-KioskBrowser
+            }
+        }
+
+        # --- Health check del backend ---
+        if (Test-BackendHealth) {
+            if ($failureCount -gt 0) {
+                Write-Log "Backend recuperado tras $failureCount fallos"
+            }
             $failureCount = 0
-            Start-Sleep -Seconds 15
+        } else {
+            $failureCount++
+            Write-Log "Health check fallido ($failureCount/$MaxFailures)" 'WARN'
+
+            if ($failureCount -ge $MaxFailures) {
+                Write-Log "CRITICO: $MaxFailures fallos consecutivos — reiniciando servicio" 'ERROR'
+                Restart-BackendService
+                $failureCount = 0
+                Start-Sleep -Seconds 15
+            }
         }
     }
 }

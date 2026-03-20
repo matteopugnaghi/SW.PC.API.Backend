@@ -203,18 +203,57 @@ namespace SW.PC.API.Backend.Controllers
                 // 🔒 Forzar flush antes del logout para no perder el log
                 await _auditLogService.FlushAsync();
                 
-                // Ejecutar comando de logout de Windows
-                var process = new Process
+                // Desde servicio SYSTEM: buscar la sesión de consola y hacer logoff
+                // query session muestra: "console  usuario  ID  Estado  Tipo"
+                var queryProcess = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
-                        FileName = "shutdown",
-                        Arguments = "/l /f", // /l = logout, /f = force
+                        FileName = "query.exe",
+                        Arguments = "session",
                         UseShellExecute = false,
-                        CreateNoWindow = true
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true
                     }
                 };
-                process.Start();
+                queryProcess.Start();
+                var sessionOutput = await queryProcess.StandardOutput.ReadToEndAsync();
+                await queryProcess.WaitForExitAsync();
+
+                // Buscar línea con "console" y extraer el ID de sesión
+                var consoleLine = sessionOutput
+                    .Split('\n')
+                    .FirstOrDefault(l => l.IndexOf("console", StringComparison.OrdinalIgnoreCase) >= 0);
+
+                if (consoleLine != null)
+                {
+                    // Extraer números de la línea — el ID de sesión es el primer número
+                    var match = System.Text.RegularExpressions.Regex.Match(consoleLine, @"\s+(\d+)\s+");
+                    if (match.Success)
+                    {
+                        var sessionId = match.Groups[1].Value;
+                        _logger.LogWarning("🚪 Cerrando sesión de consola (Session ID: {Id})", sessionId);
+                        var logoffProcess = new Process
+                        {
+                            StartInfo = new ProcessStartInfo
+                            {
+                                FileName = "logoff.exe",
+                                Arguments = sessionId,
+                                UseShellExecute = false,
+                                CreateNoWindow = true
+                            }
+                        };
+                        logoffProcess.Start();
+                    }
+                    else
+                    {
+                        _logger.LogWarning("🚪 No se pudo extraer session ID de: {Line}", consoleLine.Trim());
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("🚪 No se encontró sesión de consola activa. Output: {Output}", sessionOutput.Trim());
+                }
 
                 return Ok(new { success = true, message = "Cerrando sesión de Windows..." });
             }

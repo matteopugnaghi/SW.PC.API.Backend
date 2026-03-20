@@ -21,6 +21,9 @@ SET SCRIPT_DIR=%~dp0
 SET WATCHDOG=%SCRIPT_DIR%KioskWatchdog.ps1
 SET LOG_FILE=%SCRIPT_DIR%kiosk_launcher.log
 
+REM Screensaver: minutos de inactividad antes de activar (default: 30)
+SET IDLE_TIMEOUT=30
+
 echo [%date% %time%] ========================================== >> "%LOG_FILE%"
 echo [%date% %time%] Kiosk Shell iniciado >> "%LOG_FILE%"
 echo [%date% %time%] ========================================== >> "%LOG_FILE%"
@@ -36,8 +39,8 @@ if not exist "%WATCHDOG%" (
 )
 
 REM Lanzar KioskWatchdog.ps1 (no retorna hasta que se cierre el botón flotante)
-echo [%date% %time%] Lanzando KioskWatchdog.ps1... >> "%LOG_FILE%"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%WATCHDOG%"
+echo [%date% %time%] Lanzando KioskWatchdog.ps1 (IdleTimeout=%IDLE_TIMEOUT%min)... >> "%LOG_FILE%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%WATCHDOG%" -IdleTimeoutMinutes %IDLE_TIMEOUT%
 
 echo [%date% %time%] KioskWatchdog.ps1 finalizó — relanzando en 5s... >> "%LOG_FILE%"
 timeout /t 5 /nobreak >nul
@@ -46,7 +49,7 @@ REM Si el watchdog se cierra, relanzarlo (bucle infinito)
 goto :START_WATCHDOG
 
 :START_WATCHDOG
-powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%WATCHDOG%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%WATCHDOG%" -IdleTimeoutMinutes %IDLE_TIMEOUT%
 echo [%date% %time%] KioskWatchdog.ps1 se cerró — relanzando... >> "%LOG_FILE%"
 timeout /t 5 /nobreak >nul
 goto :START_WATCHDOG

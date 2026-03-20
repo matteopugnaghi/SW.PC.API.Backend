@@ -232,6 +232,13 @@ if ($SaveLocalCopy) {
 }
 Write-Host ""
 
+# Screensaver idle timeout
+$idleInput = Read-Host "Screensaver: minutos de inactividad antes de activar [30]"
+if ([string]::IsNullOrEmpty($idleInput)) { $idleInput = '30' }
+$IdleTimeoutMinutes = [int]$idleInput
+Write-Info "Screensaver idle timeout: $IdleTimeoutMinutes minutos"
+Write-Host ""
+
 # Confirmar
 $confirm = Read-Host "Continuar con el despliegue de '$ProjectId' a $TargetIP? (S/n)"
 if ($confirm -eq 'n' -or $confirm -eq 'N') {
@@ -1236,56 +1243,121 @@ Write-Step "Copiando archivos del backend..."
 $backendFiles = Get-ChildItem -Path $publishPath -Recurse
 $totalFiles = $backendFiles.Count
 
+# Estrategia: copiar a carpeta temporal (sin locks) y luego mover localmente via WinRM
+$remoteTempDeploy = "$RemotePath\_deploy_staging"
+
+# 1. Limpiar staging previo si existe
+if (Test-Path $remoteTempDeploy) {
+    Remove-Item -Path $remoteTempDeploy -Recurse -Force -ErrorAction SilentlyContinue
+}
+New-Item -Path $remoteTempDeploy -ItemType Directory -Force | Out-Null
+
+# 2. Copiar a staging (carpeta nueva = sin locks, siempre funciona)
+Write-Step "Copiando a staging temporal..."
+try {
+    Copy-Item -Path "$publishPath\*" -Destination $remoteTempDeploy -Recurse -Force -ErrorAction Stop
+    Write-Success "Staging completado: $totalFiles archivos"
+} catch {
+    Write-Error2 "Error copiando a staging: $($_.Exception.Message)"
+    Remove-Item -Path $remoteTempDeploy -Recurse -Force -ErrorAction SilentlyContinue
+    Read-Host "Presiona Enter para cerrar"
+    exit 1
+}
+
+# 3. Via WinRM: matar todo + copiar localmente (local = sin problemas de SMB)
+Write-Step "Moviendo staging a Backend via WinRM (copia local en IPC)..."
 $copySuccess = $false
-for ($copyAttempt = 1; $copyAttempt -le 5; $copyAttempt++) {
+for ($copyAttempt = 1; $copyAttempt -le 3; $copyAttempt++) {
     try {
-        Copy-Item -Path "$publishPath\*" -Destination "$RemotePath\Backend" -Recurse -Force -ErrorAction Stop
-        $copySuccess = $true
-        break
-    } catch {
-        Write-Info "Error copiando (intento $copyAttempt/5): $($_.Exception.Message)"
+        $moveResult = Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+            param($StagingDir, $BackendDir, $SvcName)
+            $output = @()
+            
+            # Kill agresivo
+            & sc.exe failure $SvcName reset= 0 actions= "" 2>&1 | Out-Null
+            & sc.exe config $SvcName start= demand 2>&1 | Out-Null
+            Stop-Service -Name $SvcName -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            Get-Process -Name "SW.PC.API.Backend" -ErrorAction SilentlyContinue | Stop-Process -Force
+            Get-Process -Name "msedge" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+            
+            # Verificar que el proceso murio
+            $still = Get-Process -Name "SW.PC.API.Backend" -ErrorAction SilentlyContinue
+            if ($still) {
+                & taskkill /IM "SW.PC.API.Backend.exe" /F /T 2>&1 | Out-Null
+                Start-Sleep -Seconds 3
+            }
+            
+            # Copiar localmente (sin SMB locks)
+            try {
+                Copy-Item -Path "$StagingDir\*" -Destination $BackendDir -Recurse -Force -ErrorAction Stop
+                $output += "OK:Archivos copiados localmente"
+            } catch {
+                $output += "FAIL:$($_.Exception.Message)"
+            }
+            
+            return $output
+        } -ArgumentList $remoteTempDeploy, "$RemotePath\Backend", $serviceName -ErrorAction Stop
         
-        # Matar proceso via WinRM (ejecucion local en IPC = funciona siempre)
-        Write-Info "Matando proceso via WinRM..."
-        try {
-            Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
-                param($svcName)
-                Stop-Service -Name $svcName -Force -ErrorAction SilentlyContinue
-                Start-Sleep -Seconds 1
-                Get-Process -Name "SW.PC.API.Backend" -ErrorAction SilentlyContinue | Stop-Process -Force
-            } -ArgumentList $serviceName -ErrorAction Stop
-            Write-Success "Proceso eliminado via WinRM"
-        } catch {
-            Write-Info "WinRM fallo, intentando sc.exe + taskkill..."
-            sc.exe \\$TargetIP stop $serviceName 2>&1 | Out-Null
-            $prevEAP2 = $ErrorActionPreference; $ErrorActionPreference = 'SilentlyContinue'
-            taskkill /S $TargetIP /U $TargetUser /P $TargetPassword /IM "SW.PC.API.Backend.exe" /F 2>&1 | Out-Null
-            $ErrorActionPreference = $prevEAP2
+        $failed = $false
+        foreach ($line in $moveResult) {
+            if ($line -match '^OK:(.+)$') {
+                Write-Success $Matches[1]
+                $copySuccess = $true
+            } elseif ($line -match '^FAIL:(.+)$') {
+                Write-Error2 "Copia local fallo: $($Matches[1])"
+                $failed = $true
+            }
         }
         
-        # Desactivar recovery para que no se reinicie
-        sc.exe \\$TargetIP failure $serviceName reset= 0 actions= "" 2>&1 | Out-Null
-        
-        $waitSecs = 3 + ($copyAttempt * 2)
-        Write-Info "Esperando ${waitSecs}s para que se liberen los archivos..."
-        Start-Sleep -Seconds $waitSecs
-        
-        if ($copyAttempt -ge 5) {
-            Write-Error2 "No se pudo copiar el backend despues de 5 intentos"
-            Write-Host ""
-            Write-Host "  SOLUCION: En el IPC ($TargetIP) ejecuta:" -ForegroundColor Yellow
-            Write-Host "    Stop-Service $serviceName -Force" -ForegroundColor Cyan
-            Write-Host "    taskkill /IM SW.PC.API.Backend.exe /F" -ForegroundColor Cyan
-            Write-Host "  Luego vuelve a ejecutar este script" -ForegroundColor White
-            Write-Host ""
-            Read-Host "Presiona Enter para cerrar"
-            exit 1
+        if ($copySuccess) { break }
+        if ($failed -and $copyAttempt -lt 3) {
+            Write-Info "Reintentando en 10s... (intento $copyAttempt/3)"
+            Start-Sleep -Seconds 10
+        }
+    } catch {
+        Write-Error2 "WinRM fallo: $($_.Exception.Message)"
+        if ($copyAttempt -lt 3) {
+            Write-Info "Reintentando WinRM en 10s... (intento $copyAttempt/3)"
+            Start-Sleep -Seconds 10
         }
     }
 }
+
+# 4. Limpiar staging
+Remove-Item -Path $remoteTempDeploy -Recurse -Force -ErrorAction SilentlyContinue
+
+if (-not $copySuccess) {
+    Write-Error2 "No se pudo copiar el backend despues de 3 intentos"
+    Write-Host ""
+    Write-Host "  SOLUCION: En el IPC ($TargetIP) ejecuta:" -ForegroundColor Yellow
+    Write-Host "    Stop-Service $serviceName -Force" -ForegroundColor Cyan
+    Write-Host "    taskkill /IM SW.PC.API.Backend.exe /F" -ForegroundColor Cyan
+    Write-Host "  Luego vuelve a ejecutar este script" -ForegroundColor White
+    Write-Host ""
+    Read-Host "Presiona Enter para cerrar"
+    exit 1
+}
 Write-Success "Backend copiado: $totalFiles archivos"
 
-# 🔐 DESPUÉS de copiar: restaurar archivos preservados
+# � Copiar scripts kiosk (Tools\Kiosk\) — no están en publish
+$kioskSrcDir = Join-Path $BackendPath "Tools\Kiosk"
+$kioskDstDir = "$RemotePath\Backend\Tools\Kiosk"
+if (Test-Path $kioskSrcDir) {
+    Write-Step "Copiando scripts kiosk (Tools\Kiosk\)..."
+    if (-not (Test-Path $kioskDstDir)) {
+        New-Item -Path $kioskDstDir -ItemType Directory -Force | Out-Null
+    }
+    $kioskFiles = Get-ChildItem -Path $kioskSrcDir -File | Where-Object { $_.Name -match '\.(ps1|bat|ttf)$' }
+    foreach ($kf in $kioskFiles) {
+        Copy-Item -Path $kf.FullName -Destination "$kioskDstDir\$($kf.Name)" -Force
+        Write-Info "  📄 $($kf.Name)"
+    }
+    Write-Success "Scripts kiosk copiados ($($kioskFiles.Count) archivos)"
+}
+
+# �🔐 DESPUÉS de copiar: restaurar archivos preservados
 Write-Step "Restaurando archivos de configuración preservados..."
 $restoredCount = 0
 foreach ($preserveFile in $preserveFiles) {
@@ -1303,7 +1375,60 @@ if ($restoredCount -gt 0) {
     Write-Success "Restaurados $restoredCount archivos de configuración"
 }
 
-# 🔐 Merge: sincronizar claves SSH del desarrollo al servidor
+# ⏱️ Inyectar IdleTimeoutMinutes en LaunchKiosk.bat del destino
+$remoteBat = "$RemotePath\Backend\Tools\Kiosk\LaunchKiosk.bat"
+if (Test-Path $remoteBat) {
+    (Get-Content $remoteBat -Raw) -replace 'SET IDLE_TIMEOUT=\d+', "SET IDLE_TIMEOUT=$IdleTimeoutMinutes" |
+        Set-Content $remoteBat -NoNewline
+    Write-Success "Screensaver configurado: $IdleTimeoutMinutes minutos en LaunchKiosk.bat"
+} else {
+    Write-Info "LaunchKiosk.bat no encontrado en destino (ejecutar Configure-Kiosk.ps1 primero)"
+}
+
+# � Instalar fuentes Crillee en el IPC (si no están instaladas)
+$fontSourceDir = Join-Path $BackendPath "Tools\Kiosk"
+$fontFiles = @('CRILLE.ttf', 'Crillee Regular.ttf')
+$fontsToInstall = @()
+foreach ($fontFile in $fontFiles) {
+    $srcFont = Join-Path $fontSourceDir $fontFile
+    if (Test-Path $srcFont) {
+        $dstFont = "$RemotePath\Backend\Tools\Kiosk\$fontFile"
+        Copy-Item -Path $srcFont -Destination $dstFont -Force
+        $fontsToInstall += $srcFont
+    }
+}
+if ($fontsToInstall.Count -gt 0) {
+    try {
+        Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+            param($KioskDir)
+            $fontFiles = Get-ChildItem -Path $KioskDir -Filter '*.ttf' -ErrorAction SilentlyContinue
+            foreach ($f in $fontFiles) {
+                $dest = Join-Path $env:windir "Fonts\$($f.Name)"
+                if (-not (Test-Path $dest)) {
+                    Copy-Item -Path $f.FullName -Destination $dest -Force
+                    # Registrar en el registro
+                    $regName = "$($f.BaseName) (TrueType)"
+                    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts' -Name $regName -Value $f.Name
+                    Write-Output "INSTALLED:$($f.Name)"
+                } else {
+                    Write-Output "EXISTS:$($f.Name)"
+                }
+            }
+        } -ArgumentList "$RemotePath\Backend\Tools\Kiosk" -ErrorAction Stop | ForEach-Object {
+            if ($_ -match '^INSTALLED:(.+)$') {
+                Write-Info "  🔤 Fuente instalada: $($Matches[1])"
+            } elseif ($_ -match '^EXISTS:(.+)$') {
+                Write-Info "  🔤 Fuente ya existía: $($Matches[1])"
+            }
+        }
+        Write-Success "Fuentes Crillee verificadas en el IPC"
+    } catch {
+        Write-Info "⚠️ No se pudieron instalar las fuentes via WinRM: $($_.Exception.Message)"
+        Write-Info "  Copiar manualmente CRILLE.ttf y 'Crillee Regular.ttf' a C:\Windows\Fonts\ en el IPC"
+    }
+}
+
+# �🔐 Merge: sincronizar claves SSH del desarrollo al servidor
 $localAuthKeys = Join-Path $BackendPath "authorized_signing_keys.json"
 $remoteAuthKeys = "$RemotePath\Backend\authorized_signing_keys.json"
 if (Test-Path $localAuthKeys) {

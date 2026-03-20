@@ -106,6 +106,8 @@ param(
 
     [PSCredential]$Credential,
 
+    [int]$IdleTimeoutMinutes = 30,
+
     [switch]$DryRun,
 
     [string]$Rollback
@@ -671,6 +673,24 @@ if (Should-Run 'Shell') {
             Write-Step 'Shell' "$file copiado a $kioskToolsDir" 'OK'
             Save-RollbackAction -Type 'FileCopied' -Data @{ Destination = $dstFile }
         }
+    }
+
+    # Inyectar IdleTimeoutMinutes en LaunchKiosk.bat
+    $batDst = Join-Path $kioskToolsDir 'LaunchKiosk.bat'
+    if (-not $DryRun) {
+        if ($script:isRemote) {
+            Invoke-Command -Session $script:remoteSession -ScriptBlock {
+                param($BatPath, $Timeout)
+                (Get-Content $BatPath -Raw) -replace 'SET IDLE_TIMEOUT=\d+', "SET IDLE_TIMEOUT=$Timeout" |
+                    Set-Content $BatPath -NoNewline
+            } -ArgumentList $batDst, $IdleTimeoutMinutes
+        } else {
+            (Get-Content $batDst -Raw) -replace 'SET IDLE_TIMEOUT=\d+', "SET IDLE_TIMEOUT=$IdleTimeoutMinutes" |
+                Set-Content $batDst -NoNewline
+        }
+        Write-Step 'Shell' "Screensaver idle timeout: $IdleTimeoutMinutes minutos" 'OK'
+    } else {
+        Write-Step 'Shell' "[DRY] Screensaver idle timeout: $IdleTimeoutMinutes minutos" 'DRY'
     }
 
     # Configurar custom shell para el usuario kiosk
