@@ -283,6 +283,14 @@ loggerFactory.AddProvider(new SystemLogBufferProvider(systemLogService));
     
     // Configurar ExcelConfigService con el contexto de proyecto
     excelConfigService.SetProjectContext(projectContext);
+
+    // 🔄 Suscribir ExcelConfigService al evento de cambio de proyecto
+    // para que recargue cache y rutas cuando se cambia de proyecto
+    projectContext.OnProjectChanged += (_) =>
+    {
+        excelConfigService.SetProjectContext(projectContext);
+        app.Logger.LogInformation("🔄 ExcelConfigService: Cache invalidado y rutas actualizadas por cambio de proyecto");
+    };
     
     app.Logger.LogInformation("═══════════════════════════════════════════════════════════════");
     app.Logger.LogInformation("📁 MULTI-PROJECT SYSTEM INITIALIZED");

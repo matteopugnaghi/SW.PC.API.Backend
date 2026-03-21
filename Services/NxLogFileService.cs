@@ -212,6 +212,16 @@ public class NxLogFileService : INxLogFileService
         _logger = logger;
         
         _logger.LogInformation("📋 NxLogFileService initialized (config will be loaded on first use)");
+
+        // 🔄 Suscribirse a cambios de proyecto para recargar configuración
+        projectContext.OnProjectChanged += (newProjectId) =>
+        {
+            lock (_configLock)
+            {
+                _configLoaded = false; // Forzar recarga de configuración NxLog
+            }
+            _logger.LogInformation("🔄 NxLogFileService: Config reset por cambio de proyecto a {ProjectId}", newProjectId);
+        };
     }
     
     /// <summary>

@@ -48,13 +48,19 @@ namespace SW.PC.API.Backend.Services
         /// Number of active notification registrations.
         /// </summary>
         int ActiveNotificationCount { get; }
+
+        /// <summary>
+        /// Reconfigura la conexión TwinCAT con nuevos parámetros del proyecto activo.
+        /// Desconecta del PLC actual, actualiza AMS Net ID/Port, y reconecta.
+        /// </summary>
+        Task<bool> ReconfigureAsync(string newNetId, int newPort, bool useSimulatedPlc);
     }
     
     public class TwinCATService : ITwinCATService, IDisposable
     {
         private readonly ILogger<TwinCATService> _logger;
         private readonly IAuditLogService _auditLog;
-        private readonly AdsConfiguration _config;
+        private AdsConfiguration _config;
         private AdsClient? _adsClient;  // ✅ CLASE CORRECTA de Beckhoff 6.x
         private bool _isConnected;
         private bool _isSimulatedMode = false;  // ⚡ Por defecto FALSE - simulación es opcional
@@ -304,7 +310,7 @@ namespace SW.PC.API.Backend.Services
             }
         }
         
-        private readonly bool _forceSimulatedMode = false; // Forzar modo simulado desde Excel
+        private bool _forceSimulatedMode = false; // Forzar modo simulado desde Excel
         
         public TwinCATService(IConfiguration configuration, ILogger<TwinCATService> logger, IExcelConfigService excelConfig, IProjectContextService projectContext, IAuditLogService auditLog)
         {
@@ -547,6 +553,61 @@ namespace SW.PC.API.Backend.Services
             }
             
             return true;
+        }
+
+        /// <summary>
+        /// Reconfigura la conexión TwinCAT: desconecta del PLC actual, actualiza AMS Net ID/Port, y reconecta.
+        /// Se invoca cuando cambia el proyecto activo para conectar al PLC correcto.
+        /// </summary>
+        public async Task<bool> ReconfigureAsync(string newNetId, int newPort, bool useSimulatedPlc)
+        {
+            var previousNetId = _config.NetId;
+            var previousPort = _config.Port;
+
+            _logger.LogInformation("🔄 TwinCAT ReconfigureAsync: {OldNetId}:{OldPort} → {NewNetId}:{NewPort} (Simulated: {Simulated})",
+                previousNetId, previousPort, newNetId, newPort, useSimulatedPlc);
+
+            // 1. Desconectar del PLC actual (limpia handles, notifications, etc.)
+            await UnregisterAllNotificationsAsync();
+            await DisconnectAsync();
+
+            // 2. Limpiar cache de variables fallidas (nuevo PLC puede tener variables diferentes)
+            _failedVariables.Clear();
+            _consecutiveTimeoutErrors = 0;
+
+            // 3. Actualizar configuración
+            _config.NetId = newNetId;
+            _config.Port = newPort;
+
+            // 4. Actualizar modo simulado
+            _forceSimulatedMode = useSimulatedPlc;
+            _isSimulatedMode = useSimulatedPlc;
+
+            if (useSimulatedPlc)
+            {
+                _logger.LogWarning("🎮 TwinCAT reconfigurado en MODO SIMULADO (UseSimulatedPlc=TRUE)");
+                _isConnected = true;
+
+                await _auditLog.LogAsync(
+                    AuditCategory.Plc,
+                    AuditAction.PlcConnect,
+                    AuditResult.Success,
+                    $"TwinCAT reconfigured: {previousNetId}:{previousPort} → SIMULATED MODE");
+
+                return true;
+            }
+
+            // 5. Reconectar al nuevo PLC
+            _logger.LogInformation("🔌 Reconectando a nuevo PLC: {NetId}:{Port}", newNetId, newPort);
+            var connected = await ConnectAsync();
+
+            await _auditLog.LogAsync(
+                AuditCategory.Plc,
+                connected ? AuditAction.PlcConnect : AuditAction.PlcConnect,
+                connected ? AuditResult.Success : AuditResult.Failure,
+                $"TwinCAT reconfigured: {previousNetId}:{previousPort} → {newNetId}:{newPort} - {(connected ? "Connected" : "Failed")}");
+
+            return connected;
         }
         
         public async Task<PlcDataSnapshot> ReadAllVariablesAsync(List<string> variableNames)

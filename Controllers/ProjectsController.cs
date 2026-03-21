@@ -17,6 +17,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IProjectContextService _globalContext;
         private readonly IRequestProjectContext _requestContext;
         private readonly IExcelConfigService _excelConfigService;
+        private readonly ITwinCATService _twinCATService;
         private readonly IWebHostEnvironment _environment;
         private readonly ILogger<ProjectsController> _logger;
         
@@ -24,12 +25,14 @@ namespace SW.PC.API.Backend.Controllers
             IProjectContextService globalContext,
             IRequestProjectContext requestContext,
             IExcelConfigService excelConfigService,
+            ITwinCATService twinCATService,
             IWebHostEnvironment environment,
             ILogger<ProjectsController> logger)
         {
             _globalContext = globalContext;
             _requestContext = requestContext;
             _excelConfigService = excelConfigService;
+            _twinCATService = twinCATService;
             _environment = environment;
             _logger = logger;
         }
@@ -227,7 +230,7 @@ namespace SW.PC.API.Backend.Controllers
         /// SOLO disponible en Development — en Production devuelve 403.
         /// </summary>
         [HttpPost("{projectId}/activate")]
-        public ActionResult<object> ActivateProject(string projectId)
+        public async Task<ActionResult<object>> ActivateProject(string projectId)
         {
             try
             {
@@ -244,13 +247,50 @@ namespace SW.PC.API.Backend.Controllers
                     return BadRequest(new { error = $"Failed to activate project '{projectId}'. Does it exist?" });
                 }
                 
+                // ⭐ Reconfigurar TwinCAT con el AMS Net ID del nuevo proyecto
+                string plcReconfigResult = "not attempted";
+                try
+                {
+                    var excelPath = _globalContext.ExcelConfigPath;
+                    if (System.IO.File.Exists(excelPath))
+                    {
+                        var systemConfig = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
+                        if (systemConfig != null)
+                        {
+                            var reconfigured = await _twinCATService.ReconfigureAsync(
+                                systemConfig.PlcAmsNetId,
+                                systemConfig.PlcAdsPort,
+                                systemConfig.UseSimulatedPlc);
+                            plcReconfigResult = reconfigured 
+                                ? $"Connected to {systemConfig.PlcAmsNetId}:{systemConfig.PlcAdsPort}" 
+                                : $"Failed to connect to {systemConfig.PlcAmsNetId}:{systemConfig.PlcAdsPort}";
+                            if (systemConfig.UseSimulatedPlc)
+                                plcReconfigResult = "Simulated mode";
+                        }
+                        else
+                        {
+                            plcReconfigResult = "No SystemConfiguration in Excel";
+                        }
+                    }
+                    else
+                    {
+                        plcReconfigResult = $"Excel not found: {excelPath}";
+                    }
+                }
+                catch (Exception plcEx)
+                {
+                    _logger.LogWarning(plcEx, "⚠️ Could not reconfigure TwinCAT for project {ProjectId}", projectId);
+                    plcReconfigResult = $"Error: {plcEx.Message}";
+                }
+                
                 return Ok(new
                 {
                     success = true,
                     previousProject,
                     activeProject = _globalContext.ActiveProjectId,
                     message = $"Project switched from '{previousProject}' to '{projectId}'. active-project.json updated.",
-                    note = "Background services (backup scheduler, etc.) will now use this project."
+                    plcConnection = plcReconfigResult,
+                    note = "TwinCAT connection reconfigured for new project."
                 });
             }
             catch (Exception ex)
@@ -264,7 +304,7 @@ namespace SW.PC.API.Backend.Controllers
         /// Recarga la configuración del proyecto (sin cambiar de proyecto)
         /// </summary>
         [HttpPost("reload")]
-        public ActionResult<object> ReloadProjectContext()
+        public async Task<ActionResult<object>> ReloadProjectContext()
         {
             try
             {
@@ -272,14 +312,46 @@ namespace SW.PC.API.Backend.Controllers
                 _globalContext.ReloadActiveProject();
                 var currentProject = _globalContext.ActiveProjectId;
                 
+                // ⭐ Si el proyecto cambió, reconfigurar TwinCAT
+                string plcReconfigResult = "no change";
+                if (previousProject != currentProject)
+                {
+                    try
+                    {
+                        var excelPath = _globalContext.ExcelConfigPath;
+                        if (System.IO.File.Exists(excelPath))
+                        {
+                            var systemConfig = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
+                            if (systemConfig != null)
+                            {
+                                var reconfigured = await _twinCATService.ReconfigureAsync(
+                                    systemConfig.PlcAmsNetId,
+                                    systemConfig.PlcAdsPort,
+                                    systemConfig.UseSimulatedPlc);
+                                plcReconfigResult = reconfigured 
+                                    ? $"Connected to {systemConfig.PlcAmsNetId}:{systemConfig.PlcAdsPort}" 
+                                    : $"Failed to connect to {systemConfig.PlcAmsNetId}:{systemConfig.PlcAdsPort}";
+                                if (systemConfig.UseSimulatedPlc)
+                                    plcReconfigResult = "Simulated mode";
+                            }
+                        }
+                    }
+                    catch (Exception plcEx)
+                    {
+                        _logger.LogWarning(plcEx, "⚠️ Could not reconfigure TwinCAT after reload");
+                        plcReconfigResult = $"Error: {plcEx.Message}";
+                    }
+                }
+                
                 return Ok(new
                 {
                     success = true,
                     previousProject,
                     currentProject,
                     changed = previousProject != currentProject,
+                    plcConnection = plcReconfigResult,
                     note = currentProject != previousProject 
-                        ? "Project changed - some services may need restart to reload configuration"
+                        ? "Project changed - TwinCAT connection reconfigured"
                         : "Configuration reloaded"
                 });
             }

@@ -44,6 +44,20 @@ if ($SkipBuild) {
     $SkipFrontendBuild = $true
 }
 
+# ============================================
+# MULTI-INSTANCIA: Definicion de servicios
+# ============================================
+# Cada tecnico tiene su propia instancia con puertos consecutivos.
+# Todas las instancias comparten la misma carpeta Projects/ (via ProjectsRootPath).
+$AllInstances = @(
+    @{ Index = 0; Name = "Matteo";    ServiceName = "AquafrischSupervisor";   BackendFolder = "Backend";   HttpPort = 5000; HttpsPort = 5001 }
+    @{ Index = 1; Name = "Alejandro"; ServiceName = "AquafrischSupervisor_1"; BackendFolder = "Backend_1"; HttpPort = 5002; HttpsPort = 5003 }
+    @{ Index = 2; Name = "Miguel";    ServiceName = "AquafrischSupervisor_2"; BackendFolder = "Backend_2"; HttpPort = 5004; HttpsPort = 5005 }
+    @{ Index = 3; Name = "Samuel";    ServiceName = "AquafrischSupervisor_3"; BackendFolder = "Backend_3"; HttpPort = 5006; HttpsPort = 5007 }
+    @{ Index = 4; Name = "Sergio";    ServiceName = "AquafrischSupervisor_4"; BackendFolder = "Backend_4"; HttpPort = 5008; HttpsPort = 5009 }
+    @{ Index = 5; Name = "Dario";     ServiceName = "AquafrischSupervisor_5"; BackendFolder = "Backend_5"; HttpPort = 5010; HttpsPort = 5011 }
+)
+
 # Colores
 function Write-Header { param($text) Write-Host "`n$("="*60)" -ForegroundColor Cyan; Write-Host " $text" -ForegroundColor Cyan; Write-Host "$("="*60)" -ForegroundColor Cyan }
 function Write-Step { param($text) Write-Host "[>] $text" -ForegroundColor Yellow }
@@ -63,6 +77,26 @@ Write-Info "Ruta: $InstallPath"
 Write-Host ""
 Write-Host "  IMPORTANTE: Este script NO toca los proyectos" -ForegroundColor Yellow
 Write-Host "  (Excel, modelos 3D, bases de datos se mantienen)" -ForegroundColor Yellow
+Write-Host ""
+
+# Menu de seleccion de instancias
+Write-Header "SELECCION DE INSTANCIAS"
+Write-Host ""
+Write-Host "  [1] Solo AquafrischSupervisor (Matteo) - modo clasico" -ForegroundColor White
+Write-Host "  [6] TODAS las instancias (6 tecnicos)" -ForegroundColor White
+Write-Host ""
+foreach ($inst in $AllInstances) {
+    Write-Host "      $($inst.Index): $($inst.Name) = $($inst.ServiceName) (HTTP:$($inst.HttpPort) / HTTPS:$($inst.HttpsPort))" -ForegroundColor Gray
+}
+Write-Host ""
+$instanceChoice = Read-Host "  Selecciona [1/6]"
+if ($instanceChoice -eq "6") {
+    $SelectedInstances = $AllInstances
+    Write-Success "Desplegando 6 instancias (todos los tecnicos)"
+} else {
+    $SelectedInstances = @($AllInstances[0])
+    Write-Success "Desplegando 1 instancia (modo clasico)"
+}
 Write-Host ""
 
 # ============================================
@@ -337,14 +371,45 @@ try {
 }
 
 $remoteInstallPath = "${driveLetter}:\Aquafrisch Supervisor"
-$remoteBackendPath = "$remoteInstallPath\Backend"
+
+# ============================================
+# Crear carpeta compartida de Projects (ANTES del loop)
+# ============================================
+$sharedProjectsPath = "$remoteInstallPath\Projects"
+if (-not (Test-Path $sharedProjectsPath)) {
+    # Migracion: si Backend\Projects existe como carpeta real, copiar al compartido
+    $legacyProjectsPath = "$remoteInstallPath\Backend\Projects"
+    if (Test-Path $legacyProjectsPath) {
+        Write-Step "Migrando Projects\ a carpeta compartida..."
+        New-Item -ItemType Directory -Path $sharedProjectsPath -Force | Out-Null
+        Copy-Item -Path "$legacyProjectsPath\*" -Destination $sharedProjectsPath -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Success "Projects migrado a $sharedProjectsPath"
+    } else {
+        New-Item -ItemType Directory -Path $sharedProjectsPath -Force | Out-Null
+        Write-Success "Carpeta Projects\ compartida creada"
+    }
+} else {
+    Write-Info "Carpeta Projects\ compartida ya existe"
+}
+
+# ============================================
+# LOOP MULTI-INSTANCIA (deploy por instancia)
+# ============================================
+foreach ($currentInstance in $SelectedInstances) {
+
+$serviceName = $currentInstance.ServiceName
+$instanceBackendFolder = $currentInstance.BackendFolder
+$httpPort = $currentInstance.HttpPort
+$httpsPort = $currentInstance.HttpsPort
+$remoteBackendPath = "$remoteInstallPath\$instanceBackendFolder"
+
+Write-Header "INSTANCIA: $($currentInstance.Name) ($serviceName)"
+Write-Info "Carpeta: $instanceBackendFolder | HTTP:$httpPort | HTTPS:$httpsPort"
 
 # ============================================
 # PASO 4: Parar el servidor si esta corriendo
 # ============================================
-Write-Header "PASO 4: Parando servidor remoto"
-
-$serviceName = "AquafrischSupervisor"
+Write-Header "PASO 4: Parando servidor remoto ($serviceName)"
 
 # Metodo 1: Parar servicio Windows via sc.exe remoto (usa conexion SMB)
 Write-Step "Parando servicio '$serviceName' via sc.exe remoto..."
@@ -385,9 +450,9 @@ if ($scQuery -match "RUNNING") {
 # Verificar que los archivos estan liberados
 Write-Step "Verificando que los DLLs estan liberados..."
 # Testear hostfxr.dll (DLL nativa que tarda mas en liberarse que la managed DLL)
-$testFile = "${driveLetter}:\Aquafrisch Supervisor\Backend\hostfxr.dll"
+$testFile = "$remoteBackendPath\hostfxr.dll"
 if (-not (Test-Path $testFile)) {
-    $testFile = "${driveLetter}:\Aquafrisch Supervisor\Backend\SW.PC.API.Backend.dll"
+    $testFile = "$remoteBackendPath\SW.PC.API.Backend.dll"
 }
 $retryCount = 0
 $maxRetries = 8
@@ -443,7 +508,6 @@ Write-Header "PASO 5: Creando estructura de carpetas"
 $folders = @(
     $remoteInstallPath,
     $remoteBackendPath,
-    "$remoteBackendPath\Projects",
     "$remoteBackendPath\wwwroot",
     "$remoteInstallPath\SW.PC.Twincat_3"      # Carpeta para repos TwinCAT PLC (tecnicos clonan aqui)
 )
@@ -522,27 +586,53 @@ if (Test-Path $publishPath) {
 }
 
 # ============================================
-# PASO 6.05: Asegurar HTTPS en appsettings.Development.json
+# PASO 6.05: Configurar puertos y ProjectsRootPath en appsettings.Development.json
 # ============================================
-Write-Header "PASO 6.05: Verificando HTTPS en appsettings"
+Write-Header "PASO 6.05: Configurando puertos y rutas ($serviceName)"
 
 $remoteDevSettings = "$remoteBackendPath\appsettings.Development.json"
 if (Test-Path $remoteDevSettings) {
     $devConfig = Get-Content $remoteDevSettings -Raw | ConvertFrom-Json
-    if (-not $devConfig.Kestrel.Endpoints.Https) {
-        Write-Step "Anadiendo endpoint HTTPS a appsettings.Development.json..."
+    Write-Step "Configurando HTTP:$httpPort / HTTPS:$httpsPort..."
+    
+    # Asegurar estructura Kestrel.Endpoints
+    if (-not $devConfig.Kestrel) {
+        $devConfig | Add-Member -NotePropertyName "Kestrel" -NotePropertyValue ([PSCustomObject]@{
+            Endpoints = [PSCustomObject]@{}
+        }) -Force
+    }
+    if (-not $devConfig.Kestrel.Endpoints) {
+        $devConfig.Kestrel | Add-Member -NotePropertyName "Endpoints" -NotePropertyValue ([PSCustomObject]@{}) -Force
+    }
+    
+    # Configurar Http
+    if ($devConfig.Kestrel.Endpoints.Http) {
+        $devConfig.Kestrel.Endpoints.Http.Url = "http://0.0.0.0:$httpPort"
+    } else {
+        $devConfig.Kestrel.Endpoints | Add-Member -NotePropertyName "Http" -NotePropertyValue ([PSCustomObject]@{
+            Url = "http://0.0.0.0:$httpPort"
+        }) -Force
+    }
+    
+    # Configurar Https
+    if ($devConfig.Kestrel.Endpoints.Https) {
+        $devConfig.Kestrel.Endpoints.Https.Url = "https://0.0.0.0:$httpsPort"
+    } else {
         $devConfig.Kestrel.Endpoints | Add-Member -NotePropertyName "Https" -NotePropertyValue ([PSCustomObject]@{
-            Url = "https://0.0.0.0:5001"
+            Url = "https://0.0.0.0:$httpsPort"
             Certificate = [PSCustomObject]@{
                 Path = "certificate.pfx"
                 Password = "Aquafrisch2024!"
             }
-        })
-        $devConfig | ConvertTo-Json -Depth 10 | Set-Content $remoteDevSettings -Encoding UTF8
-        Write-Success "Endpoint HTTPS anadido a appsettings.Development.json"
-    } else {
-        Write-Success "appsettings.Development.json ya tiene HTTPS configurado"
+        }) -Force
     }
+    
+    # Configurar ProjectsRootPath (carpeta compartida)
+    $projectsLocalPath = "$InstallPath\Projects"
+    $devConfig | Add-Member -NotePropertyName "ProjectsRootPath" -NotePropertyValue $projectsLocalPath -Force
+    
+    $devConfig | ConvertTo-Json -Depth 10 | Set-Content $remoteDevSettings -Encoding UTF8
+    Write-Success "Puertos HTTP:$httpPort / HTTPS:$httpsPort + ProjectsRootPath configurados"
 } else {
     Write-Info "appsettings.Development.json no encontrado (se copiara del publish)"
 }
@@ -650,7 +740,7 @@ if (Test-Path $frontendBuildPath) {
 # ============================================
 Write-Header "PASO 8: Verificando proyectos (NO SE TOCAN)"
 
-$remoteProjectsPath = "$remoteBackendPath\Projects"
+$remoteProjectsPath = "$remoteInstallPath\Projects"
 
 if (Test-Path $remoteProjectsPath) {
     $serverProjects = Get-ChildItem -Path $remoteProjectsPath -Directory -ErrorAction SilentlyContinue | 
@@ -715,6 +805,17 @@ Write-Header "PASO 8.2: Generando certificado SSL"
 $certPassword = "Aquafrisch2024!"
 $certRemoteDest = "$remoteBackendPath\certificate.pfx"
 $cerRemoteDest = "$remoteBackendPath\certificate.cer"
+
+# Multi-instancia: copiar cert de instancia principal si esta no lo tiene
+if ($currentInstance.Index -gt 0) {
+    $primaryCert = "$remoteInstallPath\Backend\certificate.pfx"
+    $primaryCer = "$remoteInstallPath\Backend\certificate.cer"
+    if (Test-Path $primaryCert) {
+        Copy-Item -Path $primaryCert -Destination $certRemoteDest -Force
+        if (Test-Path $primaryCer) { Copy-Item -Path $primaryCer -Destination $cerRemoteDest -Force }
+        Write-Success "Certificado SSL copiado de instancia principal"
+    }
+}
 
 # Verificar si el certificado existente tiene los SANs correctos (IP Address, no solo DNS Name)
 $needsRegeneration = $false
@@ -857,24 +958,25 @@ if ($needsRegeneration) {
 # ============================================
 # PASO 8.3: Configurar Firewall (HTTPS)
 # ============================================
-Write-Header "PASO 8.3: Configurando Firewall"
+Write-Header "PASO 8.3: Configurando Firewall ($serviceName)"
 
-Write-Info "Configurando regla de firewall para HTTPS:5001..."
-Write-Info "HTTP:5000 es accesible en Development pero HTTPS es el acceso principal"
+$fwNameHttps = "$serviceName HTTPS"
+$fwNameHttp = "$serviceName HTTP"
+Write-Info "Configurando reglas: $fwNameHttps (puerto $httpsPort) + $fwNameHttp (puerto $httpPort)"
 
 # Usar netsh remoto (no requiere WinRM/TrustedHosts)
 try {
-    # Eliminar reglas antiguas
-    netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall delete rule name="Aquafrisch Supervisor HTTPS" 2>$null | Out-Null
-    netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall delete rule name="Aquafrisch Supervisor HTTP" 2>$null | Out-Null
+    # Eliminar reglas antiguas de esta instancia
+    netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall delete rule name="$fwNameHttps" 2>$null | Out-Null
+    netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall delete rule name="$fwNameHttp" 2>$null | Out-Null
     
-    # Crear regla HTTPS (acceso principal)
-    $netshHttps = netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall add rule name="Aquafrisch Supervisor HTTPS" dir=in action=allow protocol=TCP localport=5001 profile=any 2>&1
-    # Crear regla HTTP (desarrollo)
-    $netshHttp = netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall add rule name="Aquafrisch Supervisor HTTP" dir=in action=allow protocol=TCP localport=5000 profile=any 2>&1
+    # Crear regla HTTPS
+    $netshHttps = netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall add rule name="$fwNameHttps" dir=in action=allow protocol=TCP localport=$httpsPort profile=any 2>&1
+    # Crear regla HTTP
+    $netshHttp = netsh -r $TargetIP -u $TargetUser -p $TargetPassword advfirewall firewall add rule name="$fwNameHttp" dir=in action=allow protocol=TCP localport=$httpPort profile=any 2>&1
     
     if ($netshHttps -match "Correcto|Ok") {
-        Write-Success "Reglas de firewall configuradas: HTTPS:5001 + HTTP:5000"
+        Write-Success "Firewall: $fwNameHttps :$httpsPort + $fwNameHttp :$httpPort"
     } else {
         Write-Warning "netsh resultado: $netshHttps"
         Write-Info "Verificar firewall manualmente en el servidor"
@@ -883,18 +985,18 @@ try {
 catch {
     Write-Warning "No se pudieron configurar las reglas de firewall automaticamente."
     Write-Info "Ejecuta manualmente en el servidor (como Admin):"
-    Write-Host "  netsh advfirewall firewall add rule name=`"Aquafrisch Supervisor HTTPS`" dir=in action=allow protocol=TCP localport=5001" -ForegroundColor Yellow
-    Write-Host "  netsh advfirewall firewall add rule name=`"Aquafrisch Supervisor HTTP`" dir=in action=allow protocol=TCP localport=5000" -ForegroundColor Yellow
+    Write-Host "  netsh advfirewall firewall add rule name=`"$fwNameHttps`" dir=in action=allow protocol=TCP localport=$httpsPort" -ForegroundColor Yellow
+    Write-Host "  netsh advfirewall firewall add rule name=`"$fwNameHttp`" dir=in action=allow protocol=TCP localport=$httpPort" -ForegroundColor Yellow
 }
 
 # ============================================
 # PASO 9: Registrar como Servicio de Windows
 # ============================================
-Write-Header "PASO 9: Registrando Servicio de Windows"
+Write-Header "PASO 9: Registrando Servicio de Windows ($serviceName)"
 
-$serviceDisplayName = "Aquafrisch Supervisor"
-$serviceDescription = "Aquafrisch Supervisor - SCADA/HMI Backend (Development Mode)"
-$serviceExePath = "$InstallPath\Backend\SW.PC.API.Backend.exe"
+$serviceDisplayName = "Aquafrisch Supervisor ($($currentInstance.Name))"
+$serviceDescription = "Aquafrisch Supervisor - $($currentInstance.Name) - SCADA/HMI Backend (Development Mode)"
+$serviceExePath = "$InstallPath\$instanceBackendFolder\SW.PC.API.Backend.exe"
 # --environment Development se pasa por linea de comandos al exe
 # Esto configura ASPNETCORE_ENVIRONMENT=Development sin tocar variables de entorno del servidor
 $serviceBinPath = "`"$serviceExePath`" --environment Development"
@@ -949,21 +1051,8 @@ cmd.exe /c "sc.exe \\$TargetIP description $serviceName `"$serviceDescription`""
 sc.exe \\$TargetIP failure $serviceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 2>$null | Out-Null
 Write-Success "Recovery configurado (reinicio automatico en caso de fallo)"
 
-# Arrancar el servicio
-Write-Step "Arrancando servicio..."
-$startResult = sc.exe \\$TargetIP start $serviceName 2>&1
-if ($startResult -match "START_PENDING|RUNNING") {
-    Start-Sleep -Seconds 3
-    # Verificar que arranco
-    $scStatus = sc.exe \\$TargetIP query $serviceName 2>&1
-    if ($scStatus -match "RUNNING") {
-        Write-Success "Servicio '$serviceName' CORRIENDO en $TargetIP"
-    } else {
-        Write-Error2 "El servicio no arranco correctamente. Revisa los logs en el servidor."
-    }
-} else {
-    Write-Error2 "Error arrancando servicio: $startResult"
-}
+# Arrancar el servicio se hace al final del deploy (evita conflictos con taskkill)
+Write-Info "Servicio '$serviceName' registrado (se arrancara al final del deploy)"
 
 # Copiar .bat legacy por si se necesita modo consola (debugging)
 $startBatSource = Join-Path $ScriptPath "Installers\Start-ServidorEmpresa.bat"
@@ -971,6 +1060,29 @@ $startBatDest = Join-Path $remoteBackendPath "Start-ServidorEmpresa.bat"
 if (Test-Path $startBatSource) {
     Copy-Item -Path $startBatSource -Destination $startBatDest -Force
     Write-Info "Start-ServidorEmpresa.bat copiado (modo consola para debugging)"
+}
+
+} # ══════ Fin del loop MULTI-INSTANCIA ══════
+
+# ============================================
+# Arrancar TODOS los servicios
+# ============================================
+Write-Header "ARRANCANDO SERVICIOS"
+
+foreach ($inst in $SelectedInstances) {
+    Write-Step "Arrancando $($inst.ServiceName)..."
+    $startResult = sc.exe \\$TargetIP start $inst.ServiceName 2>&1
+    if ($startResult -match "START_PENDING|RUNNING") {
+        Start-Sleep -Seconds 3
+        $scStatus = sc.exe \\$TargetIP query $inst.ServiceName 2>&1
+        if ($scStatus -match "RUNNING") {
+            Write-Success "$($inst.ServiceName) CORRIENDO (HTTPS: https://${TargetIP}:$($inst.HttpsPort))"
+        } else {
+            Write-Error2 "$($inst.ServiceName) no arranco correctamente"
+        }
+    } else {
+        Write-Error2 "Error arrancando $($inst.ServiceName): $startResult"
+    }
 }
 
 # ============================================
@@ -998,46 +1110,34 @@ Write-Host "  SERVIDOR EMPRESA ACTUALIZADO" -ForegroundColor Green
 Write-Host "  =============================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Destino:       $TargetIP" -ForegroundColor White
-Write-Host "  Ruta:          $InstallPath\Backend" -ForegroundColor White
 Write-Host "  Modo:          DEVELOPMENT (selector habilitado)" -ForegroundColor Cyan
-Write-Host "  Servicio:      $serviceName (Windows Service, auto-start)" -ForegroundColor Cyan
+Write-Host "  Projects:      $InstallPath\Projects (compartido)" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  COPIADO:" -ForegroundColor Green
-Write-Host "     - Backend (ejecutables, DLLs)" -ForegroundColor White
-Write-Host "     - Frontend (interfaz web)" -ForegroundColor White
+Write-Host "  INSTANCIAS DESPLEGADAS:" -ForegroundColor Green
+foreach ($inst in $SelectedInstances) {
+    Write-Host "     $($inst.Name): $($inst.ServiceName) | $($inst.BackendFolder) | HTTP:$($inst.HttpPort) HTTPS:$($inst.HttpsPort)" -ForegroundColor White
+}
 Write-Host ""
 Write-Host "  NO TOCADO (los ingenieros lo gestionan):" -ForegroundColor Yellow
-Write-Host "     - Projects/ (Excel, modelos 3D, bases de datos)" -ForegroundColor White
+Write-Host "     - Projects/ (Excel, modelos 3D, bases de datos) - COMPARTIDO" -ForegroundColor White
 Write-Host ""
-Write-Host "  SERVICIO DE WINDOWS:" -ForegroundColor Yellow
-Write-Host "     Nombre:     $serviceName" -ForegroundColor White
-Write-Host "     Auto-start: SI (arranca con Windows)" -ForegroundColor White
-Write-Host "     Recovery:   Reinicio automatico en caso de fallo" -ForegroundColor White
-Write-Host "     Entorno:    Development (via --environment)" -ForegroundColor White
+Write-Host "  SERVICIOS DE WINDOWS:" -ForegroundColor Yellow
+foreach ($inst in $SelectedInstances) {
+    $scCheck = sc.exe \\$TargetIP query $inst.ServiceName 2>&1
+    $status = if ($scCheck -match "RUNNING") { "CORRIENDO" } elseif ($scCheck -match "STOPPED") { "PARADO" } else { "?" }
+    $statusColor = if ($status -eq "CORRIENDO") { "Green" } else { "Red" }
+    Write-Host "     $($inst.ServiceName): $status (HTTPS: https://${TargetIP}:$($inst.HttpsPort))" -ForegroundColor $statusColor
+}
 Write-Host ""
 Write-Host "  COMANDOS DESDE TU PC (remoto):" -ForegroundColor Yellow
-Write-Host "     sc.exe \\$TargetIP query $serviceName     - Ver estado" -ForegroundColor Gray
-Write-Host "     sc.exe \\$TargetIP stop $serviceName      - Parar" -ForegroundColor Gray
-Write-Host "     sc.exe \\$TargetIP start $serviceName     - Arrancar" -ForegroundColor Gray
+foreach ($inst in $SelectedInstances) {
+    Write-Host "     sc.exe \\$TargetIP query $($inst.ServiceName)" -ForegroundColor Gray
+}
 Write-Host ""
 Write-Host "  CERTIFICADO HTTPS:" -ForegroundColor Yellow
 Write-Host "     Certificado SSL autofirmado con IP SAN" -ForegroundColor White
-Write-Host "     Instalador para PCs: https://${TargetIP}:5001/api/certificate/install-script" -ForegroundColor White
+Write-Host "     Instalador: https://${TargetIP}:5001/api/certificate/install-script" -ForegroundColor White
 Write-Host ""
-Write-Host "  URLs DE ACCESO:" -ForegroundColor Yellow
-Write-Host "     HTTPS: https://${TargetIP}:5001  (acceso principal)" -ForegroundColor Green
-Write-Host "     HTTP:  http://${TargetIP}:5000   (desarrollo)" -ForegroundColor White
-Write-Host ""
-
-# Verificar estado final del servicio
-$scFinal = sc.exe \\$TargetIP query $serviceName 2>&1
-if ($scFinal -match "RUNNING") {
-    Write-Success "Servicio CORRIENDO en $TargetIP - Deploy exitoso!"
-} elseif ($scFinal -match "STOPPED") {
-    Write-Error2 "Servicio instalado pero PARADO. Revisa los logs del servidor."
-} else {
-    Write-Error2 "No se pudo verificar el servicio. Verifica conectividad."
-}
 
 Write-Host ""
 Read-Host "Presiona Enter para cerrar"

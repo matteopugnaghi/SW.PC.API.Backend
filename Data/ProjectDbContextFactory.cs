@@ -54,7 +54,8 @@ public class ProjectDbContextFactory : IProjectDbContextFactory
         IServiceProvider serviceProvider,
         IProjectContextService globalContext,
         IWebHostEnvironment environment,
-        ILogger<ProjectDbContextFactory> logger)
+        ILogger<ProjectDbContextFactory> logger,
+        IConfiguration? configuration = null)
     {
         _serviceProvider = serviceProvider;
         _globalContext = globalContext;
@@ -62,7 +63,8 @@ public class ProjectDbContextFactory : IProjectDbContextFactory
         _logger = logger;
         
         _legacyDbPath = Path.Combine(environment.ContentRootPath, "Data", "Aquafrisch.db");
-        _projectsRootPath = Path.Combine(environment.ContentRootPath, "Projects");
+        var customProjectsPath = configuration?.GetValue<string>("ProjectsRootPath");
+        _projectsRootPath = !string.IsNullOrEmpty(customProjectsPath) ? customProjectsPath : Path.Combine(environment.ContentRootPath, "Projects");
     }
 
     /// <summary>

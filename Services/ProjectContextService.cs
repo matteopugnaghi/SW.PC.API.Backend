@@ -91,6 +91,13 @@ namespace SW.PC.API.Backend.Services
         /// Solo debe usarse en Development.
         /// </summary>
         bool SetActiveProject(string projectId);
+
+        /// <summary>
+        /// Evento disparado cuando el proyecto activo cambia.
+        /// Los servicios Singleton deben suscribirse para recargar su configuración.
+        /// El parámetro es el nuevo projectId.
+        /// </summary>
+        event Action<string>? OnProjectChanged;
     }
     
     /// <summary>
@@ -116,6 +123,9 @@ namespace SW.PC.API.Backend.Services
         private readonly string _contentRootPath;
         private readonly string _projectsRootPath;
         private readonly string _activeProjectFilePath;
+
+        /// <inheritdoc />
+        public event Action<string>? OnProjectChanged;
         
         private string _activeProjectId = "default";
         private bool _isMultiProjectMode = false;
@@ -128,13 +138,15 @@ namespace SW.PC.API.Backend.Services
         public ProjectContextService(
             IWebHostEnvironment environment,
             ILogger<ProjectContextService> logger,
-            IServiceProvider serviceProvider)
+            IServiceProvider serviceProvider,
+            IConfiguration? configuration = null)
         {
             _environment = environment;
             _logger = logger;
             _serviceProvider = serviceProvider;
             _contentRootPath = environment.ContentRootPath;
-            _projectsRootPath = Path.Combine(_contentRootPath, "Projects");
+            var customProjectsPath = configuration?.GetValue<string>("ProjectsRootPath");
+            _projectsRootPath = !string.IsNullOrEmpty(customProjectsPath) ? customProjectsPath : Path.Combine(_contentRootPath, "Projects");
             _activeProjectFilePath = Path.Combine(_contentRootPath, "active-project.json");
             
             // Rutas legacy
@@ -400,6 +412,17 @@ Copiar el archivo ProjectConfig.xlsm a la carpeta config/ y configurar según ne
                     _logger.LogWarning(redetectEx, "Could not re-detect TwinCAT paths after project change");
                 }
 
+                // 🔄 Notificar a todos los servicios Singleton del cambio de proyecto
+                try
+                {
+                    _logger.LogInformation("🔄 Disparando OnProjectChanged para proyecto: {ProjectId}", projectId);
+                    OnProjectChanged?.Invoke(projectId);
+                }
+                catch (Exception eventEx)
+                {
+                    _logger.LogWarning(eventEx, "⚠️ Error en handler de OnProjectChanged");
+                }
+
                 return true;
             }
             catch (Exception ex)
@@ -413,6 +436,26 @@ Copiar el archivo ProjectConfig.xlsm a la carpeta config/ y configurar según ne
         {
             try
             {
+                // 🔧 PRIORIDAD 1: Variable de entorno (para multi-instancia en servidor empresa)
+                var envProject = Environment.GetEnvironmentVariable("SUPERVISOR_PROJECT");
+                if (!string.IsNullOrWhiteSpace(envProject))
+                {
+                    _activeProjectId = envProject;
+                    var projectPath = Path.Combine(_projectsRootPath, _activeProjectId);
+                    _isMultiProjectMode = _activeProjectId != "default" && Directory.Exists(projectPath);
+                    
+                    _logger.LogInformation("📁 Active project from SUPERVISOR_PROJECT env: {ProjectId} (mode: {Mode})", 
+                        _activeProjectId, _isMultiProjectMode ? "Multi-Project" : "Legacy");
+                    if (_isMultiProjectMode)
+                    {
+                        _logger.LogInformation("   Config: {Path}", ConfigPath);
+                        _logger.LogInformation("   Models: {Path}", ModelsPath);
+                        _logger.LogInformation("   Data: {Path}", DataPath);
+                    }
+                    return;
+                }
+
+                // PRIORIDAD 2: active-project.json
                 if (!File.Exists(_activeProjectFilePath))
                 {
                     _logger.LogInformation("📁 active-project.json not found, using default (legacy mode)");

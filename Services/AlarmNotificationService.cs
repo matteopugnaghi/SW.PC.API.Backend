@@ -47,6 +47,7 @@ namespace SW.PC.API.Backend.Services
             IHubContext<ScadaHub> hubContext,
             IServiceProvider serviceProvider,
             IMetricsService metricsService,
+            IProjectContextService projectContext,
             IOptions<AlarmNotificationConfiguration> config,
             ILogger<AlarmNotificationService> logger)
         {
@@ -56,6 +57,47 @@ namespace SW.PC.API.Backend.Services
             _metricsService = metricsService;
             _logger = logger;
             _config = config.Value;
+
+            // 🔄 Suscribirse a cambios de proyecto para re-registrar notificaciones
+            projectContext.OnProjectChanged += OnProjectChanged;
+        }
+
+        /// <summary>
+        /// 🔄 Maneja el cambio de proyecto: recarga variables de alarma y re-registra notificaciones.
+        /// </summary>
+        private void OnProjectChanged(string newProjectId)
+        {
+            _logger.LogInformation("🔄 AlarmNotificationService: Proyecto cambiado a {ProjectId} - recargando alarmas...", newProjectId);
+
+            try
+            {
+                // 1. Desregistrar notificaciones del PLC anterior
+                if (_notificationsRegistered)
+                {
+                    _twinCATService.UnregisterAllNotificationsAsync().GetAwaiter().GetResult();
+                    _notificationHandles.Clear();
+                    _notificationsRegistered = false;
+                }
+
+                // 2. Limpiar estados de alarma anteriores
+                _alarmStates.Clear();
+
+                // 3. Recargar variables de alarma del nuevo Excel
+                LoadAlarmVariablesFromExcelAsync().GetAwaiter().GetResult();
+
+                // 4. Re-registrar notificaciones si hay variables y el PLC está conectado
+                if (_alarmVariables.Count > 0 && _twinCATService.IsConnected)
+                {
+                    RegisterAlarmNotificationsAsync().GetAwaiter().GetResult();
+                }
+
+                _logger.LogInformation("✅ AlarmNotificationService: Alarmas recargadas para proyecto {ProjectId}: {Count} variables",
+                    newProjectId, _alarmVariables.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ AlarmNotificationService: Error recargando alarmas para proyecto {ProjectId}", newProjectId);
+            }
         }
         
         /// <summary>

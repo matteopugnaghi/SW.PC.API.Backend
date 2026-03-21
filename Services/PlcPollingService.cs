@@ -205,6 +205,7 @@ namespace SW.PC.API.Backend.Services
             IHubContext<ScadaHub> hubContext,
             IServiceProvider serviceProvider,
             IMetricsService metricsService,
+            IProjectContextService projectContext,
             IOptions<PlcPollingConfiguration> config,
             ILogger<PlcPollingService> logger)
         {
@@ -218,6 +219,72 @@ namespace SW.PC.API.Backend.Services
             _monitoredVariables = new List<string>();
             _activeVariables = new List<string>();
             _lastTaskCycleTimeUpdate = DateTime.MinValue;
+
+            // 🔄 Suscribirse a cambios de proyecto para recargar variables
+            projectContext.OnProjectChanged += OnProjectChanged;
+        }
+
+        /// <summary>
+        /// 🔄 Maneja el cambio de proyecto: recarga variables desde el nuevo Excel.
+        /// </summary>
+        private void OnProjectChanged(string newProjectId)
+        {
+            _logger.LogInformation("🔄 PlcPollingService: Proyecto cambiado a {ProjectId} - recargando variables...", newProjectId);
+
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var excelConfigService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
+
+                // Recargar variables del nuevo Excel
+                var newVariables = excelConfigService.GetMonitoredVariableNamesAsync(_config.ExcelFileName)
+                    .GetAwaiter().GetResult();
+
+                // Recargar mappings de vistas
+                var newViewMappings = excelConfigService.LoadVariableViewsAsync(_config.ExcelFileName)
+                    .GetAwaiter().GetResult();
+
+                // Limpiar estados anteriores
+                _variableStates.Clear();
+
+                // Actualizar variables
+                _monitoredVariables = newVariables;
+                _variableViewMappings = newViewMappings;
+                _viewFilteringEnabled = newViewMappings.Count > 0;
+
+                // Reinicializar estados
+                foreach (var varName in _monitoredVariables)
+                {
+                    _variableStates[varName] = new PlcVariableState
+                    {
+                        Name = varName,
+                        LastValue = null,
+                        LastUpdate = DateTime.Now
+                    };
+                }
+
+                // Recalcular variables activas según vista actual
+                if (_viewFilteringEnabled)
+                {
+                    RecalculateActiveVariables();
+                }
+                else
+                {
+                    _activeVariables = _monitoredVariables.ToList();
+                }
+
+                _logger.LogInformation("✅ PlcPollingService: Variables recargadas para proyecto {ProjectId}: {Count} variables ({Active} activas)",
+                    newProjectId, _monitoredVariables.Count, _activeVariables.Count);
+
+                var simStatus = _twinCATService.IsSimulated ? " (SIMULADO)" : "";
+                _metricsService.SetPlcPollingStatus(true, true,
+                    $"OK - {_activeVariables.Count}/{_monitoredVariables.Count} variables (proyecto: {newProjectId}){simStatus}",
+                    _twinCATService.IsSimulated);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ PlcPollingService: Error recargando variables para proyecto {ProjectId}", newProjectId);
+            }
         }
 
         /// <summary>
