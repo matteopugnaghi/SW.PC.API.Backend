@@ -967,6 +967,49 @@ if (-not $testFile) {
     }
 }
 
+# --- Fase 4: Verificar que los puertos 5000/5001 estan libres ---
+Write-Step "Verificando que los puertos 5000/5001 estan libres..."
+try {
+    $portCheck = Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+        $output = @()
+        $ports = @(5000, 5001)
+        foreach ($port in $ports) {
+            $conn = netstat -ano | Select-String ":$port " | Select-String "LISTENING"
+            if ($conn) {
+                # Extraer PID del proceso que ocupa el puerto
+                $pidMatch = $conn -match '\s+(\d+)\s*$'
+                if ($pidMatch) {
+                    $pid = ($Matches[1])
+                    $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+                    $procName = if ($proc) { $proc.ProcessName } else { "desconocido" }
+                    $output += "OCUPADO:Puerto $port ocupado por $procName (PID: $pid)"
+                    # Matar si es nuestro proceso zombie
+                    if ($procName -eq "SW.PC.API.Backend") {
+                        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+                        $output += "KILLED:Proceso zombie $procName (PID: $pid) eliminado"
+                    }
+                }
+            } else {
+                $output += "LIBRE:Puerto $port libre"
+            }
+        }
+        return $output
+    } -ErrorAction Stop
+
+    foreach ($line in $portCheck) {
+        if ($line -match '^KILLED:(.+)$') {
+            Write-Warning $Matches[1]
+            Start-Sleep -Seconds 3  # Esperar a que se libere el puerto
+        } elseif ($line -match '^OCUPADO:(.+)$') {
+            Write-Warning $Matches[1]
+        } elseif ($line -match '^LIBRE:(.+)$') {
+            Write-Success $Matches[1]
+        }
+    }
+} catch {
+    Write-Info "No se pudo verificar puertos via WinRM (se verificara antes de arrancar)"
+}
+
 Write-Success "Servidor remoto preparado para despliegue"
 
 # ============================================
@@ -2241,11 +2284,80 @@ cmd.exe /c "sc.exe \\$TargetIP description $serviceName `"$serviceDescription`""
 sc.exe \\$TargetIP failure $serviceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 2>$null | Out-Null
 Write-Success "Recovery configurado (reinicio automatico en caso de fallo)"
 
+# --- Pre-arranque: Matar zombies y verificar puertos libres ---
+Write-Step "Verificando puertos libres antes de arrancar..."
+try {
+    $preStartCheck = Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+        $output = @()
+        
+        # Matar cualquier proceso zombie de SW.PC.API.Backend
+        $zombies = Get-Process -Name "SW.PC.API.Backend" -ErrorAction SilentlyContinue
+        if ($zombies) {
+            $zombies | Stop-Process -Force
+            $output += "ZOMBIE:Procesos zombie eliminados (PID: $($zombies.Id -join ', '))"
+            Start-Sleep -Seconds 3
+        }
+        
+        # Verificar puertos 5000 y 5001
+        $maxWait = 10
+        $attempt = 0
+        do {
+            $busy = $false
+            foreach ($port in @(5000, 5001)) {
+                $conn = netstat -ano | Select-String ":$port\s" | Select-String "LISTENING"
+                if ($conn) {
+                    $busy = $true
+                    # Intentar matar el proceso que ocupa el puerto
+                    if ($conn -match '\s+(\d+)\s*$') {
+                        $pid = [int]$Matches[1]
+                        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+                        $output += "KILL:Puerto $port ocupado - matando PID $pid"
+                    }
+                }
+            }
+            if ($busy) {
+                $attempt++
+                Start-Sleep -Seconds 2
+            }
+        } while ($busy -and $attempt -lt $maxWait)
+        
+        if ($busy) {
+            $output += "ERROR:Puertos siguen ocupados tras $maxWait intentos"
+        } else {
+            $output += "OK:Puertos 5000/5001 libres"
+        }
+        
+        return $output
+    } -ErrorAction Stop
+    
+    $portsOk = $true
+    foreach ($line in $preStartCheck) {
+        if ($line -match '^ZOMBIE:(.+)$') {
+            Write-Warning $Matches[1]
+        } elseif ($line -match '^KILL:(.+)$') {
+            Write-Warning $Matches[1]
+        } elseif ($line -match '^ERROR:(.+)$') {
+            Write-Error2 $Matches[1]
+            $portsOk = $false
+        } elseif ($line -match '^OK:(.+)$') {
+            Write-Success $Matches[1]
+        }
+    }
+    
+    if (-not $portsOk) {
+        Write-Error2 "No se puede arrancar: puertos ocupados. Revisa manualmente en el servidor."
+        Write-Host "  netstat -ano | findstr :5000" -ForegroundColor Yellow
+        Write-Host "  netstat -ano | findstr :5001" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Info "No se pudo verificar puertos via WinRM, continuando..."
+}
+
 # Arrancar el servicio
 Write-Step "Arrancando servicio..."
 $startResult = sc.exe \\$TargetIP start $serviceName 2>&1
 if ($startResult -match "START_PENDING|RUNNING") {
-    Start-Sleep -Seconds 3
+    Start-Sleep -Seconds 5
     # Verificar que arranco
     $scStatus = sc.exe \\$TargetIP query $serviceName 2>&1
     if ($scStatus -match "RUNNING") {
@@ -2255,6 +2367,42 @@ if ($startResult -match "START_PENDING|RUNNING") {
     }
 } else {
     Write-Error2 "Error arrancando servicio: $startResult"
+}
+
+# --- Post-arranque: Health check via HTTP ---
+Write-Step "Verificando que la API responde (health check)..."
+$healthOk = $false
+for ($hcAttempt = 1; $hcAttempt -le 5; $hcAttempt++) {
+    Start-Sleep -Seconds 3
+    try {
+        $hcResult = Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+            try {
+                $response = Invoke-WebRequest -Uri "http://127.0.0.1:5000/api/projects/active" -UseBasicParsing -TimeoutSec 5
+                return "OK:$($response.Content)"
+            } catch {
+                return "FAIL:$($_.Exception.Message)"
+            }
+        } -ErrorAction Stop
+        
+        if ($hcResult -match '^OK:(.+)$') {
+            $apiResponse = $Matches[1] | ConvertFrom-Json
+            Write-Success "API respondiendo - Proyecto: $($apiResponse.projectId) (modo: $($apiResponse.environmentMode))"
+            if ($apiResponse.projectId -eq "default" -and $ProjectId -ne "default") {
+                Write-Warning "El proyecto activo es 'default' pero se esperaba '$ProjectId'"
+                Write-Warning "Verifica active-project.json y la carpeta Projects\$ProjectId"
+            }
+            $healthOk = $true
+            break
+        } else {
+            Write-Info "Health check intento $hcAttempt/5: API no responde aun..."
+        }
+    } catch {
+        Write-Info "Health check intento $hcAttempt/5: WinRM no disponible"
+    }
+}
+if (-not $healthOk) {
+    Write-Warning "La API no respondio tras 5 intentos. Verifica manualmente:"
+    Write-Host "  Invoke-WebRequest http://127.0.0.1:5000/api/projects/active" -ForegroundColor Yellow
 }
 
 # ============================================
