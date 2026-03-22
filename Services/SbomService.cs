@@ -63,7 +63,6 @@ public class SbomService : ISbomService
         ["BCrypt.Net-Next"]                         = ("MIT", null, "https://github.com/BcryptNet/bcrypt.net/blob/main/licence.txt", false),
         ["Beckhoff.TwinCAT.Ads"]                    = ("LicenseRef-Beckhoff", "Beckhoff Proprietary License", "https://download.beckhoff.com/download/Document/automation/twincat3/TwinCAT3LicenseTerms.pdf", true),
         ["ClosedXML"]                               = ("MIT", null, "https://github.com/ClosedXML/ClosedXML/blob/develop/LICENSE", false),
-        ["QuestPDF"]                                = ("LicenseRef-QuestPDF-Community", "QuestPDF Community License (free <$1M revenue)", "https://www.questpdf.com/license/", true),
         ["Microsoft.AspNetCore.SignalR"]             = ("Apache-2.0", null, "https://licenses.nuget.org/Apache-2.0", false),
         ["DocumentFormat.OpenXml"]                  = ("MIT", null, null, false),
     };

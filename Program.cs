@@ -8,9 +8,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
-// QuestPDF — licencia Community (requerida antes de cualquier uso)
-QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
-
 // Cuando se ejecuta como servicio de Windows, el working directory es System32.
 // Solo forzar ContentRoot si no estamos en desarrollo (dotnet run ya lo gestiona).
 string? serviceContentRoot = null;
@@ -228,8 +225,7 @@ builder.Services.AddScoped<IBackupService, BackupService>(); // 💾 Servicio de
 
 // 📄 DMS: Sistema de Gestión Documental (EU CRA - Trazabilidad documental)
 // ═══════════════════════════════════════════════════════════════════════════════
-builder.Services.AddSingleton<IDocumentExportService, DocumentExportService>(); // 📄 Exportación MD→PDF/DOCX
-builder.Services.AddScoped<IDocumentService, DocumentService>(); // 📄 Servicio de gestión documental
+builder.Services.AddScoped<IDocumentService, DocumentService>(); // 📄 Servicio de gestión documental (solo lectura)
 
 // Register HttpClient for Vulnerability Scanner
 builder.Services.AddHttpClient("VulnerabilityScanner", client =>
