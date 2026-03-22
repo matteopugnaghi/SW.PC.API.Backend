@@ -586,6 +586,20 @@ if (Test-Path $publishPath) {
 }
 
 # ============================================
+# PASO 6.04: Eliminar carpeta Projects\ interna (residuo del publish)
+# ============================================
+# En empresa, los proyectos viven en la carpeta COMPARTIDA (Aquafrisch Supervisor\Projects\).
+# La carpeta interna Backend_N\Projects\ viene del publish y solo contiene _template/.
+# La eliminamos para evitar confusion — el codigo ya usa ProjectsRootPath.
+$internalProjectsPath = "$remoteBackendPath\Projects"
+if (Test-Path $internalProjectsPath) {
+    Remove-Item -Path $internalProjectsPath -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Success "Eliminada carpeta Projects\ interna de $instanceBackendFolder (se usa la compartida)"
+} else {
+    Write-Info "No existe Projects\ interna en $instanceBackendFolder (OK)"
+}
+
+# ============================================
 # PASO 6.05: Configurar puertos y ProjectsRootPath en appsettings.Development.json
 # ============================================
 Write-Header "PASO 6.05: Configurando puertos y rutas ($serviceName)"
