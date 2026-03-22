@@ -135,6 +135,12 @@ namespace SW.PC.API.Backend.Models
         
         /// <summary>Número de archivos TwinCAT</summary>
         public int TwinCatFilesCount { get; set; }
+        
+        /// <summary>Incluye documentación DMS</summary>
+        public bool HasDocs { get; set; }
+        
+        /// <summary>Número de archivos de documentación</summary>
+        public int DocsFilesCount { get; set; }
     }
 
     /// <summary>
@@ -288,6 +294,9 @@ namespace SW.PC.API.Backend.Models
         /// <summary>Incluir repositorio TwinCAT PLC</summary>
         public bool IncludeTwinCAT { get; set; } = true;
         
+        /// <summary>Incluir documentación DMS</summary>
+        public bool IncludeDocs { get; set; } = true;
+        
         /// <summary>Tipo de backup (Manual, Scheduled, PreUpdate, PreRestore). Default: Manual</summary>
         public BackupType Type { get; set; } = BackupType.Manual;
     }
@@ -314,6 +323,9 @@ namespace SW.PC.API.Backend.Models
         
         /// <summary>Restaurar repositorio TwinCAT PLC</summary>
         public bool RestoreTwinCAT { get; set; } = true;
+        
+        /// <summary>Restaurar documentación DMS</summary>
+        public bool RestoreDocs { get; set; } = true;
     }
 
     /// <summary>

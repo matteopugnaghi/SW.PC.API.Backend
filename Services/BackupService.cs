@@ -517,6 +517,36 @@ namespace SW.PC.API.Backend.Services
                         }
                     }
                     
+                    // Agregar documentación DMS
+                    if (request.IncludeDocs)
+                    {
+                        var docsPath = projectPaths.DocsPath;
+                        if (Directory.Exists(docsPath))
+                        {
+                            var docsFiles = Directory.GetFiles(docsPath, "*.*", SearchOption.AllDirectories);
+                            foreach (var docFile in docsFiles)
+                            {
+                                var relativePath = Path.Combine("docs", Path.GetRelativePath(docsPath, docFile)).Replace('\\', '/');
+                                await AddFileToZipAsync(zipArchive, docFile, relativePath);
+                                
+                                manifest.Files.Add(new BackupFileEntry
+                                {
+                                    RelativePath = relativePath,
+                                    Hash = await ComputeFileHashAsync(docFile),
+                                    SizeBytes = new FileInfo(docFile).Length,
+                                    ModifiedAt = File.GetLastWriteTimeUtc(docFile)
+                                });
+                            }
+                            
+                            if (docsFiles.Length > 0)
+                            {
+                                backupInfo.Contents.HasDocs = true;
+                                backupInfo.Contents.DocsFilesCount = docsFiles.Length;
+                                _logger.LogInformation("✅ Documentación DMS incluida en backup ({Count} archivos)", docsFiles.Length);
+                            }
+                        }
+                    }
+                    
                     // Agregar NxLog JSONL Logs (SOC PIVOT TISSEO - TLS_M3_ALS_EXI_CYB_SYS_00514)
                     var logsPath = projectPaths.LogsPath;
                     if (Directory.Exists(logsPath))
@@ -681,6 +711,7 @@ namespace SW.PC.API.Backend.Services
                         IncludeConfig = request.RestoreConfig,
                         IncludeModels = false,  // Skip models — they're large and rarely change
                         IncludeDatabase = request.RestoreDatabase,
+                        IncludeDocs = request.RestoreDocs,
                         IncludeTwinCAT = false,  // Skip TwinCAT — large and machine-specific
                         Type = BackupType.PreRestore
                     };
@@ -845,6 +876,11 @@ namespace SW.PC.API.Backend.Services
                             // Siempre restaurar Translations
                             shouldRestore = true;
                             _logger.LogInformation("✅ Restaurando Translation: {FileName}", entryPath);
+                        }
+                        else if (entryPath.StartsWith("docs/") && request.RestoreDocs)
+                        {
+                            shouldRestore = true;
+                            _logger.LogInformation("✅ Restaurando documentación DMS: {FileName}", entryPath);
                         }
                         else if (entryPath.StartsWith("twincat/") && request.RestoreTwinCAT)
                         {
