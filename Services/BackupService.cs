@@ -729,6 +729,70 @@ namespace SW.PC.API.Backend.Services
                 using (var zipArchive = ZipFile.OpenRead(backupInfo.FilePath))
                 {
                     var twinCatCleaned = false; // Track if TwinCAT destination was cleaned
+                    
+                    // Clean destination folders ONCE before restoring (exact 1:1 copy, no leftover files)
+                    // Only clean folders that will actually be restored
+                    var foldersToClean = new Dictionary<string, string>();
+                    if (request.RestoreConfig)
+                        foldersToClean["config/"] = projectPaths.ConfigPath;
+                    if (request.RestoreModels)
+                        foldersToClean["models/"] = projectPaths.ModelsPath;
+                    if (request.RestoreDatabase)
+                        foldersToClean["data/"] = projectPaths.DataPath;
+                    if (request.RestoreDocs)
+                        foldersToClean["docs/"] = projectPaths.DocsPath;
+                    
+                    // Verify backup actually contains entries for each folder before cleaning
+                    var backupPrefixes = new HashSet<string>(
+                        zipArchive.Entries
+                            .Select(e => e.FullName.Replace('\\', '/'))
+                            .Where(p => p.Contains('/'))
+                            .Select(p => p.Substring(0, p.IndexOf('/') + 1)),
+                        StringComparer.OrdinalIgnoreCase);
+                    
+                    foreach (var (prefix, destPath) in foldersToClean)
+                    {
+                        if (backupPrefixes.Contains(prefix) && Directory.Exists(destPath))
+                        {
+                            _logger.LogInformation("🧹 Cleaning {Folder} before restore: {Path}", prefix.TrimEnd('/'), destPath);
+                            try
+                            {
+                                Directory.Delete(destPath, recursive: true);
+                                Directory.CreateDirectory(destPath);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning("⚠️ Could not fully clean {Path}: {Error}", destPath, ex.Message);
+                                response.Warnings.Add($"Could not fully clean {prefix} before restore: {ex.Message}");
+                            }
+                        }
+                    }
+                    
+                    // Also clean sbom/, audit/, logs/, translations/ if backup contains them
+                    var alwaysCleanFolders = new Dictionary<string, string>
+                    {
+                        ["sbom/"] = projectPaths.SbomPath,
+                        ["audit/"] = projectPaths.AuditPath,
+                        ["logs/"] = projectPaths.LogsPath,
+                        ["translations/"] = projectPaths.TranslationsPath
+                    };
+                    foreach (var (prefix, destPath) in alwaysCleanFolders)
+                    {
+                        if (backupPrefixes.Contains(prefix) && Directory.Exists(destPath))
+                        {
+                            _logger.LogInformation("🧹 Cleaning {Folder} before restore: {Path}", prefix.TrimEnd('/'), destPath);
+                            try
+                            {
+                                Directory.Delete(destPath, recursive: true);
+                                Directory.CreateDirectory(destPath);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning("⚠️ Could not fully clean {Path}: {Error}", destPath, ex.Message);
+                            }
+                        }
+                    }
+                    
                     foreach (var entry in zipArchive.Entries)
                     {
                         // Normalizar separadores a forward slash para comparaciones consistentes
