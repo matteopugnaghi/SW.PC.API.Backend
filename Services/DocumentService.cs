@@ -587,37 +587,24 @@ public class DocumentService : IDocumentService
             using var db = _dbFactory.CreateDbContext();
             await AquafrischDbContextFactory.EnsureDatabaseCreatedAsync(db);
 
-            // Purgar TODOS los documentos master de la DB (locales + DMS_Enterprise)
-            // Se re-crean solo los que existan actualmente en disco
-            var existingMaster = await db.Documents
-                .Where(d => d.Scope == DocumentScope.Software)
-                .ToListAsync();
-            
-            int purged = existingMaster.Count;
-            db.Documents.RemoveRange(existingMaster);
-            await db.SaveChangesAsync();
-            _logger.LogInformation("🗑️ SyncMaster: {Purged} documentos master purgados de DB", purged);
-
             var projectDocsPath = _requestContext.DocsPath;
             if (string.IsNullOrEmpty(projectDocsPath))
                 return new DocumentOperationResponse { Success = false, Message = "No se encontró carpeta docs/ del proyecto" };
 
-            var globalDocsPath = Path.GetFullPath(GetGlobalDocsPath());
-            int copied = 0, created = 0;
-
-            var masterDestPath = Path.Combine(projectDocsPath, "AQSdocs_master");
-
-            // Limpiar AQSdocs_master/ antes de copiar — evita fantasmas de syncs anteriores
-            if (Directory.Exists(masterDestPath))
+            var masterScopePath = Path.Combine(projectDocsPath, "AQSdocs_master");
+            if (!Directory.Exists(masterScopePath))
             {
-                Directory.Delete(masterDestPath, recursive: true);
-                _logger.LogInformation("🧹 SyncMaster: limpiado {Path}", masterDestPath);
+                Directory.CreateDirectory(masterScopePath);
+                _logger.LogInformation("📁 Creada carpeta AQSdocs_master en {Path}", masterScopePath);
             }
 
+            int created = 0, updated = 0, orphaned = 0, dmsUpdated = 0, copied = 0;
+
+            // Si existe {contentRoot}/docs/ como fuente global, copiar archivos NUEVOS o actualizados
+            // (NO borra lo existente en AQSdocs_master/ — respeta restauraciones de backup)
+            var globalDocsPath = Path.GetFullPath(GetGlobalDocsPath());
             if (Directory.Exists(globalDocsPath))
             {
-                _logger.LogInformation("🔄 SyncMaster: copiando de {Src} a {Dst}", globalDocsPath, masterDestPath);
-                
                 var masterFiles = Directory.GetFiles(globalDocsPath, "*.*", SearchOption.AllDirectories)
                     .Where(f => !f.Replace('\\', '/').Contains("/node_modules/"))
                     .Where(f => !f.Replace('\\', '/').Contains("/.git/"))
@@ -626,7 +613,7 @@ public class DocumentService : IDocumentService
                 foreach (var srcFile in masterFiles)
                 {
                     var relPath = Path.GetRelativePath(globalDocsPath, srcFile);
-                    var dstFile = Path.Combine(masterDestPath, relPath);
+                    var dstFile = Path.Combine(masterScopePath, relPath);
                     
                     var dstDir = Path.GetDirectoryName(dstFile);
                     if (dstDir != null && !Directory.Exists(dstDir))
@@ -646,50 +633,99 @@ public class DocumentService : IDocumentService
                         copied++;
                     }
                 }
+                
+                if (copied > 0)
+                    _logger.LogInformation("🔄 SyncMaster: {Copied} archivos copiados/actualizados desde docs/ global", copied);
             }
 
             // Cargar _dms_tree.json para metadatos DMS Enterprise
             var dmsMetadataByFile = new Dictionary<string, (DmsTreeDocument doc, DmsTreeCategory cat, DmsTreeSubcategory? subcat)>(StringComparer.OrdinalIgnoreCase);
-            if (Directory.Exists(masterDestPath))
+            var treePaths = Directory.GetFiles(masterScopePath, "_dms_tree.json", SearchOption.AllDirectories);
+            foreach (var treePath in treePaths)
             {
-                var treePaths = Directory.GetFiles(masterDestPath, "_dms_tree.json", SearchOption.AllDirectories);
-                foreach (var treePath in treePaths)
+                var tree = await ReadDmsTreeAsync(treePath);
+                if (tree != null)
                 {
-                    var tree = await ReadDmsTreeAsync(treePath);
-                    if (tree != null)
+                    var treeDir = Path.GetDirectoryName(treePath)!;
+                    foreach (var dmsDoc in tree.Documents)
                     {
-                        var treeDir = Path.GetDirectoryName(treePath)!;
-                        foreach (var dmsDoc in tree.Documents)
+                        var fileAbsPath = Path.Combine(treeDir, dmsDoc.File);
+                        if (File.Exists(fileAbsPath))
                         {
-                            var fileAbsPath = Path.Combine(treeDir, dmsDoc.File);
-                            if (File.Exists(fileAbsPath))
-                            {
-                                var relKey = Path.GetRelativePath(projectDocsPath, fileAbsPath).Replace('\\', '/');
-                                dmsMetadataByFile[relKey] = (dmsDoc, tree.Category, tree.Subcategory);
-                            }
+                            var relKey = Path.GetRelativePath(projectDocsPath, fileAbsPath).Replace('\\', '/');
+                            dmsMetadataByFile[relKey] = (dmsDoc, tree.Category, tree.Subcategory);
                         }
                     }
                 }
             }
 
-            // Escanear AQSdocs_master/ y registrar ficheros en DB
-            if (Directory.Exists(masterDestPath))
+            // Cargar registros master existentes de DB (para update en vez de purge+create)
+            var existingMaster = await db.Documents
+                .Where(d => d.Scope == DocumentScope.Software)
+                .ToListAsync();
+            var existingByPath = existingMaster.ToDictionary(d => d.FilePath, StringComparer.OrdinalIgnoreCase);
+
+            // Escanear AQSdocs_master/ y registrar/actualizar ficheros en DB
+            var allFiles = Directory.GetFiles(masterScopePath, "*.*", SearchOption.AllDirectories)
+                .Where(f => !f.Replace('\\', '/').Contains("/node_modules/"))
+                .Where(f => !f.Replace('\\', '/').Contains("/.git/"))
+                .Where(f => !Path.GetFileName(f).Equals("_dms_tree.json", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            foreach (var filePath in allFiles)
             {
-                var allFiles = Directory.GetFiles(masterDestPath, "*.*", SearchOption.AllDirectories)
-                    .Where(f => !f.Replace('\\', '/').Contains("/node_modules/"))
-                    .Where(f => !f.Replace('\\', '/').Contains("/.git/"))
-                    .Where(f => !Path.GetFileName(f).Equals("_dms_tree.json", StringComparison.OrdinalIgnoreCase))
-                    .ToArray();
+                var relativePath = Path.GetRelativePath(projectDocsPath, filePath).Replace('\\', '/');
+                var fileBytes = await File.ReadAllBytesAsync(filePath);
+                var hash = ComputeSha256(fileBytes);
+                var ext = Path.GetExtension(filePath).ToLower();
 
-                foreach (var filePath in allFiles)
+                var hasDmsMetadata = dmsMetadataByFile.TryGetValue(relativePath, out var dmsMeta);
+
+                if (existingByPath.TryGetValue(relativePath, out var existing))
                 {
-                    var relativePath = Path.GetRelativePath(projectDocsPath, filePath).Replace('\\', '/');
-                    var fileBytes = await File.ReadAllBytesAsync(filePath);
-                    var hash = ComputeSha256(fileBytes);
-                    var ext = Path.GetExtension(filePath).ToLower();
+                    // Actualizar registro existente
+                    bool changed = existing.ContentHash != hash;
 
-                    var hasDmsMetadata = dmsMetadataByFile.TryGetValue(relativePath, out var dmsMeta);
-
+                    if (hasDmsMetadata)
+                    {
+                        var category = await DetectCategoryFromDmsCodeAsync(db, dmsMeta.cat.Code, dmsMeta.cat.Name, dmsMeta.cat.Icon);
+                        existing.Title = dmsMeta.doc.Title;
+                        existing.ContentHash = hash;
+                        existing.FileSize = fileBytes.Length;
+                        existing.FileType = DetectFileType(ext);
+                        existing.Category = category;
+                        existing.MinimumRole = DmsEnterpriseMappings.MapRole(dmsMeta.doc.MinimumRole, existing.MinimumRole ?? "SuperAdmin");
+                        existing.Status = DmsEnterpriseMappings.MapStatus(dmsMeta.doc.Status);
+                        existing.Version = dmsMeta.doc.Version;
+                        existing.Source = "DMS_Enterprise";
+                        existing.DocumentCode = dmsMeta.doc.Code;
+                        existing.DmsSubcategoryCode = dmsMeta.subcat?.Code;
+                        existing.DmsSubcategoryName = dmsMeta.subcat?.Name;
+                        existing.DmsAuthor = dmsMeta.doc.Author;
+                        existing.DmsPublishedAt = dmsMeta.doc.PublishedAt;
+                        existing.Scope = DocumentScope.Software;
+                        existing.UpdatedBy = userName;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                        if (ext == ".md")
+                            existing.SearchContent = ExtractSearchContent(Encoding.UTF8.GetString(fileBytes));
+                        dmsUpdated++;
+                    }
+                    else if (changed || existing.Category == null)
+                    {
+                        existing.ContentHash = hash;
+                        existing.FileSize = fileBytes.Length;
+                        existing.Scope = DocumentScope.Software;
+                        existing.UpdatedBy = userName;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                        if (ext == ".md")
+                            existing.SearchContent = ExtractSearchContent(Encoding.UTF8.GetString(fileBytes));
+                        updated++;
+                    }
+                    existingByPath.Remove(relativePath);
+                }
+                else
+                {
+                    // Crear nuevo registro
                     if (hasDmsMetadata)
                     {
                         var category = await DetectCategoryFromDmsCodeAsync(db, dmsMeta.cat.Code, dmsMeta.cat.Name, dmsMeta.cat.Icon);
@@ -754,9 +790,22 @@ public class DocumentService : IDocumentService
                 }
             }
 
+            // Eliminar huérfanos (registros DB sin archivo en disco)
+            foreach (var orphan in existingByPath.Values)
+            {
+                if (orphan.Source == "DMS_Enterprise")
+                {
+                    var absPath = Path.Combine(projectDocsPath, orphan.FilePath.Replace('/', '\\'));
+                    if (File.Exists(absPath))
+                        continue;
+                }
+                db.Documents.Remove(orphan);
+                orphaned++;
+            }
+
             await db.SaveChangesAsync();
 
-            var message = $"PURGE: {purged} eliminados → {created} creados, {copied} copiados desde docs/";
+            var message = $"{created} creados, {updated} actualizados, {dmsUpdated} DMS actualizados, {orphaned} eliminados, {copied} copiados desde docs/";
             _logger.LogInformation("📦 SyncMaster: {Message}", message);
             return new DocumentOperationResponse { Success = true, Message = message };
         }
