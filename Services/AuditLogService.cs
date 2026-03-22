@@ -130,7 +130,7 @@ namespace SW.PC.API.Backend.Services
             
             if (effectiveProjectId != "default")
             {
-                return Path.Combine(_contentRoot, "Projects", effectiveProjectId, "audit");
+                return Path.Combine(_projectContext.ProjectsRootPath, effectiveProjectId, "audit");
             }
             else
             {

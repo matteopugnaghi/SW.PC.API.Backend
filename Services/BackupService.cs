@@ -136,7 +136,7 @@ namespace SW.PC.API.Backend.Services
             }
             
             // Modo multi-proyecto
-            var projectRoot = Path.Combine(contentRoot, "Projects", projectId);
+            var projectRoot = Path.Combine(_projectContext.ProjectsRootPath, projectId);
             return new ProjectPaths
             {
                 ProjectId = projectId,

@@ -106,7 +106,7 @@ public class SbomService : ISbomService
         if (projectId != "default")
         {
             // Multi-proyecto: Projects/{projectId}/sbom/
-            return Path.Combine(_contentRoot, "Projects", projectId, "sbom");
+            return Path.Combine(_projectContext.ProjectsRootPath, projectId, "sbom");
         }
         else
         {

@@ -77,10 +77,14 @@ public class BackupCertificateServiceTests : IDisposable
 
     private BackupCertificateService CreateService(string? signingSecret = "test-secret-key-12345")
     {
+        var projectContextMock = new Mock<IProjectContextService>();
+        projectContextMock.Setup(p => p.ProjectsRootPath).Returns(Path.Combine(_tempRoot, "Projects"));
+        
         return new BackupCertificateService(
             _loggerMock.Object,
             CreateMockEnvironment(),
-            CreateConfiguration(signingSecret));
+            CreateConfiguration(signingSecret),
+            projectContextMock.Object);
     }
 
     // ===== Sign + Verify Round-Trip =====

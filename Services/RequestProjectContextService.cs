@@ -111,7 +111,7 @@ namespace SW.PC.API.Backend.Services
             _logger = logger;
             
             _contentRootPath = environment.ContentRootPath;
-            _projectsRootPath = Path.Combine(_contentRootPath, "Projects");
+            _projectsRootPath = globalContext.ProjectsRootPath;
             _legacyExcelConfigPath = Path.Combine(_contentRootPath, "ExcelConfigs");
             _legacyModelsPath = Path.Combine(environment.WebRootPath ?? _contentRootPath, "models");
             _legacyDataPath = Path.Combine(_contentRootPath, "Data");

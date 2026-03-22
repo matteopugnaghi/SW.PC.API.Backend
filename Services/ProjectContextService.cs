@@ -65,6 +65,11 @@ namespace SW.PC.API.Backend.Services
         /// Ruta a la carpeta de logs JSONL para NxLog (SOC PIVOT TISSEO)
         /// </summary>
         string LogsPath { get; }
+
+        /// <summary>
+        /// Ruta raíz de la carpeta Projects/ (respeta ProjectsRootPath de config)
+        /// </summary>
+        string ProjectsRootPath { get; }
         
         /// <summary>
         /// Lista todos los proyectos disponibles en la carpeta Projects/
@@ -182,6 +187,8 @@ namespace SW.PC.API.Backend.Services
         public string BackupsPath => Path.Combine(
             _isMultiProjectMode ? ProjectBasePath : _contentRootPath, 
             "backups");
+        
+        public string ProjectsRootPath => _projectsRootPath;
         
         public string ExcelConfigPath
         {

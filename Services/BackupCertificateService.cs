@@ -31,6 +31,7 @@ namespace SW.PC.API.Backend.Services
     {
         private readonly ILogger<BackupCertificateService> _logger;
         private readonly IWebHostEnvironment _environment;
+        private readonly IProjectContextService _projectContext;
         
         // Clave secreta para firmar (en producción debería estar en un HSM o Azure Key Vault)
         // Esta clave se genera única por instalación
@@ -45,10 +46,12 @@ namespace SW.PC.API.Backend.Services
         public BackupCertificateService(
             ILogger<BackupCertificateService> logger,
             IWebHostEnvironment environment,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IProjectContextService projectContext)
         {
             _logger = logger;
             _environment = environment;
+            _projectContext = projectContext;
             
             // Obtener o generar clave de firma
             _signingSecret = GetOrCreateSigningSecret(configuration);
@@ -66,7 +69,7 @@ namespace SW.PC.API.Backend.Services
                 return Path.Combine(contentRoot, "backups");
             }
             
-            return Path.Combine(contentRoot, "Projects", projectId, "backups");
+            return Path.Combine(_projectContext.ProjectsRootPath, projectId, "backups");
         }
 
         public async Task<BackupCertificate> SignBackupAsync(string projectId, string backupId, BackupManifest manifest)

@@ -306,7 +306,7 @@ public class NxLogFileService : INxLogFileService
         
         if (effectiveProjectId != "default")
         {
-            return Path.Combine(_contentRoot, "Projects", effectiveProjectId, "logs");
+            return Path.Combine(_projectContext.ProjectsRootPath, effectiveProjectId, "logs");
         }
         else
         {
