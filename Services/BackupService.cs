@@ -80,6 +80,7 @@ namespace SW.PC.API.Backend.Services
         private readonly IAuditLogService _auditLog;
         private readonly IWebHostEnvironment _environment;
         private readonly ISoftwareIntegrityService _integrityService;
+        private readonly IDocumentService _documentService;
         
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -94,7 +95,8 @@ namespace SW.PC.API.Backend.Services
             IExcelConfigService excelConfig,
             IAuditLogService auditLog,
             IWebHostEnvironment environment,
-            ISoftwareIntegrityService integrityService)
+            ISoftwareIntegrityService integrityService,
+            IDocumentService documentService)
         {
             _logger = logger;
             _projectContext = projectContext;
@@ -103,6 +105,7 @@ namespace SW.PC.API.Backend.Services
             _auditLog = auditLog;
             _environment = environment;
             _integrityService = integrityService;
+            _documentService = documentService;
         }
 
         /// <summary>
@@ -1036,6 +1039,24 @@ namespace SW.PC.API.Backend.Services
                     $"Backup restored: {backupInfo.Name} (Project: {projectId})",
                     userId ?? "system",
                     projectId: projectId);  // 📁 Guardar en audit del proyecto correcto
+                
+                // Auto-sync documentos después de restaurar (registra ficheros en DB)
+                if (request.RestoreDocs)
+                {
+                    try
+                    {
+                        _logger.LogInformation("🔄 Auto-sync documentos post-restore START");
+                        var syncResult = await _documentService.SyncFromFilesystemAsync(userId ?? "system");
+                        _logger.LogInformation("🔄 Auto-sync documentos post-restore: {Result}", syncResult.Message);
+                        if (!syncResult.Success)
+                            response.Warnings.Add($"Document sync after restore: {syncResult.Message}");
+                    }
+                    catch (Exception syncEx)
+                    {
+                        _logger.LogWarning(syncEx, "⚠️ Auto-sync documentos post-restore falló (no crítico)");
+                        response.Warnings.Add($"Document sync after restore failed: {syncEx.Message}");
+                    }
+                }
                 
                 response.Success = true;
                 response.Message = $"Backup restored successfully: {backupInfo.Name}";
