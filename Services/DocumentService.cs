@@ -567,7 +567,7 @@ public class DocumentService : IDocumentService
 
     #region Sincronización filesystem → DB
 
-    public async Task<DocumentOperationResponse> SyncFromFilesystemAsync(string userName, bool skipGlobalCopy = false)
+    public async Task<DocumentOperationResponse> SyncFromFilesystemAsync(string userName, bool skipGlobalCopy = true)
     {
         var masterResult = await SyncMasterAsync(userName, skipGlobalCopy);
         var projectResult = await SyncProjectAsync(userName);
@@ -580,7 +580,7 @@ public class DocumentService : IDocumentService
         };
     }
 
-    public async Task<DocumentOperationResponse> SyncMasterAsync(string userName, bool skipGlobalCopy = false)
+    public async Task<DocumentOperationResponse> SyncMasterAsync(string userName, bool skipGlobalCopy = true)
     {
         try
         {
