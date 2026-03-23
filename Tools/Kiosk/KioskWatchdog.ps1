@@ -573,7 +573,12 @@ while ($true) {
         # --- Health check del backend ---
         if (Test-BackendHealth) {
             if ($failureCount -gt 0) {
-                Write-Log "Backend recuperado tras $failureCount fallos"
+                Write-Log "Backend recuperado tras $failureCount fallos — reiniciando navegador"
+                # Forzar restart del navegador para que cargue la pagina real
+                # (Edge puede estar mostrando pagina de error cacheada)
+                Get-Process -Name $script:browserProcess -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 3
+                Start-KioskBrowser
             }
             $failureCount = 0
         } else {

@@ -2405,6 +2405,40 @@ if (-not $healthOk) {
     Write-Host "  Invoke-WebRequest http://127.0.0.1:5000/api/projects/active" -ForegroundColor Yellow
 }
 
+# --- Relanzar navegador kiosk (Edge fue matado durante el deploy) ---
+if ($healthOk) {
+    Write-Step "Relanzando navegador kiosk..."
+    try {
+        Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+            # Matar Edge residual (puede estar mostrando pagina de error)
+            Get-Process -Name "msedge" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+
+            # Buscar Edge
+            $edgePath = @(
+                "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+                "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
+            ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+            if ($edgePath) {
+                $kioskUrl = "https://127.0.0.1:5001"
+                $args = @('--kiosk', $kioskUrl, '--no-first-run', '--disable-session-crashed-bubble',
+                          '--noerrdialogs', '--disable-infobars', '--edge-kiosk-type=fullscreen',
+                          '--disable-features=msEdgeSidebarButton')
+                Start-Process -FilePath $edgePath -ArgumentList $args
+                return "OK:Edge kiosk relanzado"
+            } else {
+                return "WARN:Edge no encontrado"
+            }
+        } -ErrorAction Stop | ForEach-Object {
+            if ($_ -match '^OK:(.+)$') { Write-Success $Matches[1] }
+            elseif ($_ -match '^WARN:(.+)$') { Write-Warning $Matches[1] }
+        }
+    } catch {
+        Write-Info "No se pudo relanzar Edge via WinRM — el watchdog lo relanzara automaticamente"
+    }
+}
+
 # ============================================
 # PASO 10.5: Configurar Firewall
 # ============================================
