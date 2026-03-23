@@ -567,9 +567,9 @@ public class DocumentService : IDocumentService
 
     #region Sincronización filesystem → DB
 
-    public async Task<DocumentOperationResponse> SyncFromFilesystemAsync(string userName)
+    public async Task<DocumentOperationResponse> SyncFromFilesystemAsync(string userName, bool skipGlobalCopy = false)
     {
-        var masterResult = await SyncMasterAsync(userName);
+        var masterResult = await SyncMasterAsync(userName, skipGlobalCopy);
         var projectResult = await SyncProjectAsync(userName);
         
         var combined = $"MASTER: {masterResult.Message} | PROJECT: {projectResult.Message}";
@@ -580,7 +580,7 @@ public class DocumentService : IDocumentService
         };
     }
 
-    public async Task<DocumentOperationResponse> SyncMasterAsync(string userName)
+    public async Task<DocumentOperationResponse> SyncMasterAsync(string userName, bool skipGlobalCopy = false)
     {
         try
         {
@@ -602,8 +602,9 @@ public class DocumentService : IDocumentService
 
             // Si existe {contentRoot}/docs/ como fuente global, copiar archivos NUEVOS o actualizados
             // (NO borra lo existente en AQSdocs_master/ — respeta restauraciones de backup)
+            // skipGlobalCopy=true después de un restore para no re-introducir ficheros fantasma
             var globalDocsPath = Path.GetFullPath(GetGlobalDocsPath());
-            if (Directory.Exists(globalDocsPath))
+            if (!skipGlobalCopy && Directory.Exists(globalDocsPath))
             {
                 var masterFiles = Directory.GetFiles(globalDocsPath, "*.*", SearchOption.AllDirectories)
                     .Where(f => !f.Replace('\\', '/').Contains("/node_modules/"))

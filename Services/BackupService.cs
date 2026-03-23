@@ -1046,7 +1046,7 @@ namespace SW.PC.API.Backend.Services
                     try
                     {
                         _logger.LogInformation("🔄 Auto-sync documentos post-restore START");
-                        var syncResult = await _documentService.SyncFromFilesystemAsync(userId ?? "system");
+                        var syncResult = await _documentService.SyncFromFilesystemAsync(userId ?? "system", skipGlobalCopy: true);
                         _logger.LogInformation("🔄 Auto-sync documentos post-restore: {Result}", syncResult.Message);
                         if (!syncResult.Success)
                             response.Warnings.Add($"Document sync after restore: {syncResult.Message}");

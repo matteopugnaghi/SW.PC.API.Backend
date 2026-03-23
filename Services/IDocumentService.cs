@@ -38,10 +38,10 @@ public interface IDocumentService
     // === Sincronización ===
 
     /// <summary>Escanear docs/ del filesystem y sincronizar con DB</summary>
-    Task<DocumentOperationResponse> SyncFromFilesystemAsync(string userName);
+    Task<DocumentOperationResponse> SyncFromFilesystemAsync(string userName, bool skipGlobalCopy = false);
 
     /// <summary>Sincronizar solo AQSdocs_master</summary>
-    Task<DocumentOperationResponse> SyncMasterAsync(string userName);
+    Task<DocumentOperationResponse> SyncMasterAsync(string userName, bool skipGlobalCopy = false);
 
     /// <summary>Sincronizar solo AQSdocs_project</summary>
     Task<DocumentOperationResponse> SyncProjectAsync(string userName);
