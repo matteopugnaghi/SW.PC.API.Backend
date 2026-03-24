@@ -1,0 +1,262 @@
+﻿{
+    "Timestamp":  "20260323_150642",
+    "Actions":  [
+                    {
+                        "Type":  "ComputerRenamed",
+                        "Data":  {
+                                     "NewName":  "MAL-IPC-CLIENT",
+                                     "PreviousName":  {
+                                                          "value":  "A72_IPC_CLIENT",
+                                                          "PSComputerName":  "192.168.2.163",
+                                                          "RunspaceId":  "0e077db6-8fc1-420e-8990-06a105e440b8",
+                                                          "PSShowComputerName":  true
+                                                      }
+                                 }
+                    },
+                    {
+                        "Type":  "UserCreated",
+                        "Data":  {
+                                     "Username":  "aqf"
+                                 }
+                    },
+                    {
+                        "Type":  "UserCreated",
+                        "Data":  {
+                                     "Username":  "aqf-admin"
+                                 }
+                    },
+                    {
+                        "Type":  "UserCreated",
+                        "Data":  {
+                                     "Username":  "aqf-advanced"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "AutoAdminLogon",
+                                     "PreviousValue":  null
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "DefaultUserName",
+                                     "PreviousValue":  null
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "DefaultPassword",
+                                     "PreviousValue":  null
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\LaunchKiosk.bat"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\KioskWatchdog.ps1"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "Shell",
+                                     "PreviousValue":  "explorer.exe"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "MAL-CLI ADS to SERVER"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "MAL-CLI Secure ADS to SERVER"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "MAL-CLI ADS Discovery to SERVER"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "MAL-CLI RDP to SERVER"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "MAL-CLI HTTPS local"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "MAL-CLI HTTP local"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "MAL-CLI Block HTTP remote"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "MAL-CLI Block RDP inbound"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "MAL-CLI Block SSH"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "MAL-CLI Block ADS Discovery"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "XblAuthManager"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "XblGameSave"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "XboxGipSvc"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "XboxNetApiSvc"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "bthserv"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Automatic",
+                                     "ServiceName":  "MapsBroker"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "lfsvc"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "RetailDemo"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Manual",
+                                     "ServiceName":  "WMPNetworkSvc"
+                                 }
+                    },
+                    {
+                        "Type":  "ServiceDisabled",
+                        "Data":  {
+                                     "PreviousStartType":  "Automatic",
+                                     "ServiceName":  "WSearch"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Users\\aqf-admin\\Desktop\\Herramientas IPC\\Apply-KeyboardFilter.ps1"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Users\\aqf-admin\\Desktop\\Herramientas IPC\\Keyboard-Filter.bat"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Users\\aqf-admin\\Desktop\\Herramientas IPC\\Apply-UsbBlock.ps1"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Users\\aqf-admin\\Desktop\\Herramientas IPC\\USB-Storage.bat"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Users\\aqf-admin\\Desktop\\Herramientas IPC\\Toggle-UsbStorage.ps1"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Users\\aqf-admin\\Desktop\\Herramientas IPC\\Toggle-UsbStorage.bat"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+                                     "Name":  "legalnoticecaption",
+                                     "PreviousValue":  ""
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+                                     "Name":  "legalnoticetext",
+                                     "PreviousValue":  "\u0000"
+                                 }
+                    }
+                ],
+    "ComputerName":  "192.168.2.163"
+}

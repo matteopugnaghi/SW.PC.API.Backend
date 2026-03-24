@@ -6,7 +6,7 @@ REM ============================================================================
 REM
 REM  Este script actúa como Custom Shell para el usuario kiosk (aqf).
 REM  Reemplaza explorer.exe y lanza KioskWatchdog.ps1 que proporciona:
-REM    1. Edge en modo kiosk (pantalla completa) → https://192.168.2.161:5001
+REM    1. Edge en modo kiosk (pantalla completa) -> https://localhost:5001
 REM    2. Watchdog: relanza Edge si se cierra
 REM    3. Health check: reinicia IPC tras N fallos del backend
 REM    4. Botón flotante táctil (mantener 3s) → menú de emergencia:
@@ -57,5 +57,5 @@ goto :START_WATCHDOG
 :FALLBACK
 REM Fallback: lanzar Edge directamente sin watchdog
 echo [%date% %time%] MODO FALLBACK — Edge sin watchdog >> "%LOG_FILE%"
-start "" "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --kiosk "https://192.168.2.161:5001" --edge-kiosk-type=fullscreen --no-first-run
+start "" "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --kiosk "https://localhost:5001" --edge-kiosk-type=fullscreen --no-first-run
 pause

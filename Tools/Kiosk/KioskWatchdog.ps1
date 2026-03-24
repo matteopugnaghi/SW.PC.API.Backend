@@ -19,7 +19,7 @@
       - "TeamViewer"            → Asistencia remota
 
 .PARAMETER SupervisorUrl
-    URL del Supervisor. Default: https://192.168.2.161:5001
+    URL del Supervisor. Default: https://localhost:5001
 
 .PARAMETER WatchdogInterval
     Segundos entre verificaciones. Default: 30
@@ -38,7 +38,7 @@
 #>
 
 param(
-    [string]$SupervisorUrl    = 'https://192.168.2.161:5001',
+    [string]$SupervisorUrl    = 'https://localhost:5001',
     [int]$WatchdogInterval    = 30,
     [int]$MaxFailures         = 10,
     [string]$ServiceName      = 'AqfSupervisor',

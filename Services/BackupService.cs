@@ -259,7 +259,7 @@ namespace SW.PC.API.Backend.Services
                         var configPath = projectPaths.ConfigPath;
                         if (Directory.Exists(configPath))
                         {
-                            var configFiles = Directory.GetFiles(configPath, "*.*", SearchOption.AllDirectories)
+                            var configFiles = Directory.GetFiles(configPath, "*", SearchOption.AllDirectories)
                                 .Where(f => !Path.GetFileName(f).StartsWith("~$")).ToArray(); // Excluir archivos temporales de Excel
                             foreach (var file in configFiles)
                             {
@@ -293,7 +293,7 @@ namespace SW.PC.API.Backend.Services
                         if (Directory.Exists(modelsPath))
                         {
                             // Incluir TODOS los archivos de la carpeta models (modelos 3D + README, texturas, etc.)
-                            var allModelFiles = Directory.GetFiles(modelsPath, "*.*", SearchOption.AllDirectories);
+                            var allModelFiles = Directory.GetFiles(modelsPath, "*", SearchOption.AllDirectories);
                             
                             foreach (var file in allModelFiles)
                             {
@@ -364,7 +364,7 @@ namespace SW.PC.API.Backend.Services
                         if (Directory.Exists(twinCatPath))
                         {
                             // Full copy — no exclusions, backup everything as-is
-                            var twinCatFiles = Directory.GetFiles(twinCatPath, "*.*", SearchOption.AllDirectories);
+                            var twinCatFiles = Directory.GetFiles(twinCatPath, "*", SearchOption.AllDirectories);
 
                             foreach (var file in twinCatFiles)
                             {
@@ -446,7 +446,7 @@ namespace SW.PC.API.Backend.Services
                     var sbomPath = projectPaths.SbomPath;
                     if (Directory.Exists(sbomPath))
                     {
-                        var sbomFiles = Directory.GetFiles(sbomPath, "*.*", SearchOption.AllDirectories);
+                        var sbomFiles = Directory.GetFiles(sbomPath, "*", SearchOption.AllDirectories);
                         foreach (var sbomFile in sbomFiles)
                         {
                             var relativePath = Path.Combine("sbom", Path.GetRelativePath(sbomPath, sbomFile)).Replace('\\', '/');
@@ -499,7 +499,7 @@ namespace SW.PC.API.Backend.Services
                     var translationsPath = projectPaths.TranslationsPath;
                     if (Directory.Exists(translationsPath))
                     {
-                        var translationFiles = Directory.GetFiles(translationsPath, "*.*", SearchOption.AllDirectories);
+                        var translationFiles = Directory.GetFiles(translationsPath, "*", SearchOption.AllDirectories);
                         foreach (var transFile in translationFiles)
                         {
                             var relativePath = Path.Combine("translations", Path.GetRelativePath(translationsPath, transFile)).Replace('\\', '/');
@@ -526,7 +526,7 @@ namespace SW.PC.API.Backend.Services
                         var docsPath = projectPaths.DocsPath;
                         if (Directory.Exists(docsPath))
                         {
-                            var docsFiles = Directory.GetFiles(docsPath, "*.*", SearchOption.AllDirectories);
+                            var docsFiles = Directory.GetFiles(docsPath, "*", SearchOption.AllDirectories);
                             foreach (var docFile in docsFiles)
                             {
                                 var relativePath = Path.Combine("docs", Path.GetRelativePath(docsPath, docFile)).Replace('\\', '/');
