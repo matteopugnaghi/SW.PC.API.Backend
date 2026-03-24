@@ -528,6 +528,18 @@ if (Should-Run 'Accounts') {
             Write-Step 'Accounts' "Cuenta 'Administrator' original deshabilitada (§6)" 'OK'
         }
     }
+
+    # --- Asignar avatar Aquafrisch a las cuentas ---
+    $avatarScript = Join-Path $PSScriptRoot "Set-UserAvatars.ps1"
+    if (Test-Path $avatarScript) {
+        Write-Step 'Accounts' "Asignando avatar Aquafrisch a usuarios..." 'INFO'
+        try {
+            & $avatarScript -Users @($KioskUser, $AdminUser, $AdvancedUser)
+        }
+        catch {
+            Write-Step 'Accounts' "Avatar: $($_.Exception.Message)" 'WARN'
+        }
+    }
 }
 
 # ============================================================================
