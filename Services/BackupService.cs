@@ -1143,6 +1143,35 @@ namespace SW.PC.API.Backend.Services
                             response.Warnings.Add(msg);
                             _logger.LogError("❌ {Msg}", msg);
                         }
+                        
+                        // Fix git safe.directory — Git 2.35.2+ rejects repos owned by different users.
+                        // After restore from backup (different PC/user), git refuses to operate with
+                        // "fatal: detected dubious ownership in repository". Add safe.directory exception.
+                        if (Directory.Exists(Path.Combine(projectPaths.TwinCatPath, ".git")))
+                        {
+                            try
+                            {
+                                var safePath = projectPaths.TwinCatPath.Replace('\\', '/');
+                                var psi = new ProcessStartInfo("git", $"config --global --add safe.directory {safePath}")
+                                {
+                                    RedirectStandardOutput = true,
+                                    RedirectStandardError = true,
+                                    UseShellExecute = false,
+                                    CreateNoWindow = true
+                                };
+                                using var process = Process.Start(psi);
+                                if (process != null)
+                                {
+                                    await process.WaitForExitAsync();
+                                    _logger.LogInformation("✅ git safe.directory configured for restored TwinCAT repo: {Path}", safePath);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "⚠️ Could not configure git safe.directory for TwinCAT path");
+                                response.Warnings.Add("Could not configure git safe.directory — git operations may fail with 'dubious ownership' error");
+                            }
+                        }
                     }
                     
                     if (twinCatRestoreErrors > 0)
