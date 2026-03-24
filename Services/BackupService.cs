@@ -759,11 +759,11 @@ namespace SW.PC.API.Backend.Services
                 
                 // Restaurar desde ZIP
                 _logger.LogInformation("⏱️ [{Elapsed}ms] Extract START", sw.ElapsedMilliseconds);
+                var twinCatRestored = 0;    // Count of successfully restored TwinCAT files
+                var twinCatRestoreErrors = 0; // Count of failed TwinCAT file restorations
                 using (var zipArchive = ZipFile.OpenRead(backupInfo.FilePath))
                 {
                     var twinCatCleaned = false; // Track if TwinCAT destination was cleaned
-                    var twinCatRestored = 0;    // Count of successfully restored TwinCAT files
-                    var twinCatRestoreErrors = 0; // Count of failed TwinCAT file restorations
                     
                     // Clean destination folders ONCE before restoring (exact 1:1 copy, no leftover files)
                     // Only clean folders that will actually be restored
