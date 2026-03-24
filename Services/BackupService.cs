@@ -397,6 +397,8 @@ namespace SW.PC.API.Backend.Services
                             var gitHeadInZip = manifest.Files.Any(f => f.RelativePath == "twincat/.git/HEAD");
                             var gitRefsInZip = manifest.Files.Any(f => f.RelativePath.StartsWith("twincat/.git/refs/"));
                             var gitObjectsInZip = manifest.Files.Count(f => f.RelativePath.StartsWith("twincat/.git/objects/"));
+                            var gitTagsInZip = manifest.Files.Where(f => f.RelativePath.StartsWith("twincat/.git/refs/tags/")).ToList();
+                            var gitPackedRefsInZip = manifest.Files.Any(f => f.RelativePath == "twincat/.git/packed-refs");
                             
                             if (twinCatBackedUp > 0)
                             {
@@ -405,8 +407,17 @@ namespace SW.PC.API.Backend.Services
                             }
                             if (Directory.Exists(Path.Combine(twinCatPath, ".git")))
                             {
-                                _logger.LogInformation("🔍 TwinCAT git integrity: HEAD={HasHead}, refs={HasRefs}, objects={ObjCount}",
-                                    gitHeadInZip, gitRefsInZip, gitObjectsInZip);
+                                _logger.LogInformation("🔍 TwinCAT git integrity: HEAD={HasHead}, refs={HasRefs}, objects={ObjCount}, tags={TagCount}, packed-refs={HasPackedRefs}",
+                                    gitHeadInZip, gitRefsInZip, gitObjectsInZip, gitTagsInZip.Count, gitPackedRefsInZip);
+                                if (gitTagsInZip.Count > 0)
+                                {
+                                    var tagNames = gitTagsInZip.Select(f => Path.GetFileName(f.RelativePath));
+                                    _logger.LogInformation("🏷️ TwinCAT tags in backup: {Tags}", string.Join(", ", tagNames));
+                                }
+                                else if (!gitPackedRefsInZip)
+                                {
+                                    _logger.LogWarning("⚠️ TwinCAT backup: NO tags found (no refs/tags/ files and no packed-refs)");
+                                }
                                 if (!gitHeadInZip || !gitRefsInZip)
                                 {
                                     _logger.LogError("❌ TwinCAT git backup INCOMPLETE — .git/HEAD or refs missing! History will be lost on restore.");
@@ -1129,30 +1140,57 @@ namespace SW.PC.API.Backend.Services
                     
                     if (!string.IsNullOrEmpty(projectPaths.TwinCatPath))
                     {
-                        var gitHead = Path.Combine(projectPaths.TwinCatPath, ".git", "HEAD");
-                        var gitRefs = Path.Combine(projectPaths.TwinCatPath, ".git", "refs");
-                        if (File.Exists(gitHead) && Directory.Exists(gitRefs))
+                        var gitDir = Path.Combine(projectPaths.TwinCatPath, ".git");
+                        var gitHead = Path.Combine(gitDir, "HEAD");
+                        var gitRefs = Path.Combine(gitDir, "refs");
+                        var gitTagsDir = Path.Combine(gitDir, "refs", "tags");
+                        var gitPackedRefs = Path.Combine(gitDir, "packed-refs");
+                        
+                        // File system verification
+                        var headExists = File.Exists(gitHead);
+                        var refsExists = Directory.Exists(gitRefs);
+                        var tagsDirExists = Directory.Exists(gitTagsDir);
+                        var tagFiles = tagsDirExists ? Directory.GetFiles(gitTagsDir, "*") : Array.Empty<string>();
+                        var packedRefsExists = File.Exists(gitPackedRefs);
+                        
+                        _logger.LogInformation("🔍 TwinCAT post-restore filesystem: HEAD={Head}, refs/={Refs}, refs/tags/={TagsDir} ({TagCount} files), packed-refs={PackedRefs}",
+                            headExists, refsExists, tagsDirExists, tagFiles.Length, packedRefsExists);
+                        
+                        if (tagFiles.Length > 0)
                         {
-                            _logger.LogInformation("✅ TwinCAT git integrity verified: HEAD exists, refs/ exists");
+                            _logger.LogInformation("🏷️ TwinCAT restored tag files: {Tags}", string.Join(", ", tagFiles.Select(Path.GetFileName)));
                         }
-                        else
+                        if (packedRefsExists)
+                        {
+                            try
+                            {
+                                var packedContent = await File.ReadAllTextAsync(gitPackedRefs);
+                                var tagLines = packedContent.Split('\n').Where(l => l.Contains("refs/tags/")).ToList();
+                                _logger.LogInformation("🏷️ TwinCAT packed-refs tags: {Count} entries: {Tags}", 
+                                    tagLines.Count, string.Join("; ", tagLines.Select(l => l.Trim())));
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning("⚠️ Could not read packed-refs: {Error}", ex.Message);
+                            }
+                        }
+                        
+                        if (!headExists || !refsExists)
                         {
                             var msg = "TwinCAT git history may be incomplete: " +
-                                (!File.Exists(gitHead) ? ".git/HEAD missing. " : "") +
-                                (!Directory.Exists(gitRefs) ? ".git/refs/ missing." : "");
+                                (!headExists ? ".git/HEAD missing. " : "") +
+                                (!refsExists ? ".git/refs/ missing." : "");
                             response.Warnings.Add(msg);
                             _logger.LogError("❌ {Msg}", msg);
                         }
                         
                         // Fix git safe.directory — Git 2.35.2+ rejects repos owned by different users.
-                        // After restore from backup (different PC/user), git refuses to operate with
-                        // "fatal: detected dubious ownership in repository". Add safe.directory exception.
-                        if (Directory.Exists(Path.Combine(projectPaths.TwinCatPath, ".git")))
+                        if (Directory.Exists(gitDir))
                         {
                             try
                             {
                                 var safePath = projectPaths.TwinCatPath.Replace('\\', '/');
-                                var psi = new ProcessStartInfo("git", $"config --global --add safe.directory {safePath}")
+                                var psi = new ProcessStartInfo("git", $"config --global --add safe.directory \"{safePath}\"")
                                 {
                                     RedirectStandardOutput = true,
                                     RedirectStandardError = true,
@@ -1163,13 +1201,72 @@ namespace SW.PC.API.Backend.Services
                                 if (process != null)
                                 {
                                     await process.WaitForExitAsync();
-                                    _logger.LogInformation("✅ git safe.directory configured for restored TwinCAT repo: {Path}", safePath);
+                                    _logger.LogInformation("✅ git safe.directory configured: {Path}", safePath);
                                 }
                             }
                             catch (Exception ex)
                             {
-                                _logger.LogWarning(ex, "⚠️ Could not configure git safe.directory for TwinCAT path");
-                                response.Warnings.Add("Could not configure git safe.directory — git operations may fail with 'dubious ownership' error");
+                                _logger.LogWarning(ex, "⚠️ Could not configure git safe.directory");
+                                response.Warnings.Add("Could not configure git safe.directory");
+                            }
+                            
+                            // Run git commands to verify the restored repo actually works
+                            try
+                            {
+                                var verifyPsi = new ProcessStartInfo("git", $"-c safe.directory=* -C \"{projectPaths.TwinCatPath}\" tag -l")
+                                {
+                                    RedirectStandardOutput = true,
+                                    RedirectStandardError = true,
+                                    UseShellExecute = false,
+                                    CreateNoWindow = true
+                                };
+                                using var tagProc = Process.Start(verifyPsi);
+                                if (tagProc != null)
+                                {
+                                    var tagOutput = await tagProc.StandardOutput.ReadToEndAsync();
+                                    var tagError = await tagProc.StandardError.ReadToEndAsync();
+                                    await tagProc.WaitForExitAsync();
+                                    _logger.LogInformation("🏷️ TwinCAT post-restore 'git tag -l': [{Output}] stderr=[{Err}] exit={Code}",
+                                        tagOutput.Trim(), tagError.Trim(), tagProc.ExitCode);
+                                }
+                                
+                                var describePsi = new ProcessStartInfo("git", $"-c safe.directory=* -C \"{projectPaths.TwinCatPath}\" describe --tags --always")
+                                {
+                                    RedirectStandardOutput = true,
+                                    RedirectStandardError = true,
+                                    UseShellExecute = false,
+                                    CreateNoWindow = true
+                                };
+                                using var descProc = Process.Start(describePsi);
+                                if (descProc != null)
+                                {
+                                    var descOutput = await descProc.StandardOutput.ReadToEndAsync();
+                                    var descError = await descProc.StandardError.ReadToEndAsync();
+                                    await descProc.WaitForExitAsync();
+                                    _logger.LogInformation("🏷️ TwinCAT post-restore 'git describe --tags --always': [{Output}] stderr=[{Err}] exit={Code}",
+                                        descOutput.Trim(), descError.Trim(), descProc.ExitCode);
+                                }
+                                
+                                var sigPsi = new ProcessStartInfo("git", $"-c safe.directory=* -C \"{projectPaths.TwinCatPath}\" log -1 --format=%G?")
+                                {
+                                    RedirectStandardOutput = true,
+                                    RedirectStandardError = true,
+                                    UseShellExecute = false,
+                                    CreateNoWindow = true
+                                };
+                                using var sigProc = Process.Start(sigPsi);
+                                if (sigProc != null)
+                                {
+                                    var sigOutput = await sigProc.StandardOutput.ReadToEndAsync();
+                                    var sigError = await sigProc.StandardError.ReadToEndAsync();
+                                    await sigProc.WaitForExitAsync();
+                                    _logger.LogInformation("🔐 TwinCAT post-restore 'git log -1 --format=%25G?': [{Output}] stderr=[{Err}] exit={Code}",
+                                        sigOutput.Trim(), sigError.Trim(), sigProc.ExitCode);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "⚠️ Post-restore git verification commands failed");
                             }
                         }
                     }
@@ -1178,6 +1275,18 @@ namespace SW.PC.API.Backend.Services
                     {
                         response.Warnings.Add($"TwinCAT restore: {twinCatRestoreErrors} files could not be restored");
                     }
+                }
+                
+                // Force re-verification of software integrity so the panel shows updated data
+                try
+                {
+                    _logger.LogInformation("🔄 Triggering software integrity re-verification after restore...");
+                    await _integrityService.VerifyAllIntegrityAsync();
+                    _logger.LogInformation("✅ Software integrity re-verified after restore");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ Could not re-verify software integrity after restore");
                 }
                 
                 _logger.LogInformation("⏱️ [{Elapsed}ms] Restore COMPLETE — {BackupId}", sw.ElapsedMilliseconds, request.BackupId);
