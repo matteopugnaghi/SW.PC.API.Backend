@@ -365,26 +365,56 @@ namespace SW.PC.API.Backend.Services
                         {
                             // Full copy — no exclusions, backup everything as-is
                             var twinCatFiles = Directory.GetFiles(twinCatPath, "*", SearchOption.AllDirectories);
+                            var twinCatBackedUp = 0;
+                            var twinCatSkipped = 0;
 
                             foreach (var file in twinCatFiles)
                             {
-                                var relativePath = Path.Combine("twincat", Path.GetRelativePath(twinCatPath, file)).Replace('\\', '/');
-                                await AddFileToZipAsync(zipArchive, file, relativePath);
-                                
-                                manifest.Files.Add(new BackupFileEntry
+                                try
                                 {
-                                    RelativePath = relativePath,
-                                    Hash = await ComputeFileHashAsync(file),
-                                    SizeBytes = new FileInfo(file).Length,
-                                    ModifiedAt = File.GetLastWriteTimeUtc(file)
-                                });
+                                    var relativePath = Path.Combine("twincat", Path.GetRelativePath(twinCatPath, file)).Replace('\\', '/');
+                                    await AddFileToZipAsync(zipArchive, file, relativePath);
+                                    
+                                    manifest.Files.Add(new BackupFileEntry
+                                    {
+                                        RelativePath = relativePath,
+                                        Hash = await ComputeFileHashAsync(file),
+                                        SizeBytes = new FileInfo(file).Length,
+                                        ModifiedAt = File.GetLastWriteTimeUtc(file)
+                                    });
+                                    twinCatBackedUp++;
+                                }
+                                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is FileNotFoundException)
+                                {
+                                    twinCatSkipped++;
+                                    _logger.LogWarning("⚠️ TwinCAT backup: could not copy {File}: {Error}", file, ex.Message);
+                                }
                             }
                             backupInfo.Contents.HasTwinCAT = true;
-                            backupInfo.Contents.TwinCatFilesCount = twinCatFiles.Length;
+                            backupInfo.Contents.TwinCatFilesCount = twinCatBackedUp;
                             
-                            if (twinCatFiles.Length > 0)
+                            // Validate .git integrity in backup
+                            var gitHeadInZip = manifest.Files.Any(f => f.RelativePath == "twincat/.git/HEAD");
+                            var gitRefsInZip = manifest.Files.Any(f => f.RelativePath.StartsWith("twincat/.git/refs/"));
+                            var gitObjectsInZip = manifest.Files.Count(f => f.RelativePath.StartsWith("twincat/.git/objects/"));
+                            
+                            if (twinCatBackedUp > 0)
                             {
-                                _logger.LogInformation("✅ TwinCAT PLC incluido en backup ({Count} archivos, copia completa)", twinCatFiles.Length);
+                                _logger.LogInformation("✅ TwinCAT PLC incluido en backup ({Backed}/{Total} archivos, {Skipped} omitidos)",
+                                    twinCatBackedUp, twinCatFiles.Length, twinCatSkipped);
+                            }
+                            if (Directory.Exists(Path.Combine(twinCatPath, ".git")))
+                            {
+                                _logger.LogInformation("🔍 TwinCAT git integrity: HEAD={HasHead}, refs={HasRefs}, objects={ObjCount}",
+                                    gitHeadInZip, gitRefsInZip, gitObjectsInZip);
+                                if (!gitHeadInZip || !gitRefsInZip)
+                                {
+                                    _logger.LogError("❌ TwinCAT git backup INCOMPLETE — .git/HEAD or refs missing! History will be lost on restore.");
+                                }
+                            }
+                            if (twinCatSkipped > 0)
+                            {
+                                _logger.LogWarning("⚠️ TwinCAT backup: {Skipped} files could not be copied (locked/deleted)", twinCatSkipped);
                             }
                         }
                     }
@@ -732,6 +762,8 @@ namespace SW.PC.API.Backend.Services
                 using (var zipArchive = ZipFile.OpenRead(backupInfo.FilePath))
                 {
                     var twinCatCleaned = false; // Track if TwinCAT destination was cleaned
+                    var twinCatRestored = 0;    // Count of successfully restored TwinCAT files
+                    var twinCatRestoreErrors = 0; // Count of failed TwinCAT file restorations
                     
                     // Clean destination folders ONCE before restoring (exact 1:1 copy, no leftover files)
                     // Only clean folders that will actually be restored
@@ -955,30 +987,56 @@ namespace SW.PC.API.Backend.Services
                             if (!string.IsNullOrEmpty(projectPaths.TwinCatPath))
                             {
                                 // Clean destination ONCE before restoring (exact 1:1 copy)
-                                if (!twinCatCleaned && Directory.Exists(projectPaths.TwinCatPath))
+                                if (!twinCatCleaned)
                                 {
-                                    _logger.LogInformation("🧹 Cleaning TwinCAT destination before restore: {Path}", projectPaths.TwinCatPath);
-                                    foreach (var dir in Directory.GetDirectories(projectPaths.TwinCatPath))
+                                    if (Directory.Exists(projectPaths.TwinCatPath))
                                     {
-                                        try
+                                        _logger.LogInformation("🧹 Cleaning TwinCAT destination before restore: {Path}", projectPaths.TwinCatPath);
+                                        var cleanErrors = 0;
+                                        foreach (var dir in Directory.GetDirectories(projectPaths.TwinCatPath))
                                         {
-                                            // Clear read-only attributes recursively (git objects are read-only)
-                                            foreach (var f in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
-                                                File.SetAttributes(f, FileAttributes.Normal);
-                                            Directory.Delete(dir, true);
+                                            try
+                                            {
+                                                // Clear read-only + hidden + system attributes recursively (git objects are read-only)
+                                                foreach (var f in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+                                                {
+                                                    try { File.SetAttributes(f, FileAttributes.Normal); }
+                                                    catch { /* will retry on delete */ }
+                                                }
+                                                Directory.Delete(dir, true);
+                                            }
+                                            catch (Exception ex)
+                                            {
+                                                cleanErrors++;
+                                                _logger.LogWarning("⚠️ Could not delete dir {Dir}: {Err}", dir, ex.Message);
+                                            }
                                         }
-                                        catch (Exception ex) { _logger.LogWarning("⚠️ Could not delete dir {Dir}: {Err}", dir, ex.Message); }
+                                        foreach (var file in Directory.GetFiles(projectPaths.TwinCatPath))
+                                        {
+                                            try
+                                            {
+                                                File.SetAttributes(file, FileAttributes.Normal);
+                                                File.Delete(file);
+                                            }
+                                            catch (Exception ex)
+                                            {
+                                                cleanErrors++;
+                                                _logger.LogWarning("⚠️ Could not delete file {File}: {Err}", file, ex.Message);
+                                            }
+                                        }
+                                        if (cleanErrors > 0)
+                                        {
+                                            _logger.LogWarning("⚠️ TwinCAT cleanup had {Errors} errors — remaining files will be overwritten", cleanErrors);
+                                            response.Warnings.Add($"TwinCAT cleanup: {cleanErrors} files/dirs could not be deleted");
+                                        }
                                     }
-                                    foreach (var file in Directory.GetFiles(projectPaths.TwinCatPath))
+                                    else
                                     {
-                                        try
-                                        {
-                                            File.SetAttributes(file, FileAttributes.Normal);
-                                            File.Delete(file);
-                                        }
-                                        catch (Exception ex) { _logger.LogWarning("⚠️ Could not delete file {File}: {Err}", file, ex.Message); }
+                                        Directory.CreateDirectory(projectPaths.TwinCatPath);
                                     }
                                     twinCatCleaned = true;
+                                    twinCatRestored = 0;
+                                    twinCatRestoreErrors = 0;
                                 }
 
                                 var twinCatRelative = entryPath.Substring("twincat/".Length);
@@ -995,13 +1053,14 @@ namespace SW.PC.API.Backend.Services
                                     // Clear read-only attribute before overwrite (.git/objects/ are read-only)
                                     if (File.Exists(twinCatFullPath))
                                     {
-                                        File.SetAttributes(twinCatFullPath, FileAttributes.Normal);
+                                        try { File.SetAttributes(twinCatFullPath, FileAttributes.Normal); } catch { }
                                     }
                                     entry.ExtractToFile(twinCatFullPath, overwrite: true);
-                                    _logger.LogInformation("✅ Restaurando TwinCAT: {FileName}", entryPath);
+                                    twinCatRestored++;
                                 }
                                 catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
                                 {
+                                    twinCatRestoreErrors++;
                                     response.Warnings.Add($"Could not overwrite TwinCAT file: {entryPath}");
                                     _logger.LogWarning("⚠️ Skipping TwinCAT file during restore: {File} — {Error}", entryPath, ex.Message);
                                 }
@@ -1061,6 +1120,36 @@ namespace SW.PC.API.Backend.Services
                 response.Success = true;
                 response.Message = $"Backup restored successfully: {backupInfo.Name}";
                 response.BackupInfo = backupInfo;
+                
+                // Post-restore TwinCAT validation
+                if (request.RestoreTwinCAT && twinCatRestored > 0)
+                {
+                    _logger.LogInformation("✅ TwinCAT restore: {Restored} files restored, {Errors} errors",
+                        twinCatRestored, twinCatRestoreErrors);
+                    
+                    if (!string.IsNullOrEmpty(projectPaths.TwinCatPath))
+                    {
+                        var gitHead = Path.Combine(projectPaths.TwinCatPath, ".git", "HEAD");
+                        var gitRefs = Path.Combine(projectPaths.TwinCatPath, ".git", "refs");
+                        if (File.Exists(gitHead) && Directory.Exists(gitRefs))
+                        {
+                            _logger.LogInformation("✅ TwinCAT git integrity verified: HEAD exists, refs/ exists");
+                        }
+                        else
+                        {
+                            var msg = "TwinCAT git history may be incomplete: " +
+                                (!File.Exists(gitHead) ? ".git/HEAD missing. " : "") +
+                                (!Directory.Exists(gitRefs) ? ".git/refs/ missing." : "");
+                            response.Warnings.Add(msg);
+                            _logger.LogError("❌ {Msg}", msg);
+                        }
+                    }
+                    
+                    if (twinCatRestoreErrors > 0)
+                    {
+                        response.Warnings.Add($"TwinCAT restore: {twinCatRestoreErrors} files could not be restored");
+                    }
+                }
                 
                 _logger.LogInformation("⏱️ [{Elapsed}ms] Restore COMPLETE — {BackupId}", sw.ElapsedMilliseconds, request.BackupId);
             }
@@ -1707,7 +1796,8 @@ namespace SW.PC.API.Backend.Services
             // Normalizar separadores a forward slash (estándar ZIP)
             var normalizedName = entryName.Replace('\\', '/');
             var entry = zipArchive.CreateEntry(normalizedName);
-            using var sourceStream = new FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            // Read-only files (.git/objects) need FileAccess.Read with FileShare.ReadWrite
+            using var sourceStream = new FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             using var entryStream = entry.Open();
             await sourceStream.CopyToAsync(entryStream);
         }
