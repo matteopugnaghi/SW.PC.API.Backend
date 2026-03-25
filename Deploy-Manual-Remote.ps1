@@ -2283,17 +2283,21 @@ cmd.exe /c "sc.exe \\$TargetIP description $serviceName `"$serviceDescription`""
 # Configurar recovery: reinicio automatico a los 10s, 30s, 60s
 sc.exe \\$TargetIP failure $serviceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 2>$null | Out-Null
 # CRITICO: failureflag=1 → recovery se activa TAMBIÉN con exit code 0 (salida limpia)
-# sc.exe failureflag NO funciona remotamente (\\IP), hay que ejecutarlo local via WinRM
+# Se configura via registro de Windows (sc.exe failureflag no funciona remotamente)
 try {
-    $flagResult = Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+    Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
         param($SvcName)
-        $r = & sc.exe failureflag $SvcName 1 2>&1
-        return "OK:$r"
+        # Metodo 1: sc.exe failureflag (puede no estar soportado)
+        & sc.exe failureflag $SvcName 1 2>&1 | Out-Null
+        # Metodo 2: Registro directo (siempre funciona)
+        $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$SvcName"
+        Set-ItemProperty -Path $regPath -Name 'FailureActionsOnNonCrashFailures' -Value 1 -Type DWord -Force
     } -ArgumentList $serviceName -ErrorAction Stop
     Write-Success "Recovery + failureflag configurado (reinicio automatico siempre)"
 } catch {
     Write-Warning "failureflag via WinRM fallo: $($_.Exception.Message)"
-    Write-Warning "Ejecutar manualmente en el IPC: sc.exe failureflag $serviceName 1"
+    Write-Warning "Ejecutar manualmente en el IPC:"
+    Write-Host "  Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName' -Name 'FailureActionsOnNonCrashFailures' -Value 1 -Type DWord" -ForegroundColor Yellow
 }
 
 # --- Pre-arranque: Matar zombies y verificar puertos libres ---
