@@ -515,14 +515,18 @@ Write-Log 'Watchdog activo — bucle de vigilancia iniciado'
 
 $failureCount   = 0
 $zOrderCounter  = 0
+$wasRdpActive   = $false
+$healthTickCounter = 0
 
 # Bucle principal — usa Application.DoEvents para procesar mensajes WinForms del overlay
 while ($true) {
     # Intervalo corto cuando screensaver activo (respuesta rápida al touch)
     if ($script:screensaverVisible) {
         Start-Sleep -Milliseconds 500
+        $healthTickCounter++
     } else {
         Start-Sleep -Seconds $WatchdogInterval
+        $healthTickCounter = $WatchdogInterval * 2  # forzar health check cada ciclo largo
     }
 
     # --- Detectar RDP y gestionar overlay ---
@@ -532,7 +536,13 @@ while ($true) {
         Show-MaintenanceOverlay
     } elseif (-not $rdpActive -and $script:maintenanceVisible) {
         Hide-MaintenanceOverlay
+        # RDP acaba de desconectarse — forzar relanzamiento de Edge
+        Write-Log 'RDP desconectado — relanzando navegador kiosk' 'ACTION'
+        Get-Process -Name $script:browserProcess -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+        Start-KioskBrowser
     }
+    $wasRdpActive = $rdpActive
 
     # Refrescar z-order del overlay si visible
     if ($script:maintenanceVisible -and $script:maintenanceForm) {
@@ -558,24 +568,24 @@ while ($true) {
         }
     }
 
-    # --- Verificar navegador y health check (solo en ciclo largo, no cada 500ms) ---
-    if (-not $script:screensaverVisible) {
-
-        # --- Verificar navegador (solo si NO hay mantenimiento) ---
-        if (-not $rdpActive) {
-            if (-not (Test-BrowserRunning)) {
-                Write-Log 'Navegador no detectado — relanzando...' 'WARN'
-                Start-Sleep -Seconds 3
-                Start-KioskBrowser
-            }
+    # --- Verificar navegador (solo si NO hay screensaver NI mantenimiento) ---
+    if (-not $script:screensaverVisible -and -not $rdpActive) {
+        if (-not (Test-BrowserRunning)) {
+            Write-Log 'Navegador no detectado — relanzando...' 'WARN'
+            Start-Sleep -Seconds 3
+            Start-KioskBrowser
         }
+    }
 
-        # --- Health check del backend ---
+    # --- Health check del backend (SIEMPRE, incluso con screensaver) ---
+    # Durante screensaver: cada ~30s (healthTickCounter acumula ticks de 500ms)
+    $runHealthCheck = (-not $script:screensaverVisible) -or ($healthTickCounter -ge ($WatchdogInterval * 2))
+    if ($runHealthCheck) {
+        $healthTickCounter = 0
+
         if (Test-BackendHealth) {
             if ($failureCount -gt 0) {
                 Write-Log "Backend recuperado tras $failureCount fallos — reiniciando navegador"
-                # Forzar restart del navegador para que cargue la pagina real
-                # (Edge puede estar mostrando pagina de error cacheada)
                 Get-Process -Name $script:browserProcess -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
                 Start-Sleep -Seconds 3
                 Start-KioskBrowser
