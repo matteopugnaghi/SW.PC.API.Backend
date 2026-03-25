@@ -2282,7 +2282,9 @@ cmd.exe /c "sc.exe \\$TargetIP description $serviceName `"$serviceDescription`""
 
 # Configurar recovery: reinicio automatico a los 10s, 30s, 60s
 sc.exe \\$TargetIP failure $serviceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 2>$null | Out-Null
-Write-Success "Recovery configurado (reinicio automatico en caso de fallo)"
+# CRITICO: failureflag=1 → recovery se activa TAMBIÉN con exit code 0 (salida limpia)
+sc.exe \\$TargetIP failureflag $serviceName 1 2>$null | Out-Null
+Write-Success "Recovery configurado (reinicio automatico en caso de fallo o salida limpia)"
 
 # --- Pre-arranque: Matar zombies y verificar puertos libres ---
 Write-Step "Verificando puertos libres antes de arrancar..."
