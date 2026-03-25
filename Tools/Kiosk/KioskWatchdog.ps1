@@ -7,7 +7,7 @@
     1. Lee configuración desde /api/system/kiosk-config (KioskBrowserPath, Args)
     2. Lanza Edge en modo kiosk (pantalla completa)
     3. Watchdog: relanza Edge si se cierra/crashea
-    4. Health check: si el backend falla N veces, reinicia servicio AqfSupervisor
+    4. Health check: si el backend falla N veces, reinicia servicio AquafrischSupervisor
     5. Overlay MANTENIMIENTO: cuando un admin se conecta por RDP,
        muestra pantalla "Mantenimiento en curso" en el kiosk (4 idiomas)
     6. SCREENSAVER: tras 30 min de inactividad, logo rebotando (anti burn-in).
@@ -28,7 +28,7 @@
     Fallos consecutivos antes de reiniciar el servicio. Default: 10
 
 .PARAMETER ServiceName
-    Nombre del servicio Windows del backend. Default: AqfSupervisor
+    Nombre del servicio Windows del backend. Default: AquafrischSupervisor
 
 .PARAMETER IdleTimeoutMinutes
     Minutos de inactividad antes de activar screensaver. Default: 30
@@ -41,7 +41,7 @@ param(
     [string]$SupervisorUrl    = 'https://localhost:5001',
     [int]$WatchdogInterval    = 30,
     [int]$MaxFailures         = 10,
-    [string]$ServiceName      = 'AqfSupervisor',
+    [string]$ServiceName      = 'AquafrischSupervisor',
     [int]$IdleTimeoutMinutes   = 30
 )
 
