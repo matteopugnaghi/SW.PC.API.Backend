@@ -2283,8 +2283,18 @@ cmd.exe /c "sc.exe \\$TargetIP description $serviceName `"$serviceDescription`""
 # Configurar recovery: reinicio automatico a los 10s, 30s, 60s
 sc.exe \\$TargetIP failure $serviceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 2>$null | Out-Null
 # CRITICO: failureflag=1 → recovery se activa TAMBIÉN con exit code 0 (salida limpia)
-sc.exe \\$TargetIP failureflag $serviceName 1 2>$null | Out-Null
-Write-Success "Recovery configurado (reinicio automatico en caso de fallo o salida limpia)"
+# sc.exe failureflag NO funciona remotamente (\\IP), hay que ejecutarlo local via WinRM
+try {
+    $flagResult = Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+        param($SvcName)
+        $r = & sc.exe failureflag $SvcName 1 2>&1
+        return "OK:$r"
+    } -ArgumentList $serviceName -ErrorAction Stop
+    Write-Success "Recovery + failureflag configurado (reinicio automatico siempre)"
+} catch {
+    Write-Warning "failureflag via WinRM fallo: $($_.Exception.Message)"
+    Write-Warning "Ejecutar manualmente en el IPC: sc.exe failureflag $serviceName 1"
+}
 
 # --- Pre-arranque: Matar zombies y verificar puertos libres ---
 Write-Step "Verificando puertos libres antes de arrancar..."
