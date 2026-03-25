@@ -951,10 +951,17 @@ if (Should-Run 'Service') {
             }
 
             & sc.exe create $ServiceName binPath= "`"$BackendExe`"" start= delayed-auto DisplayName= "`"Aquafrisch Supervisor Service`"" | Out-Null
-            & sc.exe failure $ServiceName reset= 86400 actions= restart/30000/restart/30000/restart/30000 | Out-Null
+            & sc.exe failure $ServiceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 | Out-Null
+            & sc.exe failureflag $ServiceName 1 | Out-Null
             & sc.exe description $ServiceName "Aquafrisch Supervisor — API REST + HMI Web (04.2-01 §22)" | Out-Null
 
-            return @{ Status = 'OK'; Msg = "Servicio '$ServiceName' creado (Automatic Delayed Start, recovery 30s)" }
+            # Dar permisos al usuario aqf para arrancar/parar el servicio (necesario para KioskWatchdog)
+            $sid = (New-Object System.Security.Principal.NTAccount('aqf')).Translate([System.Security.Principal.SecurityIdentifier]).Value 2>$null
+            if ($sid) {
+                & sc.exe sdset $ServiceName "D:(A;;RPWPCR;;;$sid)(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)" 2>$null | Out-Null
+            }
+
+            return @{ Status = 'OK'; Msg = "Servicio '$ServiceName' creado (Automatic Delayed Start, recovery 10/30/60s, failureflag=1)" }
         } -ArgumentList $serviceName, $backendExe
 
         Write-Step 'Service' $svcResult.Msg $svcResult.Status

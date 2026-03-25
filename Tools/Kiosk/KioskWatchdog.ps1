@@ -25,7 +25,7 @@
     Segundos entre verificaciones. Default: 30
 
 .PARAMETER MaxFailures
-    Fallos consecutivos antes de reiniciar el servicio. Default: 10
+    Fallos consecutivos antes de reiniciar el servicio. Default: 3
 
 .PARAMETER ServiceName
     Nombre del servicio Windows del backend. Default: AquafrischSupervisor
@@ -40,7 +40,7 @@
 param(
     [string]$SupervisorUrl    = 'https://localhost:5001',
     [int]$WatchdogInterval    = 30,
-    [int]$MaxFailures         = 10,
+    [int]$MaxFailures         = 3,
     [string]$ServiceName      = 'AquafrischSupervisor',
     [int]$IdleTimeoutMinutes   = 30
 )
@@ -230,23 +230,47 @@ function Test-BackendHealth {
 
 function Restart-BackendService {
     Write-Log "Reiniciando servicio $ServiceName..." 'WARN'
+    $restarted = $false
+
+    # Intento 1: Restart-Service (requiere permisos admin)
     try {
         $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
         if ($svc) {
             Restart-Service -Name $ServiceName -Force -ErrorAction Stop
-            Write-Log "Servicio $ServiceName reiniciado"
-        } else {
-            Write-Log "Servicio no encontrado — reiniciando proceso" 'WARN'
-            Get-Process -Name 'SW.PC.API.Backend' -ErrorAction SilentlyContinue | Stop-Process -Force
-            Start-Sleep -Seconds 3
-            $exe = 'C:\Aquafrisch Supervisor\Backend\SW.PC.API.Backend.exe'
-            if (Test-Path $exe) {
-                Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe)
-                Write-Log "Backend relanzado manualmente"
-            }
+            Write-Log "Servicio $ServiceName reiniciado via Restart-Service"
+            $restarted = $true
         }
     } catch {
-        Write-Log "ERROR reiniciando: $($_.Exception.Message)" 'ERROR'
+        Write-Log "Restart-Service fallo: $($_.Exception.Message) — intentando sc.exe" 'WARN'
+    }
+
+    # Intento 2: sc.exe start (funciona sin privilegios elevados en algunos casos)
+    if (-not $restarted) {
+        try {
+            $scResult = & sc.exe start $ServiceName 2>&1
+            if ($scResult -match 'START_PENDING|RUNNING') {
+                Write-Log "Servicio $ServiceName arrancado via sc.exe"
+                $restarted = $true
+            } else {
+                Write-Log "sc.exe start fallo: $scResult" 'WARN'
+            }
+        } catch {
+            Write-Log "sc.exe fallo: $($_.Exception.Message)" 'WARN'
+        }
+    }
+
+    # Intento 3: Lanzar proceso directamente (ultimo recurso)
+    if (-not $restarted) {
+        Write-Log 'Intentando arrancar backend como proceso directo...' 'WARN'
+        Get-Process -Name 'SW.PC.API.Backend' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+        $exe = 'C:\Aquafrisch Supervisor\Backend\SW.PC.API.Backend.exe'
+        if (Test-Path $exe) {
+            Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe)
+            Write-Log "Backend relanzado como proceso directo (no servicio)"
+        } else {
+            Write-Log "ERROR: No se encontro $exe" 'ERROR'
+        }
     }
 }
 
