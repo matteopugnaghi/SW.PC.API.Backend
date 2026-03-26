@@ -406,7 +406,7 @@ namespace SW.PC.API.Backend.Services
                 }
 
                 // SSH signing está configurado - asegurar allowed_signers
-                var signingKey = (await RunGitCommandAsync(_backendRepoPath, "config --global user.signingkey")).Trim();
+                var signingKey = (await RunGitCommandAsync(_backendRepoPath, "config --global user.signingkey", warnOnError: false)).Trim();
                 if (string.IsNullOrEmpty(signingKey)) return;
 
                 var sshDirectory = Path.GetDirectoryName(signingKey);
@@ -660,7 +660,7 @@ namespace SW.PC.API.Backend.Services
 
                 if (deployInfo == null)
                 {
-                    _logger.LogWarning("📦 Componente '{Component}' es NULL en deploy-version.json", componentName);
+                    _logger.LogDebug("📦 Componente '{Component}' no presente en deploy-version.json (esperado si no está desplegado)", componentName);
                     return null;
                 }
 
@@ -1445,7 +1445,7 @@ namespace SW.PC.API.Backend.Services
             }
         }
 
-        private async Task<string> RunGitCommandAsync(string workingDir, string arguments)
+        private async Task<string> RunGitCommandAsync(string workingDir, string arguments, bool warnOnError = true)
         {
             try
             {
@@ -1490,7 +1490,10 @@ namespace SW.PC.API.Backend.Services
 
                 if (process.ExitCode != 0)
                 {
-                    _logger.LogWarning("⚠️ Git exit code {Code}: git {Args} in [{Dir}] | stderr: {Err}", process.ExitCode, arguments, workingDir, stderrTask.Result);
+                    if (warnOnError)
+                        _logger.LogWarning("⚠️ Git exit code {Code}: git {Args} in [{Dir}] | stderr: {Err}", process.ExitCode, arguments, workingDir, stderrTask.Result);
+                    else
+                        _logger.LogDebug("Git exit code {Code}: git {Args} in [{Dir}] | stderr: {Err}", process.ExitCode, arguments, workingDir, stderrTask.Result);
                 }
 
                 return stdoutTask.Result;

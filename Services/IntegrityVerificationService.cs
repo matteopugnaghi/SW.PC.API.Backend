@@ -17,6 +17,7 @@ namespace SW.PC.API.Backend.Services
         private readonly int _verificationIntervalSeconds;
         private DateTime _nextVerificationTime;
         private bool _isFirstRun = true;
+        private bool? _lastVerificationResult = null; // Track state changes to reduce log noise
 
         public IntegrityVerificationService(
             ILogger<IntegrityVerificationService> logger,
@@ -52,7 +53,7 @@ namespace SW.PC.API.Backend.Services
                     // Actualizar la info de próxima verificación en el servicio
                     UpdateNextVerificationInfo();
 
-                    _logger.LogInformation("🔐 Next integrity verification at: {NextTime} (in {Seconds}s)", 
+                    _logger.LogDebug("🔐 Next integrity verification at: {NextTime} (in {Seconds}s)", 
                         _nextVerificationTime.ToString("HH:mm:ss"), _verificationIntervalSeconds);
 
                     // Esperar hasta la próxima verificación
@@ -89,7 +90,7 @@ namespace SW.PC.API.Backend.Services
             }
             else
             {
-                _logger.LogInformation("🔐 Performing PERIODIC integrity verification...");
+                _logger.LogDebug("🔐 Performing PERIODIC integrity verification...");
             }
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -104,8 +105,13 @@ namespace SW.PC.API.Backend.Services
 
             if (result)
             {
-                _logger.LogInformation("✅ Integrity verification PASSED in {ElapsedMs}ms - {Details}", 
-                    stopwatch.ElapsedMilliseconds, componentDetails);
+                // Only log at Info on state change (from warning/first → pass), otherwise Debug
+                if (_lastVerificationResult != true)
+                    _logger.LogInformation("✅ Integrity verification PASSED in {ElapsedMs}ms - {Details}", 
+                        stopwatch.ElapsedMilliseconds, componentDetails);
+                else
+                    _logger.LogDebug("✅ Integrity verification PASSED in {ElapsedMs}ms - {Details}", 
+                        stopwatch.ElapsedMilliseconds, componentDetails);
                 
                 // 📝 Audit Log: Register successful auto-verification in ALL projects
                 await LogToAllProjectsAsync(auditLog, projectContext,
@@ -120,8 +126,13 @@ namespace SW.PC.API.Backend.Services
                 // Construir mensaje detallado de warnings
                 var warningDetails = GetWarningDetailsMessage(versionInfo);
                 
-                _logger.LogWarning("⚠️ Integrity verification completed with WARNINGS in {ElapsedMs}ms - {Details}", 
-                    stopwatch.ElapsedMilliseconds, warningDetails);
+                // Only log at Warning on state change (from pass/first → warning), otherwise Debug
+                if (_lastVerificationResult != false)
+                    _logger.LogWarning("⚠️ Integrity verification completed with WARNINGS in {ElapsedMs}ms - {Details}", 
+                        stopwatch.ElapsedMilliseconds, warningDetails);
+                else
+                    _logger.LogDebug("⚠️ Integrity verification repeated WARNINGS in {ElapsedMs}ms - {Details}", 
+                        stopwatch.ElapsedMilliseconds, warningDetails);
                     
                 // 📝 Audit Log: Register verification with warnings in ALL projects
                 await LogToAllProjectsAsync(auditLog, projectContext,
@@ -131,6 +142,8 @@ namespace SW.PC.API.Backend.Services
                     $"Automatic integrity verification with WARNINGS - {warningDetails}",
                     stopwatch.ElapsedMilliseconds);
             }
+            
+            _lastVerificationResult = result;
         }
 
         /// <summary>
