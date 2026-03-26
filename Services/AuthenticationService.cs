@@ -119,6 +119,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
         IAuditLogService auditLog,
         ILogger<AuthenticationService> logger,
         IExcelConfigService excelConfig,
+        IProjectContextService projectContext,
         IConfiguration configuration)
     {
         _dbContextFactory = dbContextFactory;
@@ -126,8 +127,8 @@ public class AuthenticationService : IAuthenticationService, IDisposable
         _logger = logger;
         _configuration = configuration;
         
-        // Cargar configuración desde Excel
-        _config = LoadConfigFromExcel(excelConfig);
+        // Cargar configuración desde Excel (usando proyecto activo)
+        _config = LoadConfigFromExcel(excelConfig, projectContext);
         
         // JWT Secret Key: SIEMPRE usar appsettings.json para que coincida con el middleware de validación
         // Esto evita discrepancias entre generación y validación de tokens
@@ -1964,21 +1965,17 @@ public class AuthenticationService : IAuthenticationService, IDisposable
     
     #endregion
     
-    private AuthConfiguration LoadConfigFromExcel(IExcelConfigService excelConfig)
+    private AuthConfiguration LoadConfigFromExcel(IExcelConfigService excelConfig, IProjectContextService projectContext)
     {
         var config = new AuthConfiguration();
         
         try
         {
-            // Buscar archivo Excel de configuración
-            var possiblePaths = new[]
-            {
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExcelConfigs", "ProjectConfig.xlsm"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "ExcelConfigs", "ProjectConfig.xlsm"),
-                @"ExcelConfigs\ProjectConfig.xlsm"
-            };
-            
-            var excelPath = possiblePaths.FirstOrDefault(File.Exists);
+            // Use project context to find Excel (supports multi-project mode)
+            var projectExcelPath = projectContext.ExcelConfigPath;
+            var excelPath = !string.IsNullOrEmpty(projectExcelPath) && File.Exists(projectExcelPath)
+                ? projectExcelPath
+                : null;
             
             if (excelPath != null)
             {
