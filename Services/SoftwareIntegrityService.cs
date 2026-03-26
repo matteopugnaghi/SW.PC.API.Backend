@@ -349,7 +349,7 @@ namespace SW.PC.API.Backend.Services
             try
             {
                 // Verificar si SSH signing está configurado
-                var gpgFormat = (await RunGitCommandAsync(_backendRepoPath, "config --global gpg.format")).Trim();
+                var gpgFormat = (await RunGitCommandAsync(_backendRepoPath, "config --global gpg.format", warnOnError: false)).Trim();
                 if (gpgFormat != "ssh")
                 {
                     // SSH signing no configurado - comprobar si hay authorized_signing_keys.json
@@ -412,12 +412,12 @@ namespace SW.PC.API.Backend.Services
                 var sshDirectory = Path.GetDirectoryName(signingKey);
                 if (string.IsNullOrEmpty(sshDirectory)) return;
 
-                var allowedPath = (await RunGitCommandAsync(_backendRepoPath, "config --global gpg.ssh.allowedSignersFile")).Trim();
+                var allowedPath = (await RunGitCommandAsync(_backendRepoPath, "config --global gpg.ssh.allowedSignersFile", warnOnError: false)).Trim();
                 var targetAllowedPath = string.IsNullOrEmpty(allowedPath) || !File.Exists(allowedPath)
                     ? Path.Combine(sshDirectory, "allowed_signers")
                     : allowedPath;
 
-                var email2 = (await RunGitCommandAsync(_backendRepoPath, "config --global user.email")).Trim();
+                var email2 = (await RunGitCommandAsync(_backendRepoPath, "config --global user.email", warnOnError: false)).Trim();
                 if (string.IsNullOrEmpty(email2)) email2 = "electronico@aquafrisch.com";
 
                 var lines = new HashSet<string>();
@@ -1892,8 +1892,8 @@ namespace SW.PC.API.Backend.Services
 
             try
             {
-                // Obtener URL del remoto
-                var remoteUrl = await RunGitCommandAsync(repoPath, "remote get-url origin");
+                // Obtener URL del remoto (warnOnError: false - local repos may not have a remote)
+                var remoteUrl = await RunGitCommandAsync(repoPath, "remote get-url origin", warnOnError: false);
                 syncInfo.RemoteUrl = remoteUrl.Trim();
 
                 if (string.IsNullOrEmpty(syncInfo.RemoteUrl))
@@ -1909,7 +1909,7 @@ namespace SW.PC.API.Backend.Services
                 await RunGitCommandAsync(repoPath, "fetch --quiet", warnOnError: false);
 
                 // Obtener commits ahead/behind
-                var statusOutput = await RunGitCommandAsync(repoPath, "rev-list --left-right --count HEAD...@{upstream}");
+                var statusOutput = await RunGitCommandAsync(repoPath, "rev-list --left-right --count HEAD...@{upstream}", warnOnError: false);
                 
                 if (!string.IsNullOrWhiteSpace(statusOutput))
                 {
