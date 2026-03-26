@@ -1483,7 +1483,10 @@ namespace SW.PC.API.Backend.Services
                 }
                 catch (OperationCanceledException)
                 {
-                    _logger.LogWarning("⏱️ Git command timed out after 15s: git {Args} (in {Dir})", arguments, workingDir);
+                    if (warnOnError)
+                        _logger.LogWarning("⏱️ Git command timed out after 15s: git {Args} (in {Dir})", arguments, workingDir);
+                    else
+                        _logger.LogDebug("Git command timed out after 15s: git {Args} (in {Dir})", arguments, workingDir);
                     try { process.Kill(true); } catch { }
                     return "";
                 }
@@ -1872,7 +1875,7 @@ namespace SW.PC.API.Backend.Services
 
             if (!Directory.Exists(repoPath))
             {
-                _logger.LogWarning("🔄 {Name}: directory does not exist: {Path}", name, repoPath);
+                _logger.LogDebug("🔄 {Name}: directory does not exist: {Path} (expected for deployed components)", name, repoPath);
                 syncInfo.Status = "no-repo";
                 return syncInfo;
             }
@@ -1881,7 +1884,7 @@ namespace SW.PC.API.Backend.Services
             var gitDir = Path.Combine(repoPath, ".git");
             if (!Directory.Exists(gitDir) && !File.Exists(gitDir))
             {
-                _logger.LogWarning("🔄 {Name}: path exists but no .git found: {Path}", name, repoPath);
+                _logger.LogDebug("🔄 {Name}: path exists but no .git found: {Path} (expected for deployed components)", name, repoPath);
                 syncInfo.Status = "no-repo";
                 syncInfo.Message = $"No .git in: {repoPath}";
                 return syncInfo;
@@ -1900,9 +1903,10 @@ namespace SW.PC.API.Backend.Services
                     return syncInfo;
                 }
 
-                // Hacer fetch para actualizar referencias remotas
+                // Hacer fetch para actualizar referencias remotas (warnOnError: false because
+                // in production TwinCAT repos may not have an accessible remote)
                 _logger.LogDebug("🔄 Fetching remote for {Name}...", name);
-                await RunGitCommandAsync(repoPath, "fetch --quiet");
+                await RunGitCommandAsync(repoPath, "fetch --quiet", warnOnError: false);
 
                 // Obtener commits ahead/behind
                 var statusOutput = await RunGitCommandAsync(repoPath, "rev-list --left-right --count HEAD...@{upstream}");
