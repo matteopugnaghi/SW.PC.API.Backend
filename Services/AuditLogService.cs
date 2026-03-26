@@ -591,11 +591,15 @@ namespace SW.PC.API.Backend.Services
                     }
 
                     var outputJson = JsonSerializer.Serialize(existingEntries, JsonOptions);
-                    using (var writeStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                    // Atomic write: write to temp file then rename to prevent corruption
+                    // if a concurrent read happens during write
+                    var tempPath = filePath + ".tmp";
+                    using (var writeStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
                     using (var writer = new StreamWriter(writeStream))
                     {
                         await writer.WriteAsync(outputJson);
                     }
+                    File.Move(tempPath, filePath, overwrite: true);
                     
                     _logger.LogDebug("📋 Flushed {Count} audit entries to {File} (project: {Project})", 
                         projectEntries.Count, filePath, projectId);
