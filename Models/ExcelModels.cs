@@ -325,11 +325,6 @@ namespace SW.PC.API.Backend.Models.Excel
         /// </summary>
         public bool EnableSignalR { get; set; } = true;
 
-        /// <summary>
-        /// Habilitar/deshabilitar logging detallado
-        /// </summary>
-        public bool EnableVerboseLogging { get; set; } = false;
-
         // ===== TWINCAT/PLC =====
         /// <summary>
         /// Usar simulación de PLC en lugar de TwinCAT real
@@ -397,52 +392,9 @@ namespace SW.PC.API.Backend.Models.Excel
         public bool EnableDatabase { get; set; } = true;
 
         /// <summary>
-        /// Ruta del archivo SQLite (ej: "Data/Aquafrisch.db")
-        /// </summary>
-        public string? DatabaseConnectionString { get; set; } = "Data/Aquafrisch.db";
-
-        // ===== API/WEB =====
-        /// <summary>
-        /// Puerto del servidor API
-        /// </summary>
-        public int ApiPort { get; set; } = 5000;
-
-        /// <summary>
-        /// Habilitar CORS
-        /// </summary>
-        public bool EnableCors { get; set; } = true;
-
-        /// <summary>
-        /// Orígenes permitidos para CORS (separados por coma)
-        /// </summary>
-        public string CorsOrigins { get; set; } = "http://localhost:3000,http://localhost:3001,http://localhost:5173";
-
-        // ===== EXCEL/ARCHIVOS =====
-        /// <summary>
-        /// Nombre del archivo Excel principal
-        /// </summary>
-        public string ExcelConfigFileName { get; set; } = "ProjectConfig.xlsm";
-
-        /// <summary>
         /// Carpeta donde están los archivos de configuración
         /// </summary>
         public string ConfigFolder { get; set; } = "ExcelConfigs";
-
-        /// <summary>
-        /// Carpeta donde están los modelos 3D
-        /// </summary>
-        public string ModelsFolder { get; set; } = "wwwroot/models";
-
-        // ===== CACHE/PERFORMANCE =====
-        /// <summary>
-        /// Tiempo de cache de configuración en segundos
-        /// </summary>
-        public int ConfigCacheSeconds { get; set; } = 300;
-
-        /// <summary>
-        /// Máximo de conexiones SignalR concurrentes
-        /// </summary>
-        public int MaxSignalRConnections { get; set; } = 100;
 
         // ===== 🔐 GIT REPOSITORIES (Cybersecurity) =====
         /// <summary>

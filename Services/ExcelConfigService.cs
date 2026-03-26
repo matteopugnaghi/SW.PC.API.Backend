@@ -2471,11 +2471,6 @@ namespace SW.PC.API.Backend.Services
                                 config.EnableSignalR = ParseBool(paramValue, true);
                                 break;
                             
-                            case "enableverboselogging":
-                            case "enable_verbose_logging":
-                                config.EnableVerboseLogging = ParseBool(paramValue, false);
-                                break;
-
                             // TWINCAT/PLC
                             case "usesimulatedplc":
                             case "use_simulated_plc":
@@ -2544,61 +2539,12 @@ namespace SW.PC.API.Backend.Services
                                 config.EnableDatabase = ParseBool(paramValue, true); // Default true para SQLite
                                 break;
                             
-                            case "databaseconnectionstring":
-                            case "database_connection_string":
-                            case "databasepath":
-                            case "database_path":
-                                if (!string.IsNullOrWhiteSpace(paramValue))
-                                    config.DatabaseConnectionString = paramValue;
-                                break;
-
-                            // API/WEB
-                            case "apiport":
-                            case "api_port":
-                                config.ApiPort = ParseInt(paramValue, 5000);
-                                break;
-                            
-                            case "enablecors":
-                            case "enable_cors":
-                                config.EnableCors = ParseBool(paramValue, true);
-                                break;
-                            
-                            case "corsorigins":
-                            case "cors_origins":
-                                if (!string.IsNullOrWhiteSpace(paramValue))
-                                    config.CorsOrigins = paramValue;
-                                break;
-
-                            // EXCEL/ARCHIVOS
-                            case "excelconfigfilename":
-                            case "excel_config_file_name":
-                                if (!string.IsNullOrWhiteSpace(paramValue))
-                                    config.ExcelConfigFileName = paramValue;
-                                break;
-                            
                             case "configfolder":
                             case "config_folder":
                                 if (!string.IsNullOrWhiteSpace(paramValue))
                                     config.ConfigFolder = paramValue;
                                 break;
                             
-                            case "modelsfolder":
-                            case "models_folder":
-                                if (!string.IsNullOrWhiteSpace(paramValue))
-                                    config.ModelsFolder = paramValue;
-                                break;
-
-                            // CACHE/PERFORMANCE
-                            case "configcacheseconds":
-                            case "config_cache_seconds":
-                                config.ConfigCacheSeconds = ParseInt(paramValue, 300);
-                                break;
-                            
-                            case "maxsignalrconnections":
-                            case "max_signalr_connections":
-                                config.MaxSignalRConnections = ParseInt(paramValue, 100);
-                                break;
-
                             // 🔐 GIT REPOSITORIES (Cybersecurity)
                             case "gitrepobackend":
                             case "git_repo_backend":

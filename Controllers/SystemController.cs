@@ -780,7 +780,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     Name = "Backend API",
                     Status = "Online",
-                    Details = $"Puerto {config.ApiPort} activo",
+                    Details = "Servicio activo",
                     Success = true
                 });
 
