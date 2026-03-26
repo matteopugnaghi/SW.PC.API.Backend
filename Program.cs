@@ -99,16 +99,17 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Configure SignalR for real-time communication with shorter timeouts for faster disconnect detection
+// Configure SignalR for real-time communication
+// Timeouts generosos para entornos SCADA/kiosk donde el navegador puede quedar inactivo
 builder.Services.AddSignalR(options =>
 {
     // Tiempo que el servidor espera un mensaje del cliente antes de considerarlo desconectado
-    // Default: 30 segundos. Reducido a 15 segundos para detección más rápida.
-    options.ClientTimeoutInterval = TimeSpan.FromSeconds(15);
+    // Default: 30s. Ampliado a 90s para evitar desconexiones cuando el navegador queda en segundo plano
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(90);
     
     // Intervalo de ping al cliente para mantener la conexión viva
-    // Default: 15 segundos. Reducido a 5 segundos.
-    options.KeepAliveInterval = TimeSpan.FromSeconds(5);
+    // Default: 15s. Debe ser < ClientTimeoutInterval/2 (recomendación Microsoft)
+    options.KeepAliveInterval = TimeSpan.FromSeconds(30);
     
     // Habilitar logs detallados en desarrollo
     options.EnableDetailedErrors = true;
