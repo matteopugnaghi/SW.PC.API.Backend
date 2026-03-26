@@ -19,7 +19,7 @@
       4.  Custom Shell (LaunchKiosk.bat - KioskWatchdog.ps1)
       5.  Keyboard Filter (bloqueo de atajos)
       6.  Firewall (2 NICs: LAN1 - SERVER, LAN2 - Red cliente)
-      7.  Servicio Windows AqfSupervisor
+      7.  Servicio Windows AquafrischSupervisor
       8.  Deshabilitacion de servicios innecesarios
       9.  Auditoria de eventos
       10. Herramientas Admin (escritorio aqf-admin)
@@ -947,9 +947,9 @@ if (Should-Run 'Firewall') {
 # ============================================================================
 
 if (Should-Run 'Service') {
-    Write-Host "`n=== FASE: Servicio Windows AqfSupervisor (S22) ===" -ForegroundColor Yellow
+    Write-Host "`n=== FASE: Servicio Windows AquafrischSupervisor (S22) ===" -ForegroundColor Yellow
 
-    $serviceName = 'AqfSupervisor'
+    $serviceName = 'AquafrischSupervisor'
     $backendExe  = Join-Path $SupervisorPath 'Backend\SW.PC.API.Backend.exe'
 
     if ($DryRun) {
