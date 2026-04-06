@@ -670,6 +670,20 @@ namespace SW.PC.API.Backend.Services
                         
                         _logger.LogDebug("📖 Read from REAL PLC: {Var} = {Value} (INT/Int16)", variableName, result);
                     }
+                    else if (dataType == typeof(short))
+                    {
+                        // ✅ Leer INT de TwinCAT como short (16 bits = 2 bytes, signed)
+                        byte[] buffer = new byte[2];
+                        _adsClient.Read(handle, buffer.AsMemory());
+                        result = BitConverter.ToInt16(buffer, 0);
+                    }
+                    else if (dataType == typeof(ushort))
+                    {
+                        // ✅ Leer UINT de TwinCAT (16 bits = 2 bytes, unsigned)
+                        byte[] buffer = new byte[2];
+                        _adsClient.Read(handle, buffer.AsMemory());
+                        result = BitConverter.ToUInt16(buffer, 0);
+                    }
                     else if (dataType == typeof(sbyte))
                     {
                         // ✅ Leer SINT de TwinCAT (8 bits = 1 byte, signed)

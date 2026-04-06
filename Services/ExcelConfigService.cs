@@ -64,6 +64,10 @@ namespace SW.PC.API.Backend.Services
         
         // 🏭 Componentes OT para SBOM (EU CRA)
         Task<List<OtComponent>> LoadOtComponentsAsync(string filePath);
+        
+        // 🌐 OPC/UA Variables y Alarmas
+        Task<List<Models.OpcUa.OpcUaVariable>> LoadOpcUaVariablesAsync(string filePath);
+        Task<List<Models.OpcUa.OpcUaAlarm>> LoadOpcUaAlarmsAsync(string filePath);
     }
 
     /// <summary>
@@ -3295,6 +3299,116 @@ namespace SW.PC.API.Backend.Services
                                 break;
                             // NOTA: Para email de seguridad usa 'SupportEmail' (ya existente)
 
+                            // ═══════════════════════════════════════════════════════════════
+                            // 🌐 OPC/UA SERVER - Industrial Communication Protocol
+                            // ═══════════════════════════════════════════════════════════════
+                            case "opcuaenabled":
+                            case "opcua_enabled":
+                                var opcuaValue = paramValue?.ToLower()?.Trim() ?? "";
+                                config.OpcUaEnabled = opcuaValue == "true" || opcuaValue == "1" || opcuaValue == "on" || opcuaValue == "si" || opcuaValue == "yes";
+                                break;
+                            case "opcuaport":
+                            case "opcua_port":
+                                if (int.TryParse(paramValue, out int opcPort) && opcPort > 0 && opcPort <= 65535)
+                                    config.OpcUaPort = opcPort;
+                                break;
+                            case "opcuaserveruri":
+                            case "opcua_server_uri":
+                            case "opcua_serveruri":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaServerUri = paramValue.Trim();
+                                break;
+                            case "opcuaservername":
+                            case "opcua_server_name":
+                            case "opcua_servername":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaServerName = paramValue.Trim();
+                                break;
+                            case "opcuasecuritypolicy":
+                            case "opcua_security_policy":
+                            case "opcua_securitypolicy":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaSecurityPolicy = paramValue.Trim();
+                                break;
+                            case "opcuasecuritymode":
+                            case "opcua_security_mode":
+                            case "opcua_securitymode":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaSecurityMode = paramValue.Trim();
+                                break;
+                            case "opcuacertificatepath":
+                            case "opcua_certificate_path":
+                            case "opcua_certpath":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaCertificatePath = paramValue.Trim();
+                                break;
+                            case "opcuaprivatekeypath":
+                            case "opcua_privatekey_path":
+                            case "opcua_keypath":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaPrivateKeyPath = paramValue.Trim();
+                                break;
+                            case "opcuatrustedcertsfolder":
+                            case "opcua_trusted_certs_folder":
+                            case "opcua_trustedcerts":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaTrustedCertsFolder = paramValue.Trim();
+                                break;
+                            case "opcuarejectedcertsfolder":
+                            case "opcua_rejected_certs_folder":
+                            case "opcua_rejectedcerts":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaRejectedCertsFolder = paramValue.Trim();
+                                break;
+                            case "opcuacrlcheckenabled":
+                            case "opcua_crl_check_enabled":
+                            case "opcua_crlcheck":
+                                config.OpcUaCrlCheckEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "opcuacrlurl":
+                            case "opcua_crl_url":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaCrlUrl = paramValue.Trim();
+                                break;
+                            case "opcuaallowanonymous":
+                            case "opcua_allowanonymous":
+                            case "opcua_allow_anonymous":
+                                config.OpcUaAllowAnonymous = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "opcuausername":
+                            case "opcua_username":
+                            case "opcua_user":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaUserName = paramValue.Trim();
+                                break;
+                            case "opcuauserpassword":
+                            case "opcua_userpassword":
+                            case "opcua_password":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaUserPassword = paramValue.Trim();
+                                break;
+                            case "opcuawatchdogintervalms":
+                            case "opcua_watchdogintervalms":
+                            case "opcua_watchdog_interval_ms":
+                            case "opcua_watchdog":
+                                if (int.TryParse(paramValue, out int wdInterval))
+                                    config.OpcUaWatchdogIntervalMs = Math.Max(1000, wdInterval);
+                                break;
+                            case "opcuacommandfeedbackdurationms":
+                            case "opcua_commandfeedbackdurationms":
+                            case "opcua_command_feedback_duration_ms":
+                            case "opcua_feedbackduration":
+                                if (int.TryParse(paramValue, out int fbDuration))
+                                    config.OpcUaCommandFeedbackDurationMs = Math.Max(500, fbDuration);
+                                break;
+                            case "opcuadefaultsubscriptionintervalms":
+                            case "opcua_defaultsubscriptionintervalms":
+                            case "opcua_default_subscription_interval_ms":
+                            case "opcua_subscriptioninterval":
+                                if (int.TryParse(paramValue, out int subInterval))
+                                    config.OpcUaDefaultSubscriptionIntervalMs = Math.Max(100, subInterval);
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
@@ -3330,6 +3444,8 @@ namespace SW.PC.API.Backend.Services
                         config.ProductName, 
                         string.IsNullOrEmpty(config.ProductVersion) ? "(auto)" : config.ProductVersion,
                         config.ProductManufacturer);
+                    _logger.LogInformation("  - 🌐 OPC/UA Server: {Enabled} (Port: {Port}, Security: {Policy}/{Mode})", 
+                        config.OpcUaEnabled, config.OpcUaPort, config.OpcUaSecurityPolicy, config.OpcUaSecurityMode);
 
                     stopwatch.Stop();
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);
@@ -5115,6 +5231,157 @@ namespace SW.PC.API.Backend.Services
             return await Task.FromResult(components);
         }
         
+        #endregion
+
+        #region OPC/UA Variables & Alarms
+
+        public async Task<List<Models.OpcUa.OpcUaVariable>> LoadOpcUaVariablesAsync(string filePath)
+        {
+            var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+            
+            using (var stream = OpenExcelFileWithRetry(fullPath))
+            using (var package = new XLWorkbook(stream))
+            {
+                var variables = new List<Models.OpcUa.OpcUaVariable>();
+                var sheet = FindWorksheet(package, "OPC_UA_Variables");
+                
+                if (sheet == null)
+                {
+                    _logger.LogDebug("🌐 OPC_UA_Variables sheet not found in Excel file");
+                    return variables;
+                }
+                
+                // Row 1 = header: VariableName | NodeId | DataType | AccessMode | PlcSymbolPath | Description | UpdateRateMs | Unit
+                int row = 2;
+                while (!string.IsNullOrEmpty(sheet.Cell($"A{row}").GetString()))
+                {
+                    var variable = new Models.OpcUa.OpcUaVariable
+                    {
+                        VariableName = sheet.Cell($"A{row}").GetString().Trim(),
+                        NodeId = sheet.Cell($"B{row}").GetString().Trim(),
+                        DataType = sheet.Cell($"C{row}").GetString().Trim(),
+                        AccessMode = sheet.Cell($"D{row}").GetString().Trim(),
+                        PlcSymbolPath = sheet.Cell($"E{row}").GetString().Trim(),
+                        Description = sheet.Cell($"F{row}").GetString().Trim(),
+                        UpdateRateMs = int.TryParse(sheet.Cell($"G{row}").GetString(), out var rate) ? rate : 1000,
+                        Unit = sheet.Cell($"H{row}").GetString().Trim()
+                    };
+                    
+                    if (!string.IsNullOrEmpty(variable.VariableName) && !string.IsNullOrEmpty(variable.NodeId))
+                    {
+                        variables.Add(variable);
+                    }
+                    row++;
+                }
+                
+                _logger.LogInformation("🌐 Loaded {Count} OPC/UA variables from Excel", variables.Count);
+                return await Task.FromResult(variables);
+            }
+        }
+
+        public async Task<List<Models.OpcUa.OpcUaAlarm>> LoadOpcUaAlarmsAsync(string filePath)
+        {
+            var fullPath = Path.IsPathFullyQualified(filePath) ? filePath : Path.Combine(_configFolder, filePath);
+            
+            using (var stream = OpenExcelFileWithRetry(fullPath))
+            using (var package = new XLWorkbook(stream))
+            {
+                var alarms = new List<Models.OpcUa.OpcUaAlarm>();
+                var sheet = FindWorksheet(package, "OPC_UA_Alarms");
+                
+                if (sheet == null)
+                {
+                    _logger.LogDebug("🌐 OPC_UA_Alarms sheet not found in Excel file");
+                    return alarms;
+                }
+                
+                // Row 1 = header: AlarmName | NodeId | Severity | Index | Description
+                // Parse header to detect column positions dynamically
+                var headerMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                for (int col = 1; col <= 10; col++)
+                {
+                    var header = sheet.Cell(1, col).GetString().Trim();
+                    if (!string.IsNullOrEmpty(header))
+                        headerMap[header] = col;
+                }
+
+                int colAlarmName = headerMap.GetValueOrDefault("AlarmName", headerMap.GetValueOrDefault("AlarmIndex", 1));
+                int colNodeId = headerMap.GetValueOrDefault("NodeId", 2);
+                int colSeverity = headerMap.GetValueOrDefault("Severity", 3);
+                int colIndex = headerMap.GetValueOrDefault("Index", 4);
+                int colDescription = headerMap.GetValueOrDefault("Description", 5);
+
+                int row = 2;
+                while (!string.IsNullOrEmpty(sheet.Cell(row, 1).GetString()))
+                {
+                    var alarmNameRaw = sheet.Cell(row, colAlarmName).GetString().Trim();
+                    
+                    // Use explicit Index column if available, otherwise derive from alarm name
+                    int alarmIndex;
+                    if (int.TryParse(sheet.Cell(row, colIndex).GetString().Trim(), out var explicitIdx))
+                    {
+                        alarmIndex = explicitIdx;
+                    }
+                    else
+                    {
+                        alarmIndex = int.TryParse(alarmNameRaw, out var idx) ? idx 
+                            : ExtractAlarmIndex(alarmNameRaw, row - 1);
+                    }
+                    
+                    var alarm = new Models.OpcUa.OpcUaAlarm
+                    {
+                        AlarmIndex = alarmIndex,
+                        NodeId = sheet.Cell(row, colNodeId).GetString().Trim(),
+                        Description = sheet.Cell(row, colDescription).GetString().Trim(),
+                        Severity = ParseSeverity(sheet.Cell(row, colSeverity).GetString().Trim())
+                    };
+                    
+                    if (!string.IsNullOrEmpty(alarm.NodeId))
+                    {
+                        alarms.Add(alarm);
+                    }
+                    row++;
+                }
+                
+                _logger.LogInformation("🌐 Loaded {Count} OPC/UA alarms from Excel", alarms.Count);
+                return await Task.FromResult(alarms);
+            }
+        }
+
+        /// <summary>Extract alarm index from name like "TLS_M3_MAL_Alarm_042" → 42</summary>
+        private static int ExtractAlarmIndex(string alarmName, int fallback)
+        {
+            if (string.IsNullOrEmpty(alarmName)) return fallback;
+            // Try to find trailing number after last underscore
+            var lastUnderscore = alarmName.LastIndexOf('_');
+            if (lastUnderscore >= 0 && int.TryParse(alarmName.Substring(lastUnderscore + 1), out var idx))
+                return idx;
+            return fallback;
+        }
+
+        /// <summary>Parse severity: supports numeric (0,1,2) and text (High,Medium,Low,N/A)</summary>
+        private static int ParseSeverity(string value)
+        {
+            if (int.TryParse(value, out var num))
+            {
+                // Map 0,1,2 system to OPC/UA 1-1000 range
+                return num switch
+                {
+                    0 => 900,  // Critical (stops everything)
+                    1 => 600,  // Warning (finish wash, no new trains)
+                    2 => 300,  // Minor alarm
+                    _ => Math.Clamp(num, 1, 1000)
+                };
+            }
+            return value?.ToLowerInvariant() switch
+            {
+                "high" or "critical" => 900,
+                "medium" or "warning" => 600,
+                "low" or "minor" => 300,
+                _ => 500
+            };
+        }
+
         #endregion
     }
 }

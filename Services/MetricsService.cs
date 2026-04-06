@@ -68,6 +68,13 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         void SetAlarmNotificationStatus(bool enabled, bool active, string statusMessage);
 
+        // ===== 🌐 OPC/UA SERVER =====
+
+        /// <summary>
+        /// Registrar estado del servidor OPC/UA
+        /// </summary>
+        void SetOpcUaServerStatus(bool enabled, bool running, string statusMessage, int connectedClients = 0);
+
         // ===== �🔐 SOFTWARE INTEGRITY =====
 
         /// <summary>
@@ -200,7 +207,11 @@ namespace SW.PC.API.Backend.Services
                         AlarmNotificationEnabled = _servicesStatus.AlarmNotificationEnabled,
                         AlarmNotificationActive = _servicesStatus.AlarmNotificationActive,
                         AlarmNotificationStatus = _servicesStatus.AlarmNotificationStatus,
-                        LastStatusUpdate = _servicesStatus.LastStatusUpdate
+                        LastStatusUpdate = _servicesStatus.LastStatusUpdate,
+                        OpcUaEnabled = _servicesStatus.OpcUaEnabled,
+                        OpcUaRunning = _servicesStatus.OpcUaRunning,
+                        OpcUaStatus = _servicesStatus.OpcUaStatus,
+                        OpcUaConnectedClients = _servicesStatus.OpcUaConnectedClients
                     }
                 };
 
@@ -266,6 +277,18 @@ namespace SW.PC.API.Backend.Services
                 _servicesStatus.AlarmNotificationEnabled = enabled;
                 _servicesStatus.AlarmNotificationActive = active;
                 _servicesStatus.AlarmNotificationStatus = statusMessage;
+                _servicesStatus.LastStatusUpdate = DateTime.Now;
+            }
+        }
+
+        public void SetOpcUaServerStatus(bool enabled, bool running, string statusMessage, int connectedClients = 0)
+        {
+            lock (_lock)
+            {
+                _servicesStatus.OpcUaEnabled = enabled;
+                _servicesStatus.OpcUaRunning = running;
+                _servicesStatus.OpcUaStatus = statusMessage;
+                _servicesStatus.OpcUaConnectedClients = connectedClients;
                 _servicesStatus.LastStatusUpdate = DateTime.Now;
             }
         }

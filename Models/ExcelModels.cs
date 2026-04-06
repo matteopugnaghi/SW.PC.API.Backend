@@ -1131,6 +1131,67 @@ namespace SW.PC.API.Backend.Models.Excel
         /// NOTA: Para email de seguridad usa SupportEmail (ya existente)
         /// </summary>
         public string ProductSupportUrl { get; set; } = "";
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🌐 OPC/UA SERVER - Industrial Communication Protocol
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar servidor OPC/UA. Si false, el servidor no se inicia
+        /// y la vista OPC-UA no aparece en el menú lateral.
+        /// </summary>
+        public bool OpcUaEnabled { get; set; } = false;
+
+        /// <summary>Puerto TCP del servidor OPC/UA (default: 4840)</summary>
+        public int OpcUaPort { get; set; } = 4840;
+
+        /// <summary>URI del servidor OPC/UA (e.g., "opc.tcp://localhost:4840")</summary>
+        public string OpcUaServerUri { get; set; } = "opc.tcp://localhost:4840";
+
+        /// <summary>Nombre amigable del servidor OPC/UA</summary>
+        public string OpcUaServerName { get; set; } = "Aquafrisch SCADA OPC/UA Server";
+
+        /// <summary>Política de seguridad: None, Basic256Sha256 (CADRA: Basic256Sha256)</summary>
+        public string OpcUaSecurityPolicy { get; set; } = "Basic256Sha256";
+
+        /// <summary>Modo de seguridad: None, Sign, SignAndEncrypt (CADRA: SignAndEncrypt)</summary>
+        public string OpcUaSecurityMode { get; set; } = "SignAndEncrypt";
+
+        /// <summary>Ruta al certificado del servidor OPC/UA (.der o .pfx)</summary>
+        public string OpcUaCertificatePath { get; set; } = "";
+
+        /// <summary>Ruta a la clave privada del servidor OPC/UA (.pem)</summary>
+        public string OpcUaPrivateKeyPath { get; set; } = "";
+
+        /// <summary>Carpeta de certificados de clientes confiables</summary>
+        public string OpcUaTrustedCertsFolder { get; set; } = "";
+
+        /// <summary>Carpeta de certificados rechazados</summary>
+        public string OpcUaRejectedCertsFolder { get; set; } = "";
+
+        /// <summary>Habilitar verificación de CRL (Certificate Revocation List)</summary>
+        public bool OpcUaCrlCheckEnabled { get; set; } = false;
+
+        /// <summary>URL de la CRL para verificación de revocación</summary>
+        public string OpcUaCrlUrl { get; set; } = "";
+
+        /// <summary>Permitir conexiones anónimas (CADRA: false)</summary>
+        public bool OpcUaAllowAnonymous { get; set; } = false;
+
+        /// <summary>Usuario para autenticación UserName/Password</summary>
+        public string OpcUaUserName { get; set; } = "";
+
+        /// <summary>Contraseña para autenticación UserName/Password</summary>
+        public string OpcUaUserPassword { get; set; } = "";
+
+        /// <summary>Intervalo del watchdog OPC/UA en milisegundos</summary>
+        public int OpcUaWatchdogIntervalMs { get; set; } = 5000;
+
+        /// <summary>Duración del feedback de comandos OPC/UA en milisegundos</summary>
+        public int OpcUaCommandFeedbackDurationMs { get; set; } = 2000;
+
+        /// <summary>Intervalo de suscripción por defecto en milisegundos</summary>
+        public int OpcUaDefaultSubscriptionIntervalMs { get; set; } = 1000;
     }
 
     /// <summary>
@@ -1383,6 +1444,7 @@ namespace SW.PC.API.Backend.Models.Excel
         public RuntimeVersionInfo TwinCatRuntime { get; set; } = new();
         public RuntimeVersionInfo AdsClient { get; set; } = new();
         public RuntimeVersionInfo Database { get; set; } = new();
+        public RuntimeVersionInfo OpcUaServer { get; set; } = new();
 
         // ===== METADATOS DE VERIFICACIÓN =====
         public string LastVerificationDate { get; set; } = "Never";
@@ -1650,6 +1712,20 @@ namespace SW.PC.API.Backend.Models.Excel
         /// Último mensaje de estado del servicio de notificaciones
         /// </summary>
         public string AlarmNotificationStatus { get; set; } = "No iniciado";
+
+        // ===== 🌐 OPC/UA SERVER =====
+
+        /// <summary>Servidor OPC/UA habilitado en configuración</summary>
+        public bool OpcUaEnabled { get; set; }
+
+        /// <summary>Servidor OPC/UA en ejecución</summary>
+        public bool OpcUaRunning { get; set; }
+
+        /// <summary>Último mensaje de estado del servidor OPC/UA</summary>
+        public string OpcUaStatus { get; set; } = "No iniciado";
+
+        /// <summary>Número de clientes OPC/UA conectados</summary>
+        public int OpcUaConnectedClients { get; set; }
     }
 
     #region Alarm System Models

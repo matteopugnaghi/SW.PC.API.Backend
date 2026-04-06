@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using ClosedXML.Excel;
 
 // Cuando se ejecuta como servicio de Windows, el working directory es System32.
 // Solo forzar ContentRoot si no estamos en desarrollo (dotnet run ya lo gestiona).
@@ -217,6 +218,88 @@ builder.Services.AddSingleton<ISystemLogService, SystemLogService>(); // 📋 Sy
 builder.Services.AddSingleton<INxLogFileService, NxLogFileService>(); // 📋 NxLog JSONL Export - TISSEO SOC PIVOT (TLS_M3_ALS_EXI_CYB_SYS_00516)
 builder.Services.AddSingleton<IESIParserService, ESIParserService>(); // 🌐 ESI Parser - EtherCAT Slave Info files
 builder.Services.AddSingleton<IEtherCATDiagnosticsService, EtherCATDiagnosticsService>(); // 🌐 EtherCAT Topology Diagnostics
+
+// 🌐 OPC/UA Server - Industrial Communication Protocol
+// Read OPC/UA enabled flag from Excel BEFORE registering the service
+bool opcUaEnabledInExcel = false;
+try
+{
+    // Determine Excel path from active-project.json (same logic as ProjectContextService)
+    var contentRoot = builder.Environment.ContentRootPath;
+    var activeProjectFile = Path.Combine(contentRoot, "active-project.json");
+    string excelPath;
+    
+    if (File.Exists(activeProjectFile))
+    {
+        var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(activeProjectFile));
+        var activeProject = json.RootElement.TryGetProperty("activeProject", out var prop) 
+            ? prop.GetString() ?? "default" : "default";
+        
+        if (activeProject != "default")
+        {
+            // Multi-project mode: Projects/{id}/config/ProjectConfig.xlsm
+            var configDir = Path.Combine(contentRoot, "Projects", activeProject, "config");
+            excelPath = Directory.Exists(configDir) 
+                ? (Directory.GetFiles(configDir, "*.xlsm").FirstOrDefault() 
+                   ?? Directory.GetFiles(configDir, "*.xlsx").FirstOrDefault() 
+                   ?? Path.Combine(configDir, "ProjectConfig.xlsm"))
+                : Path.Combine(configDir, "ProjectConfig.xlsm");
+        }
+        else
+        {
+            // Legacy mode
+            excelPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm");
+        }
+    }
+    else
+    {
+        excelPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm");
+    }
+    
+    if (File.Exists(excelPath))
+    {
+        using var stream = new FileStream(excelPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var workbook = new XLWorkbook(stream);
+        var ws = workbook.Worksheets.FirstOrDefault(s => 
+            s.Name.Equals("System Config", StringComparison.OrdinalIgnoreCase) ||
+            s.Name.Equals("SystemConfig", StringComparison.OrdinalIgnoreCase));
+        if (ws != null)
+        {
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+            for (int row = 1; row <= lastRow; row++)
+            {
+                var key = ws.Cell(row, 1).GetString()?.Trim();
+                // Match same keys as ExcelConfigService: "opcuaenabled", "opcua_enabled", "OpcUaEnabled" etc.
+                var keyNorm = key?.ToLowerInvariant()?.Replace(" ", "") ?? "";
+                if (keyNorm == "opcuaenabled" || keyNorm == "opcua_enabled")
+                {
+                    var val = ws.Cell(row, 2).GetString()?.Trim()?.ToLowerInvariant() ?? "";
+                    opcUaEnabledInExcel = val == "true" || val == "1" 
+                                        || val == "si" || val == "yes" || val == "on";
+                    break;
+                }
+            }
+        }
+    }
+    Console.WriteLine($"🌐 OPC/UA Enabled in Excel: {opcUaEnabledInExcel}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"⚠️ Could not read OPC/UA config from Excel: {ex.Message}");
+}
+
+if (opcUaEnabledInExcel)
+{
+    builder.Services.AddSingleton<IOpcUaServerService, OpcUaServerService>();
+    builder.Services.AddHostedService(sp => (OpcUaServerService)sp.GetRequiredService<IOpcUaServerService>());
+    Console.WriteLine("🌐 OPC/UA Server service REGISTERED");
+}
+else
+{
+    // Register a disabled stub so IOpcUaServerService can still be injected
+    builder.Services.AddSingleton<IOpcUaServerService, DisabledOpcUaServerService>();
+    Console.WriteLine("🌐 OPC/UA Server DISABLED — service not started");
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 💾 DATA MANAGEMENT: Sistema de Backup/Restore (EU CRA Anexo I, Parte I, 2f)

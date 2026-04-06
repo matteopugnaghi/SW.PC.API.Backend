@@ -327,6 +327,28 @@ namespace SW.PC.API.Backend.Services
                         };
                     }
 
+                    // OPC/UA Server runtime info
+                    try
+                    {
+                        var opcUaVersion = typeof(Opc.Ua.Utils).Assembly.GetName().Version?.ToString() ?? "Unknown";
+                        _versionInfo.OpcUaServer = new RuntimeVersionInfo
+                        {
+                            Name = "OPC/UA Server",
+                            Version = opcUaVersion,
+                            Status = "disabled", // Updated by OpcUaServerService via MetricsService
+                            Details = "OPC Foundation .NET Standard"
+                        };
+                    }
+                    catch
+                    {
+                        _versionInfo.OpcUaServer = new RuntimeVersionInfo
+                        {
+                            Name = "OPC/UA Server",
+                            Version = "Unknown",
+                            Status = "disabled"
+                        };
+                    }
+
                     // Calcular estado general del sistema
                     UpdateSystemStatus();
                 }

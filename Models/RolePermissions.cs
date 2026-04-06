@@ -168,6 +168,9 @@ public class ModulePermissions
     /// <summary>Vista de Documentación (DMS)</summary>
     public ViewPermission DocumentsView { get; set; } = new();
     
+    /// <summary>Vista de OPC/UA Server</summary>
+    public ViewPermission OpcUaView { get; set; } = new();
+    
     // ═══════════════════════════════════════════════════════════════════
     // 🚂 TIPOS DE TREN - ACCIONES (4 elementos)
     // ═══════════════════════════════════════════════════════════════════

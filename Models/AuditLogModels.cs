@@ -19,9 +19,10 @@ namespace SW.PC.API.Backend.Models
         Backup,         // Backup y restauración
         Plc,            // Conexión/desconexión PLC
         System,         // Acciones del sistema (restart, TeamViewer)
-        Export          // Exportación de datos de auditoría
+        Export,         // Exportación de datos de auditoría
         
-        // ⚠️ FUTURO: OtCommunication (OPC UA, Modbus, MQTT) - cuando se implemente
+        // ✅ OT COMMUNICATION (OPC UA, Modbus, MQTT)
+        OtCommunication
     }
 
     /// <summary>
@@ -129,7 +130,20 @@ namespace SW.PC.API.Backend.Models
         OperationLogExport,     // Exportación de logs de operación (L2)
         StatisticsExport,       // Exportación de estadísticas
         RecipeExport,           // Exportación de recetas
-        ConfigurationExport     // Exportación de configuraciones
+        ConfigurationExport,    // Exportación de configuraciones
+        
+        // ═══════════════════════════════════════════════════════════
+        // OPC/UA (OT COMMUNICATION)
+        // ═══════════════════════════════════════════════════════════
+        OpcUaServerStart,
+        OpcUaServerStop,
+        OpcUaClientConnect,
+        OpcUaClientDisconnect,
+        OpcUaNodeRead,
+        OpcUaNodeWrite,
+        OpcUaSubscriptionCreate,
+        OpcUaSubscriptionDelete,
+        OpcUaSecurityReject
     }
 
     /// <summary>
