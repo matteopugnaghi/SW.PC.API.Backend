@@ -139,8 +139,10 @@ namespace SW.PC.API.Backend.Models
         OpcUaServerStop,
         OpcUaClientConnect,
         OpcUaClientDisconnect,
-        OpcUaNodeRead,
-        OpcUaNodeWrite,
+        OpcUaNodeRead,          // ⚠️ DEPRECATED in L1 - Variable operations solo en L2 (OperationLog)
+        OpcUaNodeWrite,         // ⚠️ DEPRECATED in L1 - Variable operations solo en L2 (OperationLog)
+        OpcUaValueChange,       // ⚠️ DEPRECATED in L1 - Variable status solo en L2 (OperationLog)
+        OpcUaAlarmChange,       // ⚠️ DEPRECATED in L1 - Alarm status solo en L2 (OperationLog)
         OpcUaSubscriptionCreate,
         OpcUaSubscriptionDelete,
         OpcUaSecurityReject

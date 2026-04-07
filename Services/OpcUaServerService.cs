@@ -1,6 +1,7 @@
 using Opc.Ua;
 using Opc.Ua.Configuration;
 using Opc.Ua.Server;
+using System.Collections.Concurrent;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.Excel;
 using SW.PC.API.Backend.Models.OpcUa;
@@ -63,6 +64,7 @@ namespace SW.PC.API.Backend.Services
         private readonly IAuditLogService _auditLogService;
         private readonly ITwinCATService _twinCATService;
         private readonly AlarmNotificationService _alarmNotificationService;
+        private readonly IOperationLogService _operationLogService;
 
         // OPC/UA Foundation server
         private ApplicationInstance? _application;
@@ -80,6 +82,15 @@ namespace SW.PC.API.Backend.Services
         private string _statusMessage = "Not initialized";
         private readonly object _lock = new();
 
+        // Change detection for audit logging (zero extra resources — piggybacks on existing poll)
+        private readonly Dictionary<string, object?> _previousValues = new();
+        private readonly Dictionary<int, bool> _previousAlarmStates = new();
+
+        // Per-variable polling: track last poll time to respect each variable's UpdateRateMs
+        private readonly Dictionary<string, DateTime> _lastPollTime = new();
+
+
+
         public bool IsEnabled => _config.Enabled;
         public bool IsRunning => _isRunning;
 
@@ -90,7 +101,8 @@ namespace SW.PC.API.Backend.Services
             IMetricsService metricsService,
             IAuditLogService auditLogService,
             ITwinCATService twinCATService,
-            AlarmNotificationService alarmNotificationService)
+            AlarmNotificationService alarmNotificationService,
+            IOperationLogService operationLogService)
         {
             _logger = logger;
             _excelConfigService = excelConfigService;
@@ -99,6 +111,7 @@ namespace SW.PC.API.Backend.Services
             _auditLogService = auditLogService;
             _twinCATService = twinCATService;
             _alarmNotificationService = alarmNotificationService;
+            _operationLogService = operationLogService;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -133,13 +146,20 @@ namespace SW.PC.API.Backend.Services
                     userName: "System");
 
                 // Main loop — PLC polling + watchdog monitoring
-                var pollInterval = _config.DefaultSubscriptionIntervalMs > 0 
-                    ? _config.DefaultSubscriptionIntervalMs : 1000;
-                _logger.LogInformation("🌐 Starting PLC→OPC/UA bridge polling (interval: {Ms}ms)", pollInterval);
+                // Base tick = fastest variable rate (min 50ms), each variable polled at its own UpdateRateMs
+                var rates = _variables
+                    .Where(v => v.AccessMode?.ToLowerInvariant() is not ("writeonly" or "wo"))
+                    .Select(v => v.UpdateRateMs > 0 ? v.UpdateRateMs : 1000)
+                    .ToList();
+                var baseTick = rates.Count > 0 ? Math.Max(rates.Min(), 50) : 1000;
+                _logger.LogInformation("🌐 Starting PLC→OPC/UA bridge polling (base tick: {Ms}ms, variable rates: {Min}-{Max}ms)",
+                    baseTick,
+                    rates.Count > 0 ? rates.Min() : 0,
+                    rates.Count > 0 ? rates.Max() : 0);
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
-                    await Task.Delay(pollInterval, stoppingToken);
+                    await Task.Delay(baseTick, stoppingToken);
 
                     // Poll PLC variables and update OPC/UA nodes
                     if (_server != null && _isRunning && _nodeManager != null)
@@ -360,7 +380,7 @@ namespace SW.PC.API.Backend.Services
 
             // Create and start the server
             _server = new AquafrischOpcUaServer(
-                _logger, _variables, _alarms, _config, _auditLogService);
+                _logger, _variables, _alarms, _config, _auditLogService, _twinCATService, _operationLogService);
             
             try
             {
@@ -432,21 +452,60 @@ namespace SW.PC.API.Backend.Services
 
             try
             {
-                // Poll process variables
+                var now = DateTime.UtcNow;
+
                 foreach (var v in _variables)
                 {
                     try
                     {
+                        var access = v.AccessMode?.ToLowerInvariant();
                         var clrType = MapDataTypeToClr(v.DataType);
+
+                        if (access is "writeonly" or "wo")
+                        {
+                            // WriteOnly: OPC UA → ADS only. No polling.
+                            continue;
+                        }
+
+                        // Per-variable rate: skip if not due yet
+                        var rateMs = v.UpdateRateMs > 0 ? v.UpdateRateMs : 1000;
+                        if (_lastPollTime.TryGetValue(v.VariableName, out var lastTime)
+                            && (now - lastTime).TotalMilliseconds < rateMs)
+                            continue;
+
+                        // ReadWrite variables that were just written: give ADS time
+                        if ((access is "readwrite" or "rw") && _nodeManager!.IsWriteSuppressed(v.VariableName))
+                            continue;
+
+                        _lastPollTime[v.VariableName] = now;
+
                         var value = await _twinCATService.ReadVariableAsync(v.PlcSymbolPath, clrType);
                         if (value != null)
                         {
                             _nodeManager!.UpdateVariableValue(v.VariableName, value);
+
+                            if (_previousValues.TryGetValue(v.VariableName, out var prev))
+                            {
+                                // Solo loguear cambios reales (no inicialización)
+                                if (!Equals(prev, value))
+                                {
+                                    _previousValues[v.VariableName] = value;
+                                    _ = _operationLogService.LogAsync(
+                                        OperationCategory.OpcUa, OperationAction.OpcUaValueChange,
+                                        $"{v.VariableName}: {prev} → {value}",
+                                        user: "PLC");
+                                }
+                            }
+                            else
+                            {
+                                // Primera lectura: guardar estado inicial sin loguear
+                                _previousValues[v.VariableName] = value;
+                            }
                         }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogDebug("🌐 PLC read failed for {Var}: {Msg}", v.VariableName, ex.Message);
+                        _logger.LogDebug("🌐 Poll failed for {Var}: {Msg}", v.VariableName, ex.Message);
                     }
                 }
 
@@ -473,6 +532,25 @@ namespace SW.PC.API.Backend.Services
                         }
                         
                         _nodeManager!.UpdateAlarmValue(a.AlarmIndex, isActive);
+
+                        // Alarm change detection
+                        if (_previousAlarmStates.TryGetValue(a.AlarmIndex, out var prevState))
+                        {
+                            // Solo loguear cambios reales (no inicialización)
+                            if (prevState != isActive)
+                            {
+                                _previousAlarmStates[a.AlarmIndex] = isActive;
+                                _ = _operationLogService.LogAsync(
+                                    OperationCategory.OpcUa, OperationAction.OpcUaAlarmChange,
+                                    $"Alarm[{a.AlarmIndex}] {a.Description}: {(isActive ? "ACTIVE" : "CLEARED")}",
+                                    user: "PLC");
+                            }
+                        }
+                        else
+                        {
+                            // Primera lectura: guardar estado inicial sin loguear
+                            _previousAlarmStates[a.AlarmIndex] = isActive;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -486,7 +564,7 @@ namespace SW.PC.API.Backend.Services
             }
         }
 
-        private static Type MapDataTypeToClr(string dataType)
+        internal static Type MapDataTypeToClr(string dataType)
         {
             return dataType?.ToLowerInvariant() switch
             {
@@ -713,6 +791,8 @@ namespace SW.PC.API.Backend.Services
         private readonly List<OpcUaAlarm> _alarms;
         private readonly OpcUaConfig _config;
         private readonly IAuditLogService _auditLogService;
+        private readonly ITwinCATService _twinCATService;
+        private readonly IOperationLogService _operationLogService;
 
         /// <summary>Captured reference to the node manager for PLC polling bridge</summary>
         public AquafrischNodeManager? NodeManager { get; private set; }
@@ -722,13 +802,17 @@ namespace SW.PC.API.Backend.Services
             List<OpcUaVariable> variables,
             List<OpcUaAlarm> alarms,
             OpcUaConfig config,
-            IAuditLogService auditLogService)
+            IAuditLogService auditLogService,
+            ITwinCATService twinCATService,
+            IOperationLogService operationLogService)
         {
             _logger = logger;
             _variables = variables;
             _alarms = alarms;
             _config = config;
             _auditLogService = auditLogService;
+            _twinCATService = twinCATService;
+            _operationLogService = operationLogService;
         }
 
         protected override MasterNodeManager CreateMasterNodeManager(
@@ -740,7 +824,8 @@ namespace SW.PC.API.Backend.Services
                 var nodeManagers = new List<INodeManager>();
                 
                 var nodeManager = new AquafrischNodeManager(
-                    server, configuration, _logger, _variables, _alarms);
+                    server, configuration, _logger, _variables, _alarms,
+                    _twinCATService, _auditLogService, _operationLogService);
                 nodeManagers.Add(nodeManager);
 
                 // Store reference for PLC polling bridge
@@ -821,19 +906,34 @@ namespace SW.PC.API.Backend.Services
         private readonly ILogger _logger;
         private readonly List<OpcUaVariable> _variables;
         private readonly List<OpcUaAlarm> _alarms;
+        private readonly ITwinCATService _twinCATService;
+        private readonly IAuditLogService _auditLogService;
+        private readonly IOperationLogService _operationLogService;
         private readonly Dictionary<string, BaseDataVariableState> _variableNodes = new();
+        private readonly Dictionary<string, OpcUaVariable> _variableConfigByNodeId = new();
+
+        // Write suppression: after a client writes a variable, skip polling it briefly
+        // so the PLC has time to process the command before we read back
+        private readonly ConcurrentDictionary<string, DateTime> _writeSuppression = new();
+        private const int WRITE_SUPPRESS_SECONDS = 5;
 
         public AquafrischNodeManager(
             IServerInternal server,
             ApplicationConfiguration configuration,
             ILogger logger,
             List<OpcUaVariable> variables,
-            List<OpcUaAlarm> alarms)
+            List<OpcUaAlarm> alarms,
+            ITwinCATService twinCATService,
+            IAuditLogService auditLogService,
+            IOperationLogService operationLogService)
             : base(server, configuration, "http://aquafrisch.com/SCADA")
         {
             _logger = logger;
             _variables = variables;
             _alarms = alarms;
+            _twinCATService = twinCATService;
+            _auditLogService = auditLogService;
+            _operationLogService = operationLogService;
         }
 
         public override void CreateAddressSpace(IDictionary<NodeId, IList<IReference>> externalReferences)
@@ -864,6 +964,15 @@ namespace SW.PC.API.Backend.Services
                     if (node != null)
                     {
                         _variableNodes[v.VariableName] = node;
+                        // Store lookup for write handler
+                        var nodeIdStr = ParseNodeIdString(v.NodeId);
+                        _variableConfigByNodeId[nodeIdStr] = v;
+
+                        // Attach write handler for ReadWrite/WriteOnly variables
+                        if (v.AccessMode?.ToLowerInvariant() is "readwrite" or "rw" or "writeonly" or "wo")
+                        {
+                            node.OnSimpleWriteValue = OnWriteValue;
+                        }
                     }
                 }
 
@@ -900,6 +1009,28 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
+        /// Mark a variable as recently written by OPC UA client — suppress polling temporarily.
+        /// </summary>
+        public void SuppressPolling(string variableName)
+        {
+            _writeSuppression[variableName] = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Check if a variable's polling should be suppressed (recently written by client).
+        /// </summary>
+        public bool IsWriteSuppressed(string variableName)
+        {
+            if (_writeSuppression.TryGetValue(variableName, out var writeTime))
+            {
+                if ((DateTime.UtcNow - writeTime).TotalSeconds < WRITE_SUPPRESS_SECONDS)
+                    return true;
+                _writeSuppression.TryRemove(variableName, out _);
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Update an alarm value (called from PLC polling service)
         /// </summary>
         public void UpdateAlarmValue(int alarmIndex, bool active)
@@ -917,6 +1048,19 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
+        /// Get the current OPC UA node value for a variable (for ReadWrite sync)
+        /// </summary>
+        public object? GetVariableValue(string variableName)
+        {
+            lock (Lock)
+            {
+                if (_variableNodes.TryGetValue(variableName, out var node))
+                    return node.Value;
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Get current values of all tracked nodes (variables + alarms)
         /// </summary>
         public Dictionary<string, object?> GetCurrentValues()
@@ -929,6 +1073,105 @@ namespace SW.PC.API.Backend.Services
                     result[kvp.Key] = kvp.Value.Value;
                 }
                 return result;
+            }
+        }
+
+        /// <summary>
+        /// OPC UA client write handler — intercepts writes, forwards to PLC, audits.
+        /// Event-driven: fires only when a client explicitly writes a value.
+        /// </summary>
+        private ServiceResult OnWriteValue(
+            ISystemContext context,
+            NodeState node,
+            ref object value)
+        {
+            try
+            {
+                var variableNode = node as BaseDataVariableState;
+                if (variableNode == null)
+                    return Opc.Ua.StatusCodes.BadNodeIdUnknown;
+
+                // Find the variable config by node symbolic name
+                var varName = variableNode.SymbolicName;
+                var varConfig = _variables.Find(v => v.VariableName == varName);
+                if (varConfig == null)
+                {
+                    _logger.LogWarning("🌐 Write rejected: unknown variable {Name}", varName);
+                    return Opc.Ua.StatusCodes.BadNodeIdUnknown;
+                }
+
+                var oldValue = variableNode.Value;
+                var clientInfo = context?.SessionId?.ToString() ?? "Unknown";
+                // Capture ref parameter for use in lambda
+                var writeValue = value;
+
+                _logger.LogInformation("🌐 OPC/UA Write: {Var} = {Old} → {New} (type: {ValType}, client: {Client})",
+                    varName, oldValue, writeValue, writeValue?.GetType().Name ?? "null", clientInfo);
+
+                var access = varConfig.AccessMode?.ToLowerInvariant();
+                var clrType = OpcUaServerService.MapDataTypeToClr(varConfig.DataType);
+
+                // Convert OPC UA value to expected CLR type (e.g., Int32 → Int16)
+                object convertedValue;
+                try
+                {
+                    convertedValue = Convert.ChangeType(writeValue, clrType);
+                }
+                catch
+                {
+                    convertedValue = writeValue; // fallback: let WriteVariableAsync handle it
+                }
+
+                if (access is "writeonly" or "wo")
+                {
+                    // WriteOnly: forward directly to ADS (no poll loop for these)
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var success = await _twinCATService.WriteVariableAsync(
+                                varConfig.PlcSymbolPath, convertedValue, clrType);
+                            // Variable operations → solo L2 (Operation Log)
+                            await _operationLogService.LogAsync(
+                                OperationCategory.OpcUa, OperationAction.OpcUaNodeWrite,
+                                $"WriteOnly OPC→ADS: {varName} = {convertedValue} (PLC: {(success ? "OK" : "FAILED")}, client: {clientInfo})",
+                                user: $"OpcUaClient:{clientInfo}");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "🌐 WriteOnly forward failed for {Var}", varName);
+                        }
+                    });
+                }
+                else if (access is "readwrite" or "rw")
+                {
+                    // ReadWrite: forward to ADS immediately, then suppress polling briefly
+                    SuppressPolling(varName);
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var success = await _twinCATService.WriteVariableAsync(
+                                varConfig.PlcSymbolPath, convertedValue, clrType);
+                            // Variable operations → solo L2 (Operation Log)
+                            await _operationLogService.LogAsync(
+                                OperationCategory.OpcUa, OperationAction.OpcUaNodeWrite,
+                                $"ReadWrite OPC→ADS: {varName} = {convertedValue} (PLC: {(success ? "OK" : "FAILED")}, client: {clientInfo})",
+                                user: $"OpcUaClient:{clientInfo}");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "🌐 ReadWrite forward failed for {Var}", varName);
+                        }
+                    });
+                }
+
+                return ServiceResult.Good;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🌐 Error in OnWriteValue handler");
+                return Opc.Ua.StatusCodes.BadInternalError;
             }
         }
 
@@ -978,6 +1221,26 @@ namespace SW.PC.API.Backend.Services
 
                 folder.AddChild(node);
                 AddPredefinedNode(SystemContext, node);
+
+                // Add EngineeringUnits property (OPC UA Part 8) if Unit is defined
+                if (!string.IsNullOrWhiteSpace(config.Unit))
+                {
+                    var euProp = new PropertyState<EUInformation>(node)
+                    {
+                        NodeId = new NodeId($"{ParseNodeIdString(config.NodeId)}_EU", NamespaceIndex),
+                        BrowseName = BrowseNames.EngineeringUnits,
+                        DisplayName = new LocalizedText("EngineeringUnits"),
+                        DataType = DataTypeIds.EUInformation,
+                        ValueRank = ValueRanks.Scalar,
+                        AccessLevel = AccessLevels.CurrentRead,
+                        UserAccessLevel = AccessLevels.CurrentRead,
+                        ReferenceTypeId = ReferenceTypes.HasProperty,
+                        TypeDefinitionId = VariableTypeIds.PropertyType,
+                        Value = new EUInformation(config.Unit, config.Unit, "http://www.opcfoundation.org/UA/units/un/cefact")
+                    };
+                    node.AddChild(euProp);
+                    AddPredefinedNode(SystemContext, euProp);
+                }
 
                 return node;
             }
