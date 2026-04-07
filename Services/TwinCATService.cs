@@ -950,6 +950,36 @@ namespace SW.PC.API.Backend.Services
                         _adsClient.Write(handle, buffer.AsMemory());
                         _logger.LogDebug("✍️ Wrote BOOL to PLC: {Var} = {Value}", variableName, value);
                     }
+                    else if (dataType == typeof(ushort))
+                    {
+                        // ✅ UINT de TwinCAT (16 bits = 2 bytes, unsigned)
+                        buffer = new byte[2];
+                        using var stream = new MemoryStream(buffer);
+                        using var writer = new BinaryWriter(stream);
+                        writer.Write(Convert.ToUInt16(value));
+                        _adsClient.Write(handle, buffer.AsMemory());
+                        _logger.LogDebug("✍️ Wrote UINT (ushort) to PLC: {Var} = {Value}", variableName, value);
+                    }
+                    else if (dataType == typeof(uint))
+                    {
+                        // ✅ UDINT de TwinCAT (32 bits = 4 bytes, unsigned)
+                        buffer = new byte[4];
+                        using var stream = new MemoryStream(buffer);
+                        using var writer = new BinaryWriter(stream);
+                        writer.Write(Convert.ToUInt32(value));
+                        _adsClient.Write(handle, buffer.AsMemory());
+                        _logger.LogDebug("✍️ Wrote UDINT (uint) to PLC: {Var} = {Value}", variableName, value);
+                    }
+                    else if (dataType == typeof(long))
+                    {
+                        // ✅ LINT de TwinCAT (64 bits = 8 bytes, signed)
+                        buffer = new byte[8];
+                        using var stream = new MemoryStream(buffer);
+                        using var writer = new BinaryWriter(stream);
+                        writer.Write(Convert.ToInt64(value));
+                        _adsClient.Write(handle, buffer.AsMemory());
+                        _logger.LogDebug("✍️ Wrote LINT (long) to PLC: {Var} = {Value}", variableName, value);
+                    }
                     else if (dataType == typeof(float))
                     {
                         buffer = new byte[4];
@@ -1244,7 +1274,7 @@ namespace SW.PC.API.Backend.Services
                 // Find the registration for this notification
                 if (!_notificationRegistrations.TryGetValue(e.Handle, out var registration))
                 {
-                    _logger.LogWarning("🔔 Received notification for unknown handle: {Handle}", e.Handle);
+                    _logger.LogDebug("🔔 Received notification for unknown handle: {Handle} (stale/residual)", e.Handle);
                     return;
                 }
                 

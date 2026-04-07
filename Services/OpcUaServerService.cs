@@ -437,6 +437,7 @@ namespace SW.PC.API.Backend.Services
 
             // Capture node manager reference for PLC polling bridge
             _nodeManager = ((AquafrischOpcUaServer)_server).NodeManager;
+            _nodeManager.OnClientWrite = (varName, value) => _previousValues[varName] = value;
             
             UpdateMetrics();
             _logger.LogInformation("🌐 OPC/UA Server started successfully on port {Port}", _config.Port);
@@ -866,22 +867,59 @@ namespace SW.PC.API.Backend.Services
             _logger.LogInformation("🌐 OPC/UA Server event handlers registered");
         }
 
+        private string GetClientName(Session session)
+        {
+            if (session == null) return "unknown";
+
+            var sessionName = session.SessionDiagnostics?.SessionName ?? "";
+            var sessionId = session.Id?.ToString() ?? "";
+            var identity = session.Identity?.DisplayName ?? "";
+
+            // Check if SessionName is meaningful (not generic "Session i=N" pattern)
+            bool isGenericName = string.IsNullOrEmpty(sessionName) 
+                || sessionName.StartsWith("Session ", StringComparison.OrdinalIgnoreCase);
+
+            // Try ClientDescription from diagnostics
+            var appName = session.SessionDiagnostics?.ClientDescription?.ApplicationName?.Text ?? "";
+            var appUri = session.SessionDiagnostics?.ClientDescription?.ApplicationUri ?? "";
+
+            // Build best name: prefer real SessionName > AppName > AppUri > SessionId
+            string clientName;
+            if (!isGenericName)
+                clientName = sessionName;
+            else if (!string.IsNullOrEmpty(appName))
+                clientName = appName;
+            else if (!string.IsNullOrEmpty(appUri))
+                clientName = appUri;
+            else
+                clientName = $"Client [{sessionId}]";
+
+            // Append identity if not anonymous
+            if (!string.IsNullOrEmpty(identity) && identity != "Anonymous")
+                clientName += $" ({identity})";
+
+            return clientName;
+        }
+
         private void OnSessionActivated(Session session, SessionEventReason reason)
         {
-            var clientName = session?.SessionDiagnostics?.SessionName ?? "Unknown";
-            _logger.LogInformation("🌐 OPC/UA Client connected: {Client} (Reason: {Reason})", clientName, reason);
+            var clientName = GetClientName(session);
+            var details = $"Client '{clientName}' connected ({reason})";
+
+            _logger.LogInformation("🌐 OPC/UA {Details}", details);
 
             _ = _auditLogService.LogAsync(
                 AuditCategory.OtCommunication,
                 AuditAction.OpcUaClientConnect,
                 AuditResult.Success,
-                $"Client '{clientName}' connected ({reason})",
+                details,
                 userName: "System");
         }
 
         private void OnSessionClosing(Session session, SessionEventReason reason)
         {
-            var clientName = session?.SessionDiagnostics?.SessionName ?? "Unknown";
+            var clientName = GetClientName(session);
+
             _logger.LogInformation("🌐 OPC/UA Client disconnected: {Client} (Reason: {Reason})", clientName, reason);
 
             _ = _auditLogService.LogAsync(
@@ -916,6 +954,12 @@ namespace SW.PC.API.Backend.Services
         // so the PLC has time to process the command before we read back
         private readonly ConcurrentDictionary<string, DateTime> _writeSuppression = new();
         private const int WRITE_SUPPRESS_SECONDS = 5;
+
+        /// <summary>
+        /// Callback to notify the parent service that a client wrote a value,
+        /// so it can sync _previousValues and avoid phantom "PLC change" logs.
+        /// </summary>
+        public Action<string, object>? OnClientWrite { get; set; }
 
         public AquafrischNodeManager(
             IServerInternal server,
@@ -969,9 +1013,11 @@ namespace SW.PC.API.Backend.Services
                         _variableConfigByNodeId[nodeIdStr] = v;
 
                         // Attach write handler for ReadWrite/WriteOnly variables
+                        // Use OnWriteValue (full handler) instead of OnSimpleWriteValue
+                        // to receive the client's SourceTimestamp via ref DateTime timestamp
                         if (v.AccessMode?.ToLowerInvariant() is "readwrite" or "rw" or "writeonly" or "wo")
                         {
-                            node.OnSimpleWriteValue = OnWriteValue;
+                            node.OnWriteValue = OnWriteValueHandler;
                         }
                     }
                 }
@@ -1077,13 +1123,18 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
-        /// OPC UA client write handler — intercepts writes, forwards to PLC, audits.
+        /// OPC UA client write handler (full) — intercepts writes, forwards to PLC, audits.
+        /// Uses the full OnWriteValue delegate to receive SourceTimestamp from the client.
         /// Event-driven: fires only when a client explicitly writes a value.
         /// </summary>
-        private ServiceResult OnWriteValue(
+        private ServiceResult OnWriteValueHandler(
             ISystemContext context,
             NodeState node,
-            ref object value)
+            NumericRange indexRange,
+            QualifiedName dataEncoding,
+            ref object value,
+            ref StatusCode statusCode,
+            ref DateTime timestamp)
         {
             try
             {
@@ -1105,8 +1156,23 @@ namespace SW.PC.API.Backend.Services
                 // Capture ref parameter for use in lambda
                 var writeValue = value;
 
-                _logger.LogInformation("🌐 OPC/UA Write: {Var} = {Old} → {New} (type: {ValType}, client: {Client})",
-                    varName, oldValue, writeValue, writeValue?.GetType().Name ?? "null", clientInfo);
+                // Use client-provided SourceTimestamp if available, otherwise server time.
+                // Per OPC UA Part 4 §5.10.4: "If the SourceTimestamp is specified,
+                // the Server shall use these values."
+                var clientTimestamp = timestamp;
+                var hasClientTimestamp = clientTimestamp != DateTime.MinValue && clientTimestamp.Year > 2000;
+                var effectiveTimestamp = hasClientTimestamp ? clientTimestamp : DateTime.UtcNow;
+
+                _logger.LogInformation(
+                    "🌐 OPC/UA Write: {Var} = {Old} → {New} (type: {ValType}, client: {Client}, clientTs: {ClientTs})",
+                    varName, oldValue, writeValue, writeValue?.GetType().Name ?? "null", clientInfo,
+                    hasClientTimestamp ? clientTimestamp.ToString("HH:mm:ss.fff") : "none→server");
+
+                // Set SourceTimestamp on the node: prefer client's, fallback to server UTC.
+                variableNode.Timestamp = effectiveTimestamp;
+                variableNode.ClearChangeMasks(SystemContext, false);
+                // Feed the effective timestamp back to the SDK so it propagates correctly
+                timestamp = effectiveTimestamp;
 
                 var access = varConfig.AccessMode?.ToLowerInvariant();
                 var clrType = OpcUaServerService.MapDataTypeToClr(varConfig.DataType);
@@ -1145,7 +1211,10 @@ namespace SW.PC.API.Backend.Services
                 }
                 else if (access is "readwrite" or "rw")
                 {
-                    // ReadWrite: forward to ADS immediately, then suppress polling briefly
+                    // ReadWrite: forward to ADS immediately, then suppress polling briefly.
+                    // Notify parent to sync _previousValues so the poll loop won't see
+                    // a phantom "PLC change" when it resumes and reads the value we just wrote.
+                    OnClientWrite?.Invoke(varName, convertedValue);
                     SuppressPolling(varName);
                     _ = Task.Run(async () =>
                     {

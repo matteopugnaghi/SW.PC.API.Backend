@@ -75,6 +75,13 @@ namespace SW.PC.API.Backend.Services
         private const int MAX_CACHE_SIZE = 100;
         private const int FLUSH_INTERVAL_SECONDS = 30;
         
+        // ═══════════════════════════════════════════════════════════
+        // READ CACHE: avoids re-reading/deserializing large JSON files on every API call.
+        // Invalidated on flush (new data written to disk).
+        // ═══════════════════════════════════════════════════════════
+        private readonly ConcurrentDictionary<string, (List<AuditLogEntry> entries, DateTime loadedAt)> _readCache = new();
+        private const int READ_CACHE_TTL_SECONDS = 10;
+        
         // Estadísticas de envío externo
         private DateTime? _lastExternalSendTime;
         private int _externalSendFailures = 0;
@@ -606,6 +613,7 @@ namespace SW.PC.API.Backend.Services
                 }
 
                 _lastFlush = DateTime.Now;
+                _readCache.Clear(); // Invalidate read cache after writing new data
             }
             catch (Exception ex)
             {
@@ -707,8 +715,58 @@ namespace SW.PC.API.Backend.Services
         /// <param name="projectId">ID del proyecto (null = proyecto activo)</param>
         public async Task<AuditLogResponse> GetLogsAsync(AuditLogQuery query, string? projectId = null)
         {
+            // ═══════════════════════════════════════════════════════════
+            // FAST PATH: When filtering by category with small Take and no date range,
+            // read files newest-first and stop early. NO FlushCacheAsync — we merge
+            // in-memory cache entries directly to avoid lock contention with LogAsync.
+            // ═══════════════════════════════════════════════════════════
+            var canUseFastPath = query.Category.HasValue 
+                && !query.From.HasValue && !query.To.HasValue 
+                && string.IsNullOrEmpty(query.UserId) && !query.Result.HasValue
+                && query.Skip == 0;
+
+            if (canUseFastPath)
+            {
+                var category = query.Category!.Value;
+                
+                // 1) Grab matching entries from in-memory cache (lock-free snapshot)
+                var cachedEntries = _cache.ToArray()
+                    .Where(e => e.Category == category)
+                    .OrderByDescending(e => e.Timestamp)
+                    .ToList();
+
+                // 2) If cache alone satisfies the request, return immediately
+                if (cachedEntries.Count >= query.Take)
+                {
+                    return new AuditLogResponse
+                    {
+                        Entries = cachedEntries.Take(query.Take).ToList(),
+                        TotalCount = cachedEntries.Count,
+                        Page = 1,
+                        PageSize = query.Take,
+                        HasMore = true
+                    };
+                }
+
+                // 3) Read from disk (newest files first, stop early) for the remainder
+                var remaining = query.Take - cachedEntries.Count;
+                var diskEntries = await GetRecentEntriesByCategoryAsync(category, remaining, projectId);
+                
+                // 4) Merge: cache entries first (newest), then disk
+                var merged = cachedEntries.Concat(diskEntries).ToList();
+                
+                return new AuditLogResponse
+                {
+                    Entries = merged,
+                    TotalCount = merged.Count,
+                    Page = 1,
+                    PageSize = query.Take,
+                    HasMore = merged.Count >= query.Take
+                };
+            }
+
+            // SLOW PATH: Full scan (for complex queries with date ranges, pagination, etc.)
             await FlushCacheAsync();
-            
             var allEntries = await GetAllEntriesAsync(projectId);
             
             IEnumerable<AuditLogEntry> filtered = allEntries;
@@ -729,7 +787,7 @@ namespace SW.PC.API.Backend.Services
                 filtered = filtered.Where(e => e.UserId == query.UserId);
 
             var totalCount = filtered.Count();
-            var entries = filtered
+            var pagedEntries = filtered
                 .OrderByDescending(e => e.Timestamp)
                 .Skip(query.Skip)
                 .Take(query.Take)
@@ -737,12 +795,104 @@ namespace SW.PC.API.Backend.Services
 
             return new AuditLogResponse
             {
-                Entries = entries,
+                Entries = pagedEntries,
                 TotalCount = totalCount,
                 Page = query.Skip / query.Take + 1,
                 PageSize = query.Take,
-                HasMore = query.Skip + entries.Count < totalCount
+                HasMore = query.Skip + pagedEntries.Count < totalCount
             };
+        }
+
+        /// <summary>
+        /// Fast category-filtered read: reads only the most recent files (max 3) until 'take' entries found.
+        /// HARD LIMIT: never reads more than 3 files to prevent scanning hundreds of MB.
+        /// </summary>
+        private async Task<List<AuditLogEntry>> GetRecentEntriesByCategoryAsync(
+            AuditCategory category, int take, string? projectId = null)
+        {
+            var result = new List<AuditLogEntry>(take);
+            var auditPath = GetAuditPath(projectId);
+
+            if (!Directory.Exists(auditPath))
+                return result;
+
+            // Only read the 3 most recent files — NEVER scan the entire directory
+            var files = Directory.GetFiles(auditPath, "audit_*.json")
+                .OrderByDescending(f => f)
+                .Take(3);
+
+            foreach (var file in files)
+            {
+                try
+                {
+                    var entries = await ReadFileWithCacheAsync(file);
+                    if (entries == null || entries.Count == 0) continue;
+
+                    // Filter and collect from this file (entries are chronological, scan in reverse)
+                    for (int i = entries.Count - 1; i >= 0; i--)
+                    {
+                        if (entries[i].Category == category)
+                        {
+                            result.Add(entries[i]);
+                            if (result.Count >= take)
+                                return result;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("⚠️ Error reading audit file {File}: {Error}", file, ex.Message);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Read and deserialize a JSON audit file, with in-memory caching (TTL-based).
+        /// Avoids re-reading/deserializing 300KB+ files every 15 seconds.
+        /// </summary>
+        private async Task<List<AuditLogEntry>?> ReadFileWithCacheAsync(string filePath)
+        {
+            // Check cache first
+            if (_readCache.TryGetValue(filePath, out var cached) 
+                && (DateTime.Now - cached.loadedAt).TotalSeconds < READ_CACHE_TTL_SECONDS)
+            {
+                return cached.entries;
+            }
+
+            // Read from disk
+            try
+            {
+                string json;
+                using (var readStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(readStream))
+                {
+                    json = await reader.ReadToEndAsync();
+                }
+
+                if (string.IsNullOrWhiteSpace(json)) return null;
+                var trimmed = json.Trim();
+                if (!trimmed.StartsWith("[")) return null;
+
+                var entries = JsonSerializer.Deserialize<List<AuditLogEntry>>(json, JsonOptions);
+                if (entries != null)
+                {
+                    _readCache[filePath] = (entries, DateTime.Now);
+                }
+                return entries;
+            }
+            catch (IOException)
+            {
+                // File might be being written/moved by FlushCacheAsync — return stale cache if available
+                if (_readCache.TryGetValue(filePath, out var stale))
+                    return stale.entries;
+                return null;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
 
         /// <summary>

@@ -733,6 +733,7 @@ public class OperationLogsController : ControllerBase
         OperationCategory.Statistics => "Estadísticas",
         OperationCategory.Configuration => "Configuración",
         OperationCategory.PlcAlarmHistory => "Historial Alarmas PLC",
+        OperationCategory.OpcUa => "OPC/UA",
         _ => category.ToString()
     };
 
@@ -743,6 +744,7 @@ public class OperationLogsController : ControllerBase
         OperationCategory.Statistics => "📊",
         OperationCategory.Configuration => "🔧",
         OperationCategory.PlcAlarmHistory => "🔔",
+        OperationCategory.OpcUa => "🌐",
         _ => "📝"
     };
 
@@ -819,6 +821,13 @@ public class OperationLogsController : ControllerBase
             OperationAction.ConfigWritePlc,
             OperationAction.FastConfigWritePlc,
             OperationAction.FastConfigChange
+        },
+        OperationCategory.OpcUa => new[] {
+            OperationAction.OpcUaNodeWrite,
+            OperationAction.OpcUaValueChange,
+            OperationAction.OpcUaAlarmChange,
+            OperationAction.OpcUaClientConnect,
+            OperationAction.OpcUaClientDisconnect
         },
         _ => Enum.GetValues<OperationAction>()
     };

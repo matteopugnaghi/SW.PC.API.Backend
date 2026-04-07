@@ -34,7 +34,10 @@ public enum OperationCategory
     PlcCommand = 9,
     
     /// <summary>Historial de alarmas PLC (st_alarmHistPc)</summary>
-    PlcAlarmHistory = 10
+    PlcAlarmHistory = 10,
+
+    /// <summary>Comunicación OPC/UA (escrituras, lecturas, cambios)</summary>
+    OpcUa = 11
 }
 
 /// <summary>
@@ -92,7 +95,14 @@ public enum OperationAction
     // Wash Type specific (140-149)
     WashTypeLoad = 140,              // Seleccionar tipo de lavado
     WashTypeSaveFromPlc = 142,       // Guardar tipo de lavado en DB desde PLC
-    WashTypeWritePlcFromEditor = 143 // Escribir tipo de lavado al PLC (desde editor)
+    WashTypeWritePlcFromEditor = 143, // Escribir tipo de lavado al PLC (desde editor)
+    
+    // OPC/UA (150-159)
+    OpcUaNodeWrite = 150,             // Escritura desde cliente OPC UA → ADS
+    OpcUaValueChange = 151,           // Cambio de valor ADS → OPC UA
+    OpcUaAlarmChange = 152,           // Cambio de estado de alarma OPC UA
+    OpcUaClientConnect = 153,         // Cliente OPC UA conectado
+    OpcUaClientDisconnect = 154,      // Cliente OPC UA desconectado
     
     // ❌ System (200+) - ELIMINADO: Los eventos de sistema (Startup, Shutdown, Error)
     //    ya se registran en L1 (Audit Log) con AuditAction.SystemStart/SystemStop
