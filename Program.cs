@@ -292,12 +292,15 @@ if (opcUaEnabledInExcel)
 {
     builder.Services.AddSingleton<IOpcUaServerService, OpcUaServerService>();
     builder.Services.AddHostedService(sp => (OpcUaServerService)sp.GetRequiredService<IOpcUaServerService>());
-    Console.WriteLine("🌐 OPC/UA Server service REGISTERED");
+    builder.Services.AddSingleton<IOpcUaCertificateService, OpcUaCertificateService>();
+    Console.WriteLine("🌐 OPC/UA Server service REGISTERED (with certificate management)");
 }
 else
 {
     // Register a disabled stub so IOpcUaServerService can still be injected
     builder.Services.AddSingleton<IOpcUaServerService, DisabledOpcUaServerService>();
+    // Certificate service available even when OPC/UA server is disabled (for pre-provisioning)
+    builder.Services.AddSingleton<IOpcUaCertificateService, OpcUaCertificateService>();
     Console.WriteLine("🌐 OPC/UA Server DISABLED — service not started");
 }
 

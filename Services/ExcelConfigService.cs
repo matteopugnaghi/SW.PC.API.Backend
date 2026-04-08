@@ -3324,6 +3324,12 @@ namespace SW.PC.API.Backend.Services
                                 if (!string.IsNullOrWhiteSpace(paramValue))
                                     config.OpcUaServerName = paramValue.Trim();
                                 break;
+                            case "opcuacertificatemode":
+                            case "opcua_certificate_mode":
+                            case "opcua_certmode":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaCertificateMode = paramValue.Trim().ToLowerInvariant();
+                                break;
                             case "opcuasecuritypolicy":
                             case "opcua_security_policy":
                             case "opcua_securitypolicy":
@@ -3387,28 +3393,6 @@ namespace SW.PC.API.Backend.Services
                                 if (!string.IsNullOrWhiteSpace(paramValue))
                                     config.OpcUaUserPassword = paramValue.Trim();
                                 break;
-                            case "opcuawatchdogintervalms":
-                            case "opcua_watchdogintervalms":
-                            case "opcua_watchdog_interval_ms":
-                            case "opcua_watchdog":
-                                if (int.TryParse(paramValue, out int wdInterval))
-                                    config.OpcUaWatchdogIntervalMs = Math.Max(1000, wdInterval);
-                                break;
-                            case "opcuacommandfeedbackdurationms":
-                            case "opcua_commandfeedbackdurationms":
-                            case "opcua_command_feedback_duration_ms":
-                            case "opcua_feedbackduration":
-                                if (int.TryParse(paramValue, out int fbDuration))
-                                    config.OpcUaCommandFeedbackDurationMs = Math.Max(500, fbDuration);
-                                break;
-                            case "opcuadefaultsubscriptionintervalms":
-                            case "opcua_defaultsubscriptionintervalms":
-                            case "opcua_default_subscription_interval_ms":
-                            case "opcua_subscriptioninterval":
-                                if (int.TryParse(paramValue, out int subInterval))
-                                    config.OpcUaDefaultSubscriptionIntervalMs = Math.Max(100, subInterval);
-                                break;
-
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;

@@ -211,6 +211,7 @@ namespace SW.PC.API.Backend.Services
                 Port = sysConfig.OpcUaPort,
                 ServerUri = sysConfig.OpcUaServerUri,
                 ServerName = sysConfig.OpcUaServerName,
+                CertificateMode = sysConfig.OpcUaCertificateMode,
                 SecurityPolicy = sysConfig.OpcUaSecurityPolicy,
                 SecurityMode = sysConfig.OpcUaSecurityMode,
                 CertificatePath = sysConfig.OpcUaCertificatePath,
@@ -221,11 +222,18 @@ namespace SW.PC.API.Backend.Services
                 CrlUrl = sysConfig.OpcUaCrlUrl,
                 AllowAnonymous = sysConfig.OpcUaAllowAnonymous,
                 UserName = sysConfig.OpcUaUserName,
-                UserPassword = sysConfig.OpcUaUserPassword,
-                WatchdogIntervalMs = sysConfig.OpcUaWatchdogIntervalMs,
-                CommandFeedbackDurationMs = sysConfig.OpcUaCommandFeedbackDurationMs,
-                DefaultSubscriptionIntervalMs = sysConfig.OpcUaDefaultSubscriptionIntervalMs
+                UserPassword = sysConfig.OpcUaUserPassword
             };
+
+            // CertificateMode=none forces SecurityPolicy and SecurityMode to None
+            var mode = _config.CertificateMode.ToLowerInvariant();
+            if (mode == "none")
+            {
+                _config.SecurityPolicy = "None";
+                _config.SecurityMode = "None";
+                _logger.LogInformation("🌐 CertificateMode=none: SecurityPolicy and SecurityMode forced to None");
+            }
+            _logger.LogInformation("🌐 OPC/UA CertificateMode: {Mode}", _config.CertificateMode);
 
             // Load OPC/UA Variables from dedicated sheet
             _variables = await _excelConfigService.LoadOpcUaVariablesAsync(excelPath);
@@ -283,8 +291,11 @@ namespace SW.PC.API.Backend.Services
                             ? _config.RejectedCertsFolder 
                             : GetCertificateStorePath("rejected")
                     },
-                    AutoAcceptUntrustedCertificates = true,
-                    RejectSHA1SignedCertificates = false,
+                    // AutoAccept driven by CertificateMode from Excel:
+                    //   none / auto-accept → true (accept all)
+                    //   manual-trust / ca  → false (validate against trust store)
+                    AutoAcceptUntrustedCertificates = _config.CertificateMode.ToLowerInvariant() is "none" or "auto-accept",
+                    RejectSHA1SignedCertificates = _config.CertificateMode.ToLowerInvariant() is "manual-trust" or "ca",
                     MinimumCertificateKeySize = 2048,
                     AddAppCertToTrustedStore = true
                 },
@@ -318,14 +329,61 @@ namespace SW.PC.API.Backend.Services
             await appConfig.Validate(ApplicationType.Server);
             _logger.LogInformation("🌐 Configuration validated OK");
 
-            // Auto-accept certificates in development/testing
-            if (_config.SecurityPolicy.Equals("None", StringComparison.OrdinalIgnoreCase))
+            // Certificate validation behavior based on CertificateMode (from Excel)
+            var certMode = _config.CertificateMode.ToLowerInvariant();
+            switch (certMode)
             {
-                appConfig.SecurityConfiguration.AutoAcceptUntrustedCertificates = true;
-                appConfig.CertificateValidator.CertificateValidation += (s, e) =>
-                {
-                    e.Accept = true;
-                };
+                case "none":
+                case "auto-accept":
+                    // Accept all certificates without validation
+                    appConfig.SecurityConfiguration.AutoAcceptUntrustedCertificates = true;
+                    appConfig.CertificateValidator.CertificateValidation += (s, e) => { e.Accept = true; };
+                    _logger.LogInformation("🌐 CertificateMode={Mode}: AutoAccept=true (all certificates accepted)", certMode);
+                    break;
+
+                case "manual-trust":
+                    // Self-signed certs, manual .DER exchange — reject untrusted, log for approval
+                    appConfig.CertificateValidator.CertificateValidation += (s, e) =>
+                    {
+                        if (e.Error.StatusCode == Opc.Ua.StatusCodes.BadCertificateUntrusted)
+                        {
+                            _logger.LogWarning("🔐 Certificate rejected (untrusted): {Subject} — approve via /api/opcua/certificates/approve",
+                                e.Certificate?.Subject ?? "unknown");
+                        }
+                    };
+                    _logger.LogInformation("🔐 CertificateMode=manual-trust: Only trusted certificates accepted. Manage via /api/opcua/certificates/");
+                    break;
+
+                case "ca":
+                    // CA-signed certificates with CRL checking
+                    appConfig.CertificateValidator.CertificateValidation += (s, e) =>
+                    {
+                        if (e.Error.StatusCode == Opc.Ua.StatusCodes.BadCertificateUntrusted)
+                        {
+                            _logger.LogWarning("🔐 Certificate rejected (untrusted): {Subject}", e.Certificate?.Subject ?? "unknown");
+                        }
+                        else if (e.Error.StatusCode == Opc.Ua.StatusCodes.BadCertificateRevoked)
+                        {
+                            _logger.LogError("🔐 Certificate REVOKED: {Subject}", e.Certificate?.Subject ?? "unknown");
+                        }
+                    };
+                    // Enable CRL checking if configured
+                    if (_config.CrlCheckEnabled && !string.IsNullOrEmpty(_config.CrlUrl))
+                    {
+                        _logger.LogInformation("🔐 CertificateMode=ca: CRL check enabled ({Url})", _config.CrlUrl);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("🔐 CertificateMode=ca: CA-signed mode (CRL check: {Enabled})", _config.CrlCheckEnabled);
+                    }
+                    break;
+
+                default:
+                    // Unknown mode → treat as auto-accept for safety
+                    appConfig.SecurityConfiguration.AutoAcceptUntrustedCertificates = true;
+                    appConfig.CertificateValidator.CertificateValidation += (s, e) => { e.Accept = true; };
+                    _logger.LogWarning("🌐 Unknown CertificateMode '{Mode}' — defaulting to auto-accept", certMode);
+                    break;
             }
 
             // Create application instance

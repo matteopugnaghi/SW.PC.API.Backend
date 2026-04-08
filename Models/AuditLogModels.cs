@@ -145,7 +145,14 @@ namespace SW.PC.API.Backend.Models
         OpcUaAlarmChange,       // ⚠️ DEPRECATED in L1 - Alarm status solo en L2 (OperationLog)
         OpcUaSubscriptionCreate,
         OpcUaSubscriptionDelete,
-        OpcUaSecurityReject
+        OpcUaSecurityReject,
+        
+        // ═══════════════════════════════════════════════════════════
+        // OPC/UA CERTIFICATE MANAGEMENT (Phase 1 - Manual .DER exchange)
+        // ═══════════════════════════════════════════════════════════
+        CertificateImport,      // Trusted certificate imported
+        CertificateRemove,      // Certificate removed from store
+        CertificateApprove      // Rejected certificate approved → trusted
     }
 
     /// <summary>

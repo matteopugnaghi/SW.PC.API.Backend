@@ -1151,6 +1151,12 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Nombre amigable del servidor OPC/UA</summary>
         public string OpcUaServerName { get; set; } = "Aquafrisch SCADA OPC/UA Server";
 
+        /// <summary>
+        /// Modo de certificados OPC/UA: none, auto-accept, manual-trust, ca
+        /// Controla cómo el servidor maneja certificados de clientes.
+        /// </summary>
+        public string OpcUaCertificateMode { get; set; } = "auto-accept";
+
         /// <summary>Política de seguridad: None, Basic256Sha256 (CADRA: Basic256Sha256)</summary>
         public string OpcUaSecurityPolicy { get; set; } = "Basic256Sha256";
 
@@ -1184,14 +1190,6 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Contraseña para autenticación UserName/Password</summary>
         public string OpcUaUserPassword { get; set; } = "";
 
-        /// <summary>Intervalo del watchdog OPC/UA en milisegundos</summary>
-        public int OpcUaWatchdogIntervalMs { get; set; } = 5000;
-
-        /// <summary>Duración del feedback de comandos OPC/UA en milisegundos</summary>
-        public int OpcUaCommandFeedbackDurationMs { get; set; } = 2000;
-
-        /// <summary>Intervalo de suscripción por defecto en milisegundos</summary>
-        public int OpcUaDefaultSubscriptionIntervalMs { get; set; } = 1000;
     }
 
     /// <summary>

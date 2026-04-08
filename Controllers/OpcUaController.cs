@@ -50,11 +50,13 @@ namespace SW.PC.API.Backend.Controllers
                 config.Port,
                 config.ServerUri,
                 config.ServerName,
+                config.CertificateMode,
                 config.SecurityPolicy,
                 config.SecurityMode,
                 config.AllowAnonymous,
                 hasUserCredentials = !string.IsNullOrEmpty(config.UserName),
                 config.CrlCheckEnabled,
+                hasCrlUrl = !string.IsNullOrEmpty(config.CrlUrl),
                 hasCertificate = !string.IsNullOrEmpty(config.CertificatePath)
             });
         }

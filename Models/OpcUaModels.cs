@@ -12,6 +12,16 @@ namespace SW.PC.API.Backend.Models.OpcUa
         public string ServerName { get; set; } = "Aquafrisch SCADA OPC/UA Server";
 
         // ===== SECURITY =====
+        /// <summary>
+        /// Certificate trust mode (from Excel). Controls how the server handles client certificates.
+        /// Values: "none" | "auto-accept" | "manual-trust" | "ca"
+        ///   none         → No encryption, no certificates (SecurityPolicy forced to None)
+        ///   auto-accept  → Certificates generated but all clients auto-accepted (simple installations)
+        ///   manual-trust → Self-signed certs, manual .DER exchange (Alstom Phase 1, until June 2027)
+        ///   ca           → CA-signed certs with CRL checking (Alstom Phase 2+)
+        /// Default: "auto-accept" for backward compatibility with existing installations.
+        /// </summary>
+        public string CertificateMode { get; set; } = "auto-accept";
         public string SecurityPolicy { get; set; } = "Basic256Sha256";
         public string SecurityMode { get; set; } = "SignAndEncrypt";
         public string CertificatePath { get; set; } = "";
@@ -26,10 +36,6 @@ namespace SW.PC.API.Backend.Models.OpcUa
         public string UserName { get; set; } = "";
         public string UserPassword { get; set; } = "";
 
-        // ===== TIMING =====
-        public int WatchdogIntervalMs { get; set; } = 5000;
-        public int CommandFeedbackDurationMs { get; set; } = 2000;
-        public int DefaultSubscriptionIntervalMs { get; set; } = 1000;
     }
 
     /// <summary>
@@ -115,5 +121,25 @@ namespace SW.PC.API.Backend.Models.OpcUa
         public string RemoteAddress { get; set; } = "";
         public DateTime ConnectedAt { get; set; }
         public int ActiveSubscriptions { get; set; }
+    }
+
+    /// <summary>
+    /// 🔐 OPC/UA Certificate information (for trust management API)
+    /// </summary>
+    public class OpcUaCertificateInfo
+    {
+        public string Subject { get; set; } = "";
+        public string Issuer { get; set; } = "";
+        public string Thumbprint { get; set; } = "";
+        public string SerialNumber { get; set; } = "";
+        public DateTime NotBefore { get; set; }
+        public DateTime NotAfter { get; set; }
+        public int DaysUntilExpiry { get; set; }
+        public int KeySize { get; set; }
+        public string SignatureAlgorithm { get; set; } = "";
+        public bool IsSelfSigned { get; set; }
+        public bool IsValid { get; set; }
+        public string Store { get; set; } = "";
+        public string? FileName { get; set; }
     }
 }
