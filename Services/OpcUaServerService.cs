@@ -438,9 +438,32 @@ namespace SW.PC.API.Backend.Services
             // Capture node manager reference for PLC polling bridge
             _nodeManager = ((AquafrischOpcUaServer)_server).NodeManager;
             _nodeManager.OnClientWrite = (varName, value) => _previousValues[varName] = value;
+            _nodeManager.ResolveClientName = ResolveClientNameFromSessionId;
             
             UpdateMetrics();
             _logger.LogInformation("🌐 OPC/UA Server started successfully on port {Port}", _config.Port);
+        }
+
+        /// <summary>
+        /// Resolve a friendly client name from a SessionId (NodeId).
+        /// Looks up the session in the server's SessionManager, then delegates to GetClientName.
+        /// Used by the NodeManager's write handler to log consistent names across L1/L2.
+        /// </summary>
+        private string ResolveClientNameFromSessionId(NodeId? sessionId)
+        {
+            if (sessionId == null) return "Unknown";
+            try
+            {
+                var sessions = _server?.CurrentInstance?.SessionManager?.GetSessions();
+                if (sessions != null)
+                {
+                    var session = sessions.FirstOrDefault(s => s.Id == sessionId);
+                    if (session != null)
+                        return ((AquafrischOpcUaServer)_server!).GetClientNamePublic(session);
+                }
+            }
+            catch { /* best-effort */ }
+            return $"Client [{sessionId}]";
         }
 
         /// <summary>
@@ -516,9 +539,14 @@ namespace SW.PC.API.Backend.Services
                 {
                     try
                     {
-                        // Map alarm index + severity to st_alarmPc key
-                        // Severity: >=800 → .Alarm (0), 500-799 → .Notification (1), <500 → .Info (2)
-                        string suffix = a.Severity >= 800 ? "Alarm" : a.Severity >= 500 ? "Notification" : "Info";
+                        // Map severity to st_alarmPc suffix: 0=Alarm, 1=Notification, 2=Info
+                        string suffix = a.Severity switch
+                        {
+                            0 => "Alarm",
+                            1 => "Notification",
+                            2 => "Info",
+                            _ => "Alarm"
+                        };
                         
                         // Excel Index matches PLC array: Index 1 → st_alarmPc[1]
                         // Find matching key in alarm states (e.g., "MAIN.fbMachine.st_alarmPc[1].Notification")
@@ -751,11 +779,12 @@ namespace SW.PC.API.Backend.Services
                 {
                     foreach (var session in sessions)
                     {
+                        var friendlyName = ((AquafrischOpcUaServer)_server!).GetClientNamePublic(session);
                         status.Clients.Add(new OpcUaClientInfo
                         {
                             SessionId = session.Id?.ToString() ?? "",
-                            ClientName = session.SessionDiagnostics?.SessionName ?? "Unknown",
-                            RemoteAddress = session.SessionDiagnostics?.ClientConnectionTime.ToString("o") ?? "",
+                            ClientName = friendlyName,
+                            RemoteAddress = session.SessionDiagnostics?.ClientDescription?.ApplicationUri ?? "",
                             ConnectedAt = session.SessionDiagnostics?.ClientConnectionTime ?? DateTime.MinValue,
                             ActiveSubscriptions = (int)(session.SessionDiagnostics?.CurrentSubscriptionsCount ?? 0)
                         });
@@ -901,6 +930,9 @@ namespace SW.PC.API.Backend.Services
             return clientName;
         }
 
+        /// <summary>Public accessor for client name resolution (used by parent service).</summary>
+        public string GetClientNamePublic(Session session) => GetClientName(session);
+
         private void OnSessionActivated(Session session, SessionEventReason reason)
         {
             var clientName = GetClientName(session);
@@ -960,6 +992,12 @@ namespace SW.PC.API.Backend.Services
         /// so it can sync _previousValues and avoid phantom "PLC change" logs.
         /// </summary>
         public Action<string, object>? OnClientWrite { get; set; }
+
+        /// <summary>
+        /// Callback to resolve a friendly client name from ISystemContext.
+        /// Set by the parent server (AquafrischOpcUaServer) after creation.
+        /// </summary>
+        public Func<NodeId?, string>? ResolveClientName { get; set; }
 
         public AquafrischNodeManager(
             IServerInternal server,
@@ -1152,27 +1190,32 @@ namespace SW.PC.API.Backend.Services
                 }
 
                 var oldValue = variableNode.Value;
-                var clientInfo = context?.SessionId?.ToString() ?? "Unknown";
-                // Capture ref parameter for use in lambda
+                // Resolve friendly client name (same as L1 logs) instead of raw SessionId
+                var clientInfo = ResolveClientName?.Invoke(context?.SessionId) ?? context?.SessionId?.ToString() ?? "Unknown";
+                // Capture ref parameters for use in lambdas
                 var writeValue = value;
 
-                // Use client-provided SourceTimestamp if available, otherwise server time.
                 // Per OPC UA Part 4 §5.10.4: "If the SourceTimestamp is specified,
                 // the Server shall use these values."
+                // If the client does NOT send a SourceTimestamp, we do NOT fabricate one.
+                // The node keeps its previous SourceTimestamp (from last poll or creation).
                 var clientTimestamp = timestamp;
                 var hasClientTimestamp = clientTimestamp != DateTime.MinValue && clientTimestamp.Year > 2000;
-                var effectiveTimestamp = hasClientTimestamp ? clientTimestamp : DateTime.UtcNow;
+                var tsInfo = hasClientTimestamp ? clientTimestamp.ToString("HH:mm:ss.fff") : "NOT_PROVIDED";
 
                 _logger.LogInformation(
                     "🌐 OPC/UA Write: {Var} = {Old} → {New} (type: {ValType}, client: {Client}, clientTs: {ClientTs})",
                     varName, oldValue, writeValue, writeValue?.GetType().Name ?? "null", clientInfo,
-                    hasClientTimestamp ? clientTimestamp.ToString("HH:mm:ss.fff") : "none→server");
+                    hasClientTimestamp ? clientTimestamp.ToString("HH:mm:ss.fff") : "NOT_PROVIDED");
 
-                // Set SourceTimestamp on the node: prefer client's, fallback to server UTC.
-                variableNode.Timestamp = effectiveTimestamp;
+                if (hasClientTimestamp)
+                {
+                    // Client provided a SourceTimestamp — honour it per spec
+                    variableNode.Timestamp = clientTimestamp;
+                    timestamp = clientTimestamp;
+                }
+                // else: leave node.Timestamp untouched — don't invent data
                 variableNode.ClearChangeMasks(SystemContext, false);
-                // Feed the effective timestamp back to the SDK so it propagates correctly
-                timestamp = effectiveTimestamp;
 
                 var access = varConfig.AccessMode?.ToLowerInvariant();
                 var clrType = OpcUaServerService.MapDataTypeToClr(varConfig.DataType);
@@ -1200,7 +1243,7 @@ namespace SW.PC.API.Backend.Services
                             // Variable operations → solo L2 (Operation Log)
                             await _operationLogService.LogAsync(
                                 OperationCategory.OpcUa, OperationAction.OpcUaNodeWrite,
-                                $"WriteOnly OPC→ADS: {varName} = {convertedValue} (PLC: {(success ? "OK" : "FAILED")}, client: {clientInfo})",
+                                $"WriteOnly OPC→ADS: {varName} = {convertedValue} (PLC: {(success ? "OK" : "FAILED")}, client: {clientInfo}, srcTs: {tsInfo})",
                                 user: $"OpcUaClient:{clientInfo}");
                         }
                         catch (Exception ex)
@@ -1225,7 +1268,7 @@ namespace SW.PC.API.Backend.Services
                             // Variable operations → solo L2 (Operation Log)
                             await _operationLogService.LogAsync(
                                 OperationCategory.OpcUa, OperationAction.OpcUaNodeWrite,
-                                $"ReadWrite OPC→ADS: {varName} = {convertedValue} (PLC: {(success ? "OK" : "FAILED")}, client: {clientInfo})",
+                                $"ReadWrite OPC→ADS: {varName} = {convertedValue} (PLC: {(success ? "OK" : "FAILED")}, client: {clientInfo}, srcTs: {tsInfo})",
                                 user: $"OpcUaClient:{clientInfo}");
                         }
                         catch (Exception ex)

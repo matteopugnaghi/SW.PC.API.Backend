@@ -54,9 +54,6 @@ namespace SW.PC.API.Backend.Controllers
                 config.SecurityMode,
                 config.AllowAnonymous,
                 hasUserCredentials = !string.IsNullOrEmpty(config.UserName),
-                config.WatchdogIntervalMs,
-                config.CommandFeedbackDurationMs,
-                config.DefaultSubscriptionIntervalMs,
                 config.CrlCheckEnabled,
                 hasCertificate = !string.IsNullOrEmpty(config.CertificatePath)
             });

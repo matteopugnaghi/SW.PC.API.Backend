@@ -5328,12 +5328,16 @@ namespace SW.PC.API.Backend.Services
                             : ExtractAlarmIndex(alarmNameRaw, row - 1);
                     }
                     
+                    var severityRaw = sheet.Cell(row, colSeverity).GetString().Trim();
+                    var severity = int.TryParse(severityRaw, out var sevNum) ? sevNum : 0;
+
                     var alarm = new Models.OpcUa.OpcUaAlarm
                     {
+                        AlarmName = alarmNameRaw,
                         AlarmIndex = alarmIndex,
                         NodeId = sheet.Cell(row, colNodeId).GetString().Trim(),
                         Description = sheet.Cell(row, colDescription).GetString().Trim(),
-                        Severity = ParseSeverity(sheet.Cell(row, colSeverity).GetString().Trim())
+                        Severity = severity
                     };
                     
                     if (!string.IsNullOrEmpty(alarm.NodeId))

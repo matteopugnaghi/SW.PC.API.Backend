@@ -67,17 +67,20 @@ namespace SW.PC.API.Backend.Models.OpcUa
     /// </summary>
     public class OpcUaAlarm
     {
+        /// <summary>Alarm name from Excel (e.g., "TLS_M3_MAL_Alarm_042")</summary>
+        public string AlarmName { get; set; } = string.Empty;
+
         /// <summary>Alarm index (1-based)</summary>
         public int AlarmIndex { get; set; }
 
         /// <summary>OPC/UA Node ID for alarm condition</summary>
         public string NodeId { get; set; } = string.Empty;
 
-        /// <summary>Alarm description</summary>
+        /// <summary>Alarm description from OPC_UA_Alarms sheet</summary>
         public string Description { get; set; } = string.Empty;
 
-        /// <summary>Severity 1-1000 (OPC/UA standard)</summary>
-        public int Severity { get; set; } = 500;
+        /// <summary>Severity (0=Alarm, 1=Notification, 2=Info)</summary>
+        public int Severity { get; set; }
     }
 
     /// <summary>
