@@ -13,12 +13,16 @@ namespace SW.PC.API.Backend.Models.OpcUa
 
         // ===== SECURITY =====
         /// <summary>
-        /// Certificate trust mode (from Excel). Controls how the server handles client certificates.
+        /// Certificate trust mode (from Excel). Controls how the server validates client certificates.
         /// Values: "none" | "auto-accept" | "manual-trust" | "ca"
-        ///   none         → No encryption, no certificates (SecurityPolicy forced to None)
-        ///   auto-accept  → Certificates generated but all clients auto-accepted (simple installations)
-        ///   manual-trust → Self-signed certs, manual .DER exchange (Alstom Phase 1, until June 2027)
-        ///   ca           → CA-signed certs with CRL checking (Alstom Phase 2+)
+        ///   none         → No certificate validation (SecurityPolicy/SecurityMode can be anything)
+        ///   auto-accept  → All client certificates accepted automatically (development/testing)
+        ///   manual-trust → Only trusted certificates accepted, manual .DER exchange required
+        ///   ca           → Only CA-signed certificates accepted, CRL checking possible
+        /// 
+        /// IMPORTANT: SecurityPolicy and SecurityMode are INDEPENDENT settings.
+        /// Each installation configures them based on their requirements.
+        /// If CertificateMode requires certificates but SecurityPolicy=None, a WARNING is logged.
         /// Default: "auto-accept" for backward compatibility with existing installations.
         /// </summary>
         public string CertificateMode { get; set; } = "auto-accept";
@@ -36,6 +40,12 @@ namespace SW.PC.API.Backend.Models.OpcUa
         public string UserName { get; set; } = "";
         public string UserPassword { get; set; } = "";
 
+        // ===== RUNTIME WARNINGS =====
+        /// <summary>
+        /// Configuration warnings detected at startup. Exposed via /api/opcua/config and /api/opcua/status.
+        /// Empty list = configuration is consistent.
+        /// </summary>
+        public List<string> ConfigWarnings { get; set; } = new();
     }
 
     /// <summary>

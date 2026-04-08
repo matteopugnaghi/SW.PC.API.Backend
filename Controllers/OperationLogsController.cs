@@ -827,7 +827,8 @@ public class OperationLogsController : ControllerBase
             OperationAction.OpcUaValueChange,
             OperationAction.OpcUaAlarmChange,
             OperationAction.OpcUaClientConnect,
-            OperationAction.OpcUaClientDisconnect
+            OperationAction.OpcUaClientDisconnect,
+            OperationAction.OpcUaConfigWarning
         },
         _ => Enum.GetValues<OperationAction>()
     };

@@ -57,7 +57,8 @@ namespace SW.PC.API.Backend.Controllers
                 hasUserCredentials = !string.IsNullOrEmpty(config.UserName),
                 config.CrlCheckEnabled,
                 hasCrlUrl = !string.IsNullOrEmpty(config.CrlUrl),
-                hasCertificate = !string.IsNullOrEmpty(config.CertificatePath)
+                hasCertificate = !string.IsNullOrEmpty(config.CertificatePath),
+                config.ConfigWarnings
             });
         }
 

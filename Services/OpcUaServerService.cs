@@ -225,15 +225,115 @@ namespace SW.PC.API.Backend.Services
                 UserPassword = sysConfig.OpcUaUserPassword
             };
 
-            // CertificateMode=none forces SecurityPolicy and SecurityMode to None
+            // ═══════════════════════════════════════════════════════════════
+            // CertificateMode controls CERTIFICATE VALIDATION behavior.
+            // SecurityPolicy / SecurityMode are INDEPENDENT — configured per installation.
+            // If there's a mismatch, we LOG WARNINGS but respect the Excel values.
+            // ═══════════════════════════════════════════════════════════════
             var mode = _config.CertificateMode.ToLowerInvariant();
-            if (mode == "none")
+            _config.ConfigWarnings.Clear();
+
+            // Validate configuration coherence — warn on mismatches
+            var policyIsNone = string.IsNullOrEmpty(_config.SecurityPolicy) || 
+                               _config.SecurityPolicy.Equals("None", StringComparison.OrdinalIgnoreCase);
+            var modeIsNone = string.IsNullOrEmpty(_config.SecurityMode) || 
+                             _config.SecurityMode.Equals("None", StringComparison.OrdinalIgnoreCase);
+
+            switch (mode)
             {
-                _config.SecurityPolicy = "None";
-                _config.SecurityMode = "None";
-                _logger.LogInformation("🌐 CertificateMode=none: SecurityPolicy and SecurityMode forced to None");
+                case "none":
+                    // No certificate validation — SecurityPolicy/SecurityMode as configured
+                    _logger.LogInformation("🌐 CertificateMode=none → No certificate validation");
+                    break;
+
+                case "auto-accept":
+                    // Accept all certificates — warn if channel is unencrypted
+                    if (policyIsNone || modeIsNone)
+                    {
+                        var warn = "⚠️ CertificateMode=auto-accept but SecurityPolicy/SecurityMode=None. " +
+                                   "Certificates will be generated but channel is unencrypted. " +
+                                   "Configure OpcUa_SecurityPolicy (e.g. Basic256Sha256) and OpcUa_SecurityMode (e.g. SignAndEncrypt) in Excel.";
+                        _config.ConfigWarnings.Add(warn);
+                        _logger.LogWarning(warn);
+                    }
+                    break;
+
+                case "manual-trust":
+                case "ca":
+                    // Strict certificate validation — MUST have encryption
+                    if (policyIsNone)
+                    {
+                        var warn = $"⚠️ CONFIGURATION ERROR: CertificateMode={mode} requires OpcUa_SecurityPolicy to be configured " +
+                                   $"(e.g. Basic256Sha256, Aes128_Sha256_RsaOaep, Aes256_Sha256_RsaPss). " +
+                                   $"Current value: '{_config.SecurityPolicy}'. Falling back to Basic256Sha256.";
+                        _config.ConfigWarnings.Add(warn);
+                        _logger.LogError(warn);
+                        _config.SecurityPolicy = "Basic256Sha256";
+                    }
+                    if (modeIsNone)
+                    {
+                        var warn = $"⚠️ CONFIGURATION ERROR: CertificateMode={mode} requires OpcUa_SecurityMode to be configured " +
+                                   $"(Sign or SignAndEncrypt). " +
+                                   $"Current value: '{_config.SecurityMode}'. Falling back to SignAndEncrypt.";
+                        _config.ConfigWarnings.Add(warn);
+                        _logger.LogError(warn);
+                        _config.SecurityMode = "SignAndEncrypt";
+                    }
+                    if (_config.AllowAnonymous)
+                    {
+                        var warn = $"⚠️ CONFIGURATION WARNING: CertificateMode={mode} with AllowAnonymous=true is insecure. " +
+                                   $"Set OpcUa_AllowAnonymous=false in Excel for production.";
+                        _config.ConfigWarnings.Add(warn);
+                        _logger.LogWarning(warn);
+                    }
+                    if (!string.IsNullOrEmpty(_config.UserName) && string.IsNullOrEmpty(_config.UserPassword))
+                    {
+                        var warn = $"⚠️ CONFIGURATION WARNING: OpcUa_UserName is set but OpcUa_UserPassword is empty.";
+                        _config.ConfigWarnings.Add(warn);
+                        _logger.LogWarning(warn);
+                    }
+                    if (string.IsNullOrEmpty(_config.UserName) && !_config.AllowAnonymous)
+                    {
+                        var warn = $"⚠️ CONFIGURATION WARNING: Anonymous disabled but no OpcUa_UserName configured. " +
+                                   $"Clients will only be able to authenticate via certificate.";
+                        _config.ConfigWarnings.Add(warn);
+                        _logger.LogWarning(warn);
+                    }
+                    if (mode == "ca" && !_config.CrlCheckEnabled)
+                    {
+                        var warn = "⚠️ CONFIGURATION WARNING: CertificateMode=ca but CrlCheckEnabled=false. " +
+                                   "Revoked certificates will NOT be detected.";
+                        _config.ConfigWarnings.Add(warn);
+                        _logger.LogWarning(warn);
+                    }
+                    break;
+
+                default:
+                    var unknownWarn = $"⚠️ Unknown OpcUa_Certificate_Mode='{_config.CertificateMode}' in Excel. " +
+                                      $"Valid values: none, auto-accept, manual-trust, ca. Treating as auto-accept.";
+                    _config.ConfigWarnings.Add(unknownWarn);
+                    _logger.LogWarning(unknownWarn);
+                    break;
             }
-            _logger.LogInformation("🌐 OPC/UA CertificateMode: {Mode}", _config.CertificateMode);
+
+            if (_config.ConfigWarnings.Count > 0)
+            {
+                _logger.LogWarning("════════════════════════════════════════════════════════════");
+                _logger.LogWarning("⚠️ OPC/UA has {Count} configuration warning(s) — check project configuration!", _config.ConfigWarnings.Count);
+                foreach (var w in _config.ConfigWarnings)
+                {
+                    _logger.LogWarning("  → {Warning}", w);
+                    // Log each warning to L1 operation logs
+                    _ = _operationLogService.LogAsync(
+                        OperationCategory.OpcUa, OperationAction.OpcUaConfigWarning,
+                        w,
+                        user: "System");
+                }
+                _logger.LogWarning("════════════════════════════════════════════════════════════");
+            }
+
+            _logger.LogInformation("🌐 OPC/UA Config → CertificateMode: {CertMode}, Security: {Policy}/{SecMode}, Anonymous: {Anon}", 
+                _config.CertificateMode, _config.SecurityPolicy, _config.SecurityMode, _config.AllowAnonymous);
 
             // Load OPC/UA Variables from dedicated sheet
             _variables = await _excelConfigService.LoadOpcUaVariablesAsync(excelPath);

@@ -103,6 +103,7 @@ public enum OperationAction
     OpcUaAlarmChange = 152,           // Cambio de estado de alarma OPC UA
     OpcUaClientConnect = 153,         // Cliente OPC UA conectado
     OpcUaClientDisconnect = 154,      // Cliente OPC UA desconectado
+    OpcUaConfigWarning = 155,         // Error/warning de configuración OPC UA en Excel
     
     // ❌ System (200+) - ELIMINADO: Los eventos de sistema (Startup, Shutdown, Error)
     //    ya se registran en L1 (Audit Log) con AuditAction.SystemStart/SystemStop
