@@ -152,7 +152,13 @@ namespace SW.PC.API.Backend.Models
         // ═══════════════════════════════════════════════════════════
         CertificateImport,      // Trusted certificate imported
         CertificateRemove,      // Certificate removed from store
-        CertificateApprove      // Rejected certificate approved → trusted
+        CertificateApprove,     // Rejected certificate approved → trusted
+
+        // ═══════════════════════════════════════════════════════════
+        // OPC/UA SFTP CERTIFICATE SYNC (Phase 2 - Automatic exchange)
+        // ═══════════════════════════════════════════════════════════
+        SftpSync,               // SFTP certificate sync operation
+        OpcUaConfigWarning      // Excel configuration error/warning
     }
 
     /// <summary>

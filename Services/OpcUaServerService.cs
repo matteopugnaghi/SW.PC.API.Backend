@@ -159,24 +159,36 @@ namespace SW.PC.API.Backend.Services
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
-                    await Task.Delay(baseTick, stoppingToken);
-
-                    // Poll PLC variables and update OPC/UA nodes
-                    if (_server != null && _isRunning && _nodeManager != null)
+                    try
                     {
-                        await PollPlcVariablesAsync();
-                    }
+                        await Task.Delay(baseTick, stoppingToken);
 
-                    // Watchdog / metrics update
-                    if (_server != null && _isRunning)
-                    {
-                        var sessions = _server.CurrentInstance?.SessionManager?.GetSessions();
-                        var clientCount = (int)(sessions?.Count ?? 0);
-                        lock (_lock)
+                        // Poll PLC variables and update OPC/UA nodes
+                        if (_server != null && _isRunning && _nodeManager != null)
                         {
-                            _statusMessage = $"Running - {clientCount} client(s) connected, {_variables.Count} variables";
+                            await PollPlcVariablesAsync();
                         }
-                        UpdateMetrics();
+
+                        // Watchdog / metrics update
+                        if (_server != null && _isRunning)
+                        {
+                            var sessions = _server.CurrentInstance?.SessionManager?.GetSessions();
+                            var clientCount = (int)(sessions?.Count ?? 0);
+                            lock (_lock)
+                            {
+                                _statusMessage = $"Running - {clientCount} client(s) connected, {_variables.Count} variables";
+                            }
+                            UpdateMetrics();
+                        }
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (System.Net.Sockets.SocketException sockEx)
+                    {
+                        _logger.LogWarning("🌐 Client socket error (client disconnected?): {Msg}", sockEx.Message);
+                    }
+                    catch (Exception loopEx)
+                    {
+                        _logger.LogWarning(loopEx, "🌐 Error in poll loop iteration (continuing)");
                     }
                 }
             }
@@ -220,10 +232,31 @@ namespace SW.PC.API.Backend.Services
                 RejectedCertsFolder = sysConfig.OpcUaRejectedCertsFolder,
                 CrlCheckEnabled = sysConfig.OpcUaCrlCheckEnabled,
                 CrlUrl = sysConfig.OpcUaCrlUrl,
+                CrlCheckInterval = sysConfig.OpcUaCrlCheckInterval,
+                CaCertPath = sysConfig.OpcUaCaCertPath,
                 AllowAnonymous = sysConfig.OpcUaAllowAnonymous,
                 UserName = sysConfig.OpcUaUserName,
-                UserPassword = sysConfig.OpcUaUserPassword
+                UserPassword = sysConfig.OpcUaUserPassword,
+                SftpEnabled = sysConfig.OpcUaSftpEnabled,
+                SftpHost = sysConfig.OpcUaSftpHost,
+                SftpPort = sysConfig.OpcUaSftpPort,
+                SftpUser = sysConfig.OpcUaSftpUser,
+                SftpKeyPath = sysConfig.OpcUaSftpKeyPath,
+                SftpRemotePath = sysConfig.OpcUaSftpRemotePath,
+                SftpSyncInterval = sysConfig.OpcUaSftpSyncInterval
             };
+
+            // ── Development SFTP override (localhost test server) ──
+            var isDev = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+            if (isDev && _config.SftpEnabled)
+            {
+                _config.SftpHost = "localhost";
+                _config.SftpUser = Environment.UserName;
+                _config.SftpRemotePath = "/C:/sftp-test/certs";
+                _config.SftpSyncInterval = 10; // 10s for testing (production: 86400)
+                _logger.LogWarning("🔧 [DEV] SFTP config overridden → localhost:{Port} user={User} path={Path} sync={Interval}s",
+                    _config.SftpPort, _config.SftpUser, _config.SftpRemotePath, _config.SftpSyncInterval);
+            }
 
             // ═══════════════════════════════════════════════════════════════
             // CertificateMode controls CERTIFICATE VALIDATION behavior.
@@ -301,10 +334,59 @@ namespace SW.PC.API.Backend.Services
                     }
                     if (mode == "ca" && !_config.CrlCheckEnabled)
                     {
-                        var warn = "⚠️ CONFIGURATION WARNING: CertificateMode=ca but CrlCheckEnabled=false. " +
+                        var warn = "⚠️ CONFIGURATION WARNING: CertificateMode=ca but OpcUa_CrlCheckEnabled=false. " +
                                    "Revoked certificates will NOT be detected.";
                         _config.ConfigWarnings.Add(warn);
                         _logger.LogWarning(warn);
+                    }
+                    if (mode == "ca" && _config.CrlCheckEnabled && string.IsNullOrEmpty(_config.CrlUrl))
+                    {
+                        var warn = "⚠️ CONFIGURATION ERROR: OpcUa_CrlCheckEnabled=true but OpcUa_Crl_Url is empty. " +
+                                   "CRL checking will not work without a URL.";
+                        _config.ConfigWarnings.Add(warn);
+                        _logger.LogError(warn);
+                    }
+                    if (mode == "ca" && string.IsNullOrEmpty(_config.CaCertPath))
+                    {
+                        var warn = "⚠️ CONFIGURATION WARNING: CertificateMode=ca but OpcUa_Ca_CertPath is empty. " +
+                                   "CA root certificate required to validate client certificates signed by CA.";
+                        _config.ConfigWarnings.Add(warn);
+                        _logger.LogWarning(warn);
+                    }
+                    if (mode == "ca" && !string.IsNullOrEmpty(_config.CaCertPath) && !File.Exists(_config.CaCertPath))
+                    {
+                        var warn = $"⚠️ CONFIGURATION ERROR: OpcUa_Ca_CertPath='{_config.CaCertPath}' — file not found.";
+                        _config.ConfigWarnings.Add(warn);
+                        _logger.LogError(warn);
+                    }
+                    // SFTP warnings (only relevant for ca mode)
+                    if (mode == "ca" && _config.SftpEnabled)
+                    {
+                        if (string.IsNullOrEmpty(_config.SftpHost))
+                        {
+                            var warn = "⚠️ CONFIGURATION ERROR: OpcUa_Sftp_Enabled=true but OpcUa_Sftp_Host is empty.";
+                            _config.ConfigWarnings.Add(warn);
+                            _logger.LogError(warn);
+                        }
+                        if (string.IsNullOrEmpty(_config.SftpUser))
+                        {
+                            var warn = "⚠️ CONFIGURATION ERROR: OpcUa_Sftp_Enabled=true but OpcUa_Sftp_User is empty.";
+                            _config.ConfigWarnings.Add(warn);
+                            _logger.LogError(warn);
+                        }
+                        if (string.IsNullOrEmpty(_config.SftpKeyPath))
+                        {
+                            var warn = "⚠️ CONFIGURATION WARNING: OpcUa_Sftp_KeyPath is empty. " +
+                                       "SSH key authentication will not be available (password auth only).";
+                            _config.ConfigWarnings.Add(warn);
+                            _logger.LogWarning(warn);
+                        }
+                        else if (!File.Exists(_config.SftpKeyPath))
+                        {
+                            var warn = $"⚠️ CONFIGURATION ERROR: OpcUa_Sftp_KeyPath='{_config.SftpKeyPath}' — file not found.";
+                            _config.ConfigWarnings.Add(warn);
+                            _logger.LogError(warn);
+                        }
                     }
                     break;
 
@@ -316,6 +398,17 @@ namespace SW.PC.API.Backend.Services
                     break;
             }
 
+            // ═══ INFORMATIONAL: Explain empty optional fields (have sensible defaults) ═══
+            if (mode != "none")
+            {
+                if (string.IsNullOrEmpty(_config.CertificatePath))
+                    _logger.LogInformation("🌐 OpcUa_CertificatePath is empty → certificate auto-generated in %LocalAppData%\\Aquafrisch\\opcua-certs\\own\\");
+                if (string.IsNullOrEmpty(_config.TrustedCertsFolder))
+                    _logger.LogInformation("🌐 OpcUa_TrustedCertsFolder is empty → using default: %LocalAppData%\\Aquafrisch\\opcua-certs\\trusted\\");
+                if (string.IsNullOrEmpty(_config.RejectedCertsFolder))
+                    _logger.LogInformation("🌐 OpcUa_RejectedCertsFolder is empty → using default: %LocalAppData%\\Aquafrisch\\opcua-certs\\rejected\\");
+            }
+
             if (_config.ConfigWarnings.Count > 0)
             {
                 _logger.LogWarning("════════════════════════════════════════════════════════════");
@@ -323,11 +416,10 @@ namespace SW.PC.API.Backend.Services
                 foreach (var w in _config.ConfigWarnings)
                 {
                     _logger.LogWarning("  → {Warning}", w);
-                    // Log each warning to L1 operation logs
-                    _ = _operationLogService.LogAsync(
-                        OperationCategory.OpcUa, OperationAction.OpcUaConfigWarning,
-                        w,
-                        user: "System");
+                    // Log each warning to L1 audit logs
+                    _ = _auditLogService.LogAsync(
+                        AuditCategory.OtCommunication, AuditAction.OpcUaConfigWarning, AuditResult.Warning,
+                        w, userName: "System");
                 }
                 _logger.LogWarning("════════════════════════════════════════════════════════════");
             }
@@ -455,22 +547,124 @@ namespace SW.PC.API.Backend.Services
                     break;
 
                 case "ca":
-                    // CA-signed certificates with CRL checking
+                    // CA-signed certificates ONLY — reject self-signed and untrusted certs
+                    appConfig.SecurityConfiguration.AutoAcceptUntrustedCertificates = false;
                     appConfig.CertificateValidator.CertificateValidation += (s, e) =>
                     {
+                        var cert = e.Certificate;
+                        var subject = cert?.Subject ?? "unknown";
+
+                        // In CA mode: reject self-signed certificates (issuer == subject)
+                        if (cert != null && cert.Subject == cert.Issuer)
+                        {
+                            _logger.LogWarning("🔐 CA MODE: Rejected self-signed certificate: {Subject} (thumbprint: {Thumb})",
+                                subject, cert.Thumbprint?.Substring(0, 16));
+                            _ = _auditLogService.LogAsync(
+                                AuditCategory.OtCommunication, AuditAction.OpcUaSecurityReject, AuditResult.Failure,
+                                $"CA MODE: Rejected self-signed certificate: {subject}", userName: "System");
+                            e.Accept = false;
+                            return;
+                        }
+
                         if (e.Error.StatusCode == Opc.Ua.StatusCodes.BadCertificateUntrusted)
                         {
-                            _logger.LogWarning("🔐 Certificate rejected (untrusted): {Subject}", e.Certificate?.Subject ?? "unknown");
+                            _logger.LogWarning("🔐 Certificate rejected (untrusted/not CA-signed): {Subject}", subject);
+                            _ = _auditLogService.LogAsync(
+                                AuditCategory.OtCommunication, AuditAction.OpcUaSecurityReject, AuditResult.Failure,
+                                $"Certificate rejected (untrusted): {subject}", userName: "System");
+                            e.Accept = false;
                         }
                         else if (e.Error.StatusCode == Opc.Ua.StatusCodes.BadCertificateRevoked)
                         {
-                            _logger.LogError("🔐 Certificate REVOKED: {Subject}", e.Certificate?.Subject ?? "unknown");
+                            _logger.LogError("🔐 Certificate REVOKED: {Subject}", subject);
+                            _ = _auditLogService.LogAsync(
+                                AuditCategory.OtCommunication, AuditAction.OpcUaSecurityReject, AuditResult.Failure,
+                                $"Certificate REVOKED: {subject}", userName: "System");
+                            e.Accept = false;
+                        }
+                        else if (e.Error.StatusCode == Opc.Ua.StatusCodes.BadCertificateRevocationUnknown)
+                        {
+                            _logger.LogWarning("🔐 Certificate revocation status unknown (CRL unavailable?): {Subject}", subject);
+                            // Allow connection but log warning — CRL may not be available yet
                         }
                     };
+
+                    // ═══ CA MODE STARTUP: Move self-signed certs from trusted → rejected ═══
+                    // The SDK accepts certs in trusted store WITHOUT calling the validator.
+                    // In CA mode, only CA-signed certs belong in trusted. Self-signed must be removed.
+                    // Skip in Development: test certs are self-signed, cleanup would conflict with SFTP sync.
+                    var isDevEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+                    if (isDevEnv)
+                    {
+                        _logger.LogInformation("🔧 [DEV] Skipping CA MODE trusted→rejected cleanup (test certs are self-signed)");
+                    }
+                    else try
+                    {
+                        var trustedPath = Path.Combine(GetCertificateStorePath("trusted"), "certs");
+                        var rejectedPath = Path.Combine(GetCertificateStorePath("rejected"), "certs");
+                        if (Directory.Exists(trustedPath))
+                        {
+                            Directory.CreateDirectory(rejectedPath);
+                            foreach (var certFile in Directory.GetFiles(trustedPath, "*.der"))
+                            {
+                                try
+                                {
+                                    var x509 = new System.Security.Cryptography.X509Certificates.X509Certificate2(certFile);
+                                    if (x509.Subject == x509.Issuer) // Self-signed
+                                    {
+                                        var destFile = Path.Combine(rejectedPath, Path.GetFileName(certFile));
+                                        File.Move(certFile, destFile, true);
+                                        _logger.LogWarning("🔐 CA MODE: Moved self-signed cert from trusted → rejected: {Subject} ({File})",
+                                            x509.Subject, Path.GetFileName(certFile));
+                                        _ = _auditLogService.LogAsync(
+                                            AuditCategory.OtCommunication, AuditAction.OpcUaConfigWarning, AuditResult.Warning,
+                                            $"CA MODE: Moved self-signed cert from trusted → rejected: {x509.Subject}",
+                                            userName: "System");
+                                    }
+                                }
+                                catch (Exception certEx)
+                                {
+                                    _logger.LogWarning(certEx, "🔐 Could not check certificate: {File}", certFile);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception cleanEx)
+                    {
+                        _logger.LogError(cleanEx, "🔐 Failed to clean self-signed certs from trusted store");
+                    }
+
+                    // Import CA root certificate into issuers store if configured
+                    if (!string.IsNullOrEmpty(_config.CaCertPath) && File.Exists(_config.CaCertPath))
+                    {
+                        try
+                        {
+                            var caCert = new System.Security.Cryptography.X509Certificates.X509Certificate2(_config.CaCertPath);
+                            var issuersPath = GetCertificateStorePath("issuers");
+                            var certsPath = Path.Combine(issuersPath, "certs");
+                            Directory.CreateDirectory(certsPath);
+                            var destFile = Path.Combine(certsPath, $"{caCert.Thumbprint}.der");
+                            if (!File.Exists(destFile))
+                            {
+                                File.WriteAllBytes(destFile, caCert.RawData);
+                                _logger.LogInformation("🔐 CA root certificate imported to issuers store: {Subject}", caCert.Subject);
+                            }
+                            else
+                            {
+                                _logger.LogInformation("🔐 CA root certificate already in issuers store: {Subject}", caCert.Subject);
+                            }
+                        }
+                        catch (Exception caEx)
+                        {
+                            _logger.LogError(caEx, "🔐 Failed to import CA root certificate from: {Path}", _config.CaCertPath);
+                        }
+                    }
+
                     // Enable CRL checking if configured
                     if (_config.CrlCheckEnabled && !string.IsNullOrEmpty(_config.CrlUrl))
                     {
-                        _logger.LogInformation("🔐 CertificateMode=ca: CRL check enabled ({Url})", _config.CrlUrl);
+                        _logger.LogInformation("🔐 CertificateMode=ca: CRL check enabled (URL: {Url}, Interval: {Interval}s)", 
+                            _config.CrlUrl, _config.CrlCheckInterval);
                     }
                     else
                     {

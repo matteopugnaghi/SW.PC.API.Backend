@@ -34,11 +34,22 @@ namespace SW.PC.API.Backend.Models.OpcUa
         public string RejectedCertsFolder { get; set; } = "";
         public bool CrlCheckEnabled { get; set; } = false;
         public string CrlUrl { get; set; } = "";
+        public int CrlCheckInterval { get; set; } = 3600;
+        public string CaCertPath { get; set; } = "";
 
         // ===== AUTHENTICATION =====
         public bool AllowAnonymous { get; set; } = false;
         public string UserName { get; set; } = "";
         public string UserPassword { get; set; } = "";
+
+        // ===== SFTP Certificate Exchange (Phase 2) =====
+        public bool SftpEnabled { get; set; } = false;
+        public string SftpHost { get; set; } = "";
+        public int SftpPort { get; set; } = 22;
+        public string SftpUser { get; set; } = "";
+        public string SftpKeyPath { get; set; } = "";
+        public string SftpRemotePath { get; set; } = "/certs/";
+        public int SftpSyncInterval { get; set; } = 86400;
 
         // ===== RUNTIME WARNINGS =====
         /// <summary>
@@ -149,7 +160,21 @@ namespace SW.PC.API.Backend.Models.OpcUa
         public string SignatureAlgorithm { get; set; } = "";
         public bool IsSelfSigned { get; set; }
         public bool IsValid { get; set; }
+        public bool IsRevoked { get; set; }
         public string Store { get; set; } = "";
         public string? FileName { get; set; }
+    }
+
+    /// <summary>
+    /// CRL (Certificate Revocation List) file information
+    /// </summary>
+    public class OpcUaCrlInfo
+    {
+        public string FileName { get; set; } = "";
+        public string Issuer { get; set; } = "";
+        public int RevokedCount { get; set; }
+        public List<string> RevokedSerials { get; set; } = new();
+        public DateTime? LastUpdate { get; set; }
+        public DateTime? NextUpdate { get; set; }
     }
 }

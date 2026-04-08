@@ -293,7 +293,9 @@ if (opcUaEnabledInExcel)
     builder.Services.AddSingleton<IOpcUaServerService, OpcUaServerService>();
     builder.Services.AddHostedService(sp => (OpcUaServerService)sp.GetRequiredService<IOpcUaServerService>());
     builder.Services.AddSingleton<IOpcUaCertificateService, OpcUaCertificateService>();
-    Console.WriteLine("🌐 OPC/UA Server service REGISTERED (with certificate management)");
+    builder.Services.AddSingleton<IOpcUaSftpService, OpcUaSftpService>();
+    builder.Services.AddHostedService<OpcUaSftpSyncService>();
+    Console.WriteLine("🌐 OPC/UA Server service REGISTERED (with certificate management + SFTP)");
 }
 else
 {
@@ -301,6 +303,7 @@ else
     builder.Services.AddSingleton<IOpcUaServerService, DisabledOpcUaServerService>();
     // Certificate service available even when OPC/UA server is disabled (for pre-provisioning)
     builder.Services.AddSingleton<IOpcUaCertificateService, OpcUaCertificateService>();
+    builder.Services.AddSingleton<IOpcUaSftpService, DisabledOpcUaSftpService>();
     Console.WriteLine("🌐 OPC/UA Server DISABLED — service not started");
 }
 

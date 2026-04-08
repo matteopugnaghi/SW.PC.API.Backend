@@ -57,7 +57,15 @@ namespace SW.PC.API.Backend.Controllers
                 hasUserCredentials = !string.IsNullOrEmpty(config.UserName),
                 config.CrlCheckEnabled,
                 hasCrlUrl = !string.IsNullOrEmpty(config.CrlUrl),
+                config.CrlCheckInterval,
+                hasCaCert = !string.IsNullOrEmpty(config.CaCertPath),
                 hasCertificate = !string.IsNullOrEmpty(config.CertificatePath),
+                // SFTP
+                config.SftpEnabled,
+                hasSftpHost = !string.IsNullOrEmpty(config.SftpHost),
+                config.SftpPort,
+                hasSftpKey = !string.IsNullOrEmpty(config.SftpKeyPath),
+                config.SftpSyncInterval,
                 config.ConfigWarnings
             });
         }

@@ -38,6 +38,12 @@ namespace SW.PC.API.Backend.Services
 
         /// <summary>Move a certificate from rejected to trusted (approve)</summary>
         Task<OpcUaCertificateInfo?> ApproveCertificateAsync(string thumbprint);
+
+        /// <summary>List CRL files from issuers/crl and parse revoked serial numbers</summary>
+        List<OpcUaCrlInfo> GetCrlFiles();
+
+        /// <summary>Mark certificates as revoked if their serial appears in any CRL</summary>
+        void MarkRevokedCertificates(List<OpcUaCertificateInfo> certs, List<OpcUaCrlInfo> crls);
     }
 
     public class OpcUaCertificateService : IOpcUaCertificateService
@@ -362,6 +368,148 @@ namespace SW.PC.API.Backend.Services
             return false;
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // CRL (Certificate Revocation List) parsing
+        // ═══════════════════════════════════════════════════════════════
+
+        public List<OpcUaCrlInfo> GetCrlFiles()
+        {
+            var crlDir = Path.Combine(_basePath, "issuers", "crl");
+            if (!Directory.Exists(crlDir))
+                return new List<OpcUaCrlInfo>();
+
+            var results = new List<OpcUaCrlInfo>();
+            foreach (var file in Directory.GetFiles(crlDir, "*.crl"))
+            {
+                try
+                {
+                    var info = ParseCrlFile(file);
+                    if (info != null) results.Add(info);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not parse CRL file: {File}", file);
+                }
+            }
+            return results;
+        }
+
+        public void MarkRevokedCertificates(List<OpcUaCertificateInfo> certs, List<OpcUaCrlInfo> crls)
+        {
+            // Collect all revoked serials from all CRLs (normalized: uppercase, no leading zeros)
+            var revokedSerials = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var crl in crls)
+            {
+                foreach (var serial in crl.RevokedSerials)
+                    revokedSerials.Add(serial.TrimStart('0'));
+            }
+
+            if (revokedSerials.Count == 0) return;
+
+            foreach (var cert in certs)
+            {
+                var certSerial = cert.SerialNumber.TrimStart('0');
+                if (revokedSerials.Contains(certSerial))
+                    cert.IsRevoked = true;
+            }
+        }
+
+        private OpcUaCrlInfo? ParseCrlFile(string filePath)
+        {
+            var fileBytes = File.ReadAllBytes(filePath);
+            var derBytes = ConvertPemToDer(fileBytes);
+            if (derBytes == null || derBytes.Length == 0) return null;
+
+            var info = new OpcUaCrlInfo { FileName = Path.GetFileName(filePath) };
+
+            var reader = new System.Formats.Asn1.AsnReader(derBytes, System.Formats.Asn1.AsnEncodingRules.DER);
+            var certList = reader.ReadSequence(); // CertificateList
+            var tbsCertList = certList.ReadSequence(); // TBSCertList
+
+            // Version (optional INTEGER)
+            var peek = tbsCertList.PeekTag();
+            if (peek.TagClass == System.Formats.Asn1.TagClass.Universal &&
+                peek.TagValue == (int)System.Formats.Asn1.UniversalTagNumber.Integer)
+            {
+                tbsCertList.ReadInteger(); // skip version
+            }
+
+            // Signature algorithm (SEQUENCE) — skip
+            tbsCertList.ReadSequence();
+
+            // Issuer (SEQUENCE) — read as X500DistinguishedName
+            try
+            {
+                var issuerBytes = tbsCertList.PeekEncodedValue().ToArray();
+                info.Issuer = new System.Security.Cryptography.X509Certificates.X500DistinguishedName(issuerBytes).Name;
+            }
+            catch { info.Issuer = "Unknown"; }
+            tbsCertList.ReadSequence(); // advance past issuer
+
+            // thisUpdate (UTCTime or GeneralizedTime)
+            info.LastUpdate = ReadAsnTime(tbsCertList)?.UtcDateTime;
+
+            // nextUpdate (optional)
+            if (tbsCertList.HasData)
+            {
+                peek = tbsCertList.PeekTag();
+                if (peek.TagClass == System.Formats.Asn1.TagClass.Universal &&
+                    (peek.TagValue == (int)System.Formats.Asn1.UniversalTagNumber.UtcTime ||
+                     peek.TagValue == (int)System.Formats.Asn1.UniversalTagNumber.GeneralizedTime))
+                {
+                    info.NextUpdate = ReadAsnTime(tbsCertList)?.UtcDateTime;
+                }
+            }
+
+            // revokedCertificates (optional SEQUENCE OF SEQUENCE)
+            if (tbsCertList.HasData)
+            {
+                peek = tbsCertList.PeekTag();
+                if (peek.TagClass == System.Formats.Asn1.TagClass.Universal &&
+                    peek.TagValue == (int)System.Formats.Asn1.UniversalTagNumber.Sequence)
+                {
+                    var revokedCerts = tbsCertList.ReadSequence();
+                    while (revokedCerts.HasData)
+                    {
+                        var entry = revokedCerts.ReadSequence();
+                        var serialBytes = entry.ReadIntegerBytes().Span;
+                        info.RevokedSerials.Add(Convert.ToHexString(serialBytes));
+                    }
+                }
+            }
+
+            info.RevokedCount = info.RevokedSerials.Count;
+            return info;
+        }
+
+        private static DateTimeOffset? ReadAsnTime(System.Formats.Asn1.AsnReader reader)
+        {
+            try
+            {
+                var tag = reader.PeekTag();
+                if (tag.TagValue == (int)System.Formats.Asn1.UniversalTagNumber.UtcTime)
+                    return reader.ReadUtcTime();
+                if (tag.TagValue == (int)System.Formats.Asn1.UniversalTagNumber.GeneralizedTime)
+                    return reader.ReadGeneralizedTime();
+            }
+            catch { /* ignore */ }
+            return null;
+        }
+
+        private static byte[]? ConvertPemToDer(byte[] fileBytes)
+        {
+            var text = System.Text.Encoding.ASCII.GetString(fileBytes);
+            if (text.Contains("-----BEGIN"))
+            {
+                // PEM format — strip headers and base64 decode
+                var b64 = string.Join("", text.Split('\n')
+                    .Where(l => !l.StartsWith("-----") && !string.IsNullOrWhiteSpace(l))
+                    .Select(l => l.Trim()));
+                return Convert.FromBase64String(b64);
+            }
+            return fileBytes; // Already DER
+        }
+
         private static OpcUaCertificateInfo BuildCertInfo(X509Certificate2 cert, string store)
         {
             var keySize = cert.PublicKey.GetRSAPublicKey()?.KeySize
@@ -374,13 +522,13 @@ namespace SW.PC.API.Backend.Services
                 Issuer = cert.Issuer,
                 Thumbprint = cert.Thumbprint,
                 SerialNumber = cert.SerialNumber,
-                NotBefore = cert.NotBefore,
-                NotAfter = cert.NotAfter,
-                DaysUntilExpiry = (int)(cert.NotAfter - DateTime.UtcNow).TotalDays,
+                NotBefore = cert.NotBefore.ToUniversalTime(),
+                NotAfter = cert.NotAfter.ToUniversalTime(),
+                DaysUntilExpiry = (int)(cert.NotAfter.ToUniversalTime() - DateTime.UtcNow).TotalDays,
                 KeySize = keySize,
                 SignatureAlgorithm = cert.SignatureAlgorithm.FriendlyName ?? "Unknown",
                 IsSelfSigned = cert.Subject == cert.Issuer,
-                IsValid = DateTime.UtcNow >= cert.NotBefore && DateTime.UtcNow <= cert.NotAfter,
+                IsValid = DateTime.UtcNow >= cert.NotBefore.ToUniversalTime() && DateTime.UtcNow <= cert.NotAfter.ToUniversalTime(),
                 Store = store
             };
         }

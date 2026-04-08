@@ -196,6 +196,10 @@ namespace SW.PC.API.Backend.Controllers
             var trusted = await _certService.ListCertificatesAsync("trusted");
             var rejected = await _certService.ListCertificatesAsync("rejected");
             var issuers = await _certService.ListCertificatesAsync("issuers");
+            var crls = _certService.GetCrlFiles();
+
+            // Cross-reference: mark trusted certs as revoked if in any CRL
+            _certService.MarkRevokedCertificates(trusted, crls);
 
             return Ok(new
             {
@@ -203,9 +207,11 @@ namespace SW.PC.API.Backend.Controllers
                 trustedCount = trusted.Count,
                 rejectedCount = rejected.Count,
                 issuersCount = issuers.Count,
+                crlCount = crls.Count,
                 trusted,
                 rejected,
                 issuers,
+                crls,
                 storePath = _certService.GetStorePath("own").Replace("\\own", "")
             });
         }

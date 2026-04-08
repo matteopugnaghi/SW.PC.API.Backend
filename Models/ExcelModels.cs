@@ -1181,6 +1181,12 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>URL de la CRL para verificación de revocación</summary>
         public string OpcUaCrlUrl { get; set; } = "";
 
+        /// <summary>Intervalo de re-descarga de CRL en segundos (defecto: 3600 = 1 hora)</summary>
+        public int OpcUaCrlCheckInterval { get; set; } = 3600;
+
+        /// <summary>Ruta al certificado raíz CA (para validar certificados de clientes firmados por CA)</summary>
+        public string OpcUaCaCertPath { get; set; } = "";
+
         /// <summary>Permitir conexiones anónimas (CADRA: false)</summary>
         public bool OpcUaAllowAnonymous { get; set; } = false;
 
@@ -1189,6 +1195,29 @@ namespace SW.PC.API.Backend.Models.Excel
 
         /// <summary>Contraseña para autenticación UserName/Password</summary>
         public string OpcUaUserPassword { get; set; } = "";
+
+        // ===== SFTP Certificate Exchange (Phase 2) =====
+
+        /// <summary>Habilitar intercambio de certificados por SFTP</summary>
+        public bool OpcUaSftpEnabled { get; set; } = false;
+
+        /// <summary>Servidor SFTP (e.g., 10.8.81.1)</summary>
+        public string OpcUaSftpHost { get; set; } = "";
+
+        /// <summary>Puerto SFTP (defecto: 22)</summary>
+        public int OpcUaSftpPort { get; set; } = 22;
+
+        /// <summary>Usuario SFTP</summary>
+        public string OpcUaSftpUser { get; set; } = "";
+
+        /// <summary>Ruta a la clave SSH privada (la genera CSP, no nosotros)</summary>
+        public string OpcUaSftpKeyPath { get; set; } = "";
+
+        /// <summary>Carpeta remota en el servidor SFTP para certificados</summary>
+        public string OpcUaSftpRemotePath { get; set; } = "/certs/";
+
+        /// <summary>Intervalo de sincronización SFTP en segundos (defecto: 86400 = 24h)</summary>
+        public int OpcUaSftpSyncInterval { get; set; } = 86400;
 
     }
 

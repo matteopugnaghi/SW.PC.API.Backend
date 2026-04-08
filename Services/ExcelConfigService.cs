@@ -3369,12 +3369,26 @@ namespace SW.PC.API.Backend.Services
                             case "opcuacrlcheckenabled":
                             case "opcua_crl_check_enabled":
                             case "opcua_crlcheck":
+                            case "opcua_crlcheckenabled":
                                 config.OpcUaCrlCheckEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
                                 break;
                             case "opcuacrlurl":
                             case "opcua_crl_url":
+                            case "opcua_crlurl":
                                 if (!string.IsNullOrWhiteSpace(paramValue))
                                     config.OpcUaCrlUrl = paramValue.Trim();
+                                break;
+                            case "opcuacrlcheckinterval":
+                            case "opcua_crl_checkinterval":
+                            case "opcua_crl_check_interval":
+                                if (int.TryParse(paramValue, out int crlInterval) && crlInterval > 0)
+                                    config.OpcUaCrlCheckInterval = crlInterval;
+                                break;
+                            case "opcuacacertpath":
+                            case "opcua_ca_certpath":
+                            case "opcua_ca_cert_path":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaCaCertPath = paramValue.Trim();
                                 break;
                             case "opcuaallowanonymous":
                             case "opcua_allowanonymous":
@@ -3392,6 +3406,53 @@ namespace SW.PC.API.Backend.Services
                             case "opcua_password":
                                 if (!string.IsNullOrWhiteSpace(paramValue))
                                     config.OpcUaUserPassword = paramValue.Trim();
+                                break;
+                            // ===== SFTP Certificate Exchange (Phase 2) =====
+                            case "opcuasftpenabled":
+                            case "opcua_sftp_enabled":
+                                var sftpVal = paramValue?.Trim().ToLower();
+                                if (sftpVal == "true" || sftpVal == "1")
+                                    config.OpcUaSftpEnabled = true;
+                                else if (sftpVal == "false" || sftpVal == "0" || string.IsNullOrEmpty(sftpVal))
+                                    config.OpcUaSftpEnabled = false;
+                                else
+                                {
+                                    config.OpcUaSftpEnabled = false;
+                                    _logger.LogWarning("⚠️ OpcUa_Sftp_Enabled has invalid value '{Value}' — expected true/false. Treating as false.", paramValue);
+                                }
+                                break;
+                            case "opcuasftphost":
+                            case "opcua_sftp_host":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaSftpHost = paramValue.Trim();
+                                break;
+                            case "opcuasftpport":
+                            case "opcua_sftp_port":
+                                if (int.TryParse(paramValue, out int sftpPort) && sftpPort > 0 && sftpPort <= 65535)
+                                    config.OpcUaSftpPort = sftpPort;
+                                break;
+                            case "opcuasftpuser":
+                            case "opcua_sftp_user":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaSftpUser = paramValue.Trim();
+                                break;
+                            case "opcuasftpkeypath":
+                            case "opcua_sftp_keypath":
+                            case "opcua_sftp_key_path":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaSftpKeyPath = paramValue.Trim();
+                                break;
+                            case "opcuasftpremotepath":
+                            case "opcua_sftp_remotepath":
+                            case "opcua_sftp_remote_path":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.OpcUaSftpRemotePath = paramValue.Trim();
+                                break;
+                            case "opcuasftpsyncinterval":
+                            case "opcua_sftp_syncinterval":
+                            case "opcua_sftp_sync_interval":
+                                if (int.TryParse(paramValue, out int sftpSync) && sftpSync > 0)
+                                    config.OpcUaSftpSyncInterval = sftpSync;
                                 break;
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
