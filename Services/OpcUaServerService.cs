@@ -253,7 +253,7 @@ namespace SW.PC.API.Backend.Services
                 _config.SftpHost = "localhost";
                 _config.SftpUser = Environment.UserName;
                 _config.SftpRemotePath = "/C:/sftp-test/certs";
-                _config.SftpSyncInterval = 10; // 10s for testing (production: 86400)
+                _config.SftpSyncInterval = 0; // Disabled — use manual sync via UI buttons
                 _logger.LogWarning("🔧 [DEV] SFTP config overridden → localhost:{Port} user={User} path={Path} sync={Interval}s",
                     _config.SftpPort, _config.SftpUser, _config.SftpRemotePath, _config.SftpSyncInterval);
             }
