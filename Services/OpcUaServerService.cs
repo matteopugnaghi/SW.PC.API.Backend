@@ -923,7 +923,7 @@ namespace SW.PC.API.Backend.Services
                                 _previousAlarmStates[a.AlarmIndex] = isActive;
                                 _ = _operationLogService.LogAsync(
                                     OperationCategory.OpcUa, OperationAction.OpcUaAlarmChange,
-                                    $"Alarm[{a.AlarmIndex}] {a.Description}: {(isActive ? "ACTIVE" : "CLEARED")}",
+                                    $"Alarm[{a.AlarmIndex}] {a.AlarmName}: {(isActive ? "ACTIVE" : "CLEARED")}",
                                     user: "PLC");
                             }
                         }
@@ -1288,7 +1288,7 @@ namespace SW.PC.API.Backend.Services
         private void OnSessionActivated(Session session, SessionEventReason reason)
         {
             var clientName = GetClientName(session);
-            var details = $"Client '{clientName}' connected ({reason})";
+            var details = $"Client '{clientName}' connected";
 
             _logger.LogInformation("🌐 OPC/UA {Details}", details);
 
@@ -1303,14 +1303,15 @@ namespace SW.PC.API.Backend.Services
         private void OnSessionClosing(Session session, SessionEventReason reason)
         {
             var clientName = GetClientName(session);
+            var details = $"Client '{clientName}' disconnected";
 
-            _logger.LogInformation("🌐 OPC/UA Client disconnected: {Client} (Reason: {Reason})", clientName, reason);
+            _logger.LogInformation("🌐 OPC/UA {Details}", details);
 
             _ = _auditLogService.LogAsync(
                 AuditCategory.OtCommunication,
                 AuditAction.OpcUaClientDisconnect,
                 AuditResult.Success,
-                $"Client '{clientName}' disconnected ({reason})",
+                details,
                 userName: "System");
         }
     }
