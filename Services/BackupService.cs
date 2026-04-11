@@ -158,7 +158,7 @@ namespace SW.PC.API.Backend.Services
                 DocsPath = Path.Combine(projectRoot, "docs"),              // Multi-proyecto: Projects/{id}/docs
                 LogsPath = Path.Combine(projectRoot, "logs"),               // Multi-proyecto: Projects/{id}/logs (NxLog JSONL)
                 TwinCatPath = ResolveActualTwinCatPath(contentRoot, projectId), // Auto-detectado via ISoftwareIntegrityService
-                PkiPath = Path.Combine(projectRoot, "pki")                     // Multi-proyecto: Projects/{id}/pki (OPC UA)
+                PkiPath = Path.Combine(projectRoot, "opcua-certs")              // Multi-proyecto: Projects/{id}/opcua-certs (OPC UA)
             };
         }
 
@@ -628,7 +628,7 @@ namespace SW.PC.API.Backend.Services
                             var pkiFiles = Directory.GetFiles(pkiPath, "*", SearchOption.AllDirectories);
                             foreach (var pkiFile in pkiFiles)
                             {
-                                var relativePath = Path.Combine("pki", Path.GetRelativePath(pkiPath, pkiFile)).Replace('\\', '/');
+                                var relativePath = Path.Combine("opcua-certs", Path.GetRelativePath(pkiPath, pkiFile)).Replace('\\', '/');
                                 await AddFileToZipAsync(zipArchive, pkiFile, relativePath);
                                 
                                 manifest.Files.Add(new BackupFileEntry
@@ -822,7 +822,7 @@ namespace SW.PC.API.Backend.Services
                     if (request.RestoreDocs)
                         foldersToClean["docs/"] = projectPaths.DocsPath;
                     if (request.RestorePki && !string.IsNullOrEmpty(projectPaths.PkiPath))
-                        foldersToClean["pki/"] = projectPaths.PkiPath;
+                        foldersToClean["opcua-certs/"] = projectPaths.PkiPath;
                     
                     // Verify backup actually contains entries for each folder before cleaning
                     var backupPrefixes = new HashSet<string>(
@@ -1028,7 +1028,7 @@ namespace SW.PC.API.Backend.Services
                             shouldRestore = true;
                             _logger.LogInformation("✅ Restaurando documentación DMS: {FileName}", entryPath);
                         }
-                        else if (entryPath.StartsWith("pki/") && request.RestorePki)
+                        else if (entryPath.StartsWith("opcua-certs/") && request.RestorePki)
                         {
                             shouldRestore = true;
                             _logger.LogInformation("✅ Restaurando PKI certificate: {FileName}", entryPath);
