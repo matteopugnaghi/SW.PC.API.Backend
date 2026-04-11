@@ -141,6 +141,12 @@ namespace SW.PC.API.Backend.Models
         
         /// <summary>Número de archivos de documentación</summary>
         public int DocsFilesCount { get; set; }
+        
+        /// <summary>Incluye certificados OPC UA (PKI)</summary>
+        public bool HasPki { get; set; }
+        
+        /// <summary>Número de archivos PKI</summary>
+        public int PkiFilesCount { get; set; }
     }
 
     /// <summary>
@@ -297,6 +303,9 @@ namespace SW.PC.API.Backend.Models
         /// <summary>Incluir documentación DMS</summary>
         public bool IncludeDocs { get; set; } = true;
         
+        /// <summary>Incluir certificados OPC UA (PKI)</summary>
+        public bool IncludePki { get; set; } = true;
+        
         /// <summary>Tipo de backup (Manual, Scheduled, PreUpdate, PreRestore). Default: Manual</summary>
         public BackupType Type { get; set; } = BackupType.Manual;
     }
@@ -326,6 +335,9 @@ namespace SW.PC.API.Backend.Models
         
         /// <summary>Restaurar documentación DMS</summary>
         public bool RestoreDocs { get; set; } = true;
+        
+        /// <summary>Restaurar certificados OPC UA (PKI)</summary>
+        public bool RestorePki { get; set; } = true;
     }
 
     /// <summary>

@@ -33,6 +33,7 @@ namespace SW.PC.API.Backend.Services
         public string DocsPath { get; set; } = "";       // DMS: Document Management System
         public string LogsPath { get; set; } = "";       // NxLog JSONL Export (SOC PIVOT TISSEO)
         public string TwinCatPath { get; set; } = "";    // TwinCAT PLC repo (hermano de Backend/)
+        public string PkiPath { get; set; } = "";         // OPC UA PKI certificates
     }
 
     public interface IBackupService
@@ -134,7 +135,8 @@ namespace SW.PC.API.Backend.Services
                     TranslationsPath = Path.Combine(contentRoot, "translations"), // Legacy: root/translations
                     DocsPath = Path.Combine(contentRoot, "docs"),          // Legacy: root/docs
                     LogsPath = Path.Combine(Path.Combine(webRoot, "logs")), // Legacy: wwwroot/logs
-                    TwinCatPath = "" // Legacy: no TwinCAT
+                    TwinCatPath = "", // Legacy: no TwinCAT
+                    PkiPath = ""     // Legacy: no PKI
                 };
             }
             
@@ -155,7 +157,8 @@ namespace SW.PC.API.Backend.Services
                 TranslationsPath = Path.Combine(projectRoot, "translations"), // Multi-proyecto: Projects/{id}/translations
                 DocsPath = Path.Combine(projectRoot, "docs"),              // Multi-proyecto: Projects/{id}/docs
                 LogsPath = Path.Combine(projectRoot, "logs"),               // Multi-proyecto: Projects/{id}/logs (NxLog JSONL)
-                TwinCatPath = ResolveActualTwinCatPath(contentRoot, projectId) // Auto-detectado via ISoftwareIntegrityService
+                TwinCatPath = ResolveActualTwinCatPath(contentRoot, projectId), // Auto-detectado via ISoftwareIntegrityService
+                PkiPath = Path.Combine(projectRoot, "pki")                     // Multi-proyecto: Projects/{id}/pki (OPC UA)
             };
         }
 
@@ -616,6 +619,36 @@ namespace SW.PC.API.Backend.Services
                         }
                     }
                     
+                    // Agregar certificados OPC UA (PKI)
+                    if (request.IncludePki)
+                    {
+                        var pkiPath = projectPaths.PkiPath;
+                        if (!string.IsNullOrEmpty(pkiPath) && Directory.Exists(pkiPath))
+                        {
+                            var pkiFiles = Directory.GetFiles(pkiPath, "*", SearchOption.AllDirectories);
+                            foreach (var pkiFile in pkiFiles)
+                            {
+                                var relativePath = Path.Combine("pki", Path.GetRelativePath(pkiPath, pkiFile)).Replace('\\', '/');
+                                await AddFileToZipAsync(zipArchive, pkiFile, relativePath);
+                                
+                                manifest.Files.Add(new BackupFileEntry
+                                {
+                                    RelativePath = relativePath,
+                                    Hash = await ComputeFileHashAsync(pkiFile),
+                                    SizeBytes = new FileInfo(pkiFile).Length,
+                                    ModifiedAt = File.GetLastWriteTimeUtc(pkiFile)
+                                });
+                            }
+                            
+                            if (pkiFiles.Length > 0)
+                            {
+                                backupInfo.Contents.HasPki = true;
+                                backupInfo.Contents.PkiFilesCount = pkiFiles.Length;
+                                _logger.LogInformation("✅ PKI certificates incluidos en backup ({Count} archivos)", pkiFiles.Length);
+                            }
+                        }
+                    }
+                    
                     // Agregar manifest al ZIP
                     var manifestEntry = zipArchive.CreateEntry("manifest.json");
                     using (var stream = manifestEntry.Open())
@@ -756,6 +789,7 @@ namespace SW.PC.API.Backend.Services
                         IncludeModels = false,  // Skip models — they're large and rarely change
                         IncludeDatabase = request.RestoreDatabase,
                         IncludeDocs = request.RestoreDocs,
+                        IncludePki = request.RestorePki,
                         IncludeTwinCAT = false,  // Skip TwinCAT — large and machine-specific
                         Type = BackupType.PreRestore
                     };
@@ -787,6 +821,8 @@ namespace SW.PC.API.Backend.Services
                         foldersToClean["data/"] = projectPaths.DataPath;
                     if (request.RestoreDocs)
                         foldersToClean["docs/"] = projectPaths.DocsPath;
+                    if (request.RestorePki && !string.IsNullOrEmpty(projectPaths.PkiPath))
+                        foldersToClean["pki/"] = projectPaths.PkiPath;
                     
                     // Verify backup actually contains entries for each folder before cleaning
                     var backupPrefixes = new HashSet<string>(
@@ -814,7 +850,7 @@ namespace SW.PC.API.Backend.Services
                         }
                     }
                     
-                    // Also clean sbom/, audit/, logs/, translations/ if backup contains them
+                    // Also clean sbom/, audit/, logs/, translations/, pki/ if backup contains them
                     var alwaysCleanFolders = new Dictionary<string, string>
                     {
                         ["sbom/"] = projectPaths.SbomPath,
@@ -991,6 +1027,11 @@ namespace SW.PC.API.Backend.Services
                         {
                             shouldRestore = true;
                             _logger.LogInformation("✅ Restaurando documentación DMS: {FileName}", entryPath);
+                        }
+                        else if (entryPath.StartsWith("pki/") && request.RestorePki)
+                        {
+                            shouldRestore = true;
+                            _logger.LogInformation("✅ Restaurando PKI certificate: {FileName}", entryPath);
                         }
                         else if (entryPath.StartsWith("twincat/") && request.RestoreTwinCAT)
                         {

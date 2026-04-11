@@ -1039,6 +1039,7 @@ if ($ProjectId -ne "default") {
     $folders += "$RemotePath\Backend\Projects\$ProjectId\sbom"   # SBOM por proyecto (EU CRA)
     $folders += "$RemotePath\Backend\Projects\$ProjectId\audit"  # Audit logs por proyecto (EU CRA)
     $folders += "$RemotePath\Backend\Projects\$ProjectId\logs"   # NxLog JSONL logs (SOC PIVOT TISSEO)
+    $folders += "$RemotePath\Backend\Projects\$ProjectId\pki"    # OPC UA PKI certificates
 }
 
 foreach ($folder in $folders) {
@@ -1695,6 +1696,17 @@ $dbDestPath = "$projectDestPath\data\project.db"
         Write-Info "No hay DB en el proyecto local - se creara automaticamente"
     }
     
+# Copiar pki (OPC UA certificates)
+$pkiSource = Join-Path $projectSourcePath "pki"
+if (Test-Path $pkiSource) {
+    Write-Step "Copiando certificados OPC UA (PKI)..."
+    Copy-Item -Path "$pkiSource\*" -Destination "$projectDestPath\pki" -Recurse -Force -ErrorAction SilentlyContinue
+    $pkiFiles = Get-ChildItem -Path $pkiSource -File -Recurse -ErrorAction SilentlyContinue
+    Write-Success "PKI copiado: $($pkiFiles.Count) archivos"
+} else {
+    Write-Info "No se encontró carpeta pki en el proyecto (se creará automáticamente)"
+}
+
     Write-Success "Proyecto '$ProjectId' copiado completamente"
     
     # 🔒 SEGURIDAD: Verificar que no hay otros proyectos en producción
@@ -1995,6 +2007,9 @@ if ($SaveLocalCopy -and -not [string]::IsNullOrEmpty($LocalCopyPath)) {
     }
     if (Test-Path "$projectSourcePath\models") {
         Copy-Item -Path "$projectSourcePath\models\*" -Destination "$localProjectPath\models" -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path "$projectSourcePath\pki") {
+        Copy-Item -Path "$projectSourcePath\pki\*" -Destination "$localProjectPath\pki" -Recurse -Force -ErrorAction SilentlyContinue
     }
     
     # Copiar active-project.json
