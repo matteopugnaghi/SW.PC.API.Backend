@@ -1736,21 +1736,18 @@ namespace SW.PC.API.Backend.Services
 
         public async Task<BackupConfig> GetBackupConfigAsync(string projectId)
         {
-            // TODO: Leer configuración desde Excel SystemConfig cuando se agreguen los campos
-            // Por ahora devolvemos valores por defecto sensatos
             try
             {
                 var projectPaths = GetProjectPaths(projectId);
                 var excelPath = Path.Combine(projectPaths.ConfigPath, "ProjectConfig.xlsm");
                 
                 // Si no existe el Excel, devolver defaults con backup DESHABILITADO
-                // para no crear carpetas innecesarias en producción
                 if (!File.Exists(excelPath))
                 {
                     _logger.LogDebug("Excel config not found for project {ProjectId}, returning disabled backup config", projectId);
                     return new BackupConfig
                     {
-                        Enabled = false, // DESHABILITADO por defecto hasta que se configure explícitamente
+                        Enabled = false,
                         IntervalHours = 0,
                         RetentionDays = 30,
                         SignEnabled = true,
@@ -1762,24 +1759,25 @@ namespace SW.PC.API.Backend.Services
                     };
                 }
                 
-                // Valores por defecto hasta que se implementen los campos en Excel
-                // Si el Excel existe, habilitamos backup con valores razonables
+                // Leer configuración desde Excel SystemConfig
+                var sysConfig = await _excelConfig.LoadSystemConfigurationAsync(excelPath);
+                
                 return new BackupConfig
                 {
-                    Enabled = true,
-                    IntervalHours = 24,
-                    RetentionDays = 30,
-                    SignEnabled = true,
-                    RemoteEnabled = false,
-                    RemoteUrl = null,
-                    RemoteApiKey = null,
-                    BackupBeforeRestore = true,
-                    MaxBackups = 10
+                    Enabled = sysConfig.BackupEnabled,
+                    IntervalHours = sysConfig.BackupIntervalHours,
+                    RetentionDays = sysConfig.BackupRetentionDays,
+                    SignEnabled = sysConfig.BackupSignEnabled,
+                    RemoteEnabled = sysConfig.BackupRemoteEnabled,
+                    RemoteUrl = string.IsNullOrEmpty(sysConfig.BackupRemoteUrl) ? null : sysConfig.BackupRemoteUrl,
+                    RemoteApiKey = string.IsNullOrEmpty(sysConfig.BackupRemoteApiKey) ? null : sysConfig.BackupRemoteApiKey,
+                    BackupBeforeRestore = sysConfig.BackupBeforeRestore,
+                    MaxBackups = sysConfig.BackupMaxBackups
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Error reading backup config, using defaults");;
+                _logger.LogWarning(ex, "Error reading backup config from Excel, using defaults");
                 return new BackupConfig();
             }
         }

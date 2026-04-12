@@ -544,6 +544,37 @@ namespace SW.PC.API.Backend.Models.Excel
         public int AuditLogMaxEntriesPerFile { get; set; } = 10000;
 
         // ═══════════════════════════════════════════════════════════════════════════
+        // 💾 BACKUP SYSTEM
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>Backup habilitado (true si Excel existe, false si no)</summary>
+        public bool BackupEnabled { get; set; } = true;
+
+        /// <summary>Intervalo de backup automático en horas (0 = solo manual)</summary>
+        public int BackupIntervalHours { get; set; } = 24;
+
+        /// <summary>Días de retención de backups (0 = sin límite)</summary>
+        public int BackupRetentionDays { get; set; } = 30;
+
+        /// <summary>Firma de integridad habilitada en backups</summary>
+        public bool BackupSignEnabled { get; set; } = true;
+
+        /// <summary>Backup remoto habilitado</summary>
+        public bool BackupRemoteEnabled { get; set; } = false;
+
+        /// <summary>URL del servidor remoto de backup</summary>
+        public string BackupRemoteUrl { get; set; } = "";
+
+        /// <summary>API Key para servidor remoto de backup</summary>
+        public string BackupRemoteApiKey { get; set; } = "";
+
+        /// <summary>Crear backup de seguridad antes de cada restauración</summary>
+        public bool BackupBeforeRestore { get; set; } = true;
+
+        /// <summary>Máximo número de backups a mantener (0 = sin límite)</summary>
+        public int BackupMaxBackups { get; set; } = 10;
+
+        // ═══════════════════════════════════════════════════════════════════════════
         // � NXLOG JSONL EXPORT - TISSEO SOC PIVOT (Cybersecurity)
         // ═══════════════════════════════════════════════════════════════════════════
 

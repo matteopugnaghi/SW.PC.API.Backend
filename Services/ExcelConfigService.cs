@@ -3454,6 +3454,57 @@ namespace SW.PC.API.Backend.Services
                                 if (int.TryParse(paramValue, out int sftpSync) && sftpSync > 0)
                                     config.OpcUaSftpSyncInterval = sftpSync;
                                 break;
+
+                            // ═══════════════════════════════════════════════════════════════
+                            // 💾 BACKUP SYSTEM
+                            // ═══════════════════════════════════════════════════════════════
+                            case "backupenabled":
+                            case "backup_enabled":
+                                config.BackupEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "backupintervalhours":
+                            case "backup_intervalhours":
+                            case "backup_interval_hours":
+                                if (int.TryParse(paramValue, out int bkpInterval))
+                                    config.BackupIntervalHours = Math.Max(0, bkpInterval);
+                                break;
+                            case "backupretentiondays":
+                            case "backup_retentiondays":
+                            case "backup_retention_days":
+                                if (int.TryParse(paramValue, out int bkpRetDays))
+                                    config.BackupRetentionDays = Math.Max(0, bkpRetDays);
+                                break;
+                            case "backupsignenabled":
+                            case "backup_signenabled":
+                            case "backup_sign_enabled":
+                                config.BackupSignEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "backupremoteenabled":
+                            case "backup_remoteenabled":
+                            case "backup_remote_enabled":
+                                config.BackupRemoteEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "backupremoteurl":
+                            case "backup_remoteurl":
+                            case "backup_remote_url":
+                                config.BackupRemoteUrl = paramValue ?? "";
+                                break;
+                            case "backupremoteapikey":
+                            case "backup_remoteapikey":
+                            case "backup_remote_apikey":
+                                config.BackupRemoteApiKey = paramValue ?? "";
+                                break;
+                            case "backupbeforerestore":
+                            case "backup_beforerestore":
+                            case "backup_before_restore":
+                                config.BackupBeforeRestore = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "backupmaxbackups":
+                            case "backup_maxbackups":
+                            case "backup_max_backups":
+                                if (int.TryParse(paramValue, out int bkpMax))
+                                    config.BackupMaxBackups = Math.Max(0, bkpMax);
+                                break;
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
