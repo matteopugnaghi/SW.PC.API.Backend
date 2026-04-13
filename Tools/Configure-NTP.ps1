@@ -709,10 +709,10 @@ if ($script:remoteSession) {
 Write-Host ""
 Write-Host "=== $($L.Summary) ===" -ForegroundColor Yellow
 
-$okCount   = ($results | Where-Object Status -eq 'OK').Count
-$failCount = ($results | Where-Object Status -eq 'FAIL').Count
-$dryCount  = ($results | Where-Object Status -eq 'DRY').Count
-$skipCount = ($results | Where-Object Status -eq 'SKIP').Count
+$okCount   = @($results | Where-Object Status -eq 'OK').Count
+$failCount = @($results | Where-Object Status -eq 'FAIL').Count
+$dryCount  = @($results | Where-Object Status -eq 'DRY').Count
+$skipCount = @($results | Where-Object Status -eq 'SKIP').Count
 
 Write-Host "  $($L.Success): $okCount  |  $($L.Failed): $failCount  |  $($L.Simulated): $dryCount  |  $($L.Skipped): $skipCount" -ForegroundColor $(if ($failCount -gt 0) { 'Red' } else { 'Green' })
 
