@@ -138,8 +138,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             var logEntry = $"[SYSTEM_ACTION] {DateTime.Now:yyyy-MM-dd HH:mm:ss} | Action: {action} | User: {username} | Role: {role} | Success: {success} | Details: {details}";
             _logger.LogWarning(logEntry); // Warning para que siempre se registre
-            
-            // TODO: Guardar en base de datos de auditoría
+            // Audit DB writes are done directly in each endpoint via _auditLogService.LogAsync()
         }
 
         /// <summary>
