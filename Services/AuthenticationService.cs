@@ -1750,10 +1750,10 @@ public class AuthenticationService : IAuthenticationService, IDisposable
         
         try
         {
-            // TODO: Implementar autenticación AD real cuando se habilite
-            // Usar System.DirectoryServices.Protocols para LDAP
+            // Active Directory authentication — requires System.DirectoryServices.Protocols NuGet package
+            // and a real AD server. Enable via Excel SystemConfig: AuthEnableActiveDirectory = true
             // 
-            // Ejemplo de implementación:
+            // Implementation when AD is available:
             // using var connection = new LdapConnection(new LdapDirectoryIdentifier(_config.ADServer));
             // connection.Timeout = TimeSpan.FromSeconds(_config.ADTimeoutSeconds);
             // connection.Credential = new NetworkCredential(username, password, _config.ADDomain);
