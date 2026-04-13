@@ -239,7 +239,7 @@ namespace SW.PC.API.Backend.Controllers
                     TotalAlarmDefinitions = config.Alarms.Count,
                     TotalNotificationDefinitions = config.Notifications.Count,
                     TotalInfoDefinitions = config.Infos.Count,
-                    // TODO: Cuando se integre con PLC real, estos se llenarán con estados activos
+                    // Estados activos se obtienen via GET /current-states y SignalR en tiempo real
                     ActiveAlarms = new List<ActiveAlarmDto>(),
                     ActiveNotifications = new List<ActiveAlarmDto>(),
                     ActiveInfos = new List<ActiveAlarmDto>(),
