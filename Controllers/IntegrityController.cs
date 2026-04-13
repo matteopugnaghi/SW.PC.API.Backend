@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SW.PC.API.Backend.Services;
 using SW.PC.API.Backend.Models;
@@ -10,6 +11,7 @@ namespace SW.PC.API.Backend.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class IntegrityController : ControllerBase
     {
         private readonly ISoftwareIntegrityService _integrityService;
@@ -65,14 +67,8 @@ namespace SW.PC.API.Backend.Controllers
         /// <summary>
         /// Forzar re-verificación de integridad de todos los componentes
         /// </summary>
-        /// <remarks>
-        /// TODO: Cuando se implemente autenticación:
-        /// - Añadir [Authorize(Roles = "Admin,Auditor")]
-        /// - Obtener usuario del JWT: User.Identity.Name
-        /// - Registrar en audit log: quién, cuándo, IP, resultado
-        /// </remarks>
         [HttpPost("verify")]
-        // TODO: [Authorize(Roles = "Admin,Auditor")]
+        [Authorize(Roles = "Administrator,Auditor")]
         public async Task<IActionResult> VerifyIntegrity([FromBody] ManualVerifyRequest? request = null)
         {
             var verifiedBy = request?.VerifiedBy ?? "Anonymous";
