@@ -14,7 +14,7 @@ if %errorlevel% neq 0 (
 
 cd /d "%~dp0"
 
-powershell -ExecutionPolicy Bypass -File "..\..\Configure-NTP.ps1" ^
+powershell -ExecutionPolicy Bypass -File "..\..\NTP\Configure-NTP.ps1" ^
     -Role Server ^
     -NtpServer 192.168.1.162 ^
     -PollIntervalSeconds 900 ^

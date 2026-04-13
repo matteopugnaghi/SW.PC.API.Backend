@@ -14,7 +14,7 @@ if %errorlevel% neq 0 (
 
 cd /d "%~dp0"
 
-powershell -ExecutionPolicy Bypass -File "..\..\Configure-NTP.ps1" ^
+powershell -ExecutionPolicy Bypass -File "..\..\NTP\Configure-NTP.ps1" ^
     -Role Client ^
     -NtpServer 10.11.100.122 ^
     -NtpFallback 10.8.80.1 ^
