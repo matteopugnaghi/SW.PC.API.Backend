@@ -3040,7 +3040,7 @@ namespace SW.PC.API.Backend.Services
                             case "nxlog_source_name":
                             case "nxlog_source":
                                 if (!string.IsNullOrWhiteSpace(paramValue))
-                                    config.NxLogSourceName = paramValue.Trim();
+                                    config.NxLogSourceName = paramValue.Trim().Trim('"');
                                 break;
 
                             // ═══════════════════════════════════════════════════════════════
