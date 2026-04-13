@@ -158,8 +158,8 @@ public class DocumentCategoryAccess
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
 
-// Mantener compatibilidad con código legacy que referencia el enum
-// TODO: Eliminar cuando se complete la migración
+// Legacy access level enum — kept for backward compatibility with existing DTOs
+// New per-role permissions use DocumentCategoryPermission instead
 public enum DocumentAccessLevel
 {
     Public = 0,
