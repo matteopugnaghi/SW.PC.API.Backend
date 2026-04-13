@@ -438,32 +438,14 @@ namespace SW.PC.API.Backend.Services
 
         private async Task StartServerAsync(CancellationToken stoppingToken)
         {
-            // Determine the base address for OPC/UA discovery.
-            // Using 0.0.0.0 causes clients to receive that as the endpoint URL in discovery,
-            // which fails when connecting from a remote machine (BadCommunicationError).
-            // Use ServerUri from Excel config if set to a real IP/hostname; otherwise use the machine hostname.
-            var serverHost = "0.0.0.0";
-            try
-            {
-                var uri = new Uri(_config.ServerUri);
-                var host = uri.Host;
-                // Only use ServerUri host if it's a real address (not localhost/0.0.0.0)
-                if (!string.IsNullOrEmpty(host) && host != "localhost" && host != "127.0.0.1" && host != "0.0.0.0")
-                {
-                    serverHost = host;
-                }
-                else
-                {
-                    // Fallback: use machine hostname so remote clients can reach us
-                    serverHost = System.Net.Dns.GetHostName();
-                }
-            }
-            catch
-            {
-                serverHost = System.Net.Dns.GetHostName();
-            }
+            // Use machine hostname for BaseAddresses (binding).
+            // DO NOT use the Excel ServerUri IP directly — it may not be a local IP on this machine
+            // (e.g. Excel has production IP 192.168.2.163 but we're running on dev PC → bind fails).
+            // Hostname resolves to the machine's actual IP and works on any PC.
+            // Remote clients receive the hostname in Discovery, which they can resolve on the LAN.
+            var serverHost = System.Net.Dns.GetHostName();
             var baseAddress = $"opc.tcp://{serverHost}:{_config.Port}";
-            _logger.LogInformation("🌐 Starting OPC/UA Server on {BaseAddress}...", baseAddress);
+            _logger.LogInformation("🌐 Starting OPC/UA Server on {BaseAddress} (hostname: {Host})...", baseAddress, serverHost);
 
             // Build OPC/UA Application Configuration
             var appConfig = new ApplicationConfiguration
