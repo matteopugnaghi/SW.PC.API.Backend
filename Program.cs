@@ -295,7 +295,8 @@ if (opcUaEnabledInExcel)
     builder.Services.AddSingleton<IOpcUaCertificateService, OpcUaCertificateService>();
     builder.Services.AddSingleton<IOpcUaSftpService, OpcUaSftpService>();
     builder.Services.AddHostedService<OpcUaSftpSyncService>();
-    Console.WriteLine("🌐 OPC/UA Server service REGISTERED (with certificate management + SFTP)");
+    builder.Services.AddHostedService<OpcUaCrlDownloadService>();
+    Console.WriteLine("🌐 OPC/UA Server service REGISTERED (with certificate management + SFTP + CRL)");
 }
 else
 {

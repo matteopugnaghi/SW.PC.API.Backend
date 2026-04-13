@@ -158,7 +158,8 @@ namespace SW.PC.API.Backend.Models
         // OPC/UA SFTP CERTIFICATE SYNC (Phase 2 - Automatic exchange)
         // ═══════════════════════════════════════════════════════════
         SftpSync,               // SFTP certificate sync operation
-        OpcUaConfigWarning      // Excel configuration error/warning
+        OpcUaConfigWarning,     // Excel configuration error/warning
+        CrlDownload             // CRL HTTP download (automatic)
     }
 
     /// <summary>
