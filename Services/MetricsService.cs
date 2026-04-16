@@ -74,7 +74,12 @@ namespace SW.PC.API.Backend.Services
         /// Registrar estado del servidor OPC/UA
         /// </summary>
         void SetOpcUaServerStatus(bool enabled, bool running, string statusMessage, int connectedClients = 0);
+        // ===== 🌡️ TME TEMPERATURE SENSORS =====
 
+        /// <summary>
+        /// Registrar estado de una sonda TME
+        /// </summary>
+        void SetTmeSensorStatus(int sensorIndex, bool enabled, bool connected, string statusMessage, double? temperature = null);
         // ===== �🔐 SOFTWARE INTEGRITY =====
 
         /// <summary>
@@ -211,7 +216,15 @@ namespace SW.PC.API.Backend.Services
                         OpcUaEnabled = _servicesStatus.OpcUaEnabled,
                         OpcUaRunning = _servicesStatus.OpcUaRunning,
                         OpcUaStatus = _servicesStatus.OpcUaStatus,
-                        OpcUaConnectedClients = _servicesStatus.OpcUaConnectedClients
+                        OpcUaConnectedClients = _servicesStatus.OpcUaConnectedClients,
+                        Tme1Enabled = _servicesStatus.Tme1Enabled,
+                        Tme1Connected = _servicesStatus.Tme1Connected,
+                        Tme1Status = _servicesStatus.Tme1Status,
+                        Tme1Temperature = _servicesStatus.Tme1Temperature,
+                        Tme2Enabled = _servicesStatus.Tme2Enabled,
+                        Tme2Connected = _servicesStatus.Tme2Connected,
+                        Tme2Status = _servicesStatus.Tme2Status,
+                        Tme2Temperature = _servicesStatus.Tme2Temperature
                     }
                 };
 
@@ -289,6 +302,28 @@ namespace SW.PC.API.Backend.Services
                 _servicesStatus.OpcUaRunning = running;
                 _servicesStatus.OpcUaStatus = statusMessage;
                 _servicesStatus.OpcUaConnectedClients = connectedClients;
+                _servicesStatus.LastStatusUpdate = DateTime.Now;
+            }
+        }
+
+        public void SetTmeSensorStatus(int sensorIndex, bool enabled, bool connected, string statusMessage, double? temperature = null)
+        {
+            lock (_lock)
+            {
+                if (sensorIndex == 1)
+                {
+                    _servicesStatus.Tme1Enabled = enabled;
+                    _servicesStatus.Tme1Connected = connected;
+                    _servicesStatus.Tme1Status = statusMessage;
+                    _servicesStatus.Tme1Temperature = temperature;
+                }
+                else if (sensorIndex == 2)
+                {
+                    _servicesStatus.Tme2Enabled = enabled;
+                    _servicesStatus.Tme2Connected = connected;
+                    _servicesStatus.Tme2Status = statusMessage;
+                    _servicesStatus.Tme2Temperature = temperature;
+                }
                 _servicesStatus.LastStatusUpdate = DateTime.Now;
             }
         }

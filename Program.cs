@@ -343,6 +343,7 @@ builder.Services.AddHostedService<BackupSchedulerService>(); // 💾 Backup auto
 builder.Services.AddHostedService<WashRecipeAutoLoadService>(); // 🚿 Auto-carga de recetas de lavado desde PLC
 builder.Services.AddHostedService<TrainRecipeAutoLoadService>(); // 🚆 Auto-carga de tipos de tren desde PLC
 builder.Services.AddHostedService<ClientConnectionTrackerService>(); // ⏱️ Tracker de clientes conectados + contador al PLC
+builder.Services.AddHostedService<TmeSensorService>(); // 🌡️ Sondas de temperatura Papouch TME (HTTP → ADS)
 
 // Add logging
 builder.Services.AddLogging(logging =>

@@ -3505,6 +3505,43 @@ namespace SW.PC.API.Backend.Services
                                 if (int.TryParse(paramValue, out int bkpMax))
                                     config.BackupMaxBackups = Math.Max(0, bkpMax);
                                 break;
+
+                            // ═══════════════════════════════════════════════════════════════
+                            // 🌡️ TME TEMPERATURE SENSORS - Papouch TME (HTTP)
+                            // ═══════════════════════════════════════════════════════════════
+                            case "enabletme1":
+                            case "enable_tme1":
+                            case "enable_tme_1":
+                                var tme1Value = paramValue?.ToLower()?.Trim() ?? "";
+                                config.EnableTME1 = tme1Value == "true" || tme1Value == "1" || tme1Value == "on" || tme1Value == "yes";
+                                break;
+                            case "uri_tme1":
+                            case "uritme1":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.UriTME1 = paramValue.Trim();
+                                break;
+                            case "ads_tme1":
+                            case "adstme1":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.AdsTME1 = paramValue.Trim();
+                                break;
+                            case "enabletme2":
+                            case "enable_tme2":
+                            case "enable_tme_2":
+                                var tme2Value = paramValue?.ToLower()?.Trim() ?? "";
+                                config.EnableTME2 = tme2Value == "true" || tme2Value == "1" || tme2Value == "on" || tme2Value == "yes";
+                                break;
+                            case "uri_tme2":
+                            case "uritme2":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.UriTME2 = paramValue.Trim();
+                                break;
+                            case "ads_tme2":
+                            case "adstme2":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.AdsTME2 = paramValue.Trim();
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
@@ -3542,6 +3579,14 @@ namespace SW.PC.API.Backend.Services
                         config.ProductManufacturer);
                     _logger.LogInformation("  - 🌐 OPC/UA Server: {Enabled} (Port: {Port}, Security: {Policy}/{Mode})", 
                         config.OpcUaEnabled, config.OpcUaPort, config.OpcUaSecurityPolicy, config.OpcUaSecurityMode);
+                    _logger.LogInformation("  - 🌡️ TME1: {Enabled} (URI: {URI}, ADS: {ADS})", 
+                        config.EnableTME1, 
+                        string.IsNullOrEmpty(config.UriTME1) ? "N/A" : config.UriTME1,
+                        string.IsNullOrEmpty(config.AdsTME1) ? "N/A" : config.AdsTME1);
+                    _logger.LogInformation("  - 🌡️ TME2: {Enabled} (URI: {URI}, ADS: {ADS})", 
+                        config.EnableTME2, 
+                        string.IsNullOrEmpty(config.UriTME2) ? "N/A" : config.UriTME2,
+                        string.IsNullOrEmpty(config.AdsTME2) ? "N/A" : config.AdsTME2);
 
                     stopwatch.Stop();
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);

@@ -1250,6 +1250,28 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Intervalo de sincronización SFTP en segundos (defecto: 86400 = 24h)</summary>
         public int OpcUaSftpSyncInterval { get; set; } = 86400;
 
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🌡️ TME TEMPERATURE SENSORS - Papouch TME (HTTP)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>Habilitar sonda de temperatura TME 1</summary>
+        public bool EnableTME1 { get; set; } = false;
+
+        /// <summary>URI HTTP del sensor TME 1 (ej: http://192.168.1.253/tme.xml)</summary>
+        public string UriTME1 { get; set; } = "";
+
+        /// <summary>Variable ADS (LREAL) donde escribir la temperatura TME 1 en el PLC</summary>
+        public string AdsTME1 { get; set; } = "";
+
+        /// <summary>Habilitar sonda de temperatura TME 2</summary>
+        public bool EnableTME2 { get; set; } = false;
+
+        /// <summary>URI HTTP del sensor TME 2 (ej: http://192.168.1.254/tme.xml)</summary>
+        public string UriTME2 { get; set; } = "";
+
+        /// <summary>Variable ADS (LREAL) donde escribir la temperatura TME 2 en el PLC</summary>
+        public string AdsTME2 { get; set; } = "";
+
     }
 
     /// <summary>
@@ -1784,6 +1806,32 @@ namespace SW.PC.API.Backend.Models.Excel
 
         /// <summary>Número de clientes OPC/UA conectados</summary>
         public int OpcUaConnectedClients { get; set; }
+
+        // ===== 🌡️ TME TEMPERATURE SENSORS =====
+
+        /// <summary>Sonda TME 1 habilitada en configuración</summary>
+        public bool Tme1Enabled { get; set; }
+
+        /// <summary>Sonda TME 1 comunicando correctamente</summary>
+        public bool Tme1Connected { get; set; }
+
+        /// <summary>Último mensaje de estado de TME 1</summary>
+        public string Tme1Status { get; set; } = "No iniciado";
+
+        /// <summary>Última temperatura leída de TME 1 (°C)</summary>
+        public double? Tme1Temperature { get; set; }
+
+        /// <summary>Sonda TME 2 habilitada en configuración</summary>
+        public bool Tme2Enabled { get; set; }
+
+        /// <summary>Sonda TME 2 comunicando correctamente</summary>
+        public bool Tme2Connected { get; set; }
+
+        /// <summary>Último mensaje de estado de TME 2</summary>
+        public string Tme2Status { get; set; } = "No iniciado";
+
+        /// <summary>Última temperatura leída de TME 2 (°C)</summary>
+        public double? Tme2Temperature { get; set; }
     }
 
     #region Alarm System Models
