@@ -211,14 +211,15 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Hojas obligatorias para el funcionamiento básico del sistema.
         /// Si falta alguna, el backend NO crashea pero loggea warning crítico.
+        /// (Basado en las hojas reales del Excel de Aquafrisch.)
         /// </summary>
         private static readonly string[] RequiredSheets =
         {
-            "General",
-            "PLC_Variables",
-            "HMI_Screens",
-            "3D_Models",
-            "System Config"
+            "System Config",
+            "3D Elements",
+            "Alarms",
+            "Setting page",
+            "Manual"
         };
 
         /// <summary>
@@ -228,13 +229,16 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         private static readonly (string Sheet, string FeatureDescription)[] OptionalSheets =
         {
-            ("Alarms",                  "Sistema de alarmas multilenguaje"),
-            ("OPC_UA_Variables",        "Variables OPC/UA"),
-            ("OPC_UA_Alarms",           "Alarmas OPC/UA"),
-            ("Variable_Views",          "Filtrado de variables por vista"),
-            ("3D_Elements_Info_Setting","Info contextual en elementos 3D"),
-            ("Semiautomatic_Mode",      "Modo semiautomático"),
-            ("OT_Components",           "Componentes OT (SBOM EU CRA)")
+            ("Variable_Views",            "Filtrado de variables por vista"),
+            ("3D_Elements_Info_Setting",  "Info contextual en elementos 3D"),
+            ("WashRecipe",                "Recetas de lavado"),
+            ("TrainRecipe",               "Tipos de tren"),
+            ("Semiautomatic_Mode",        "Modo semiautomático"),
+            ("Fast_Configuration",        "Configuración rápida"),
+            ("Plc_InfoPanel",             "Panel de info PLC (WSTRING)"),
+            ("OT_Components",             "Componentes OT (SBOM EU CRA)"),
+            ("OPC_UA_Variables",          "Variables OPC/UA"),
+            ("OPC_UA_Alarms",             "Alarmas OPC/UA")
         };
 
         /// <summary>
@@ -2693,6 +2697,10 @@ namespace SW.PC.API.Backend.Services
                 using (var stream = OpenExcelFileWithRetry(fullPath))
                 using (var package = new XLWorkbook(stream))
                 {
+                    // 📊 Analizar schema y loggear (L3 + L1 si hay warnings).
+                    // Solo se ejecuta si el Excel cambió desde el último análisis (caché por timestamp).
+                    AnalyzeAndLogSchemaIfChanged(package, fullPath);
+
                     // Buscar hoja "System Config" (varios nombres posibles)
                     var sheet = FindWorksheet(package, "System Config")
                              ?? FindWorksheet(package, "SystemConfig")
