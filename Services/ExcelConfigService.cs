@@ -34,7 +34,10 @@ namespace SW.PC.API.Backend.Services
         // �📁 Soporte Multi-Proyecto
         void SetProjectContext(IProjectContextService projectContext);
         string GetExcelConfigPath();
-        
+
+        // 📋 EU CRA - Inyección opcional del audit log (setter evita circular dependency)
+        void SetAuditLogService(IAuditLogService auditLogService);
+
         // 🎯 Sistema de filtrado de variables por vista
         Task<List<VariableViewMapping>> LoadVariableViewsAsync(string filePath);
         List<string> GetViewsForVariable(string variableName, List<VariableViewMapping> mappings);
@@ -112,7 +115,27 @@ namespace SW.PC.API.Backend.Services
         
         // 📁 Soporte Multi-Proyecto
         private IProjectContextService? _projectContext;
-        
+
+        // 📋 EU CRA - Audit log opcional (inyectado vía setter para evitar circular dependency)
+        private IAuditLogService? _auditLogService;
+
+        // ╔══════════════════════════════════════════════════════════════════════════╗
+        // ║  📊 EXCEL SCHEMA ANALYSIS                                                ║
+        // ║  ─────────────────────────────────────────────────────────────────────── ║
+        // ║  No hay número de versión que mantener. El sistema detecta              ║
+        // ║  automáticamente qué hojas/columnas faltan en el Excel del cliente      ║
+        // ║  comparando con lo que el código intenta leer (helpers TryGet*).        ║
+        // ║                                                                          ║
+        // ║  Cuando hay carencias:                                                   ║
+        // ║    - L3: warning en logs del backend (visor de logs frontend)            ║
+        // ║    - L1: entrada en audit log (EU CRA, retención 30+ días, firma SHA256) ║
+        // ║                                                                          ║
+        // ║  Caché por (filePath + LastWriteTime) evita re-loggear si el Excel      ║
+        // ║  no cambió. Editar el Excel regenera el análisis automáticamente.       ║
+        // ╚══════════════════════════════════════════════════════════════════════════╝
+        private readonly Dictionary<string, (DateTime Timestamp, SchemaAnalysisResult Result)> _schemaAnalysisCache = new();
+        private readonly object _schemaCacheLock = new();
+
         public ExcelConfigService(
             IWebHostEnvironment environment, 
             ILogger<ExcelConfigService> logger,
@@ -137,6 +160,251 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         private static IXLWorksheet? FindWorksheet(XLWorkbook workbook, string name)
             => workbook.TryGetWorksheet(name, out var ws) ? ws : null;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🛡️  HELPERS DEFENSIVOS DE LECTURA EXCEL
+        // ───────────────────────────────────────────────────────────────────────────
+        // Para columnas/hojas NUEVAS añadidas al Excel a futuro:
+        //   - Usar TryGetStr / TryGetInt / TryGetBool / TryGetDouble con default seguro.
+        //   - Si la celda no existe, está vacía o mal formateada → devuelve el default.
+        //   - NUNCA crashea, NUNCA bloquea el arranque.
+        //
+        // Esto permite desplegar backend nuevo a clientes con Excel viejo: las
+        // features nuevas quedan inactivas (default=false/0/"") hasta que el
+        // técnico edite el Excel del cliente para activarlas.
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>Lee una celda como string. Devuelve default si vacía/no existe.</summary>
+        protected static string TryGetStr(IXLWorksheet sheet, string cellRef, string @default = "")
+        {
+            try
+            {
+                var v = sheet.Cell(cellRef).GetString();
+                return string.IsNullOrWhiteSpace(v) ? @default : v;
+            }
+            catch { return @default; }
+        }
+
+        /// <summary>Lee una celda como int. Devuelve default si vacía/no parseable.</summary>
+        protected static int TryGetInt(IXLWorksheet sheet, string cellRef, int @default = 0)
+            => int.TryParse(TryGetStr(sheet, cellRef), out var v) ? v : @default;
+
+        /// <summary>Lee una celda como bool. Acepta true/1/yes/si/sí/x. Devuelve default si vacía.</summary>
+        protected static bool TryGetBool(IXLWorksheet sheet, string cellRef, bool @default = false)
+        {
+            var s = TryGetStr(sheet, cellRef).Trim().ToLowerInvariant();
+            if (s is "true" or "1" or "yes" or "si" or "sí" or "x") return true;
+            if (s is "false" or "0" or "no") return false;
+            return @default;
+        }
+
+        /// <summary>Lee una celda como double (cultura invariante). Devuelve default si vacía/no parseable.</summary>
+        protected static double TryGetDouble(IXLWorksheet sheet, string cellRef, double @default = 0)
+            => double.TryParse(TryGetStr(sheet, cellRef),
+                   System.Globalization.NumberStyles.Any,
+                   System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : @default;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 📊  ANÁLISIS DE SCHEMA (qué hay y qué falta en el Excel)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Hojas obligatorias para el funcionamiento básico del sistema.
+        /// Si falta alguna, el backend NO crashea pero loggea warning crítico.
+        /// </summary>
+        private static readonly string[] RequiredSheets =
+        {
+            "General",
+            "PLC_Variables",
+            "HMI_Screens",
+            "3D_Models",
+            "System Config"
+        };
+
+        /// <summary>
+        /// Hojas opcionales conocidas. Si faltan, las features asociadas quedan inactivas.
+        /// Añadir aquí solo para tener un análisis más rico en el log.
+        /// (No es obligatorio mantener esta lista — sirve solo para mejor diagnóstico.)
+        /// </summary>
+        private static readonly (string Sheet, string FeatureDescription)[] OptionalSheets =
+        {
+            ("Alarms",                  "Sistema de alarmas multilenguaje"),
+            ("OPC_UA_Variables",        "Variables OPC/UA"),
+            ("OPC_UA_Alarms",           "Alarmas OPC/UA"),
+            ("Variable_Views",          "Filtrado de variables por vista"),
+            ("3D_Elements_Info_Setting","Info contextual en elementos 3D"),
+            ("Semiautomatic_Mode",      "Modo semiautomático"),
+            ("OT_Components",           "Componentes OT (SBOM EU CRA)")
+        };
+
+        /// <summary>
+        /// Analiza el Excel y devuelve qué hojas obligatorias/opcionales están presentes o faltan.
+        /// Resultado se cachea por (filePath + LastWriteTime) — solo re-analiza si el Excel cambió.
+        /// </summary>
+        private SchemaAnalysisResult AnalyzeSchema(XLWorkbook workbook, string filePath)
+        {
+            var result = new SchemaAnalysisResult { FilePath = filePath };
+
+            // Hojas obligatorias
+            foreach (var sheet in RequiredSheets)
+            {
+                if (FindWorksheet(workbook, sheet) != null)
+                    result.RequiredPresent.Add(sheet);
+                else
+                    result.RequiredMissing.Add(sheet);
+            }
+
+            // Hojas opcionales conocidas
+            foreach (var (sheet, desc) in OptionalSheets)
+            {
+                if (FindWorksheet(workbook, sheet) != null)
+                    result.OptionalPresent.Add(sheet);
+                else
+                    result.OptionalMissing.Add($"{sheet} → {desc}");
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Ejecuta análisis de schema con caché por timestamp + escribe logs (L3 + L1) si hay cambios o warnings.
+        /// Llamar una vez por cada apertura de workbook para configuración principal del proyecto.
+        /// </summary>
+        private void AnalyzeAndLogSchemaIfChanged(XLWorkbook workbook, string filePath)
+        {
+            try
+            {
+                if (!File.Exists(filePath)) return;
+
+                var fileTimestamp = File.GetLastWriteTimeUtc(filePath);
+
+                // Caché: si el Excel no ha cambiado desde el último análisis, no re-loggear
+                lock (_schemaCacheLock)
+                {
+                    if (_schemaAnalysisCache.TryGetValue(filePath, out var cached) &&
+                        cached.Timestamp == fileTimestamp)
+                    {
+                        return; // Ya analizado, no hacer nada (evita spam en logs)
+                    }
+                }
+
+                var analysis = AnalyzeSchema(workbook, filePath);
+
+                // === L3: log estructurado para visor del frontend ===
+                LogSchemaAnalysisToConsole(analysis);
+
+                // === L1: audit log persistente (solo si hay warnings) ===
+                _ = LogSchemaAnalysisToAuditAsync(analysis);
+
+                // Actualizar caché
+                lock (_schemaCacheLock)
+                {
+                    _schemaAnalysisCache[filePath] = (fileTimestamp, analysis);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Análisis nunca debe romper la carga del Excel
+                _logger.LogError(ex, "Error during schema analysis (non-fatal)");
+            }
+        }
+
+        private void LogSchemaAnalysisToConsole(SchemaAnalysisResult a)
+        {
+            var fileName = Path.GetFileName(a.FilePath);
+
+            _logger.LogInformation("═══════════════════════════════════════════════════════════════");
+            _logger.LogInformation("📋 EXCEL SCHEMA ANALYSIS — {File}", fileName);
+            _logger.LogInformation("   Required sheets: {Present}/{Total} present",
+                a.RequiredPresent.Count, RequiredSheets.Length);
+            _logger.LogInformation("   Optional sheets: {Present}/{Total} present",
+                a.OptionalPresent.Count, OptionalSheets.Length);
+
+            if (a.RequiredMissing.Count > 0)
+            {
+                _logger.LogError("❌ REQUIRED sheets MISSING ({Count}):", a.RequiredMissing.Count);
+                foreach (var s in a.RequiredMissing)
+                    _logger.LogError("    - {Sheet}", s);
+                _logger.LogError("    → Backend uses safe defaults but functionality is degraded.");
+            }
+
+            if (a.OptionalMissing.Count > 0)
+            {
+                _logger.LogWarning("⚠️  Optional sheets missing ({Count}) — related features inactive:",
+                    a.OptionalMissing.Count);
+                foreach (var s in a.OptionalMissing)
+                    _logger.LogWarning("    - {Sheet}", s);
+            }
+
+            if (a.RequiredMissing.Count == 0 && a.OptionalMissing.Count == 0)
+                _logger.LogInformation("✅ Schema complete — no warnings.");
+
+            _logger.LogInformation("═══════════════════════════════════════════════════════════════");
+        }
+
+        private async Task LogSchemaAnalysisToAuditAsync(SchemaAnalysisResult a)
+        {
+            // Solo escribir audit log si hay warnings que merezca la pena registrar
+            if (_auditLogService == null) return;
+            if (a.RequiredMissing.Count == 0 && a.OptionalMissing.Count == 0) return;
+
+            try
+            {
+                var result = a.RequiredMissing.Count > 0
+                    ? AuditResult.Warning  // Falta hoja crítica
+                    : AuditResult.Success; // Solo opcionales (informativo)
+
+                var summary = $"Excel schema analysis: " +
+                              $"{a.RequiredMissing.Count} required missing, " +
+                              $"{a.OptionalMissing.Count} optional missing";
+
+                var details = new
+                {
+                    file = Path.GetFileName(a.FilePath),
+                    requiredPresent = a.RequiredPresent,
+                    requiredMissing = a.RequiredMissing,
+                    optionalPresent = a.OptionalPresent,
+                    optionalMissing = a.OptionalMissing,
+                    timestamp = DateTime.UtcNow
+                };
+
+                await _auditLogService.LogAsync(
+                    category: AuditCategory.System,
+                    action: AuditAction.ConfigChange,
+                    result: result,
+                    details: $"{summary}. {System.Text.Json.JsonSerializer.Serialize(details)}",
+                    userName: "system",
+                    projectId: _projectContext?.ActiveProjectId
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not write schema analysis to audit log (non-fatal)");
+            }
+        }
+
+        /// <summary>
+        /// Resultado del análisis de schema — qué hay y qué falta.
+        /// </summary>
+        private class SchemaAnalysisResult
+        {
+            public string FilePath { get; set; } = "";
+            public List<string> RequiredPresent { get; } = new();
+            public List<string> RequiredMissing { get; } = new();
+            public List<string> OptionalPresent { get; } = new();
+            public List<string> OptionalMissing { get; } = new();
+        }
+
+        /// <summary>
+        /// 📋 EU CRA - Inyecta el servicio de audit log (setter pattern para evitar circular dependency).
+        /// Llamado desde Program.cs después de construir ambos servicios.
+        /// </summary>
+        public void SetAuditLogService(IAuditLogService auditLogService)
+        {
+            _auditLogService = auditLogService;
+            _logger.LogInformation("📋 ExcelConfigService: Audit log service connected (L1 logging enabled)");
+        }
+
         
         /// <summary>
         /// Configura el servicio de contexto de proyecto para soporte multi-proyecto.
@@ -237,7 +505,11 @@ namespace SW.PC.API.Backend.Services
                 using (var stream = OpenExcelFileWithRetry(fullPath))
                 using (var package = new XLWorkbook(stream))
                 {
-                    // Leer hoja de información general
+                    // 📊 Analizar schema y loggear (L3 + L1 si hay warnings).
+                    // Solo se ejecuta si el Excel cambió desde el último análisis (caché por timestamp).
+                    AnalyzeAndLogSchemaIfChanged(package, fullPath);
+
+                    // Leer hoja de información general (con guard defensivo)
                     var generalSheet = FindWorksheet(package, "General");
                     if (generalSheet != null)
                     {
@@ -249,6 +521,14 @@ namespace SW.PC.API.Backend.Services
                         {
                             config.CreatedDate = date;
                         }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("⚠️ Hoja 'General' no encontrada en {Path} — usando valores por defecto", fullPath);
+                        config.ProjectName = "Sin configuración";
+                        config.ProjectCode = "UNKNOWN";
+                        config.Customer = "";
+                        config.CreatedDate = DateTime.UtcNow;
                     }
                     
                     // Leer variables PLC

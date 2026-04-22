@@ -372,7 +372,19 @@ loggerFactory.AddProvider(new SystemLogBufferProvider(systemLogService));
     // Configurar ExcelConfigService con el contexto de proyecto
     excelConfigService.SetProjectContext(projectContext);
 
-    // 🔄 Suscribir ExcelConfigService al evento de cambio de proyecto
+    // � EU CRA - Conectar audit log a ExcelConfigService (setter pattern evita circular DI).
+    // Esto habilita que los warnings de schema del Excel se persistan en L1 (audit log).
+    try
+    {
+        var auditLogServiceForExcel = app.Services.GetRequiredService<IAuditLogService>();
+        excelConfigService.SetAuditLogService(auditLogServiceForExcel);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "⚠️ Could not wire AuditLogService into ExcelConfigService (L1 schema logging disabled)");
+    }
+
+    // �🔄 Suscribir ExcelConfigService al evento de cambio de proyecto
     // para que recargue cache y rutas cuando se cambia de proyecto
     projectContext.OnProjectChanged += (_) =>
     {
