@@ -280,6 +280,18 @@ namespace SW.PC.API.Backend.Services
             {
                 if (!File.Exists(filePath)) return;
 
+                // Solo analizar el Excel del proyecto activo. Evita ruido por lecturas
+                // tempranas de archivos legacy o de otros proyectos antes de propagarse el contexto.
+                if (_projectContext != null && _projectContext.IsMultiProjectMode)
+                {
+                    var activeExcel = _projectContext.ExcelConfigPath;
+                    if (!string.IsNullOrEmpty(activeExcel) &&
+                        !string.Equals(Path.GetFullPath(filePath), Path.GetFullPath(activeExcel), StringComparison.OrdinalIgnoreCase))
+                    {
+                        return;
+                    }
+                }
+
                 var fileTimestamp = File.GetLastWriteTimeUtc(filePath);
 
                 // Caché: si el Excel no ha cambiado desde el último análisis, no re-loggear
@@ -509,10 +521,6 @@ namespace SW.PC.API.Backend.Services
                 using (var stream = OpenExcelFileWithRetry(fullPath))
                 using (var package = new XLWorkbook(stream))
                 {
-                    // 📊 Analizar schema y loggear (L3 + L1 si hay warnings).
-                    // Solo se ejecuta si el Excel cambió desde el último análisis (caché por timestamp).
-                    AnalyzeAndLogSchemaIfChanged(package, fullPath);
-
                     // Leer hoja de información general (con guard defensivo)
                     var generalSheet = FindWorksheet(package, "General");
                     if (generalSheet != null)
