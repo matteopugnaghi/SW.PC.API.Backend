@@ -1,0 +1,11 @@
+# Generated artefacts (regenerate per scan)
+reports/*
+!reports/.gitkeep
+
+# SBOMs descargados (specifico por proyecto, no versionar)
+sboms/*
+!sboms/.gitkeep
+
+# Params (contienen metadatos por proyecto, opcional versionar)
+params/*
+!params/.gitkeep
