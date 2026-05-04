@@ -17,6 +17,10 @@ namespace SW.PC.API.Backend.Services
         public static int CycleCounter { get; set; } = 0;
         public static Dictionary<string, (string Username, string IPAddress)> ConnectedClients { get; } = new();
         public static readonly object LockObj = new object();
+
+        // 🔄 Estado anterior de conexión al PLC para detectar transición disconnected->connected
+        // y reenviar UserLogged/ClientsIdConnected (que solo se escriben en login/logout).
+        private bool _previousPlcConnected = false;
         
         public ClientConnectionTrackerService(
             ILogger<ClientConnectionTrackerService> logger,
@@ -60,6 +64,22 @@ namespace SW.PC.API.Backend.Services
                     
                     // 📤 Escribir al PLC (siempre, para que el contador se resetee a 0)
                     await UpdatePlcCounterAsync(currentCounter, clientsList);
+
+                    // 🔄 Detectar reconexión del PLC (estaba desconectado y ahora sí):
+                    // si hay clientes conectados, reenviar UserLogged/ClientsIdConnected porque
+                    // el ScadaHub.OnConnectedAsync de esos clientes pudo haberse ejecutado mientras
+                    // el PLC no estaba conectado y la escritura se omitió silenciosamente.
+                    // Casos cubiertos:
+                    //  - Primer arranque: PC arranca antes que el PLC esté en RUN.
+                    //  - PLC se desconecta (descarga de software, reinicio) y vuelve mientras
+                    //    los clientes siguen conectados.
+                    bool currentlyConnected = _twinCATService.IsConnected;
+                    if (currentlyConnected && !_previousPlcConnected && hasClients)
+                    {
+                        _logger.LogInformation("🔄 PLC reconectado con {Count} cliente(s) ya conectado(s) - reenviando UserLogged/ClientsIdConnected", clientsList.Count);
+                        await UpdatePlcClientsAsync(_serviceProvider, _twinCATService, _logger);
+                    }
+                    _previousPlcConnected = currentlyConnected;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -126,7 +146,7 @@ namespace SW.PC.API.Backend.Services
                 var excelPath = projectContext.ExcelConfigPath;
                 var systemConfig = await excelConfigService.LoadSystemConfigurationAsync(excelPath);
                 
-                var writeTasks = new List<Task>();
+                var writeTasks = new List<Task<bool>>();
                 
                 // Escribir contador
                 if (!string.IsNullOrEmpty(systemConfig.CounterCycleLive))
@@ -134,6 +154,11 @@ namespace SW.PC.API.Backend.Services
                     writeTasks.Add(twinCATService.WriteVariableAsync(systemConfig.CounterCycleLive, currentCounter, typeof(int)));
                 }
                 
+                // Lista paralela de nombres para poder reportar cuál falla
+                var writeNames = new List<string>();
+                if (!string.IsNullOrEmpty(systemConfig.CounterCycleLive))
+                    writeNames.Add(systemConfig.CounterCycleLive);
+
                 // Escribir UserLogged[0..5]
                 if (!string.IsNullOrEmpty(systemConfig.UserLogged))
                 {
@@ -142,6 +167,7 @@ namespace SW.PC.API.Backend.Services
                         string username = i < clientsList.Count ? clientsList[i].Username : "";
                         string arrayVarName = $"{systemConfig.UserLogged}[{i}]";
                         writeTasks.Add(twinCATService.WriteVariableAsync(arrayVarName, username, typeof(string)));
+                        writeNames.Add(arrayVarName);
                     }
                 }
                 
@@ -153,11 +179,29 @@ namespace SW.PC.API.Backend.Services
                         string ipAddress = i < clientsList.Count ? clientsList[i].IPAddress : "";
                         string arrayVarName = $"{systemConfig.ClientsIdConnected}[{i}]";
                         writeTasks.Add(twinCATService.WriteVariableAsync(arrayVarName, ipAddress, typeof(string)));
+                        writeNames.Add(arrayVarName);
                     }
                 }
                 
-                await Task.WhenAll(writeTasks);
-                logger.LogInformation("✅ PLC actualizado: {Count} clientes, contador={Counter}", clientsList.Count, currentCounter);
+                var results = await Task.WhenAll(writeTasks);
+
+                // 🔍 Detectar fallos silenciosos (WriteVariableAsync devuelve false sin lanzar excepción)
+                var failed = new List<string>();
+                for (int i = 0; i < results.Length && i < writeNames.Count; i++)
+                {
+                    if (!results[i]) failed.Add(writeNames[i]);
+                }
+
+                if (failed.Count > 0)
+                {
+                    logger.LogWarning("⚠️ PLC actualizado parcialmente: {Failed} variable(s) fallaron: {Names}. " +
+                        "Posible handle ADS obsoleto tras reconexión - se reintentará en la próxima actualización.",
+                        failed.Count, string.Join(", ", failed));
+                }
+                else
+                {
+                    logger.LogInformation("✅ PLC actualizado: {Count} clientes, contador={Counter}", clientsList.Count, currentCounter);
+                }
             }
             catch (Exception ex)
             {

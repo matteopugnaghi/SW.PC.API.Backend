@@ -108,6 +108,9 @@ namespace SW.PC.API.Backend.Services
                     {
                         _logger.LogWarning("⚠️ PLC desconectado detectado por AdsClient.IsConnected = false");
                         _isConnected = false;
+                        // 🧹 Invalidar handles cacheados: tras una reconexión del PLC los handles antiguos
+                        // ya no son válidos en el lado del PLC y el primer Write fallaría silenciosamente.
+                        ClearHandleCache();
                     }
                 }
                 
@@ -459,6 +462,11 @@ namespace SW.PC.API.Backend.Services
                         }
                         
                         _logger.LogInformation("✅ PLC en RUN - Conexión establecida");
+                        // 🧹 Limpiar cache de handles: tras una reconexión los handles previos pertenecen
+                        // a la sesión ADS anterior y son inválidos. Si no se limpian, el primer Write tras
+                        // un Connect (típicamente el escribir st_InfoUserLogged en el primer login) falla
+                        // y no se reintenta hasta el siguiente login.
+                        ClearHandleCache();
                         _isConnected = true;
                         _isSimulatedMode = false;
                         _consecutiveTimeoutErrors = 0;
