@@ -156,16 +156,38 @@ namespace SW.PC.API.Backend.Controllers
         /// <returns>Installation ID and system info</returns>
         [HttpGet("installation-id")]
         [ProducesResponseType(200)]
-        public ActionResult GetInstallationId()
+        public async Task<ActionResult> GetInstallationId()
         {
             try
             {
                 // Usar el servicio centralizado que lee del Excel
                 var installationId = _recoveryCodeService.GetInstallationId();
-                
+
+                // 🆕 Cargar también productName/productVersion para mostrarlos en el badge del Login
+                // (mismo formato que el InfoPanel post-login). Si falla, devolvemos vacíos -
+                // el frontend tiene fallbacks y solo mostrará lo que reciba.
+                string productName = "";
+                string productVersion = "";
+                try
+                {
+                    var excelPath = _projectContext.ExcelConfigPath;
+                    var systemConfig = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
+                    if (systemConfig != null)
+                    {
+                        productName = systemConfig.ProductName ?? "";
+                        productVersion = systemConfig.ProductVersion ?? "";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "No se pudo cargar productName/productVersion para installation-id");
+                }
+
                 return Ok(new
                 {
                     installationId,
+                    productName,
+                    productVersion,
                     machineName = Environment.MachineName,
                     osVersion = Environment.OSVersion.ToString(),
                     backendVersion = "1.0.0",
