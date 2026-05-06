@@ -27,6 +27,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly SmmOptions _smmOptions;
         private readonly IProjectDbContextFactory _dbFactory;
         private readonly ISmmCaptureService _capture;
+        private readonly ISmmExcelSyncService _excelSync;
 
         public SmmController(
             ILogger<SmmController> logger,
@@ -34,7 +35,8 @@ namespace SW.PC.API.Backend.Controllers
             IRequestProjectContext projectContext,
             IOptions<SmmOptions> smmOptions,
             IProjectDbContextFactory dbFactory,
-            ISmmCaptureService capture)
+            ISmmCaptureService capture,
+            ISmmExcelSyncService excelSync)
         {
             _logger = logger;
             _excelConfigService = excelConfigService;
@@ -42,6 +44,7 @@ namespace SW.PC.API.Backend.Controllers
             _smmOptions = smmOptions.Value;
             _dbFactory = dbFactory;
             _capture = capture;
+            _excelSync = excelSync;
         }
 
         /// <summary>
@@ -250,6 +253,33 @@ namespace SW.PC.API.Backend.Controllers
         public class SoftDeleteCycleRequest
         {
             public string Reason { get; set; } = string.Empty;
+        }
+
+        /// <summary>
+        /// Sincroniza catálogo SMM (Groups/Elements/Variables/Consumables) desde el Excel del proyecto.
+        /// UPSERT idempotente — no borra nada (preserva readings históricos).
+        /// </summary>
+        [HttpPost("sync-from-excel")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> SyncFromExcelAsync()
+        {
+            var excelPath = _projectContext.ExcelConfigPath;
+            if (string.IsNullOrWhiteSpace(excelPath) || !System.IO.File.Exists(excelPath))
+                return BadRequest(new { ok = false, error = $"Excel no encontrado: {excelPath}" });
+
+            var result = await _excelSync.SyncFromExcelAsync(excelPath);
+            if (!result.Success)
+                return StatusCode(500, new { ok = false, error = result.Error, warnings = result.Warnings });
+
+            return Ok(new
+            {
+                ok = true,
+                groups = new { added = result.GroupsAdded, updated = result.GroupsUpdated },
+                elements = new { added = result.ElementsAdded, updated = result.ElementsUpdated },
+                variables = new { added = result.VariablesAdded, updated = result.VariablesUpdated },
+                consumables = new { added = result.ConsumablesAdded, updated = result.ConsumablesUpdated },
+                warnings = result.Warnings
+            });
         }
     }
 }

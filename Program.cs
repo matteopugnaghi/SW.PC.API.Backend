@@ -218,8 +218,9 @@ builder.Services.AddScoped<IVulnerabilityService, VulnerabilityService>(); // �
 builder.Services.AddSingleton<IIpcInfoService, IpcInfoService>(); // 💻 IPC System Info
 builder.Services.AddSingleton<IAuditLogService, AuditLogService>(); // 📋 Audit Log (Nivel 1) - EU CRA Compliance
 
-// 📊 SMM (Statistics & Maintenance Module) — DEC-013 Fase 4
+// 📊 SMM (Statistics & Maintenance Module) — DEC-013 Fase 4 + 6.0.5
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Smm.ISmmCaptureService, SW.PC.API.Backend.Services.Smm.SmmCaptureService>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Smm.ISmmExcelSyncService, SW.PC.API.Backend.Services.Smm.SmmExcelSyncService>();
 builder.Services.AddHostedService<SW.PC.API.Backend.Services.Smm.ContinuousReadJob>();
 builder.Services.AddSingleton<IOperationLogService, OperationLogService>(); // 📋 Operation Log (Nivel 2) - Acciones de operador
 builder.Services.AddSingleton<ISystemLogService, SystemLogService>(); // 📋 System Log (Nivel 3) - In-memory diagnostic buffer
