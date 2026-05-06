@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using SW.PC.API.Backend.Data;
 using SW.PC.API.Backend.Models.Smm;
+using SW.PC.API.Backend.Models.Smm.Entities;
 using SW.PC.API.Backend.Services;
 using SW.PC.API.Backend.Services.Smm;
 
@@ -280,6 +281,209 @@ namespace SW.PC.API.Backend.Controllers
                 consumables = new { added = result.ConsumablesAdded, updated = result.ConsumablesUpdated },
                 warnings = result.Warnings
             });
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // FASE 6.2 — Mantenimiento (DEC-014/017/019/023)
+        // ════════════════════════════════════════════════════════════════════
+
+        /// <summary>Consumibles asociados a un elemento (catálogo Excel).</summary>
+        [HttpGet("elements/{elementId:int}/consumables")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetElementConsumablesAsync(int elementId)
+        {
+            using var db = _dbFactory.CreateDbContext();
+            var items = await db.SmmConsumables
+                .Where(c => c.ElementId == elementId)
+                .OrderBy(c => c.TaskName).ThenBy(c => c.PartSku)
+                .Select(c => new { c.Id, c.TaskName, c.PartSku, c.PartDescription, c.PartUnit, c.PartDefaultQuantity })
+                .ToListAsync();
+            return Ok(items);
+        }
+
+        /// <summary>Histórico de intervenciones de un elemento.</summary>
+        [HttpGet("elements/{elementId:int}/interventions")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetElementInterventionsAsync(int elementId, [FromQuery] int take = 100)
+        {
+            using var db = _dbFactory.CreateDbContext();
+            take = System.Math.Clamp(take, 1, 500);
+            var items = await db.SmmInterventions
+                .Where(i => i.ElementId == elementId)
+                .OrderByDescending(i => i.PerformedAt)
+                .Take(take)
+                .Select(i => new
+                {
+                    i.Id, i.TaskName, i.InterventionType, i.PerformedAt,
+                    i.PerformedByRole, i.PerformedByUser, i.WorkOrderRef,
+                    i.AccumulatedValueAtMaintenance, i.Notes, i.CreatedAt
+                })
+                .ToListAsync();
+            return Ok(items);
+        }
+
+        /// <summary>Crea una nueva intervención de mantenimiento + uso de consumibles.</summary>
+        [HttpPost("interventions")]
+        [Authorize]
+        public async Task<IActionResult> CreateInterventionAsync([FromBody] CreateInterventionRequest req)
+        {
+            if (req == null) return BadRequest(new { error = "body requerido" });
+            if (req.ElementId <= 0) return BadRequest(new { error = "elementId requerido" });
+            if (string.IsNullOrWhiteSpace(req.TaskName)) return BadRequest(new { error = "taskName requerido" });
+
+            using var db = _dbFactory.CreateDbContext();
+
+            var element = await db.SmmElements.FirstOrDefaultAsync(e => e.Id == req.ElementId);
+            if (element == null) return NotFound(new { error = $"Element {req.ElementId} no existe" });
+
+            // Resolver/crear lifecycle activo del elemento
+            var lifecycle = await db.SmmElementLifecycles
+                .Where(l => l.ElementId == req.ElementId && l.EndedAt == null)
+                .OrderByDescending(l => l.StartedAt)
+                .FirstOrDefaultAsync();
+
+            if (lifecycle == null)
+            {
+                lifecycle = new SmmElementLifecycle
+                {
+                    ElementId = req.ElementId,
+                    StartedAt = System.DateTime.UtcNow,
+                    AccumulatedValueAtStartJson = "{}"
+                };
+                db.SmmElementLifecycles.Add(lifecycle);
+                await db.SaveChangesAsync();
+            }
+
+            var user = User?.Identity?.Name ?? "user";
+            var intervention = new SmmIntervention
+            {
+                ElementId = req.ElementId,
+                ElementLifecycleId = lifecycle.Id,
+                TaskName = req.TaskName.Trim(),
+                InterventionType = string.IsNullOrWhiteSpace(req.InterventionType) ? "Maintenance" : req.InterventionType.Trim(),
+                PerformedAt = req.PerformedAt ?? System.DateTime.UtcNow,
+                PerformedByRole = string.IsNullOrWhiteSpace(req.PerformedByRole) ? "CustomerMaintainer" : req.PerformedByRole.Trim(),
+                PerformedByUser = string.IsNullOrWhiteSpace(req.PerformedByUser) ? user : req.PerformedByUser.Trim(),
+                WorkOrderRef = string.IsNullOrWhiteSpace(req.WorkOrderRef) ? null : req.WorkOrderRef.Trim(),
+                AccumulatedValueAtMaintenance = req.AccumulatedValueAtMaintenance,
+                Notes = string.IsNullOrWhiteSpace(req.Notes) ? null : req.Notes.Trim(),
+                CreatedBy = user
+            };
+            db.SmmInterventions.Add(intervention);
+            await db.SaveChangesAsync();
+
+            // Consumable usages
+            if (req.ConsumableUsages != null && req.ConsumableUsages.Count > 0)
+            {
+                foreach (var u in req.ConsumableUsages)
+                {
+                    if (string.IsNullOrWhiteSpace(u.PartSku) || u.Quantity <= 0) continue;
+                    db.SmmConsumableUsage.Add(new SmmConsumableUsage
+                    {
+                        InterventionId = intervention.Id,
+                        PartSku = u.PartSku.Trim(),
+                        PartDescription = string.IsNullOrWhiteSpace(u.PartDescription) ? null : u.PartDescription.Trim(),
+                        PartUnit = string.IsNullOrWhiteSpace(u.PartUnit) ? "ud" : u.PartUnit.Trim(),
+                        Quantity = u.Quantity
+                    });
+                }
+                await db.SaveChangesAsync();
+            }
+
+            // Si es Replacement: cerrar lifecycle actual y abrir uno nuevo (DEC-019)
+            if (string.Equals(intervention.InterventionType, "Replacement", System.StringComparison.OrdinalIgnoreCase))
+            {
+                lifecycle.EndedAt = intervention.PerformedAt;
+                lifecycle.EndingInterventionId = intervention.Id;
+                db.SmmElementLifecycles.Add(new SmmElementLifecycle
+                {
+                    ElementId = req.ElementId,
+                    StartedAt = intervention.PerformedAt,
+                    AccumulatedValueAtStartJson = "{}"
+                });
+                await db.SaveChangesAsync();
+            }
+
+            return Ok(new { ok = true, interventionId = intervention.Id, lifecycleId = lifecycle.Id });
+        }
+
+        /// <summary>Datos para PDF/print de un pedido de consumibles (frontend renderiza HTML).</summary>
+        [HttpPost("orders/build")]
+        [Authorize]
+        public async Task<IActionResult> BuildConsumablesOrderAsync([FromBody] BuildOrderRequest req)
+        {
+            if (req == null || req.Items == null || req.Items.Count == 0)
+                return BadRequest(new { error = "items requerido" });
+
+            using var db = _dbFactory.CreateDbContext();
+            var skus = req.Items.Select(i => i.PartSku).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+            var catalog = await db.SmmConsumables
+                .Where(c => skus.Contains(c.PartSku))
+                .Select(c => new { c.PartSku, c.PartDescription, c.PartUnit, ElementName = db.SmmElements.Where(e => e.Id == c.ElementId).Select(e => e.ElementName).FirstOrDefault() })
+                .ToListAsync();
+
+            var lookup = catalog.GroupBy(c => c.PartSku).ToDictionary(g => g.Key, g => g.First());
+
+            var lines = req.Items.Select(i =>
+            {
+                lookup.TryGetValue(i.PartSku, out var c);
+                return new
+                {
+                    sku = i.PartSku,
+                    description = !string.IsNullOrWhiteSpace(i.PartDescription) ? i.PartDescription : c?.PartDescription,
+                    unit = !string.IsNullOrWhiteSpace(i.PartUnit) ? i.PartUnit : (c?.PartUnit ?? "ud"),
+                    quantity = i.Quantity,
+                    elementName = c?.ElementName
+                };
+            }).ToList();
+
+            return Ok(new
+            {
+                orderRef = $"ORD-{System.DateTime.UtcNow:yyyyMMdd-HHmmss}",
+                generatedAt = System.DateTime.UtcNow,
+                generatedBy = User?.Identity?.Name ?? "user",
+                projectId = _projectContext.ProjectId,
+                customer = req.CustomerName,
+                notes = req.Notes,
+                lines
+            });
+        }
+
+        public class CreateInterventionRequest
+        {
+            public int ElementId { get; set; }
+            public string TaskName { get; set; } = string.Empty;
+            public string? InterventionType { get; set; } = "Maintenance";
+            public System.DateTime? PerformedAt { get; set; }
+            public string? PerformedByRole { get; set; }
+            public string? PerformedByUser { get; set; }
+            public string? WorkOrderRef { get; set; }
+            public double? AccumulatedValueAtMaintenance { get; set; }
+            public string? Notes { get; set; }
+            public List<ConsumableUsageDto>? ConsumableUsages { get; set; }
+        }
+
+        public class ConsumableUsageDto
+        {
+            public string PartSku { get; set; } = string.Empty;
+            public string? PartDescription { get; set; }
+            public string? PartUnit { get; set; }
+            public double Quantity { get; set; } = 1.0;
+        }
+
+        public class BuildOrderRequest
+        {
+            public string? CustomerName { get; set; }
+            public string? Notes { get; set; }
+            public List<OrderLineDto> Items { get; set; } = new();
+        }
+
+        public class OrderLineDto
+        {
+            public string PartSku { get; set; } = string.Empty;
+            public string? PartDescription { get; set; }
+            public string? PartUnit { get; set; }
+            public double Quantity { get; set; } = 1.0;
         }
     }
 }
