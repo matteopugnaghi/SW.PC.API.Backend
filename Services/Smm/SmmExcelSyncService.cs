@@ -20,19 +20,23 @@ namespace SW.PC.API.Backend.Services.Smm;
 
 public interface ISmmExcelSyncService
 {
-    Task<SmmSyncResult> SyncFromExcelAsync(string excelPath, CancellationToken ct = default);
+    Task<SmmSyncResult> SyncFromExcelAsync(string excelPath, bool purgeMissing = false, CancellationToken ct = default);
 }
 
 public class SmmSyncResult
 {
     public int GroupsAdded { get; set; }
     public int GroupsUpdated { get; set; }
+    public int GroupsDeleted { get; set; }
     public int ElementsAdded { get; set; }
     public int ElementsUpdated { get; set; }
+    public int ElementsDeleted { get; set; }
     public int VariablesAdded { get; set; }
     public int VariablesUpdated { get; set; }
+    public int VariablesDeleted { get; set; }
     public int ConsumablesAdded { get; set; }
     public int ConsumablesUpdated { get; set; }
+    public int ConsumablesDeleted { get; set; }
     public List<string> Warnings { get; } = new();
     public bool Success { get; set; }
     public string? Error { get; set; }
@@ -49,7 +53,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
         _logger = logger;
     }
 
-    public async Task<SmmSyncResult> SyncFromExcelAsync(string excelPath, CancellationToken ct = default)
+    public async Task<SmmSyncResult> SyncFromExcelAsync(string excelPath, bool purgeMissing = false, CancellationToken ct = default)
     {
         var result = new SmmSyncResult();
 
@@ -66,28 +70,46 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             using var workbook = new XLWorkbook(stream);
             using var ctx = _dbFactory.CreateDbContext();
 
+            // Sets de claves naturales presentes en el Excel — usados para purgar lo ausente.
+            var excelGroupNames    = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var excelElementNames  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var excelVariableKeys  = new HashSet<string>(StringComparer.OrdinalIgnoreCase); // "GroupName::VarName"
+            var excelConsumableKeys= new HashSet<string>(StringComparer.OrdinalIgnoreCase); // "ElementName::TaskName::PartSku"
+
             // 1) Groups (debe ir primero — Variables refieren GroupName)
-            await SyncGroupsAsync(workbook, ctx, result, ct);
+            await SyncGroupsAsync(workbook, ctx, result, excelGroupNames, ct);
 
             // 2) Elements (antes de Variables y Consumables)
-            await SyncElementsAsync(workbook, ctx, result, ct);
+            await SyncElementsAsync(workbook, ctx, result, excelElementNames, ct);
 
             // 3) Variables (link por GroupName + ElementName)
-            await SyncVariablesAsync(workbook, ctx, result, ct);
+            await SyncVariablesAsync(workbook, ctx, result, excelVariableKeys, ct);
 
             // 4) Consumables (link por ElementName)
-            await SyncConsumablesAsync(workbook, ctx, result, ct);
+            await SyncConsumablesAsync(workbook, ctx, result, excelConsumableKeys, ct);
 
             await ctx.SaveChangesAsync(ct);
+
+            // 5) Purga opcional — DEC-013-PURGE: borra lo que ya no está en el Excel.
+            //    SQLite cascadea: borrar Group → Variables, Cycles, CycleAlarms, Readings.
+            //                     borrar Element → Lifecycles, Interventions, Consumables, ConsumableUsage.
+            //                     borrar Variable → Readings.
+            //                     borrar Consumable → ConsumableUsage.
+            if (purgeMissing)
+            {
+                await PurgeMissingAsync(ctx, result, excelGroupNames, excelElementNames, excelVariableKeys, excelConsumableKeys, ct);
+                await ctx.SaveChangesAsync(ct);
+            }
+
             result.Success = true;
 
             _logger.LogInformation(
-                "[SMM-Sync] OK. Groups: +{GA}/~{GU} | Elements: +{EA}/~{EU} | Vars: +{VA}/~{VU} | Cons: +{CA}/~{CU} | Warns: {W}",
-                result.GroupsAdded, result.GroupsUpdated,
-                result.ElementsAdded, result.ElementsUpdated,
-                result.VariablesAdded, result.VariablesUpdated,
-                result.ConsumablesAdded, result.ConsumablesUpdated,
-                result.Warnings.Count);
+                "[SMM-Sync] OK. Groups: +{GA}/~{GU}/-{GD} | Elements: +{EA}/~{EU}/-{ED} | Vars: +{VA}/~{VU}/-{VD} | Cons: +{CA}/~{CU}/-{CD} | Purge: {P} | Warns: {W}",
+                result.GroupsAdded, result.GroupsUpdated, result.GroupsDeleted,
+                result.ElementsAdded, result.ElementsUpdated, result.ElementsDeleted,
+                result.VariablesAdded, result.VariablesUpdated, result.VariablesDeleted,
+                result.ConsumablesAdded, result.ConsumablesUpdated, result.ConsumablesDeleted,
+                purgeMissing, result.Warnings.Count);
         }
         catch (Exception ex)
         {
@@ -131,7 +153,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
     //   A=GroupName  B=UiType  C=ReadFrequency  D=CycleRunningVar
     //   E=ShowCycleStart  F=ShowCycleEnd  G=ShowCycleDuration
     //   H=AlarmHistVar  I=LayoutWidth  J=LayoutHeight  K=LayoutPinned
-    private async Task SyncGroupsAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, CancellationToken ct)
+    private async Task SyncGroupsAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Groups");
         if (sh == null) { res.Warnings.Add("Hoja Stats_Groups no encontrada — sin grupos"); return; }
@@ -141,6 +163,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
         while (!string.IsNullOrEmpty(Cell(sh, "A", row)))
         {
             var name = Cell(sh, "A", row);
+            excelKeys.Add(name);
             if (!existing.TryGetValue(name, out var g))
             {
                 g = new SmmGroup { GroupName = name };
@@ -176,7 +199,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
 
     // ── Stats_Elements ───────────────────────────────────────────────────────
     // Columnas: A=ElementName B=ComponentLocation3D C=SkuAquafrisch D=Manufacturer E=Model F=Notes
-    private async Task SyncElementsAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, CancellationToken ct)
+    private async Task SyncElementsAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Elements");
         if (sh == null) { res.Warnings.Add("Hoja Stats_Elements no encontrada — sin elementos"); return; }
@@ -186,6 +209,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
         while (!string.IsNullOrEmpty(Cell(sh, "A", row)))
         {
             var name = Cell(sh, "A", row);
+            excelKeys.Add(name);
             if (!existing.TryGetValue(name, out var e))
             {
                 e = new SmmElement { ElementName = name };
@@ -211,7 +235,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
     // Columnas: A=GroupName B=VarName C=PlcVariable D=Unit E=DataType F=Formula
     //           G=FormulaScope H=Warning I=Critical J=ResetOnMaintenance
     //           K=ElementName L=RunningBitVar
-    private async Task SyncVariablesAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, CancellationToken ct)
+    private async Task SyncVariablesAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Variables");
         if (sh == null) { res.Warnings.Add("Hoja Stats_Variables no encontrada — sin variables"); return; }
@@ -241,6 +265,9 @@ public class SmmExcelSyncService : ISmmExcelSyncService
                 row++;
                 continue;
             }
+
+            // Recolectar clave natural para purga (siempre, aunque luego se salte por validaciones)
+            excelKeys.Add($"{groupName}::{varName}");
 
             var plc      = Cell(sh, "C", row);
             var formula  = Cell(sh, "F", row);
@@ -294,7 +321,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
 
     // ── Stats_Consumables ────────────────────────────────────────────────────
     // Columnas: A=ElementName B=TaskName C=PartSku D=PartDescription E=PartUnit F=PartDefaultQuantity
-    private async Task SyncConsumablesAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, CancellationToken ct)
+    private async Task SyncConsumablesAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Consumables");
         if (sh == null) { res.Warnings.Add("Hoja Stats_Consumables no encontrada — sin consumibles"); return; }
@@ -328,6 +355,9 @@ public class SmmExcelSyncService : ISmmExcelSyncService
                 continue;
             }
 
+            // Recolectar clave natural para purga
+            excelKeys.Add($"{elementName}::{taskName}::{sku}");
+
             var key = $"{elementId}::{taskName}::{sku}";
             if (!existingByKey.TryGetValue(key, out var c))
             {
@@ -346,6 +376,104 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             c.PartDefaultQuantity  = CellDouble(sh, "F", row) ?? 1.0;
 
             row++;
+        }
+    }
+
+    // ── PURGA OPCIONAL ──────────────────────────────────────────────────────
+    // DEC-013-PURGE: borra entidades que ya no están en el Excel.
+    // Cascada SQLite (definida en CREATE TABLE):
+    //   Group   → Variables, Cycles, CycleAlarms, Readings (cascade)
+    //   Element → Lifecycles, Interventions, Consumables, ConsumableUsage (cascade)
+    //   Variable→ Readings (cascade)
+    //   Consumable → ConsumableUsage (cascade)
+    // ⚠️ Operación destructiva — solo se invoca si purgeMissing=true.
+    private async Task PurgeMissingAsync(
+        AquafrischDbContext ctx,
+        SmmSyncResult res,
+        HashSet<string> excelGroupNames,
+        HashSet<string> excelElementNames,
+        HashSet<string> excelVariableKeys,
+        HashSet<string> excelConsumableKeys,
+        CancellationToken ct)
+    {
+        // 1) Consumibles (más profundo → menos riesgo)
+        var elementNamesById = await ctx.SmmElements
+            .ToDictionaryAsync(e => e.Id, e => e.ElementName, ct);
+        var allConsumables = await ctx.SmmConsumables.ToListAsync(ct);
+        var consumablesToDelete = allConsumables.Where(c =>
+        {
+            elementNamesById.TryGetValue(c.ElementId, out var elementName);
+            var key = $"{elementName ?? ""}::{c.TaskName}::{c.PartSku}";
+            return !excelConsumableKeys.Contains(key);
+        }).ToList();
+        if (consumablesToDelete.Count > 0)
+        {
+            ctx.SmmConsumables.RemoveRange(consumablesToDelete);
+            res.ConsumablesDeleted = consumablesToDelete.Count;
+            _logger.LogInformation("[SMM-Sync-Purge] Eliminando {N} consumibles ausentes del Excel", consumablesToDelete.Count);
+        }
+
+        // 2) Variables
+        var groupNamesById = await ctx.SmmGroups
+            .ToDictionaryAsync(g => g.Id, g => g.GroupName, ct);
+        var allVariables = await ctx.SmmVariables.ToListAsync(ct);
+        var variablesToDelete = allVariables.Where(v =>
+        {
+            groupNamesById.TryGetValue(v.GroupId, out var groupName);
+            var key = $"{groupName ?? ""}::{v.VarName}";
+            return !excelVariableKeys.Contains(key);
+        }).ToList();
+        if (variablesToDelete.Count > 0)
+        {
+            ctx.SmmVariables.RemoveRange(variablesToDelete);
+            res.VariablesDeleted = variablesToDelete.Count;
+            _logger.LogInformation("[SMM-Sync-Purge] Eliminando {N} variables ausentes del Excel (cascada → readings)", variablesToDelete.Count);
+        }
+
+        // 3) Elementos — solo borrar si no tienen intervenciones registradas (preserva histórico mantenimiento)
+        var allElements = await ctx.SmmElements.ToListAsync(ct);
+        var elementsToConsider = allElements.Where(e => !excelElementNames.Contains(e.ElementName)).ToList();
+        if (elementsToConsider.Count > 0)
+        {
+            var elementIdsWithInterventions = await ctx.SmmInterventions
+                .Where(i => elementsToConsider.Select(e => e.Id).Contains(i.ElementId))
+                .Select(i => i.ElementId)
+                .Distinct()
+                .ToListAsync(ct);
+
+            var elementsToDelete = elementsToConsider.Where(e => !elementIdsWithInterventions.Contains(e.Id)).ToList();
+            var elementsKept = elementsToConsider.Where(e => elementIdsWithInterventions.Contains(e.Id)).ToList();
+
+            if (elementsToDelete.Count > 0)
+            {
+                ctx.SmmElements.RemoveRange(elementsToDelete);
+                res.ElementsDeleted = elementsToDelete.Count;
+                _logger.LogInformation("[SMM-Sync-Purge] Eliminando {N} elementos ausentes del Excel", elementsToDelete.Count);
+            }
+            foreach (var ek in elementsKept)
+            {
+                res.Warnings.Add($"Elemento '{ek.ElementName}' no está en el Excel pero tiene intervenciones registradas — conservado");
+            }
+        }
+
+        // 4) Grupos
+        var allGroups = await ctx.SmmGroups.ToListAsync(ct);
+        var groupsToDelete = allGroups.Where(g => !excelGroupNames.Contains(g.GroupName)).ToList();
+        if (groupsToDelete.Count > 0)
+        {
+            // Avisar si arrastra ciclos (histórico que se pierde por cascada)
+            var groupIdsWithCycles = await ctx.SmmCycles
+                .Where(cy => groupsToDelete.Select(g => g.Id).Contains(cy.GroupId))
+                .Select(cy => cy.GroupId)
+                .Distinct()
+                .ToListAsync(ct);
+            foreach (var g in groupsToDelete.Where(x => groupIdsWithCycles.Contains(x.Id)))
+            {
+                res.Warnings.Add($"Grupo '{g.GroupName}' borrado: se eliminó histórico de ciclos por cascada");
+            }
+            ctx.SmmGroups.RemoveRange(groupsToDelete);
+            res.GroupsDeleted = groupsToDelete.Count;
+            _logger.LogInformation("[SMM-Sync-Purge] Eliminando {N} grupos ausentes del Excel (cascada → variables, cycles, alarms, readings)", groupsToDelete.Count);
         }
     }
 }

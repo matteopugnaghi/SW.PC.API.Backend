@@ -258,27 +258,33 @@ namespace SW.PC.API.Backend.Controllers
 
         /// <summary>
         /// Sincroniza catálogo SMM (Groups/Elements/Variables/Consumables) desde el Excel del proyecto.
-        /// UPSERT idempotente — no borra nada (preserva readings históricos).
+        /// UPSERT idempotente. Si purgeMissing=true (solo SuperAdmin), borra entidades ya no presentes
+        /// en el Excel (cascada SQLite a ciclos/readings/intervenciones asociados).
         /// </summary>
         [HttpPost("sync-from-excel")]
         [Authorize(Roles = "Admin,SuperAdmin")]
-        public async Task<IActionResult> SyncFromExcelAsync()
+        public async Task<IActionResult> SyncFromExcelAsync([FromQuery] bool purgeMissing = false)
         {
             var excelPath = _projectContext.ExcelConfigPath;
             if (string.IsNullOrWhiteSpace(excelPath) || !System.IO.File.Exists(excelPath))
                 return BadRequest(new { ok = false, error = $"Excel no encontrado: {excelPath}" });
 
-            var result = await _excelSync.SyncFromExcelAsync(excelPath);
+            // Restricción: purgeMissing solo para SuperAdmin (operación destructiva).
+            if (purgeMissing && !User.IsInRole("SuperAdmin"))
+                return Forbid();
+
+            var result = await _excelSync.SyncFromExcelAsync(excelPath, purgeMissing);
             if (!result.Success)
                 return StatusCode(500, new { ok = false, error = result.Error, warnings = result.Warnings });
 
             return Ok(new
             {
                 ok = true,
-                groups = new { added = result.GroupsAdded, updated = result.GroupsUpdated },
-                elements = new { added = result.ElementsAdded, updated = result.ElementsUpdated },
-                variables = new { added = result.VariablesAdded, updated = result.VariablesUpdated },
-                consumables = new { added = result.ConsumablesAdded, updated = result.ConsumablesUpdated },
+                purged = purgeMissing,
+                groups      = new { added = result.GroupsAdded,      updated = result.GroupsUpdated,      deleted = result.GroupsDeleted },
+                elements    = new { added = result.ElementsAdded,    updated = result.ElementsUpdated,    deleted = result.ElementsDeleted },
+                variables   = new { added = result.VariablesAdded,   updated = result.VariablesUpdated,   deleted = result.VariablesDeleted },
+                consumables = new { added = result.ConsumablesAdded, updated = result.ConsumablesUpdated, deleted = result.ConsumablesDeleted },
                 warnings = result.Warnings
             });
         }
