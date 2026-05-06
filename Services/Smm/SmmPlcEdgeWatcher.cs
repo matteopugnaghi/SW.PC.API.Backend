@@ -44,6 +44,13 @@ public class SmmPlcEdgeWatcher : BackgroundService, ISmmPlcEdgeWatcher
     /// <summary>Último valor bool conocido por variable, para detectar flanco.</summary>
     private readonly ConcurrentDictionary<string, bool> _lastBoolValue = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Valores iniciales capturados al abrir ciclo para variables con CaptureMode="Delta".
+    /// Clave: cycleId. Valor: dict variableId → valor inicial (double, NaN si error).
+    /// Se elimina la entrada al cerrar el ciclo.
+    /// </summary>
+    private readonly ConcurrentDictionary<int, ConcurrentDictionary<int, double>> _cycleStartValues = new();
+
     private DateTime _lastRefreshUtc = DateTime.MinValue;
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(60);
 
@@ -199,6 +206,10 @@ public class SmmPlcEdgeWatcher : BackgroundService, ISmmPlcEdgeWatcher
         var capture = scope.ServiceProvider.GetRequiredService<ISmmCaptureService>();
         var cycleId = await capture.OnCycleStartAsync(groupId, DateTime.UtcNow);
         _activeCycleByGroup[groupId] = cycleId;
+
+        // Captura de valores iniciales para variables Delta (DEC-028)
+        await CaptureCycleStartValuesAsync(groupId, cycleId);
+
         _logger.LogInformation("🟢 [SMM-EdgeWatcher] Ciclo abierto group={G} cycle={C} (trigger={V})", groupId, cycleId, varName);
     }
 
@@ -338,6 +349,9 @@ public class SmmPlcEdgeWatcher : BackgroundService, ISmmPlcEdgeWatcher
             }
             var now = DateTime.UtcNow;
 
+            // Recuperar valores iniciales capturados al abrir el ciclo (variables Delta)
+            _cycleStartValues.TryRemove(cycleId, out var startValues);
+
             var readings = new List<SmmReading>(vars.Count);
             foreach (var v in vars)
             {
@@ -372,6 +386,38 @@ public class SmmPlcEdgeWatcher : BackgroundService, ISmmPlcEdgeWatcher
                     isError = true; errReason = "NotFoundInSnapshot";
                 }
 
+                // DEC-028: CaptureMode=Delta → guardar (end - start)
+                var isDelta = string.Equals(v.CaptureMode, "Delta", StringComparison.OrdinalIgnoreCase);
+                if (isDelta)
+                {
+                    if (num == null)
+                    {
+                        // Sin valor numérico final → no se puede calcular delta
+                        if (!isError) { isError = true; errReason = "DeltaEndValueMissing"; }
+                    }
+                    else if (startValues != null && startValues.TryGetValue(v.Id, out var startVal) && !double.IsNaN(startVal))
+                    {
+                        var delta = num.Value - startVal;
+                        // Si el contador del PLC se reseteó dentro del ciclo, delta sería negativo → marcamos pero guardamos absoluto
+                        if (delta < 0)
+                        {
+                            errReason = $"DeltaNegative(start={startVal:0.###},end={num.Value:0.###})";
+                            isError = true;
+                            num = Math.Abs(delta);
+                        }
+                        else
+                        {
+                            num = delta;
+                        }
+                    }
+                    else
+                    {
+                        // No tenemos valor inicial → marcamos error pero guardamos el valor final tal cual
+                        isError = true;
+                        errReason = "DeltaStartValueMissing";
+                    }
+                }
+
                 readings.Add(new SmmReading
                 {
                     GroupId = groupId,
@@ -395,6 +441,51 @@ public class SmmPlcEdgeWatcher : BackgroundService, ISmmPlcEdgeWatcher
         catch (Exception ex)
         {
             _logger.LogError(ex, "[SMM-EdgeWatcher] Error en snapshot ciclo {C} group {G}", cycleId, groupId);
+        }
+    }
+
+    /// <summary>
+    /// DEC-028 — Lee y memoriza los valores iniciales de las variables del grupo
+    /// con CaptureMode="Delta", para poder calcular la diferencia al cerrar el ciclo.
+    /// </summary>
+    private async Task CaptureCycleStartValuesAsync(int groupId, int cycleId)
+    {
+        try
+        {
+            using var scope = _services.CreateScope();
+            var dbFactory = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>();
+            using var db = dbFactory.CreateDbContext();
+
+            var deltaVars = await db.SmmVariables
+                .Where(v => v.GroupId == groupId
+                            && v.PlcVariable != null && v.PlcVariable != ""
+                            && v.CaptureMode == "Delta")
+                .ToListAsync();
+            if (deltaVars.Count == 0) return;
+
+            var dict = new ConcurrentDictionary<int, double>();
+            foreach (var v in deltaVars)
+            {
+                try
+                {
+                    var clrType = MapDataTypeToClr(v.DataType);
+                    var raw = await _twincat.ReadVariableAsync(v.PlcVariable!, clrType);
+                    if (raw == null) { dict[v.Id] = double.NaN; continue; }
+                    try { dict[v.Id] = Convert.ToDouble(raw, CultureInfo.InvariantCulture); }
+                    catch { dict[v.Id] = double.NaN; }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "[SMM-EdgeWatcher] Error leyendo valor inicial Delta {V}", v.PlcVariable);
+                    dict[v.Id] = double.NaN;
+                }
+            }
+            _cycleStartValues[cycleId] = dict;
+            _logger.LogInformation("📍 [SMM-EdgeWatcher] Valores iniciales Delta capturados ciclo {C}: {N} variables", cycleId, dict.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[SMM-EdgeWatcher] Error capturando valores iniciales Delta ciclo {C}", cycleId);
         }
     }
 

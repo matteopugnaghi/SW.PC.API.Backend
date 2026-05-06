@@ -1306,6 +1306,10 @@ public static class AquafrischDbContextFactory
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Readings ADD COLUMN StringValue TEXT"); }
             catch { /* columna ya existe */ }
 
+            // Migración idempotente DEC-028: CaptureMode (Snapshot|Delta) para variables tipo contador
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN CaptureMode TEXT NOT NULL DEFAULT 'Snapshot'"); }
+            catch { /* columna ya existe */ }
+
             // ── Mantenimiento ──────────────────────────────────────────────
             await context.Database.ExecuteSqlRawAsync(@"
                 CREATE TABLE IF NOT EXISTS SMM_ElementLifecycles (

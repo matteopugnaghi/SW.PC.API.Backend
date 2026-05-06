@@ -314,6 +314,10 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             v.ResetOnMaintenance = CellBool(sh, "J", row);
             v.ElementId          = elementId;
             v.RunningBitVar      = string.IsNullOrEmpty(Cell(sh, "L", row)) ? null : Cell(sh, "L", row);
+            // M = CaptureMode (Snapshot|Delta) — DEC-028
+            var capMode = Cell(sh, "M", row);
+            v.CaptureMode        = string.IsNullOrEmpty(capMode) ? "Snapshot"
+                                  : (capMode.Equals("Delta", StringComparison.OrdinalIgnoreCase) ? "Delta" : "Snapshot");
 
             row++;
         }

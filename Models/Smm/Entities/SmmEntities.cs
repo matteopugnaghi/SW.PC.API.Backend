@@ -113,6 +113,15 @@ public class SmmVariable
 
     [MaxLength(200)]
     public string? RunningBitVar { get; set; }
+
+    /// <summary>
+    /// Modo de captura por ciclo (DEC-028):
+    ///   - "Snapshot" (default): se captura el valor al final del ciclo.
+    ///   - "Delta": se captura al inicio Y al final, y se guarda la diferencia (end - start).
+    ///     Útil para contadores acumulativos del PLC (m³/L de agua, kWh, ciclos totales, …).
+    /// </summary>
+    [MaxLength(20)]
+    public string CaptureMode { get; set; } = "Snapshot";
 }
 
 [Table("SMM_Consumables")]
