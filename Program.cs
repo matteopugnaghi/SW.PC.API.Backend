@@ -2,6 +2,7 @@ using SW.PC.API.Backend.Services;
 using SW.PC.API.Backend.Data;
 using SW.PC.API.Backend.Hubs;
 using SW.PC.API.Backend.Models;
+using SW.PC.API.Backend.Models.Smm;
 using SW.PC.API.Backend.Middleware;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -201,6 +202,9 @@ builder.Services.AddScoped<IRolePermissionsService, RolePermissionsService>(); /
 // Register SCADA Services
 builder.Services.AddSingleton<IProjectContextService, ProjectContextService>(); // 📁 Multi-Project Support (global)
 builder.Services.AddScoped<IRequestProjectContext, RequestProjectContextService>(); // 📁 Multi-Project per-request (development multi-tenant)
+
+// 📊 SMM (Statistics & Maintenance Module) — DEC-022 feature flag AquarIA Tier
+builder.Services.Configure<SmmOptions>(builder.Configuration.GetSection(SmmOptions.SectionName));
 builder.Services.AddScoped<IModelService, ModelService>();
 builder.Services.AddScoped<IConfigurationService, ConfigurationService>();
 builder.Services.AddSingleton<IExcelConfigService, ExcelConfigService>(); // ✅ SINGLETON para mantener caché

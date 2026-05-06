@@ -1272,6 +1272,26 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Variable ADS (LREAL) donde escribir la temperatura TME 2 en el PLC</summary>
         public string AdsTME2 { get; set; } = "";
 
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 📊 SMM (Statistics & Maintenance Module) — DEC-019/024/026
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Fecha de puesta en marcha del sistema (única para toda la máquina y componentes).
+        /// Reutilizada por DEC-019 (lifecycle inicial elementos), DEC-024 (AquarIA G1 estado vacío).
+        /// Si null, se considera "no configurada" (AquarIA puede degradar respuesta).
+        /// Formato Excel: fecha (DD/MM/YYYY) o ISO (YYYY-MM-DD).
+        /// </summary>
+        public System.DateTime? SystemDeliveryDate { get; set; } = null;
+
+        /// <summary>
+        /// Hora del job nocturno de captura Continuous (DEC-026). Una única para todas las
+        /// variables Continuous del proyecto. Formato HH:mm hora local PC (00:00..23:59).
+        /// Default "03:00". Validación R16: regex valida formato HH:mm.
+        /// Vacío/ausente = default sin error. Formato inválido = default + warning + bottom sheet UI.
+        /// </summary>
+        public string ContinuousReadTime { get; set; } = "03:00";
+
     }
 
     /// <summary>

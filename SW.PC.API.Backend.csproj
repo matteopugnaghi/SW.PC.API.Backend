@@ -44,6 +44,14 @@
     <None Remove="Tests\**" />
   </ItemGroup>
 
+  <!-- Excluir Tools (proyectos auxiliares one-shot, no forman parte del backend) -->
+  <ItemGroup>
+    <Compile Remove="Tools\**" />
+    <Content Remove="Tools\**" />
+    <EmbeddedResource Remove="Tools\**" />
+    <None Remove="Tools\**" />
+  </ItemGroup>
+
   <!-- Excluir carpetas de desarrollo de wwwroot del publish -->
   <ItemGroup>
     <!-- Estos archivos/carpetas se generan en runtime o son solo para desarrollo -->

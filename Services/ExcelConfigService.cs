@@ -3838,6 +3838,51 @@ namespace SW.PC.API.Backend.Services
                                     config.AdsTME2 = paramValue.Trim();
                                 break;
 
+                            // ═══ SMM (Statistics & Maintenance Module) — DEC-019/024/026 ═══
+                            case "systemdeliverydate":
+                            case "system_delivery_date":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                {
+                                    // Probar parseo en formatos comunes (ISO, DD/MM/YYYY, DD-MM-YYYY).
+                                    var formats = new[] {
+                                        "yyyy-MM-dd", "yyyy/MM/dd",
+                                        "dd/MM/yyyy", "dd-MM-yyyy",
+                                        "MM/dd/yyyy", "yyyy-MM-ddTHH:mm:ss"
+                                    };
+                                    if (System.DateTime.TryParseExact(paramValue.Trim(), formats,
+                                            System.Globalization.CultureInfo.InvariantCulture,
+                                            System.Globalization.DateTimeStyles.None, out var sdd)
+                                        || System.DateTime.TryParse(paramValue.Trim(), out sdd))
+                                    {
+                                        config.SystemDeliveryDate = sdd;
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning("⚠️ SMM: SystemDeliveryDate inválida '{Val}' (formatos esperados: YYYY-MM-DD o DD/MM/YYYY). Se ignora.", paramValue);
+                                    }
+                                }
+                                break;
+
+                            case "continuousreadtime":
+                            case "continuous_read_time":
+                                // Regla R16 (DEC-026): valida formato HH:mm 00-23 horas, 00-59 minutos.
+                                // Vacío/ausente = mantener default "03:00".
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                {
+                                    var trimmed = paramValue.Trim();
+                                    var r16 = new System.Text.RegularExpressions.Regex(@"^([01]\d|2[0-3]):[0-5]\d$");
+                                    if (r16.IsMatch(trimmed))
+                                    {
+                                        config.ContinuousReadTime = trimmed;
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning("⚠️ SMM R16: ContinuousReadTime '{Val}' formato inválido (esperado HH:mm 00:00-23:59). Usando default '03:00'.", trimmed);
+                                        // mantener default "03:00" ya asignado en SystemConfiguration
+                                    }
+                                }
+                                break;
+
                             default:
                                 _logger.LogDebug("⚠️ Parámetro desconocido en System Config: {Param}", paramName);
                                 break;
