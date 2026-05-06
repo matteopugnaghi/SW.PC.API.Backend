@@ -116,7 +116,8 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     g.Id, g.GroupName, g.UiType, g.ReadFrequency,
                     g.CycleRunningVar, g.AlarmHistVar,
-                    g.LayoutWidth, g.LayoutHeight, g.LayoutPinned
+                    g.LayoutWidth, g.LayoutHeight, g.LayoutPinned, g.LayoutColor,
+                    g.ShowCycleStart, g.ShowCycleEnd, g.ShowCycleDuration
                 })
                 .ToListAsync();
             return Ok(groups);
@@ -315,6 +316,72 @@ namespace SW.PC.API.Backend.Controllers
         public class SoftDeleteCycleRequest
         {
             public string Reason { get; set; } = string.Empty;
+        }
+
+        /// <summary>Soft-delete masivo de TODOS los ciclos de un grupo (DEC-023). Solo Admin/SuperAdmin.</summary>
+        [HttpDelete("groups/{groupId:int}/cycles")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> SoftDeleteAllGroupCyclesAsync(int groupId, [FromBody] SoftDeleteCycleRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Reason) || req.Reason.Length < 10)
+                return BadRequest(new { error = "reason mínimo 10 caracteres (DEC-023)" });
+
+            using var db = _dbFactory.CreateDbContext();
+            var now = System.DateTime.UtcNow;
+            var who = User?.Identity?.Name ?? "admin";
+            var cycles = await db.SmmCycles.Where(c => c.GroupId == groupId && !c.IsDeleted).ToListAsync();
+            foreach (var c in cycles)
+            {
+                c.IsDeleted = true;
+                c.DeletedAt = now;
+                c.DeletedBy = who;
+                c.DeleteReason = req.Reason;
+            }
+            await db.SaveChangesAsync();
+            return Ok(new { ok = true, groupId, deleted = cycles.Count, deletedBy = who });
+        }
+
+        /// <summary>
+        /// HARD-DELETE físico de TODOS los ciclos del grupo y sus dependencias (readings, snapshots,
+        /// alarmas). IRREVERSIBLE. Solo SuperAdmin. Diferente del soft-delete (DEC-023): aquí los
+        /// datos desaparecen físicamente de la BD, sin posibilidad de recuperación ni auditoría.
+        /// </summary>
+        [HttpPost("groups/{groupId:int}/cycles/hard-purge")]
+        [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> HardPurgeGroupCyclesAsync(int groupId, [FromBody] SoftDeleteCycleRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Reason) || req.Reason.Length < 10)
+                return BadRequest(new { error = "reason mínimo 10 caracteres" });
+
+            using var db = _dbFactory.CreateDbContext();
+            var who = User?.Identity?.Name ?? "superadmin";
+
+            // Sub-query: ids de ciclos del grupo (incluye soft-deleted: el hard purge se los lleva todos).
+            // Borrado en orden inverso a las FK para no violar restricciones.
+            // Cada DELETE tolera "tabla no existe" (algunas instalaciones no tienen SMM_CycleSnapshots).
+            async Task<int> SafeDeleteAsync(string sql)
+            {
+                try { return await db.Database.ExecuteSqlRawAsync(sql, groupId); }
+                catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.Message.Contains("no such table"))
+                { return -1; }
+            }
+
+            var deletedReadings  = await SafeDeleteAsync(
+                "DELETE FROM SMM_Readings        WHERE CycleId IN (SELECT Id FROM SMM_Cycles WHERE GroupId = {0})");
+            var deletedSnapshots = await SafeDeleteAsync(
+                "DELETE FROM SMM_CycleSnapshots  WHERE CycleId IN (SELECT Id FROM SMM_Cycles WHERE GroupId = {0})");
+            var deletedAlarms    = await SafeDeleteAsync(
+                "DELETE FROM SMM_CycleAlarms     WHERE CycleId IN (SELECT Id FROM SMM_Cycles WHERE GroupId = {0})");
+            var deletedCycles    = await SafeDeleteAsync(
+                "DELETE FROM SMM_Cycles          WHERE GroupId = {0}");
+
+            _logger.LogWarning("HARD PURGE ciclos grupo {GroupId} por {User}. Razón: {Reason}. Borrados: cycles={C}, readings={R}, snapshots={S}, alarms={A}",
+                groupId, who, req.Reason, deletedCycles, deletedReadings, deletedSnapshots, deletedAlarms);
+
+            return Ok(new {
+                ok = true, groupId, deletedBy = who,
+                deletedCycles, deletedReadings, deletedSnapshots, deletedAlarms
+            });
         }
 
         /// <summary>

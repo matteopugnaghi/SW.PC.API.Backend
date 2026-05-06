@@ -1310,6 +1310,10 @@ public static class AquafrischDbContextFactory
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN CaptureMode TEXT NOT NULL DEFAULT 'Snapshot'"); }
             catch { /* columna ya existe */ }
 
+            // Migración idempotente: LayoutColor para Stats_Groups
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN LayoutColor TEXT"); }
+            catch { /* columna ya existe */ }
+
             // ── Mantenimiento ──────────────────────────────────────────────
             await context.Database.ExecuteSqlRawAsync(@"
                 CREATE TABLE IF NOT EXISTS SMM_ElementLifecycles (

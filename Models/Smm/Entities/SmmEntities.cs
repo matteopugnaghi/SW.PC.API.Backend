@@ -47,6 +47,9 @@ public class SmmGroup
     public int? LayoutHeight { get; set; }
     public bool LayoutPinned { get; set; } = false;
 
+    [MaxLength(20)]
+    public string? LayoutColor { get; set; } // Color hex/nombre, opcional. Override del color por readFrequency.
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
