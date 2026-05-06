@@ -19,7 +19,13 @@ namespace SW.PC.API.Backend.Services
         TwinCATVersionInfo GetVersionInfo();
         Task<double> GetTaskCycleTimeAsync();
         event EventHandler<PlcNotification>? OnVariableChanged;
-        
+
+        /// <summary>
+        /// Dispara manualmente el evento OnVariableChanged. Usado por PlcPollingService
+        /// para reenviar cambios detectados por polling a los suscriptores (alarmas, SMM, etc).
+        /// </summary>
+        void RaiseVariableChanged(string variableName, object? oldValue, object? newValue);
+
         // 🔔 ADS Notifications API - Push notifications from PLC
         /// <summary>
         /// Register a single variable for ADS notifications (push on change).
@@ -84,6 +90,29 @@ namespace SW.PC.API.Backend.Services
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, object?> _lastNotifiedValues = new();
         
         public event EventHandler<PlcNotification>? OnVariableChanged;
+
+        /// <summary>
+        /// Dispara manualmente el evento OnVariableChanged (usado por PlcPollingService
+        /// para forwardear cambios detectados por polling).
+        /// </summary>
+        public void RaiseVariableChanged(string variableName, object? oldValue, object? newValue)
+        {
+            try
+            {
+                OnVariableChanged?.Invoke(this, new PlcNotification
+                {
+                    VariableName = variableName,
+                    OldValue = oldValue,
+                    NewValue = newValue,
+                    Timestamp = DateTime.Now,
+                    NotificationHandle = 0
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error invocando OnVariableChanged para {Var}", variableName);
+            }
+        }
         
         /// <summary>
         /// Number of active ADS notification registrations

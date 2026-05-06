@@ -29,6 +29,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IProjectDbContextFactory _dbFactory;
         private readonly ISmmCaptureService _capture;
         private readonly ISmmExcelSyncService _excelSync;
+        private readonly ISmmPlcEdgeWatcher _edgeWatcher;
 
         public SmmController(
             ILogger<SmmController> logger,
@@ -37,7 +38,8 @@ namespace SW.PC.API.Backend.Controllers
             IOptions<SmmOptions> smmOptions,
             IProjectDbContextFactory dbFactory,
             ISmmCaptureService capture,
-            ISmmExcelSyncService excelSync)
+            ISmmExcelSyncService excelSync,
+            ISmmPlcEdgeWatcher edgeWatcher)
         {
             _logger = logger;
             _excelConfigService = excelConfigService;
@@ -46,6 +48,7 @@ namespace SW.PC.API.Backend.Controllers
             _dbFactory = dbFactory;
             _capture = capture;
             _excelSync = excelSync;
+            _edgeWatcher = edgeWatcher;
         }
 
         /// <summary>
@@ -138,7 +141,7 @@ namespace SW.PC.API.Backend.Controllers
             return Ok(vars);
         }
 
-        /// <summary>Ciclos de un grupo (filtra borrados, DEC-023).</summary>
+        /// <summary>Ciclos de un grupo (filtra borrados, DEC-023). Incluye snapshot de variables capturadas al cierre.</summary>
         [HttpGet("groups/{groupId:int}/cycles")]
         [AllowAnonymous]
         public async Task<IActionResult> GetGroupCyclesAsync(int groupId, [FromQuery] int take = 100)
@@ -155,7 +158,65 @@ namespace SW.PC.API.Backend.Controllers
                     c.AlarmsCount, c.AlarmTime_s, c.HadAlarms
                 })
                 .ToListAsync();
-            return Ok(cycles);
+
+            // Enriquecer con snapshot de readings por ciclo (DEC-018)
+            var cycleIds = cycles.Select(c => c.Id).ToList();
+            var readings = await (from r in db.SmmReadings
+                                  join v in db.SmmVariables on r.VariableId equals v.Id
+                                  where r.CycleId != null && cycleIds.Contains(r.CycleId.Value)
+                                  select new
+                                  {
+                                      CycleId = r.CycleId!.Value,
+                                      v.Id,
+                                      v.VarName,
+                                      v.Unit,
+                                      v.DataType,
+                                      r.Value,
+                                      r.StringValue,
+                                      r.IsError,
+                                      r.ErrorReason
+                                  }).ToListAsync();
+            var readingsByCycle = readings.GroupBy(r => r.CycleId)
+                .ToDictionary(g => g.Key, g => g.Select(x => new
+                {
+                    variableId = x.Id,
+                    varName = x.VarName,
+                    unit = x.Unit,
+                    dataType = x.DataType,
+                    value = x.Value,
+                    stringValue = x.StringValue,
+                    isError = x.IsError,
+                    errorReason = x.ErrorReason
+                }).ToList());
+
+            // Lista de alarmas por ciclo (DEC-018) — el frontend traducirá AlarmCode con alarmService
+            var cycleAlarms = await db.SmmCycleAlarms
+                .Where(a => cycleIds.Contains(a.CycleId))
+                .Select(a => new
+                {
+                    a.CycleId, a.AlarmCode, a.AlarmText, a.Severity,
+                    a.RaisedAt, a.ClearedAt, a.DurationInCycle_s
+                })
+                .ToListAsync();
+            var alarmsByCycle = cycleAlarms.GroupBy(a => a.CycleId)
+                .ToDictionary(g => g.Key, g => g.Select(a => new
+                {
+                    alarmCode = a.AlarmCode,
+                    alarmText = a.AlarmText,
+                    severity = a.Severity,
+                    raisedAt = a.RaisedAt,
+                    clearedAt = a.ClearedAt,
+                    durationInCycle_s = a.DurationInCycle_s
+                }).ToList());
+
+            var enriched = cycles.Select(c => new
+            {
+                c.Id, c.StartedAt, c.CompletedAt, c.Status, c.EndedReason,
+                c.AlarmsCount, c.AlarmTime_s, c.HadAlarms,
+                Readings = readingsByCycle.TryGetValue(c.Id, out var rs) ? rs : new(),
+                Alarms = alarmsByCycle.TryGetValue(c.Id, out var als) ? als : new()
+            });
+            return Ok(enriched);
         }
 
         /// <summary>Lecturas recientes de una variable.</summary>
@@ -276,6 +337,10 @@ namespace SW.PC.API.Backend.Controllers
             var result = await _excelSync.SyncFromExcelAsync(excelPath, purgeMissing);
             if (!result.Success)
                 return StatusCode(500, new { ok = false, error = result.Error, warnings = result.Warnings });
+
+            // Notificar al edge-watcher que recargue su mapa de CycleRunningVar (DEC-018)
+            try { await _edgeWatcher.RefreshAsync(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "[SMM] Error refrescando edge-watcher tras sync"); }
 
             return Ok(new
             {

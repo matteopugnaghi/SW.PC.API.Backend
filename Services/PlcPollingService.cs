@@ -801,6 +801,10 @@ namespace SW.PC.API.Backend.Services
                         variableName, 
                         state.LastValue ?? "null", 
                         currentValue);
+
+                    // 🔔 Forward al evento OnVariableChanged para suscriptores (Alarmas, SMM EdgeWatcher, etc.)
+                    try { _twinCATService.RaiseVariableChanged(variableName, state.LastValue, currentValue); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Error forwardeando OnVariableChanged para {V}", variableName); }
                 }
 
                 // Actualizar estado interno

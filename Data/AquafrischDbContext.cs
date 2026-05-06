@@ -1290,6 +1290,7 @@ public static class AquafrischDbContextFactory
                     CycleId INTEGER,
                     Timestamp TEXT NOT NULL,
                     Value REAL,
+                    StringValue TEXT,
                     Source TEXT NOT NULL DEFAULT 'Plc',
                     IsError INTEGER NOT NULL DEFAULT 0,
                     ErrorReason TEXT,
@@ -1300,6 +1301,10 @@ public static class AquafrischDbContextFactory
                 )");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Readings_Group_Var_Time ON SMM_Readings(GroupId, VariableId, Timestamp)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Readings_Cycle ON SMM_Readings(CycleId)");
+
+            // Migración idempotente: añadir StringValue a BDs creadas antes de DEC-027
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Readings ADD COLUMN StringValue TEXT"); }
+            catch { /* columna ya existe */ }
 
             // ── Mantenimiento ──────────────────────────────────────────────
             await context.Database.ExecuteSqlRawAsync(@"

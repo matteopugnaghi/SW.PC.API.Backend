@@ -205,6 +205,10 @@ public class SmmReading
 
     public double? Value { get; set; }
 
+    /// <summary>Valor textual cuando la variable PLC es STRING (TipoTren, TipoLavado, etc.).</summary>
+    [MaxLength(500)]
+    public string? StringValue { get; set; }
+
     [MaxLength(20)]
     public string Source { get; set; } = "Plc"; // Plc | Computed (DEC-016)
 

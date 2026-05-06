@@ -222,6 +222,10 @@ builder.Services.AddSingleton<IAuditLogService, AuditLogService>(); // 📋 Audi
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Smm.ISmmCaptureService, SW.PC.API.Backend.Services.Smm.SmmCaptureService>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Smm.ISmmExcelSyncService, SW.PC.API.Backend.Services.Smm.SmmExcelSyncService>();
 builder.Services.AddHostedService<SW.PC.API.Backend.Services.Smm.ContinuousReadJob>();
+// 🎯 PerCycle edge-watcher (DEC-018): detecta flancos en CycleRunningVar y dispara start/end + snapshot
+builder.Services.AddSingleton<SW.PC.API.Backend.Services.Smm.SmmPlcEdgeWatcher>();
+builder.Services.AddSingleton<SW.PC.API.Backend.Services.Smm.ISmmPlcEdgeWatcher>(sp => sp.GetRequiredService<SW.PC.API.Backend.Services.Smm.SmmPlcEdgeWatcher>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SW.PC.API.Backend.Services.Smm.SmmPlcEdgeWatcher>());
 builder.Services.AddSingleton<IOperationLogService, OperationLogService>(); // 📋 Operation Log (Nivel 2) - Acciones de operador
 builder.Services.AddSingleton<ISystemLogService, SystemLogService>(); // 📋 System Log (Nivel 3) - In-memory diagnostic buffer
 builder.Services.AddSingleton<INxLogFileService, NxLogFileService>(); // 📋 NxLog JSONL Export - TISSEO SOC PIVOT (TLS_M3_ALS_EXI_CYB_SYS_00516)
