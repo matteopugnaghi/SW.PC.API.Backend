@@ -83,6 +83,23 @@ public class AquafrischDbContext : DbContext
     /// <summary>Matriz de acceso: roles × categorías (ISO 27001 A.9.1)</summary>
     public DbSet<DocumentCategoryAccess> DocumentCategoryAccess { get; set; } = null!;
 
+    // ─── SMM (Statistics & Maintenance Module) — DEC-013 Fase 3 ───
+    public DbSet<Models.Smm.Entities.SmmGroup> SmmGroups { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmElement> SmmElements { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmVariable> SmmVariables { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmConsumable> SmmConsumables { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmCycle> SmmCycles { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmCycleAlarm> SmmCycleAlarms { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmReading> SmmReadings { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmElementLifecycle> SmmElementLifecycles { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmIntervention> SmmInterventions { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmConsumableUsage> SmmConsumableUsage { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmDerivedErrorStats> SmmDerivedErrorStats { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmPrediction> SmmPredictions { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmPredictionIntervention> SmmPredictionInterventions { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmUserDashboardLayout> SmmUserDashboardLayouts { get; set; } = null!;
+    public DbSet<Models.Smm.Entities.SmmExportLog> SmmExportLog { get; set; } = null!;
+
     #endregion
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -599,6 +616,7 @@ public static class AquafrischDbContextFactory
         await EnsureTrainTypesTablesAsync(context);
         await EnsureEtherCATSavedConfigurationsTableAsync(context);
         await EnsureDocumentsTablesAsync(context);
+        await EnsureSmmTablesAsync(context);
     }
     
     /// <summary>
@@ -1151,4 +1169,249 @@ public static class AquafrischDbContextFactory
             // Tablas ya existen o error menor - ignorar
         }
     }
+
+    /// <summary>
+    /// Crear tablas SMM_* (Statistics & Maintenance Module) — DEC-013 Fase 3
+    /// Compatible con DBs existentes y nuevas. Reglas DEC-014/016/017/018/019/020/021/022/023.
+    /// </summary>
+    private static async Task EnsureSmmTablesAsync(AquafrischDbContext context)
+    {
+        try
+        {
+            // ── Catálogo (espejo Excel) ───────────────────────────────────
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_Groups (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    GroupName TEXT NOT NULL,
+                    UiType TEXT NOT NULL DEFAULT 'Table',
+                    ReadFrequency TEXT NOT NULL DEFAULT 'Continuous',
+                    CycleRunningVar TEXT,
+                    ShowCycleStart INTEGER NOT NULL DEFAULT 1,
+                    ShowCycleEnd INTEGER NOT NULL DEFAULT 1,
+                    ShowCycleDuration INTEGER NOT NULL DEFAULT 0,
+                    AlarmHistVar TEXT,
+                    LayoutWidth INTEGER,
+                    LayoutHeight INTEGER,
+                    LayoutPinned INTEGER NOT NULL DEFAULT 0,
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_SMM_Groups_GroupName ON SMM_Groups(GroupName)");
+
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_Elements (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ElementName TEXT NOT NULL,
+                    ComponentLocation3D TEXT,
+                    SkuAquafrisch TEXT,
+                    Manufacturer TEXT,
+                    Model TEXT,
+                    Notes TEXT,
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_SMM_Elements_ElementName ON SMM_Elements(ElementName)");
+
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_Variables (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    GroupId INTEGER NOT NULL,
+                    ElementId INTEGER,
+                    VarName TEXT NOT NULL,
+                    PlcVariable TEXT,
+                    Unit TEXT,
+                    DataType TEXT NOT NULL DEFAULT 'REAL',
+                    Formula TEXT,
+                    FormulaScope TEXT,
+                    Warning REAL,
+                    Critical REAL,
+                    ResetOnMaintenance INTEGER NOT NULL DEFAULT 0,
+                    RunningBitVar TEXT,
+                    CHECK ((PlcVariable IS NOT NULL AND Formula IS NULL) OR (PlcVariable IS NULL AND Formula IS NOT NULL)),
+                    FOREIGN KEY (GroupId) REFERENCES SMM_Groups(Id) ON DELETE CASCADE,
+                    FOREIGN KEY (ElementId) REFERENCES SMM_Elements(Id) ON DELETE SET NULL
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_SMM_Variables_Group_Var ON SMM_Variables(GroupId, VarName)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Variables_ElementId ON SMM_Variables(ElementId)");
+
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_Consumables (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ElementId INTEGER NOT NULL,
+                    TaskName TEXT NOT NULL,
+                    PartSku TEXT NOT NULL,
+                    PartDescription TEXT NOT NULL,
+                    PartUnit TEXT NOT NULL DEFAULT 'ud',
+                    PartDefaultQuantity REAL NOT NULL DEFAULT 1.0,
+                    FOREIGN KEY (ElementId) REFERENCES SMM_Elements(Id) ON DELETE CASCADE
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_SMM_Consumables_Elt_Task_Sku ON SMM_Consumables(ElementId, TaskName, PartSku)");
+
+            // ── Captura ────────────────────────────────────────────────────
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_Cycles (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    GroupId INTEGER NOT NULL,
+                    StartedAt TEXT NOT NULL,
+                    CompletedAt TEXT,
+                    Status TEXT NOT NULL DEFAULT 'Running',
+                    EndedReason TEXT,
+                    AlarmsCount INTEGER NOT NULL DEFAULT 0,
+                    AlarmTime_s REAL NOT NULL DEFAULT 0,
+                    HadAlarms INTEGER NOT NULL DEFAULT 0,
+                    IsDeleted INTEGER NOT NULL DEFAULT 0,
+                    DeletedBy TEXT,
+                    DeletedAt TEXT,
+                    DeleteReason TEXT,
+                    FOREIGN KEY (GroupId) REFERENCES SMM_Groups(Id) ON DELETE CASCADE
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Cycles_Group ON SMM_Cycles(GroupId)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Cycles_Status ON SMM_Cycles(Status, IsDeleted)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Cycles_StartedAt ON SMM_Cycles(StartedAt)");
+
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_CycleAlarms (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    CycleId INTEGER NOT NULL,
+                    AlarmCode TEXT NOT NULL,
+                    AlarmText TEXT,
+                    Severity INTEGER NOT NULL DEFAULT 0,
+                    RaisedAt TEXT NOT NULL,
+                    ClearedAt TEXT,
+                    DurationInCycle_s REAL NOT NULL DEFAULT 0,
+                    FOREIGN KEY (CycleId) REFERENCES SMM_Cycles(Id) ON DELETE CASCADE
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_CycleAlarms_Cycle ON SMM_CycleAlarms(CycleId)");
+
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_Readings (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    GroupId INTEGER NOT NULL,
+                    VariableId INTEGER NOT NULL,
+                    CycleId INTEGER,
+                    Timestamp TEXT NOT NULL,
+                    Value REAL,
+                    Source TEXT NOT NULL DEFAULT 'Plc',
+                    IsError INTEGER NOT NULL DEFAULT 0,
+                    ErrorReason TEXT,
+                    PlcVariable TEXT,
+                    FOREIGN KEY (GroupId) REFERENCES SMM_Groups(Id) ON DELETE CASCADE,
+                    FOREIGN KEY (VariableId) REFERENCES SMM_Variables(Id) ON DELETE CASCADE,
+                    FOREIGN KEY (CycleId) REFERENCES SMM_Cycles(Id) ON DELETE SET NULL
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Readings_Group_Var_Time ON SMM_Readings(GroupId, VariableId, Timestamp)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Readings_Cycle ON SMM_Readings(CycleId)");
+
+            // ── Mantenimiento ──────────────────────────────────────────────
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_ElementLifecycles (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ElementId INTEGER NOT NULL,
+                    StartedAt TEXT NOT NULL,
+                    EndedAt TEXT,
+                    AccumulatedValueAtStartJson TEXT NOT NULL DEFAULT '{}',
+                    EndingInterventionId INTEGER,
+                    FOREIGN KEY (ElementId) REFERENCES SMM_Elements(Id) ON DELETE CASCADE
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Lifecycles_Element ON SMM_ElementLifecycles(ElementId, EndedAt)");
+
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_Interventions (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ElementId INTEGER NOT NULL,
+                    ElementLifecycleId INTEGER NOT NULL,
+                    TaskName TEXT NOT NULL,
+                    InterventionType TEXT NOT NULL DEFAULT 'Maintenance',
+                    PerformedAt TEXT NOT NULL,
+                    PerformedByRole TEXT NOT NULL DEFAULT 'CustomerMaintainer',
+                    PerformedByUser TEXT,
+                    WorkOrderRef TEXT,
+                    AccumulatedValueAtMaintenance REAL,
+                    Notes TEXT,
+                    TriggeredByPredictionId INTEGER,
+                    CreatedBy TEXT NOT NULL DEFAULT 'system',
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    LastModifiedBy TEXT,
+                    LastModifiedAt TEXT,
+                    RowVersion BLOB,
+                    FOREIGN KEY (ElementId) REFERENCES SMM_Elements(Id) ON DELETE CASCADE,
+                    FOREIGN KEY (ElementLifecycleId) REFERENCES SMM_ElementLifecycles(Id) ON DELETE CASCADE
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Interventions_Element ON SMM_Interventions(ElementId, PerformedAt)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Interventions_Lifecycle ON SMM_Interventions(ElementLifecycleId)");
+
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_ConsumableUsage (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    InterventionId INTEGER NOT NULL,
+                    PartSku TEXT NOT NULL,
+                    PartDescription TEXT,
+                    PartUnit TEXT NOT NULL DEFAULT 'ud',
+                    Quantity REAL NOT NULL DEFAULT 1.0,
+                    FOREIGN KEY (InterventionId) REFERENCES SMM_Interventions(Id) ON DELETE CASCADE
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_ConsumableUsage_Int ON SMM_ConsumableUsage(InterventionId)");
+
+            // ── IA (DEC-021/022) ───────────────────────────────────────────
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_DerivedErrorStats (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    GroupId INTEGER NOT NULL,
+                    VarName TEXT NOT NULL,
+                    TotalEvaluations INTEGER NOT NULL DEFAULT 0,
+                    ErrorCount INTEGER NOT NULL DEFAULT 0,
+                    LastUpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_SMM_DerivedErrorStats_Group_Var ON SMM_DerivedErrorStats(GroupId, VarName)");
+
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_Predictions (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    PredictionType TEXT NOT NULL DEFAULT 'Anomaly',
+                    RelatedElementId INTEGER,
+                    RelatedVariableId INTEGER,
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    ResolvedAt TEXT,
+                    ResolvedByInterventionId INTEGER,
+                    Severity INTEGER NOT NULL DEFAULT 0,
+                    Description TEXT,
+                    Confidence REAL
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Predictions_Element ON SMM_Predictions(RelatedElementId, ResolvedAt)");
+
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_PredictionInterventions (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    PredictionId INTEGER NOT NULL,
+                    InterventionId INTEGER NOT NULL
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_PredInt_Pred ON SMM_PredictionInterventions(PredictionId)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_PredInt_Int ON SMM_PredictionInterventions(InterventionId)");
+
+            // ── UI / Audit ─────────────────────────────────────────────────
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_UserDashboardLayouts (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    UserId INTEGER NOT NULL,
+                    LayoutJson TEXT NOT NULL DEFAULT '{}',
+                    UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_SMM_UserLayouts_User ON SMM_UserDashboardLayouts(UserId)");
+
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS SMM_ExportLog (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ExportedBy TEXT,
+                    ExportedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    Format TEXT NOT NULL DEFAULT 'XLSX',
+                    RowCount INTEGER NOT NULL DEFAULT 0,
+                    FilterJson TEXT
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_ExportLog_At ON SMM_ExportLog(ExportedAt)");
+        }
+        catch (Exception)
+        {
+            // Idempotente — si una tabla ya existe ignoramos.
+        }
+    }
 }
+
