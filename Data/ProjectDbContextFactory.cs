@@ -50,6 +50,9 @@ public class ProjectDbContextFactory : IProjectDbContextFactory
     private readonly string _legacyDbPath;
     private readonly string _projectsRootPath;
 
+    // Cache de DBs ya inicializadas (schema completo) — evita re-ejecutar EnsureDatabaseCreatedAsync en cada request.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _ensuredPaths = new();
+
     public ProjectDbContextFactory(
         IServiceProvider serviceProvider,
         IProjectContextService globalContext,
@@ -175,7 +178,24 @@ public class ProjectDbContextFactory : IProjectDbContextFactory
         var optionsBuilder = new DbContextOptionsBuilder<AquafrischDbContext>();
         optionsBuilder.UseSqlite($"Data Source={dbPath};Foreign Keys=False");
         
-        return new AquafrischDbContext(optionsBuilder.Options);
+        var ctx = new AquafrischDbContext(optionsBuilder.Options);
+
+        // Lazy-init de schema una vez por path (incluye SMM_*, Documents, etc.)
+        if (_ensuredPaths.TryAdd(dbPath, true))
+        {
+            try
+            {
+                ctx.Database.EnsureCreated();
+                AquafrischDbContextFactory.EnsureDatabaseCreatedAsync(ctx).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lazy-init schema falló para {Path}", dbPath);
+                _ensuredPaths.TryRemove(dbPath, out _);
+            }
+        }
+
+        return ctx;
     }
 
     private string GetDatabasePathForProject(string projectId)

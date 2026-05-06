@@ -1308,7 +1308,7 @@ public static class AquafrischDbContextFactory
                     ElementId INTEGER NOT NULL,
                     StartedAt TEXT NOT NULL,
                     EndedAt TEXT,
-                    AccumulatedValueAtStartJson TEXT NOT NULL DEFAULT '{}',
+                    AccumulatedValueAtStartJson TEXT NOT NULL DEFAULT '{{}}',
                     EndingInterventionId INTEGER,
                     FOREIGN KEY (ElementId) REFERENCES SMM_Elements(Id) ON DELETE CASCADE
                 )");
@@ -1392,7 +1392,7 @@ public static class AquafrischDbContextFactory
                 CREATE TABLE IF NOT EXISTS SMM_UserDashboardLayouts (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     UserId INTEGER NOT NULL,
-                    LayoutJson TEXT NOT NULL DEFAULT '{}',
+                    LayoutJson TEXT NOT NULL DEFAULT '{{}}',
                     UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                 )");
             await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_SMM_UserLayouts_User ON SMM_UserDashboardLayouts(UserId)");
@@ -1408,9 +1408,11 @@ public static class AquafrischDbContextFactory
                 )");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_ExportLog_At ON SMM_ExportLog(ExportedAt)");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Idempotente — si una tabla ya existe ignoramos.
+            // Idempotente para CREATE IF NOT EXISTS — pero logueamos para no
+            // ocultar errores reales (ej. cambios de esquema, SQL inválido).
+            Console.WriteLine($"[SMM] EnsureSmmTablesAsync error: {ex.Message}");
         }
     }
 }
