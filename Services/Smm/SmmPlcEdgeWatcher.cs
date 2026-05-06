@@ -437,10 +437,139 @@ public class SmmPlcEdgeWatcher : BackgroundService, ISmmPlcEdgeWatcher
             await db.SaveChangesAsync();
             _logger.LogInformation("📸 [SMM-EdgeWatcher] Snapshot ciclo {C}: {N} readings (group={G})",
                 cycleId, readings.Count, groupId);
+
+            // DEC-016 — Evaluar variables derivadas (Formula) con FormulaScope=PerCycle
+            await EvaluatePerCycleFormulasAsync(db, groupId, cycleId, readings, vars);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[SMM-EdgeWatcher] Error en snapshot ciclo {C} group {G}", cycleId, groupId);
+        }
+    }
+
+    /// <summary>
+    /// DEC-016/DEC-021 — Evalúa fórmulas NCalc de las variables del grupo con
+    /// FormulaScope=PerCycle, usando los valores numéricos ya calculados en
+    /// <paramref name="plcReadings"/>. Persiste un SmmReading por fórmula con
+    /// Source="Formula". Si una dependencia falla o tiene IsError=true, se
+    /// propaga el error (UpstreamError) sin evaluar.
+    /// </summary>
+    private async Task EvaluatePerCycleFormulasAsync(
+        AquafrischDbContext db,
+        int groupId,
+        int cycleId,
+        List<SmmReading> plcReadings,
+        List<SmmVariable> plcVars)
+    {
+        try
+        {
+            var formulaVars = await db.SmmVariables
+                .Where(v => v.GroupId == groupId
+                            && v.Formula != null && v.Formula != ""
+                            && (v.FormulaScope == null || v.FormulaScope == "" || v.FormulaScope == "PerCycle"))
+                .ToListAsync();
+            if (formulaVars.Count == 0) return;
+
+            // Mapa VarName → (valor, isError) construido a partir de los readings PLC
+            var byVarName = new Dictionary<string, (double? Value, bool IsError)>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < plcReadings.Count; i++)
+            {
+                var r = plcReadings[i];
+                var pv = plcVars.FirstOrDefault(x => x.Id == r.VariableId);
+                if (pv != null && !string.IsNullOrEmpty(pv.VarName))
+                    byVarName[pv.VarName] = (r.Value, r.IsError);
+            }
+
+            var now = DateTime.UtcNow;
+            var derived = new List<SmmReading>(formulaVars.Count);
+
+            foreach (var fv in formulaVars)
+            {
+                double? num = null;
+                bool isError = false;
+                string? errReason = null;
+
+                try
+                {
+                    // Sustituir {VarName} → valores; detectar dependencias en error
+                    var formula = fv.Formula!;
+                    var depPattern = new System.Text.RegularExpressions.Regex(@"\{([^}]+)\}");
+                    var matches = depPattern.Matches(formula);
+                    string upstreamError = null!;
+                    foreach (System.Text.RegularExpressions.Match m in matches)
+                    {
+                        var depName = m.Groups[1].Value.Trim();
+                        if (!byVarName.TryGetValue(depName, out var dep))
+                        {
+                            upstreamError = $"UnknownDependency:{depName}";
+                            break;
+                        }
+                        if (dep.IsError || dep.Value == null)
+                        {
+                            upstreamError = $"UpstreamError:{depName}";
+                            break;
+                        }
+                    }
+                    if (upstreamError != null)
+                    {
+                        isError = true; errReason = upstreamError;
+                    }
+                    else
+                    {
+                        var expanded = depPattern.Replace(formula, mm =>
+                        {
+                            var depName = mm.Groups[1].Value.Trim();
+                            return byVarName[depName].Value!.Value.ToString(CultureInfo.InvariantCulture);
+                        });
+                        var expr = new NCalc.Expression(expanded, NCalc.ExpressionOptions.NoCache);
+                        var result = expr.Evaluate();
+                        if (result == null) { isError = true; errReason = "NullResult"; }
+                        else
+                        {
+                            try { num = Convert.ToDouble(result, CultureInfo.InvariantCulture); }
+                            catch { isError = true; errReason = "NonNumericResult"; }
+                            if (num.HasValue && (double.IsNaN(num.Value) || double.IsInfinity(num.Value)))
+                            {
+                                isError = true;
+                                errReason = double.IsInfinity(num.Value) ? "DivisionByZero" : "NaN";
+                                num = null;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    isError = true;
+                    errReason = $"FormulaError:{ex.GetType().Name}:{ex.Message}";
+                }
+
+                derived.Add(new SmmReading
+                {
+                    GroupId = groupId,
+                    VariableId = fv.Id,
+                    CycleId = cycleId,
+                    Timestamp = now,
+                    Value = num,
+                    StringValue = null,
+                    Source = "Formula",
+                    IsError = isError,
+                    ErrorReason = errReason,
+                    PlcVariable = null
+                });
+
+                // Alimentar el mapa para fórmulas que dependan de otras fórmulas
+                if (!string.IsNullOrEmpty(fv.VarName))
+                    byVarName[fv.VarName] = (num, isError);
+            }
+
+            db.SmmReadings.AddRange(derived);
+            await db.SaveChangesAsync();
+            _logger.LogInformation("🧮 [SMM-EdgeWatcher] Fórmulas evaluadas ciclo {C}: {N} (group={G})",
+                cycleId, derived.Count, groupId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[SMM-EdgeWatcher] Error evaluando fórmulas ciclo {C} group {G}", cycleId, groupId);
         }
     }
 
