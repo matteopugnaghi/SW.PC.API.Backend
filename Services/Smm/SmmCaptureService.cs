@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using SW.PC.API.Backend.Data;
 using SW.PC.API.Backend.Models.Smm.Entities;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace SW.PC.API.Backend.Services.Smm;
 
@@ -58,31 +60,109 @@ public class SmmCaptureService : ISmmCaptureService
             .Where(v => continuousGroups.Contains(v.GroupId) && v.PlcVariable != null)
             .ToListAsync(ct);
 
-        if (vars.Count == 0) return 0;
+        // Variables con Formula (derivadas) — se evalúan al final usando los valores PLC ya leídos.
+        // Aceptamos FormulaScope IN (null/empty/Continuous/OnRead/Daily) — todos significan
+        // "evaluar en cada snapshot Continuous" en el modelo actual.
+        var formulaVars = await db.SmmVariables
+            .Where(v => continuousGroups.Contains(v.GroupId)
+                        && v.Formula != null && v.Formula != ""
+                        && (v.PlcVariable == null || v.PlcVariable == ""))
+            .Where(v => v.FormulaScope == null || v.FormulaScope == ""
+                        || v.FormulaScope == "Continuous" || v.FormulaScope == "OnRead"
+                        || v.FormulaScope == "Daily")
+            .ToListAsync(ct);
 
-        var plcNames = vars.Where(v => v.PlcVariable != null).Select(v => v.PlcVariable!).Distinct().ToList();
-        var snapshot = await _twincat.ReadAllVariablesAsync(plcNames);
+        if (vars.Count == 0 && formulaVars.Count == 0) return 0;
+
+        // ─── 1) GATING RunningBitVar ───
+        // Para cada variable PLC con RunningBitVar configurado, leer el bit; si FALSE → skip
+        // (no se inserta fila). Si TRUE o sin gating → se lee el valor.
+        // Cacheamos lectura del bit para evitar re-leer si varias vars usan el mismo bit.
+        var bitCache = new Dictionary<string, bool?>(StringComparer.OrdinalIgnoreCase);
+        async Task<bool?> ReadRunningBitAsync(string bitName)
+        {
+            if (bitCache.TryGetValue(bitName, out var cached)) return cached;
+            try
+            {
+                var raw = await _twincat.ReadVariableAsync(bitName, typeof(bool));
+                bool? val = raw switch
+                {
+                    bool b => b,
+                    null => (bool?)null,
+                    _ => Convert.ToBoolean(raw, CultureInfo.InvariantCulture)
+                };
+                bitCache[bitName] = val;
+                return val;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SMM Continuous: error leyendo RunningBitVar {Bit}", bitName);
+                bitCache[bitName] = null; // null = error de lectura → tratamos como "skip"
+                return null;
+            }
+        }
+
+        // Leer cada variable con su tipo CLR correcto (no usar ReadAllVariablesAsync porque asume int).
+        var rawValues = new Dictionary<int, (object? raw, bool isError, string? err, bool gatedOff)>(vars.Count);
+        foreach (var v in vars)
+        {
+            // Gating
+            if (!string.IsNullOrWhiteSpace(v.RunningBitVar))
+            {
+                var bit = await ReadRunningBitAsync(v.RunningBitVar);
+                if (bit != true)
+                {
+                    rawValues[v.Id] = (null, false, bit == null ? "GatingBitReadError" : "GatedOff", true);
+                    continue;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(v.PlcVariable))
+            {
+                rawValues[v.Id] = (null, true, "NoPlcVariable", false);
+                continue;
+            }
+            try
+            {
+                var clrType = MapDataTypeToClr(v.DataType);
+                var raw = await _twincat.ReadVariableAsync(v.PlcVariable, clrType);
+                rawValues[v.Id] = (raw, raw == null, raw == null ? "PlcReadNull" : null, false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SMM Continuous: error leyendo {Var} ({Type})", v.PlcVariable, v.DataType);
+                rawValues[v.Id] = (null, true, $"ReadError: {ex.GetType().Name}: {ex.Message}", false);
+            }
+        }
 
         var now = DateTime.UtcNow;
         var readings = new List<SmmReading>(vars.Count);
+        // Mapa VarName → (valor, isError) para alimentar fórmulas
+        var byVarName = new Dictionary<string, (double? Value, bool IsError)>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var v in vars)
         {
-            double? value = null;
-            bool isError = false;
-            string? errReason = null;
+            if (!rawValues.TryGetValue(v.Id, out var entry)) continue;
 
-            if (v.PlcVariable != null && snapshot.Variables.TryGetValue(v.PlcVariable, out var raw))
+            // Si fue "gatedOff", NO insertamos fila (el bit estaba FALSE → la variable
+            // no tiene sentido en este snapshot).
+            if (entry.gatedOff) continue;
+
+            double? value = null;
+            string? stringValue = null;
+            bool isError = entry.isError;
+            string? errReason = entry.err;
+
+            if (!isError && entry.raw != null)
             {
-                if (raw == null) { isError = true; errReason = "PlcReadNull"; }
+                var raw = entry.raw;
+                if (raw is string s) { stringValue = s; }
+                else if (raw is bool b) { value = b ? 1.0 : 0.0; }
                 else
                 {
-                    try { value = Convert.ToDouble(raw, System.Globalization.CultureInfo.InvariantCulture); }
+                    try { value = Convert.ToDouble(raw, CultureInfo.InvariantCulture); }
                     catch { isError = true; errReason = $"CastError: {raw.GetType().Name}"; }
                 }
-            }
-            else
-            {
-                isError = true; errReason = "NotFoundInSnapshot";
             }
 
             readings.Add(new SmmReading
@@ -92,17 +172,118 @@ public class SmmCaptureService : ISmmCaptureService
                 CycleId = null,
                 Timestamp = now,
                 Value = value,
+                StringValue = stringValue,
                 Source = "Plc",
                 IsError = isError,
                 ErrorReason = errReason,
                 PlcVariable = v.PlcVariable
             });
+
+            if (!string.IsNullOrEmpty(v.VarName))
+                byVarName[v.VarName] = (value, isError);
+        }
+
+        // ─── 2) FÓRMULAS Continuous (DEC-016/021 adaptado) ───
+        if (formulaVars.Count > 0)
+        {
+            var depPattern = new Regex(@"\{([^}]+)\}");
+            foreach (var fv in formulaVars)
+            {
+                double? num = null;
+                bool isError = false;
+                string? errReason = null;
+                try
+                {
+                    var formula = fv.Formula!;
+                    string upstreamError = null!;
+                    foreach (Match m in depPattern.Matches(formula))
+                    {
+                        var depName = m.Groups[1].Value.Trim();
+                        if (!byVarName.TryGetValue(depName, out var dep))
+                        { upstreamError = $"UnknownDependency:{depName}"; break; }
+                        if (dep.IsError || dep.Value == null)
+                        { upstreamError = $"UpstreamError:{depName}"; break; }
+                    }
+                    if (upstreamError != null)
+                    {
+                        isError = true; errReason = upstreamError;
+                    }
+                    else
+                    {
+                        var expanded = depPattern.Replace(formula, mm =>
+                            byVarName[mm.Groups[1].Value.Trim()].Value!.Value.ToString(CultureInfo.InvariantCulture));
+                        var expr = new NCalc.Expression(expanded, NCalc.ExpressionOptions.NoCache);
+                        var result = expr.Evaluate();
+                        if (result == null) { isError = true; errReason = "NullResult"; }
+                        else
+                        {
+                            try { num = Convert.ToDouble(result, CultureInfo.InvariantCulture); }
+                            catch { isError = true; errReason = "NonNumericResult"; }
+                            if (num.HasValue && (double.IsNaN(num.Value) || double.IsInfinity(num.Value)))
+                            {
+                                isError = true;
+                                errReason = double.IsInfinity(num.Value) ? "DivisionByZero" : "NaN";
+                                num = null;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    isError = true;
+                    errReason = $"FormulaError:{ex.GetType().Name}:{ex.Message}";
+                }
+
+                readings.Add(new SmmReading
+                {
+                    GroupId = fv.GroupId,
+                    VariableId = fv.Id,
+                    CycleId = null,
+                    Timestamp = now,
+                    Value = num,
+                    StringValue = null,
+                    Source = "Formula",
+                    IsError = isError,
+                    ErrorReason = errReason,
+                    PlcVariable = null
+                });
+
+                // Permitir fórmulas que dependan de otras fórmulas (orden simple según BD)
+                if (!string.IsNullOrEmpty(fv.VarName))
+                    byVarName[fv.VarName] = (num, isError);
+            }
         }
 
         db.SmmReadings.AddRange(readings);
         await db.SaveChangesAsync(ct);
-        _logger.LogInformation("📊 SMM Continuous snapshot: {Count} readings", readings.Count);
+        _logger.LogInformation("📊 SMM Continuous snapshot: {Count} readings ({Plc} PLC + {Fx} fórmulas)",
+            readings.Count, vars.Count - readings.Count(r => r.Source == "Formula"), formulaVars.Count);
         return readings.Count;
+    }
+
+    /// <summary>
+    /// Mapea DataType TwinCAT-style del Excel SMM al CLR type que entiende ReadVariableAsync.
+    /// (Idéntico a SmmPlcEdgeWatcher.MapDataTypeToClr).
+    /// </summary>
+    private static Type MapDataTypeToClr(string? dataType)
+    {
+        var dt = (dataType ?? string.Empty).Trim().ToUpperInvariant();
+        return dt switch
+        {
+            "BOOL" => typeof(bool),
+            "BYTE" or "USINT" => typeof(byte),
+            "SINT" => typeof(sbyte),
+            "INT" => typeof(int),
+            "WORD" or "UINT" => typeof(ushort),
+            "DINT" => typeof(int),
+            "DWORD" or "UDINT" => typeof(uint),
+            "LINT" => typeof(long),
+            "ULINT" or "LWORD" => typeof(ulong),
+            "REAL" => typeof(float),
+            "LREAL" => typeof(double),
+            "STRING" or "WSTRING" or "CHAR" or "WCHAR" => typeof(string),
+            _ => typeof(double)
+        };
     }
 
     public Task<int> OnDemandSnapshotAsync(int? groupId, CancellationToken ct = default)

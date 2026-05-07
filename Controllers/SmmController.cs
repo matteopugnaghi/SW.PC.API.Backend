@@ -239,6 +239,76 @@ namespace SW.PC.API.Backend.Controllers
             return Ok(readings);
         }
 
+        /// <summary>
+        /// Lecturas recientes batch para un grupo entero (Continuous/OnDemand).
+        /// Devuelve los últimos N timestamps con TODAS las variables del grupo en cada uno
+        /// (formato similar a "ciclos" pero sin cycleId, agrupado por timestamp del snapshot).
+        /// Filtros opcionales: from/to (ISO 8601 UTC).
+        /// </summary>
+        [HttpGet("groups/{groupId:int}/readings/recent")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetGroupRecentReadingsAsync(
+            int groupId,
+            [FromQuery] int take = 30,
+            [FromQuery] DateTime? from = null,
+            [FromQuery] DateTime? to = null)
+        {
+            using var db = _dbFactory.CreateDbContext();
+            take = System.Math.Clamp(take, 1, 1000);
+
+            var q = db.SmmReadings.Where(r => r.GroupId == groupId && r.CycleId == null);
+            if (from.HasValue) q = q.Where(r => r.Timestamp >= from.Value);
+            if (to.HasValue)   q = q.Where(r => r.Timestamp <= to.Value);
+
+            // Tomamos los últimos N timestamps distintos (cada snapshot escribe el mismo Timestamp para todas sus vars)
+            var recentTimestamps = await q
+                .Select(r => r.Timestamp)
+                .Distinct()
+                .OrderByDescending(t => t)
+                .Take(take)
+                .ToListAsync();
+
+            if (recentTimestamps.Count == 0)
+                return Ok(new List<object>());
+
+            var minTs = recentTimestamps.Min();
+            var maxTs = recentTimestamps.Max();
+
+            var readings = await db.SmmReadings
+                .Where(r => r.GroupId == groupId
+                            && r.CycleId == null
+                            && r.Timestamp >= minTs
+                            && r.Timestamp <= maxTs)
+                .Select(r => new
+                {
+                    r.Id, r.Timestamp, r.VariableId, r.Value, r.StringValue,
+                    r.Source, r.IsError, r.ErrorReason
+                })
+                .ToListAsync();
+
+            // Agrupar por timestamp y proyectar como "snapshots"
+            var snapshots = readings
+                .GroupBy(r => r.Timestamp)
+                .OrderByDescending(g => g.Key)
+                .Select(g => new
+                {
+                    timestamp = g.Key,
+                    readings = g.Select(r => new
+                    {
+                        variableId = r.VariableId,
+                        value = r.Value,
+                        stringValue = r.StringValue,
+                        isError = r.IsError,
+                        errorReason = r.ErrorReason,
+                        source = r.Source
+                    }).ToList()
+                })
+                .ToList();
+
+            return Ok(snapshots);
+        }
+
+
         /// <summary>Elementos físicos del catálogo.</summary>
         [HttpGet("elements")]
         [AllowAnonymous]
@@ -368,6 +438,9 @@ namespace SW.PC.API.Backend.Controllers
 
             var deletedReadings  = await SafeDeleteAsync(
                 "DELETE FROM SMM_Readings        WHERE CycleId IN (SELECT Id FROM SMM_Cycles WHERE GroupId = {0})");
+            // También borrar snapshots Continuous (CycleId IS NULL) del grupo
+            var deletedContinuous = await SafeDeleteAsync(
+                "DELETE FROM SMM_Readings        WHERE GroupId = {0} AND CycleId IS NULL");
             var deletedSnapshots = await SafeDeleteAsync(
                 "DELETE FROM SMM_CycleSnapshots  WHERE CycleId IN (SELECT Id FROM SMM_Cycles WHERE GroupId = {0})");
             var deletedAlarms    = await SafeDeleteAsync(
@@ -375,13 +448,36 @@ namespace SW.PC.API.Backend.Controllers
             var deletedCycles    = await SafeDeleteAsync(
                 "DELETE FROM SMM_Cycles          WHERE GroupId = {0}");
 
-            _logger.LogWarning("HARD PURGE ciclos grupo {GroupId} por {User}. Razón: {Reason}. Borrados: cycles={C}, readings={R}, snapshots={S}, alarms={A}",
-                groupId, who, req.Reason, deletedCycles, deletedReadings, deletedSnapshots, deletedAlarms);
+            _logger.LogWarning("HARD PURGE ciclos grupo {GroupId} por {User}. Razón: {Reason}. Borrados: cycles={C}, readings={R}, continuous={CR}, snapshots={S}, alarms={A}",
+                groupId, who, req.Reason, deletedCycles, deletedReadings, deletedContinuous, deletedSnapshots, deletedAlarms);
 
             return Ok(new {
                 ok = true, groupId, deletedBy = who,
-                deletedCycles, deletedReadings, deletedSnapshots, deletedAlarms
+                deletedCycles, deletedReadings, deletedContinuous, deletedSnapshots, deletedAlarms
             });
+        }
+
+        /// <summary>
+        /// Borra TODOS los snapshots Continuous/OnDemand del grupo (CycleId IS NULL).
+        /// No afecta a ciclos PerCycle. Hard delete (irreversible). SuperAdmin solo.
+        /// </summary>
+        [HttpDelete("groups/{groupId:int}/snapshots/all")]
+        [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> DeleteAllGroupSnapshotsAsync(int groupId, [FromBody] SoftDeleteCycleRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Reason) || req.Reason.Length < 10)
+                return BadRequest(new { error = "reason mínimo 10 caracteres" });
+
+            using var db = _dbFactory.CreateDbContext();
+            var who = User?.Identity?.Name ?? "superadmin";
+
+            var deleted = await db.Database.ExecuteSqlRawAsync(
+                "DELETE FROM SMM_Readings WHERE GroupId = {0} AND CycleId IS NULL", groupId);
+
+            _logger.LogWarning("DELETE ALL SNAPSHOTS Continuous grupo {GroupId} por {User}. Razón: {Reason}. Borrados: {N}",
+                groupId, who, req.Reason, deleted);
+
+            return Ok(new { ok = true, groupId, deletedBy = who, deletedSnapshots = deleted });
         }
 
         /// <summary>

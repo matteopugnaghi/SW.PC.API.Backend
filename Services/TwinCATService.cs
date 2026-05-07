@@ -654,7 +654,7 @@ namespace SW.PC.API.Backend.Services
                 Timestamp = DateTime.Now,
                 Variables = new Dictionary<string, object>()
             };
-            
+
             foreach (var varName in variableNames)
             {
                 try
@@ -670,7 +670,7 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogWarning(ex, "Error reading variable {VariableName}", varName);
                 }
             }
-            
+
             return snapshot;
         }
         

@@ -59,7 +59,11 @@ public class ContinuousReadJob : BackgroundService
         var excelService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
         var projectContext = scope.ServiceProvider.GetRequiredService<IProjectContextService>();
 
-        string targetTime = "03:00";
+        // Default 23:59 — captura el "cierre del día lógico" (00:00–23:59).
+        // El usuario puede sobreescribir en Excel SystemConfig.ContinuousReadTime
+        // (formato HH:mm). Si la máquina tiene turno noche y los contadores no se
+        // resetean a medianoche, capturar a las 23:59 da el total acumulado del día.
+        string targetTime = "23:59";
         try
         {
             var sys = await excelService.LoadSystemConfigurationAsync(projectContext.ExcelConfigPath);
