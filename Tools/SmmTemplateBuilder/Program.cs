@@ -78,19 +78,19 @@ WriteHeader(wsGroups, new[]
 var groupHeaderNotes = new (string Col, string Note)[]
 {
     ("A1", "Nombre único del grupo (clave de upsert)."),
-    ("B1", "Tipo de UI: Table | Chart | Card | Gauge."),
+    ("B1", "Tipo de UI en la card del dashboard:\n  • Table = tabla snapshots × variables (sin gráfico ni KPIs)\n  • Chart = solo gráfico (mini ECharts a pantalla completa, sin KPIs arriba)\n  • Kpi   = TODAS las variables numéricas como KPIs grandes en rejilla (sin gráfico)\n  • Stat  = TODAS las variables como KPIs compactos + mini-gráfico debajo (combo, default recomendado)"),
     ("C1", "Modo lectura: Continuous (snapshot diario o cíclico) | PerCycle (lectura por flanco) | OnDemand."),
     ("D1", "Variable PLC BOOL que delimita un ciclo PerCycle (flanco FALSE→TRUE arranca, TRUE→FALSE cierra)."),
-    ("E1", "Mostrar columna 'Inicio ciclo' en la UI (true/false)."),
-    ("F1", "Mostrar columna 'Fin ciclo' en la UI (true/false)."),
-    ("G1", "Mostrar columna 'Duración ciclo' en la UI (true/false)."),
+    ("E1", "Mostrar columna 'Inicio ciclo' en la UI (true/false). Solo PerCycle."),
+    ("F1", "Mostrar columna 'Fin ciclo' en la UI (true/false). Solo PerCycle."),
+    ("G1", "Mostrar columna 'Duración ciclo' en la UI (true/false). Solo PerCycle."),
     ("H1", "Variable PLC con histórico de alarmas asociado al grupo (DEC-020)."),
-    ("I1", "Ancho de la card en el dashboard (grid units)."),
+    ("I1", "Ancho de la card en el dashboard (grid units, 1-12)."),
     ("J1", "Alto de la card en el dashboard (grid units)."),
-    ("K1", "Card pinned (true/false): no se mueve en el layout."),
-    ("L1", "Color hex de la card (#RRGGBB) para identificación visual."),
-    ("M1", "Continuous: intervalo de lectura cíclico en segundos. Vacío/0/≥86400 → modo DIARIO usando System Config.ContinuousReadTime. 1..86399 → modo CÍCLICO."),
-    ("N1", "Continuous: retención en días. Tras cada snapshot del grupo se borran los snapshots Continuous (CycleId IS NULL) más viejos que UtcNow - N días. Vacío/0 → sin retención.")
+    ("K1", "Card pinned (true/false): siempre arriba, no se mueve en el layout."),
+    ("L1", "Color hex de la card (#RRGGBB) para acento visual (KPIs, gráfico, badges)."),
+    ("M1", "Continuous: intervalo de lectura cíclico en segundos.\n  • Vacío / 0 / ≥86400 → modo DIARIO usando System Config.ContinuousReadTime\n  • 1..86399 → modo CÍCLICO (snapshot cada N segundos)\n  Ej: 10 = cada 10s; 60 = cada minuto; 300 = cada 5 min."),
+    ("N1", "Continuous: retención en días. Tras cada snapshot del grupo se borran los snapshots Continuous (CycleId IS NULL) más viejos que UtcNow - N días.\n  • Vacío / 0 → sin retención (acumula indefinidamente, ¡cuidado con el tamaño de la BD!)\n  • Recomendado: 30-90 días para datos cíclicos rápidos, 365+ para diarios.")
 };
 foreach (var (col, note) in groupHeaderNotes)
     wsGroups.Cell(col).GetComment().AddText(note);

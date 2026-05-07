@@ -255,7 +255,7 @@ namespace SW.PC.API.Backend.Controllers
             [FromQuery] DateTime? to = null)
         {
             using var db = _dbFactory.CreateDbContext();
-            take = System.Math.Clamp(take, 1, 1000);
+            take = System.Math.Clamp(take, 1, 20000);
 
             var q = db.SmmReadings.Where(r => r.GroupId == groupId && r.CycleId == null);
             if (from.HasValue) q = q.Where(r => r.Timestamp >= from.Value);
@@ -288,12 +288,13 @@ namespace SW.PC.API.Backend.Controllers
                 .ToListAsync();
 
             // Agrupar por timestamp y proyectar como "snapshots"
+            // Forzar Kind=Utc para que el JSON serialice con sufijo "Z" y JS lo interprete como UTC.
             var snapshots = readings
                 .GroupBy(r => r.Timestamp)
                 .OrderByDescending(g => g.Key)
                 .Select(g => new
                 {
-                    timestamp = g.Key,
+                    timestamp = DateTime.SpecifyKind(g.Key, DateTimeKind.Utc),
                     readings = g.Select(r => new
                     {
                         variableId = r.VariableId,
