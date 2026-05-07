@@ -1287,10 +1287,11 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>
         /// Hora del job nocturno de captura Continuous (DEC-026). Una única para todas las
         /// variables Continuous del proyecto. Formato HH:mm hora local PC (00:00..23:59).
-        /// Default "03:00". Validación R16: regex valida formato HH:mm.
+        /// Default "23:59" (cierre día lógico). Validación R16: regex valida formato HH:mm.
         /// Vacío/ausente = default sin error. Formato inválido = default + warning + bottom sheet UI.
+        /// Sólo se usa para grupos en modo DIARIO (sin ContinuousReadIntervalSec configurado).
         /// </summary>
-        public string ContinuousReadTime { get; set; } = "03:00";
+        public string ContinuousReadTime { get; set; } = "23:59";
 
     }
 

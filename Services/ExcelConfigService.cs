@@ -3866,7 +3866,7 @@ namespace SW.PC.API.Backend.Services
                             case "continuousreadtime":
                             case "continuous_read_time":
                                 // Regla R16 (DEC-026): valida formato HH:mm 00-23 horas, 00-59 minutos.
-                                // Vacío/ausente = mantener default "03:00".
+                                // Vacío/ausente = mantener default "23:59".
                                 if (!string.IsNullOrWhiteSpace(paramValue))
                                 {
                                     var trimmed = paramValue.Trim();
@@ -3877,8 +3877,7 @@ namespace SW.PC.API.Backend.Services
                                     }
                                     else
                                     {
-                                        _logger.LogWarning("⚠️ SMM R16: ContinuousReadTime '{Val}' formato inválido (esperado HH:mm 00:00-23:59). Usando default '03:00'.", trimmed);
-                                        // mantener default "03:00" ya asignado en SystemConfiguration
+                                        _logger.LogWarning("⚠️ SMM R16: ContinuousReadTime '{Val}' formato inválido (esperado HH:mm 00:00-23:59). Usando default '23:59'.", trimmed);
                                     }
                                 }
                                 break;

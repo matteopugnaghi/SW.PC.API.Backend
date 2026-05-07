@@ -57,23 +57,43 @@ WriteHeader(wsCons, new[]
     "PartUnit", "PartDefaultQuantity"
 });
 
-// ─── Hoja 4: Stats_Groups (DEC-017 base + DEC-018 cols 24-27 + DEC-020 col 28) ───
+// ─── Hoja 4: Stats_Groups (formato compacto leído por SmmExcelSyncService, A..N) ───
 var wsGroups = wb.Worksheets.Add("Stats_Groups");
 WriteHeader(wsGroups, new[]
 {
-    // 1-23 (base DEC-017)
-    "GroupId", "GroupName", "Description", "DescriptionEN",
-    "UiType", "ChartType", "TimeWindow", "MaxRows",
-    "RefreshSeconds", "ReadFrequency", "GroupingKey",
-    "VariablesIncluded", "VariablesExcluded",
-    "ColorPalette", "Icon", "Order", "Visible",
-    "ExportEnabled", "AggregationType", "DefaultPeriod",
-    "LayoutWidth", "LayoutHeight", "LayoutPinned",
-    // 24-27 (DEC-018)
-    "CycleRunningVar", "ShowCycleStart", "ShowCycleEnd", "ShowCycleDuration",
-    // 28 (DEC-020)
-    "AlarmHistVar"
+    // A..D
+    "GroupName", "UiType", "ReadFrequency", "CycleRunningVar",
+    // E..G
+    "ShowCycleStart", "ShowCycleEnd", "ShowCycleDuration",
+    // H..L
+    "AlarmHistVar", "LayoutWidth", "LayoutHeight", "LayoutPinned", "LayoutColor",
+    // M..N (Continuous por grupo)
+    "ContinuousReadIntervalSec", "ContinuousRetentionDays"
 });
+
+// Fila 2 = descripciones (no leídas por el sync, que arranca buscando datos en la fila 2
+// SOLO si A2 no está vacío; aquí se escribe en notas/comentario para no romper el sync).
+// Para no interferir con el parser, dejamos la fila 2 vacía y añadimos las descripciones
+// como comentario (cell note) en la cabecera.
+var groupHeaderNotes = new (string Col, string Note)[]
+{
+    ("A1", "Nombre único del grupo (clave de upsert)."),
+    ("B1", "Tipo de UI: Table | Chart | Card | Gauge."),
+    ("C1", "Modo lectura: Continuous (snapshot diario o cíclico) | PerCycle (lectura por flanco) | OnDemand."),
+    ("D1", "Variable PLC BOOL que delimita un ciclo PerCycle (flanco FALSE→TRUE arranca, TRUE→FALSE cierra)."),
+    ("E1", "Mostrar columna 'Inicio ciclo' en la UI (true/false)."),
+    ("F1", "Mostrar columna 'Fin ciclo' en la UI (true/false)."),
+    ("G1", "Mostrar columna 'Duración ciclo' en la UI (true/false)."),
+    ("H1", "Variable PLC con histórico de alarmas asociado al grupo (DEC-020)."),
+    ("I1", "Ancho de la card en el dashboard (grid units)."),
+    ("J1", "Alto de la card en el dashboard (grid units)."),
+    ("K1", "Card pinned (true/false): no se mueve en el layout."),
+    ("L1", "Color hex de la card (#RRGGBB) para identificación visual."),
+    ("M1", "Continuous: intervalo de lectura cíclico en segundos. Vacío/0/≥86400 → modo DIARIO usando System Config.ContinuousReadTime. 1..86399 → modo CÍCLICO."),
+    ("N1", "Continuous: retención en días. Tras cada snapshot del grupo se borran los snapshots Continuous (CycleId IS NULL) más viejos que UtcNow - N días. Vacío/0 → sin retención.")
+};
+foreach (var (col, note) in groupHeaderNotes)
+    wsGroups.Cell(col).GetComment().AddText(note);
 
 // ─── Hoja 5: System Config (DEC-024 SystemDeliveryDate + DEC-026 ContinuousReadTime) ───
 var wsCfg = wb.Worksheets.Add("System Config");
@@ -90,8 +110,8 @@ wsCfg.Cell(r, 3).Value = "DEC-024 — Fecha de puesta en marcha (única para tod
 r++;
 
 wsCfg.Cell(r, 1).Value = "ContinuousReadTime";
-wsCfg.Cell(r, 2).Value = "03:00";
-wsCfg.Cell(r, 3).Value = "DEC-026 — Hora job nocturno Continuous (R16 valida HH:mm 00:00-23:59). Default 03:00.";
+wsCfg.Cell(r, 2).Value = "23:59";
+wsCfg.Cell(r, 3).Value = "DEC-026 — Hora del snapshot diario Continuous (HH:mm 00:00-23:59). Default 23:59 (cierre día lógico). Sólo se usa para grupos en modo DIARIO (sin ContinuousReadIntervalSec en Stats_Groups).";
 r++;
 
 wsCfg.Columns().AdjustToContents();
@@ -105,7 +125,7 @@ foreach (var ws in new[] { wsElements, wsVars, wsCons, wsGroups })
 wb.SaveAs(outputFile);
 
 System.Console.WriteLine("✅ Plantilla SMM generada correctamente.");
-System.Console.WriteLine($"   Hojas: Stats_Elements (6 cols), Stats_Variables (13 cols), Stats_Consumables (6 cols), Stats_Groups (28 cols), System Config (2 params)");
+System.Console.WriteLine($"   Hojas: Stats_Elements (6 cols), Stats_Variables (13 cols), Stats_Consumables (6 cols), Stats_Groups (14 cols A..N), System Config (2 params)");
 
 static void WriteHeader(IXLWorksheet ws, string[] headers)
 {

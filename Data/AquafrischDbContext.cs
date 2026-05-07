@@ -1314,6 +1314,12 @@ public static class AquafrischDbContextFactory
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN LayoutColor TEXT"); }
             catch { /* columna ya existe */ }
 
+            // Migración idempotente: ContinuousReadIntervalSec + ContinuousRetentionDays por grupo
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN ContinuousReadIntervalSec INTEGER"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN ContinuousRetentionDays INTEGER"); }
+            catch { /* columna ya existe */ }
+
             // ── Mantenimiento ──────────────────────────────────────────────
             await context.Database.ExecuteSqlRawAsync(@"
                 CREATE TABLE IF NOT EXISTS SMM_ElementLifecycles (

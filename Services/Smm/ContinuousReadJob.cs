@@ -1,20 +1,26 @@
+using Microsoft.EntityFrameworkCore;
 using SW.PC.API.Backend.Services;
 
 namespace SW.PC.API.Backend.Services.Smm;
 
 /// <summary>
-/// Job nocturno Continuous (DEC-026): timer 60s, dispara captura cuando HH:mm coincide
-/// con SystemConfiguration.ContinuousReadTime del proyecto activo.
+/// Job de captura Continuous (DEC-026, ampliado por-grupo).
+/// Cada grupo (SMM_Groups con ReadFrequency='Continuous') tiene su propia frecuencia y retención:
+///   - ContinuousReadIntervalSec: si null/0/&gt;=86400 → modo DIARIO (1/día a SystemConfig.ContinuousReadTime).
+///                                si 1..86399 → modo CÍCLICO: snapshot cada N segundos.
+///   - ContinuousRetentionDays: tras cada snapshot del grupo, borra filas Continuous viejas del grupo.
 /// - Sin catchup si PC apagado.
 /// - Sin retry tras fallo ADS.
-/// - 1 ejecución por día (DST tolerada).
 /// - Aborta ciclos huérfanos al startup (DEC-020).
 /// </summary>
 public class ContinuousReadJob : BackgroundService
 {
     private readonly IServiceProvider _services;
     private readonly ILogger<ContinuousReadJob> _logger;
-    private string _lastFiredKey = string.Empty; // "yyyy-MM-dd HH:mm" del último disparo
+
+    // Estado por grupo (clave = GroupId)
+    private readonly Dictionary<int, DateTime> _lastCyclicFireUtc = new();
+    private readonly Dictionary<int, string> _lastDailyFiredKey = new();
 
     public ContinuousReadJob(IServiceProvider services, ILogger<ContinuousReadJob> logger)
     {
@@ -36,63 +42,134 @@ public class ContinuousReadJob : BackgroundService
             _logger.LogWarning(ex, "ContinuousReadJob: AbortOrphanCycles falló (continuamos)");
         }
 
-        // 2) Loop: cada 60s comprobar si HH:mm coincide con ContinuousReadTime
+        // 2) Loop principal: tick rápido para soportar grupos con intervalo pequeño.
+        //    Sleep dinámico = min de los próximos disparos pendientes (clamped 1..60s).
         while (!stoppingToken.IsCancellationRequested)
         {
+            int sleepSec = 60;
             try
             {
-                await CheckAndFireAsync(stoppingToken);
+                sleepSec = await TickAllGroupsAsync(stoppingToken);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "ContinuousReadJob tick error");
             }
 
-            try { await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken); }
+            if (sleepSec < 1) sleepSec = 1;
+            if (sleepSec > 60) sleepSec = 60;
+            try { await Task.Delay(TimeSpan.FromSeconds(sleepSec), stoppingToken); }
             catch (OperationCanceledException) { break; }
         }
     }
 
-    private async Task CheckAndFireAsync(CancellationToken ct)
+    private async Task<int> TickAllGroupsAsync(CancellationToken ct)
     {
         using var scope = _services.CreateScope();
         var excelService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
         var projectContext = scope.ServiceProvider.GetRequiredService<IProjectContextService>();
+        var dbFactory = scope.ServiceProvider.GetRequiredService<Data.IProjectDbContextFactory>();
+        var capture = scope.ServiceProvider.GetRequiredService<ISmmCaptureService>();
 
-        // Default 23:59 — captura el "cierre del día lógico" (00:00–23:59).
-        // El usuario puede sobreescribir en Excel SystemConfig.ContinuousReadTime
-        // (formato HH:mm). Si la máquina tiene turno noche y los contadores no se
-        // resetean a medianoche, capturar a las 23:59 da el total acumulado del día.
-        string targetTime = "23:59";
+        // Hora del snapshot diario global (default 23:59) — se usa para grupos en modo DIARIO.
+        string dailyTargetTime = "23:59";
         try
         {
             var sys = await excelService.LoadSystemConfigurationAsync(projectContext.ExcelConfigPath);
-            if (!string.IsNullOrWhiteSpace(sys.ContinuousReadTime)) targetTime = sys.ContinuousReadTime;
+            if (!string.IsNullOrWhiteSpace(sys.ContinuousReadTime)) dailyTargetTime = sys.ContinuousReadTime;
         }
-        catch
+        catch { /* default */ }
+
+        // Grupos Continuous con sus parámetros
+        List<(int Id, string Name, int? IntervalSec, int? RetentionDays)> groups;
+        using (var db = dbFactory.CreateDbContext())
         {
-            // Excel inaccesible: usar default
+            groups = await db.SmmGroups
+                .Where(g => g.ReadFrequency == "Continuous")
+                .Select(g => new ValueTuple<int, string, int?, int?>(
+                    g.Id, g.GroupName, g.ContinuousReadIntervalSec, g.ContinuousRetentionDays))
+                .ToListAsync(ct);
         }
 
-        var now = DateTime.Now;
-        var nowKey = now.ToString("yyyy-MM-dd HH:mm");
-        var nowHm = now.ToString("HH:mm");
-        if (nowHm != targetTime) return;
-        if (nowKey == _lastFiredKey) return; // dedup en el mismo minuto
+        if (groups.Count == 0) return 60;
 
-        _lastFiredKey = nowKey;
-        _logger.LogInformation("⏰ ContinuousReadJob disparo {Time} (target={Target})", nowHm, targetTime);
+        var nowUtc = DateTime.UtcNow;
+        var nowLocal = DateTime.Now;
+        var nowKey = nowLocal.ToString("yyyy-MM-dd HH:mm");
+        var nowHm = nowLocal.ToString("HH:mm");
 
-        var capture = scope.ServiceProvider.GetRequiredService<ISmmCaptureService>();
-        try
+        int nextSleep = 60;
+
+        foreach (var g in groups)
         {
-            var n = await capture.SnapshotContinuousAsync(ct);
-            _logger.LogInformation("✅ ContinuousReadJob persistió {N} readings", n);
+            bool cyclic = g.IntervalSec.HasValue && g.IntervalSec.Value > 0 && g.IntervalSec.Value < 86400;
+            bool fire = false;
+            int sleepHint = 60;
+
+            if (cyclic)
+            {
+                _lastCyclicFireUtc.TryGetValue(g.Id, out var last);
+                var elapsed = (nowUtc - last).TotalSeconds;
+                if (elapsed >= g.IntervalSec!.Value)
+                {
+                    fire = true;
+                    _lastCyclicFireUtc[g.Id] = nowUtc;
+                    sleepHint = Math.Min(g.IntervalSec.Value, 60);
+                }
+                else
+                {
+                    sleepHint = (int)Math.Ceiling(g.IntervalSec.Value - elapsed);
+                }
+            }
+            else
+            {
+                // Modo DIARIO
+                if (nowHm == dailyTargetTime)
+                {
+                    _lastDailyFiredKey.TryGetValue(g.Id, out var lastKey);
+                    if (lastKey != nowKey)
+                    {
+                        fire = true;
+                        _lastDailyFiredKey[g.Id] = nowKey;
+                    }
+                }
+                sleepHint = 60;
+            }
+
+            if (fire)
+            {
+                _logger.LogInformation("⏰ Continuous snapshot grupo '{Name}' (id={Id}, mode={Mode})",
+                    g.Name, g.Id, cyclic ? $"cyclic/{g.IntervalSec}s" : $"daily@{dailyTargetTime}");
+                try
+                {
+                    var n = await capture.SnapshotContinuousGroupAsync(g.Id, ct);
+                    _logger.LogInformation("✅ Grupo '{Name}' → {N} readings", g.Name, n);
+
+                    // Retención por grupo
+                    if (g.RetentionDays.HasValue && g.RetentionDays.Value > 0)
+                    {
+                        try
+                        {
+                            var purged = await capture.PurgeOldContinuousGroupAsync(g.Id, g.RetentionDays.Value, ct);
+                            if (purged > 0)
+                                _logger.LogInformation("🧹 Grupo '{Name}' retención {Days}d → {N} filas borradas",
+                                    g.Name, g.RetentionDays.Value, purged);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Retención grupo {Name} falló (continuamos)", g.Name);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "❌ Snapshot grupo '{Name}' falló (sin retry)", g.Name);
+                }
+            }
+
+            if (sleepHint < nextSleep) nextSleep = sleepHint;
         }
-        catch (Exception ex)
-        {
-            // DEC-026 punto 4: sin retry, skip silencioso (warning, NO IsError=1)
-            _logger.LogWarning(ex, "❌ ContinuousReadJob: snapshot falló (skip 1 día, sin retry)");
-        }
+
+        return nextSleep;
     }
 }

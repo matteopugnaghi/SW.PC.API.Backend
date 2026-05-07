@@ -50,6 +50,19 @@ public class SmmGroup
     [MaxLength(20)]
     public string? LayoutColor { get; set; } // Color hex/nombre, opcional. Override del color por readFrequency.
 
+    /// <summary>
+    /// Intervalo en segundos entre snapshots Continuous automáticos del grupo.
+    /// - null/0/&gt;=86400 → modo DIARIO (1 snapshot/día a las 23:59 UTC).
+    /// - 1..86399 → modo CÍCLICO: snapshot cada N segundos.
+    /// </summary>
+    public int? ContinuousReadIntervalSec { get; set; }
+
+    /// <summary>
+    /// Días de retención de snapshots Continuous (CycleId IS NULL) del grupo.
+    /// 0/null = sin retención (acumular indefinidamente). Default 30.
+    /// </summary>
+    public int? ContinuousRetentionDays { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

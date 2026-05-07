@@ -15,6 +15,9 @@ public interface ISmmCaptureService
     /// <summary>Lectura batch de variables Continuous (job nocturno DEC-026).</summary>
     Task<int> SnapshotContinuousAsync(CancellationToken ct = default);
 
+    /// <summary>Snapshot Continuous de un único grupo (DEC-026 ampliado por-grupo).</summary>
+    Task<int> SnapshotContinuousGroupAsync(int groupId, CancellationToken ct = default);
+
     /// <summary>Snapshot manual admin (DEC-026 punto 6).</summary>
     Task<int> OnDemandSnapshotAsync(int? groupId, CancellationToken ct = default);
 
@@ -26,6 +29,12 @@ public interface ISmmCaptureService
 
     /// <summary>Aborta ciclos huérfanos al startup (DEC-020 punto 5).</summary>
     Task<int> AbortOrphanCyclesAsync(CancellationToken ct = default);
+
+    /// <summary>Borra snapshots Continuous (CycleId IS NULL) anteriores a UtcNow - retentionDays (todos los grupos).</summary>
+    Task<int> PurgeOldContinuousAsync(int retentionDays, CancellationToken ct = default);
+
+    /// <summary>Borra snapshots Continuous antiguos de un único grupo.</summary>
+    Task<int> PurgeOldContinuousGroupAsync(int groupId, int retentionDays, CancellationToken ct = default);
 }
 
 public class SmmCaptureService : ISmmCaptureService
@@ -46,25 +55,35 @@ public class SmmCaptureService : ISmmCaptureService
 
     public async Task<int> SnapshotContinuousAsync(CancellationToken ct = default)
     {
+        // Itera todos los grupos Continuous y suma sus readings.
+        // Mantenido para compatibilidad (snapshot manual / OnDemand sin groupId).
         using var db = _dbFactory.CreateDbContext();
-
-        // Variables Continuous = pertenecen a grupos ReadFrequency=Continuous
-        var continuousGroups = await db.SmmGroups
+        var groupIds = await db.SmmGroups
             .Where(g => g.ReadFrequency == "Continuous")
             .Select(g => g.Id)
             .ToListAsync(ct);
+        int total = 0;
+        foreach (var gid in groupIds)
+        {
+            try { total += await SnapshotContinuousGroupAsync(gid, ct); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Snapshot grupo {Id} falló (continuamos)", gid); }
+        }
+        return total;
+    }
 
-        if (continuousGroups.Count == 0) return 0;
+    public async Task<int> SnapshotContinuousGroupAsync(int groupId, CancellationToken ct = default)
+    {
+        using var db = _dbFactory.CreateDbContext();
 
         var vars = await db.SmmVariables
-            .Where(v => continuousGroups.Contains(v.GroupId) && v.PlcVariable != null)
+            .Where(v => v.GroupId == groupId && v.PlcVariable != null)
             .ToListAsync(ct);
 
         // Variables con Formula (derivadas) — se evalúan al final usando los valores PLC ya leídos.
         // Aceptamos FormulaScope IN (null/empty/Continuous/OnRead/Daily) — todos significan
         // "evaluar en cada snapshot Continuous" en el modelo actual.
         var formulaVars = await db.SmmVariables
-            .Where(v => continuousGroups.Contains(v.GroupId)
+            .Where(v => v.GroupId == groupId
                         && v.Formula != null && v.Formula != ""
                         && (v.PlcVariable == null || v.PlcVariable == ""))
             .Where(v => v.FormulaScope == null || v.FormulaScope == ""
@@ -256,8 +275,8 @@ public class SmmCaptureService : ISmmCaptureService
 
         db.SmmReadings.AddRange(readings);
         await db.SaveChangesAsync(ct);
-        _logger.LogInformation("📊 SMM Continuous snapshot: {Count} readings ({Plc} PLC + {Fx} fórmulas)",
-            readings.Count, vars.Count - readings.Count(r => r.Source == "Formula"), formulaVars.Count);
+        _logger.LogInformation("📊 SMM Continuous snapshot grupo {GroupId}: {Count} readings ({Plc} PLC + {Fx} fórmulas)",
+            groupId, readings.Count, vars.Count - readings.Count(r => r.Source == "Formula"), formulaVars.Count);
         return readings.Count;
     }
 
@@ -350,5 +369,29 @@ public class SmmCaptureService : ISmmCaptureService
         await db.SaveChangesAsync(ct);
         _logger.LogWarning("⚠️ SMM AbortOrphanCycles: {N} ciclos huérfanos cerrados al startup", orphans.Count);
         return orphans.Count;
+    }
+
+    public async Task<int> PurgeOldContinuousAsync(int retentionDays, CancellationToken ct = default)
+    {
+        if (retentionDays <= 0) return 0;
+        using var db = _dbFactory.CreateDbContext();
+        var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
+        var cutoffStr = cutoff.ToString("o", CultureInfo.InvariantCulture);
+        // Borrar sólo snapshots Continuous (CycleId IS NULL); los readings PerCycle se preservan.
+        var deleted = await db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM SMM_Readings WHERE CycleId IS NULL AND Timestamp < {0}", cutoffStr);
+        return deleted;
+    }
+
+    public async Task<int> PurgeOldContinuousGroupAsync(int groupId, int retentionDays, CancellationToken ct = default)
+    {
+        if (retentionDays <= 0) return 0;
+        using var db = _dbFactory.CreateDbContext();
+        var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
+        var cutoffStr = cutoff.ToString("o", CultureInfo.InvariantCulture);
+        var deleted = await db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM SMM_Readings WHERE GroupId = {0} AND CycleId IS NULL AND Timestamp < {1}",
+            groupId, cutoffStr);
+        return deleted;
     }
 }

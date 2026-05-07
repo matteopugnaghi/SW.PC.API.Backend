@@ -117,7 +117,8 @@ namespace SW.PC.API.Backend.Controllers
                     g.Id, g.GroupName, g.UiType, g.ReadFrequency,
                     g.CycleRunningVar, g.AlarmHistVar,
                     g.LayoutWidth, g.LayoutHeight, g.LayoutPinned, g.LayoutColor,
-                    g.ShowCycleStart, g.ShowCycleEnd, g.ShowCycleDuration
+                    g.ShowCycleStart, g.ShowCycleEnd, g.ShowCycleDuration,
+                    g.ContinuousReadIntervalSec, g.ContinuousRetentionDays
                 })
                 .ToListAsync();
             return Ok(groups);
