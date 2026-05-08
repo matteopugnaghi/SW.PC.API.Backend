@@ -57,7 +57,7 @@ WriteHeader(wsCons, new[]
     "PartUnit", "PartDefaultQuantity"
 });
 
-// ─── Hoja 4: Stats_Groups (formato compacto leído por SmmExcelSyncService, A..N) ───
+// ─── Hoja 4: Stats_Groups (formato compacto leído por SmmExcelSyncService, A..O) ───
 var wsGroups = wb.Worksheets.Add("Stats_Groups");
 WriteHeader(wsGroups, new[]
 {
@@ -68,7 +68,9 @@ WriteHeader(wsGroups, new[]
     // H..L
     "AlarmHistVar", "LayoutWidth", "LayoutHeight", "LayoutPinned", "LayoutColor",
     // M..N (Continuous por grupo)
-    "ContinuousReadIntervalSec", "ContinuousRetentionDays"
+    "ContinuousReadIntervalSec", "ContinuousRetentionDays",
+    // O (gating de grupo)
+    "RunningBitVar"
 });
 
 // Fila 2 = descripciones (no leídas por el sync, que arranca buscando datos en la fila 2
@@ -90,7 +92,8 @@ var groupHeaderNotes = new (string Col, string Note)[]
     ("K1", "Card pinned (true/false): siempre arriba, no se mueve en el layout."),
     ("L1", "Color hex de la card (#RRGGBB) para acento visual (KPIs, gráfico, badges)."),
     ("M1", "Continuous: intervalo de lectura cíclico en segundos.\n  • Vacío / 0 / ≥86400 → modo DIARIO usando System Config.ContinuousReadTime\n  • 1..86399 → modo CÍCLICO (snapshot cada N segundos)\n  Ej: 10 = cada 10s; 60 = cada minuto; 300 = cada 5 min."),
-    ("N1", "Continuous: retención en días. Tras cada snapshot del grupo se borran los snapshots Continuous (CycleId IS NULL) más viejos que UtcNow - N días.\n  • Vacío / 0 → sin retención (acumula indefinidamente, ¡cuidado con el tamaño de la BD!)\n  • Recomendado: 30-90 días para datos cíclicos rápidos, 365+ para diarios.")
+    ("N1", "Continuous: retención en días. Tras cada snapshot del grupo se borran los snapshots Continuous (CycleId IS NULL) más viejos que UtcNow - N días.\n  • Vacío / 0 → sin retención (acumula indefinidamente, ¡cuidado con el tamaño de la BD!)\n  • Recomendado: 30-90 días para datos cíclicos rápidos, 365+ para diarios."),
+    ("O1", "Gating a NIVEL DE GRUPO. Variable PLC BOOL opcional (típicamente bit 'máquina/módulo en marcha').\n  REGLA SIMPLE: si esta columna está rellena, IGNORA completamente la columna L (RunningBitVar) de Stats_Variables.\n  • Vacío → sin gating de grupo (cada variable usa su propio L si lo tiene).\n  • TRUE → captura todas las variables del grupo (sin mirar L).\n  • FALSE o error de lectura → SKIP TODO el snapshot del grupo (cero filas en BD).\n  Útil cuando todas las variables de un grupo dependen del mismo bit (caso típico).")
 };
 foreach (var (col, note) in groupHeaderNotes)
     wsGroups.Cell(col).GetComment().AddText(note);

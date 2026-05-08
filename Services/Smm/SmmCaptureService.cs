@@ -75,6 +75,38 @@ public class SmmCaptureService : ISmmCaptureService
     {
         using var db = _dbFactory.CreateDbContext();
 
+        // ─── 0) GATING a NIVEL DE GRUPO (RunningBitVar del grupo) ───
+        // Si el grupo define un bit "máquina/módulo en marcha" y vale FALSE
+        // (o falla la lectura), saltamos TODO el snapshot del grupo.
+        // Esto evita generar filas de "ruido" cuando el equipo está parado y
+        // ahorra memoria masivamente. Se evalúa ANTES del gating per-variable.
+        var group = await db.SmmGroups.FirstOrDefaultAsync(g => g.Id == groupId, ct);
+        if (group != null && !string.IsNullOrWhiteSpace(group.RunningBitVar))
+        {
+            try
+            {
+                var raw = await _twincat.ReadVariableAsync(group.RunningBitVar, typeof(bool));
+                bool? running = raw switch
+                {
+                    bool b => b,
+                    null => (bool?)null,
+                    _ => Convert.ToBoolean(raw, CultureInfo.InvariantCulture)
+                };
+                if (running != true)
+                {
+                    _logger.LogDebug("SMM Continuous grupo {Id}: gating grupo OFF ({Bit}={Val}) → snapshot omitido",
+                        groupId, group.RunningBitVar, running?.ToString() ?? "ERROR");
+                    return 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SMM Continuous grupo {Id}: error leyendo RunningBitVar de grupo {Bit} → snapshot omitido",
+                    groupId, group.RunningBitVar);
+                return 0;
+            }
+        }
+
         var vars = await db.SmmVariables
             .Where(v => v.GroupId == groupId && v.PlcVariable != null)
             .ToListAsync(ct);
@@ -121,12 +153,17 @@ public class SmmCaptureService : ISmmCaptureService
             }
         }
 
+        // Si el grupo define RunningBitVar a nivel de GRUPO (col O Excel) y aquí estamos
+        // → significa que vale TRUE → ignoramos completamente el gating per-variable (col L).
+        // O sea: O en blanco → manda L; O rellena → L se ignora (regla simple).
+        bool groupGatingActive = group != null && !string.IsNullOrWhiteSpace(group.RunningBitVar);
+
         // Leer cada variable con su tipo CLR correcto (no usar ReadAllVariablesAsync porque asume int).
         var rawValues = new Dictionary<int, (object? raw, bool isError, string? err, bool gatedOff)>(vars.Count);
         foreach (var v in vars)
         {
-            // Gating
-            if (!string.IsNullOrWhiteSpace(v.RunningBitVar))
+            // Gating per-variable SOLO si el grupo NO tiene gating de grupo
+            if (!groupGatingActive && !string.IsNullOrWhiteSpace(v.RunningBitVar))
             {
                 var bit = await ReadRunningBitAsync(v.RunningBitVar);
                 if (bit != true)
@@ -376,7 +413,11 @@ public class SmmCaptureService : ISmmCaptureService
         if (retentionDays <= 0) return 0;
         using var db = _dbFactory.CreateDbContext();
         var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
-        var cutoffStr = cutoff.ToString("o", CultureInfo.InvariantCulture);
+        // FIX: SQLite almacena DateTime como TEXT en formato "yyyy-MM-dd HH:mm:ss.FFFFFFF" (con ESPACIO).
+        // Si usamos ISO "o" (con 'T'), la comparación lexicográfica falla:
+        // " " (0x20) < "T" (0x54) → todos los timestamps del MISMO día con espacio se consideran < cutoff con T
+        // y se borran erróneamente. Usar formato nativo SQLite para que la comparación sea correcta.
+        var cutoffStr = cutoff.ToString("yyyy-MM-dd HH:mm:ss.FFFFFFF", CultureInfo.InvariantCulture);
         // Borrar sólo snapshots Continuous (CycleId IS NULL); los readings PerCycle se preservan.
         var deleted = await db.Database.ExecuteSqlRawAsync(
             "DELETE FROM SMM_Readings WHERE CycleId IS NULL AND Timestamp < {0}", cutoffStr);
@@ -388,7 +429,8 @@ public class SmmCaptureService : ISmmCaptureService
         if (retentionDays <= 0) return 0;
         using var db = _dbFactory.CreateDbContext();
         var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
-        var cutoffStr = cutoff.ToString("o", CultureInfo.InvariantCulture);
+        // FIX: ver comentário en PurgeOldContinuousAsync. SQLite usa "yyyy-MM-dd HH:mm:ss.FFFFFFF".
+        var cutoffStr = cutoff.ToString("yyyy-MM-dd HH:mm:ss.FFFFFFF", CultureInfo.InvariantCulture);
         var deleted = await db.Database.ExecuteSqlRawAsync(
             "DELETE FROM SMM_Readings WHERE GroupId = {0} AND CycleId IS NULL AND Timestamp < {1}",
             groupId, cutoffStr);

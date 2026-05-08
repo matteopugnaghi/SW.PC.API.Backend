@@ -1193,6 +1193,7 @@ public static class AquafrischDbContextFactory
                     LayoutWidth INTEGER,
                     LayoutHeight INTEGER,
                     LayoutPinned INTEGER NOT NULL DEFAULT 0,
+                    RunningBitVar TEXT,
                     CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
                     UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                 )");
@@ -1318,6 +1319,10 @@ public static class AquafrischDbContextFactory
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN ContinuousReadIntervalSec INTEGER"); }
             catch { /* columna ya existe */ }
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN ContinuousRetentionDays INTEGER"); }
+            catch { /* columna ya existe */ }
+
+            // Migración idempotente: RunningBitVar a nivel de GRUPO (gating global previo al per-variable)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN RunningBitVar TEXT"); }
             catch { /* columna ya existe */ }
 
             // ── Mantenimiento ──────────────────────────────────────────────

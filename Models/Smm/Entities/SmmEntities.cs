@@ -43,6 +43,15 @@ public class SmmGroup
     [MaxLength(200)]
     public string? AlarmHistVar { get; set; } // DEC-020
 
+    /// <summary>
+    /// Bit PLC opcional a nivel de GRUPO: si está definido y vale FALSE,
+    /// se omite TODO el snapshot del grupo (no se inserta ninguna fila).
+    /// Se evalúa ANTES del RunningBitVar por-variable. Reduce ruido en BD
+    /// cuando la máquina/módulo está parado.
+    /// </summary>
+    [MaxLength(200)]
+    public string? RunningBitVar { get; set; }
+
     public int? LayoutWidth { get; set; }
     public int? LayoutHeight { get; set; }
     public bool LayoutPinned { get; set; } = false;

@@ -153,7 +153,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
     //   A=GroupName  B=UiType  C=ReadFrequency  D=CycleRunningVar
     //   E=ShowCycleStart  F=ShowCycleEnd  G=ShowCycleDuration
     //   H=AlarmHistVar  I=LayoutWidth  J=LayoutHeight  K=LayoutPinned  L=LayoutColor
-    //   M=ContinuousReadIntervalSec  N=ContinuousRetentionDays
+    //   M=ContinuousReadIntervalSec  N=ContinuousRetentionDays  O=RunningBitVar (group-level gating)
     private async Task SyncGroupsAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Groups");
@@ -189,6 +189,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             g.LayoutColor       = string.IsNullOrEmpty(Cell(sh, "L", row)) ? null : Cell(sh, "L", row);
             g.ContinuousReadIntervalSec = CellInt(sh, "M", row);
             g.ContinuousRetentionDays   = CellInt(sh, "N", row);
+            g.RunningBitVar     = string.IsNullOrEmpty(Cell(sh, "O", row)) ? null : Cell(sh, "O", row);
             g.UpdatedAt         = DateTime.UtcNow;
 
             // Validación DEC-018: PerCycle requiere CycleRunningVar
