@@ -176,7 +176,11 @@ public class SmmExcelSyncService : ISmmExcelSyncService
                 res.GroupsUpdated++;
             }
 
-            g.UiType            = Cell(sh, "B", row).Length > 0 ? Cell(sh, "B", row) : "Table";
+            // Retro-compat: Excels antiguos pueden traer "Chart" genérico → lo mapeamos a "LineChart".
+            var uiTypeRaw = Cell(sh, "B", row);
+            g.UiType            = uiTypeRaw.Length == 0 ? "Table"
+                                 : string.Equals(uiTypeRaw, "Chart", StringComparison.OrdinalIgnoreCase) ? "LineChart"
+                                 : uiTypeRaw;
             g.ReadFrequency     = Cell(sh, "C", row).Length > 0 ? Cell(sh, "C", row) : "Continuous";
             g.CycleRunningVar   = string.IsNullOrEmpty(Cell(sh, "D", row)) ? null : Cell(sh, "D", row);
             g.ShowCycleStart    = string.IsNullOrEmpty(Cell(sh, "E", row)) ? true  : CellBool(sh, "E", row);

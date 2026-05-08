@@ -28,7 +28,10 @@ public class SmmGroup
     public string GroupName { get; set; } = string.Empty;
 
     [Required, MaxLength(20)]
-    public string UiType { get; set; } = "Table"; // Table | Chart | Kpi | Stat
+    // Table | Kpi | Stat | LineChart | BarChart | GaugeChart | DonutChart | ScatterChart | HeatmapChart
+    // Legacy: "Chart" se normaliza a "LineChart" durante el sync (retro-compat).
+    // Nota: "Stat" mantiene la combinación Table + LineChart. Otras combinaciones (StatBar, StatGauge…) se añadirán bajo demanda.
+    public string UiType { get; set; } = "Table";
 
     [Required, MaxLength(20)]
     public string ReadFrequency { get; set; } = "Continuous"; // Continuous | PerCycle | OnDemand | OnEvent

@@ -80,7 +80,7 @@ WriteHeader(wsGroups, new[]
 var groupHeaderNotes = new (string Col, string Note)[]
 {
     ("A1", "Nombre único del grupo (clave de upsert)."),
-    ("B1", "Tipo de UI en la card del dashboard:\n  • Table = tabla snapshots × variables (sin gráfico ni KPIs)\n  • Chart = solo gráfico (mini ECharts a pantalla completa, sin KPIs arriba)\n  • Kpi   = TODAS las variables numéricas como KPIs grandes en rejilla (sin gráfico)\n  • Stat  = TODAS las variables como KPIs compactos + mini-gráfico debajo (combo, default recomendado)"),
+    ("B1", "Tipo de UI en la card del dashboard:\n  • Table        = tabla snapshots × variables (sin gráfico ni KPIs)\n  • Kpi          = TODAS las variables numéricas como KPIs grandes en rejilla (sin gráfico)\n  • Stat         = TODAS las variables como KPIs compactos + LineChart debajo (combo, default recomendado)\n  • LineChart    = solo gráfico de líneas (sustituye al antiguo 'Chart'; Excels antiguos con 'Chart' se mapean automáticamente aquí)\n  • BarChart     = solo gráfico de barras\n  • GaugeChart   = solo gauge (1 valor con umbrales warn/crit)\n  • DonutChart   = solo donut (proporciones)\n  • ScatterChart = solo scatter (correlación 2 variables)\n  • HeatmapChart = solo heatmap (densidad temporal)"),
     ("C1", "Modo lectura: Continuous (snapshot diario o cíclico) | PerCycle (lectura por flanco) | OnDemand."),
     ("D1", "Variable PLC BOOL que delimita un ciclo PerCycle (flanco FALSE→TRUE arranca, TRUE→FALSE cierra)."),
     ("E1", "Mostrar columna 'Inicio ciclo' en la UI (true/false). Solo PerCycle."),
