@@ -133,12 +133,12 @@ namespace SW.PC.API.Backend.Controllers
             using var db = _dbFactory.CreateDbContext();
             var vars = await db.SmmVariables
                 .Where(v => v.GroupId == groupId)
-                .OrderBy(v => v.VarName)
+                .OrderBy(v => v.SortOrder).ThenBy(v => v.VarName)
                 .Select(v => new
                 {
                     v.Id, v.VarName, v.PlcVariable, v.Unit, v.DataType,
                     v.Formula, v.FormulaScope, v.Warning, v.Critical,
-                    v.ResetOnMaintenance, v.ElementId, v.MaxValue
+                    v.ResetOnMaintenance, v.ElementId, v.MaxValue, v.SortOrder
                 })
                 .ToListAsync();
             return Ok(vars);
@@ -320,7 +320,7 @@ namespace SW.PC.API.Backend.Controllers
             using var db = _dbFactory.CreateDbContext();
             var elements = await db.SmmElements
                 .OrderBy(e => e.ElementName)
-                .Select(e => new { e.Id, e.ElementName, e.SkuAquafrisch, e.Manufacturer, e.Model, e.ComponentLocation3D, e.Notes, e.ImagePath })
+                .Select(e => new { e.Id, e.ElementName, e.SkuAquafrisch, e.Manufacturer, e.Model, e.ComponentLocation3D, e.Notes, e.ImagePath, e.Model3DPath })
                 .ToListAsync();
             return Ok(elements);
         }
@@ -336,6 +336,10 @@ namespace SW.PC.API.Backend.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetElementPhotoAsync(int elementId)
         {
+            // No cachear: si el usuario edita ImagePath en el Excel y resincroniza,
+            // queremos que el browser pida la imagen nueva (o vea 404 si la borró).
+            Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+            Response.Headers["Pragma"] = "no-cache";
             using var db = _dbFactory.CreateDbContext();
             var elem = await db.SmmElements
                 .Where(e => e.Id == elementId)
@@ -353,33 +357,35 @@ namespace SW.PC.API.Backend.Controllers
 
             var env = HttpContext.RequestServices.GetService<IWebHostEnvironment>();
             var wwwroot = env?.WebRootPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "wwwroot");
+            // Bases candidatas para resolver rutas relativas (orden de preferencia):
+            //   - wwwroot                                       (legacy/explícito)
+            //   - Projects/{id}/config                          (Excel referencia "Images/foo.png" → config/Images/foo.png)
+            //   - Projects/{id}                                 (rutas estilo "models/Pumps/x.glb")
+            var bases = new System.Collections.Generic.List<string> { wwwroot };
+            try {
+                if (!string.IsNullOrEmpty(_projectContext.ConfigPath)) bases.Add(_projectContext.ConfigPath);
+                if (!string.IsNullOrEmpty(_projectContext.ProjectBasePath)) bases.Add(_projectContext.ProjectBasePath);
+            } catch { /* contexto no disponible */ }
 
-            // 2. Ruta relativa explícita
+            // 2. Ruta relativa explícita: probar todas las bases
             if (!string.IsNullOrWhiteSpace(elem.ImagePath))
             {
                 var rel = elem.ImagePath.Replace('\\', '/').TrimStart('/');
-                var full = System.IO.Path.GetFullPath(System.IO.Path.Combine(wwwroot, rel));
-                // Sandbox: nunca salir de wwwroot
-                if (full.StartsWith(System.IO.Path.GetFullPath(wwwroot), StringComparison.OrdinalIgnoreCase)
-                    && System.IO.File.Exists(full))
+                foreach (var baseDir in bases)
                 {
-                    return PhysicalFile(full, GuessMime(full));
+                    var full = System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDir, rel));
+                    var baseFull = System.IO.Path.GetFullPath(baseDir);
+                    if (full.StartsWith(baseFull, StringComparison.OrdinalIgnoreCase)
+                        && System.IO.File.Exists(full))
+                    {
+                        return PhysicalFile(full, GuessMime(full));
+                    }
                 }
             }
 
-            // 3. Fallback por convención
-            var photosDir = System.IO.Path.Combine(wwwroot, "element-photos");
-            if (System.IO.Directory.Exists(photosDir))
-            {
-                var safeName = string.Join("_", elem.ElementName.Split(System.IO.Path.GetInvalidFileNameChars()));
-                foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".webp" })
-                {
-                    var candidate = System.IO.Path.Combine(photosDir, safeName + ext);
-                    if (System.IO.File.Exists(candidate))
-                        return PhysicalFile(candidate, GuessMime(candidate));
-                }
-            }
-
+            // 3. Sin ruta explícita en Excel = sin foto. (Antes había fallback por
+            //    convención a wwwroot/element-photos y config/Images, pero producía
+            //    matches falsos en Windows por case-insensitive sobre nombres antiguos.)
             return NotFound();
         }
 
@@ -392,8 +398,68 @@ namespace SW.PC.API.Backend.Controllers
                 ".jpg" or ".jpeg" => "image/jpeg",
                 ".webp" => "image/webp",
                 ".gif" => "image/gif",
+                ".glb" => "model/gltf-binary",
+                ".gltf" => "model/gltf+json",
                 _ => "application/octet-stream",
             };
+        }
+
+        /// <summary>
+        /// Devuelve el modelo 3D (GLB/GLTF) del elemento. Resolución por orden:
+        ///  1. Model3DPath URL absoluta (http/https) → 302 redirect.
+        ///  2. Model3DPath ruta relativa al wwwroot → sirve archivo si existe.
+        ///  3. Fallback convención: wwwroot/element-models/{ElementName}.{glb|gltf}
+        ///  4. 404 si no encuentra nada.
+        /// </summary>
+        [HttpGet("elements/{elementId:int}/model3d")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetElementModel3DAsync(int elementId)
+        {
+            // No cachear (mismo motivo que /photo): cambios del Excel deben ser inmediatos.
+            Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+            Response.Headers["Pragma"] = "no-cache";
+            using var db = _dbFactory.CreateDbContext();
+            var elem = await db.SmmElements
+                .Where(e => e.Id == elementId)
+                .Select(e => new { e.ElementName, e.Model3DPath })
+                .FirstOrDefaultAsync();
+            if (elem == null) return NotFound(new { error = "Elemento no encontrado" });
+
+            // 1. URL absoluta → redirect
+            if (!string.IsNullOrWhiteSpace(elem.Model3DPath) &&
+                (elem.Model3DPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                 elem.Model3DPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+            {
+                return Redirect(elem.Model3DPath);
+            }
+
+            var env = HttpContext.RequestServices.GetService<IWebHostEnvironment>();
+            var wwwroot = env?.WebRootPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "wwwroot");
+
+            // 2. Ruta relativa explícita
+            // 2. Ruta relativa explícita: probar wwwroot, project root, project models
+            var bases = new System.Collections.Generic.List<string> { wwwroot };
+            try {
+                if (!string.IsNullOrEmpty(_projectContext.ProjectBasePath)) bases.Add(_projectContext.ProjectBasePath);
+                if (!string.IsNullOrEmpty(_projectContext.ModelsPath)) bases.Add(_projectContext.ModelsPath);
+            } catch { }
+            if (!string.IsNullOrWhiteSpace(elem.Model3DPath))
+            {
+                var rel = elem.Model3DPath.Replace('\\', '/').TrimStart('/');
+                foreach (var baseDir in bases)
+                {
+                    var full = System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDir, rel));
+                    var baseFull = System.IO.Path.GetFullPath(baseDir);
+                    if (full.StartsWith(baseFull, StringComparison.OrdinalIgnoreCase)
+                        && System.IO.File.Exists(full))
+                    {
+                        return PhysicalFile(full, GuessMime(full));
+                    }
+                }
+            }
+
+            // 3. Sin ruta explícita en Excel = sin modelo 3D.
+            return NotFound();
         }
 
         /// <summary>Predicciones (DEC-022 — vacía en BASIC, poblada en PRO).</summary>

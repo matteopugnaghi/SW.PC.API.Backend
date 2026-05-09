@@ -1211,6 +1211,7 @@ public static class AquafrischDbContextFactory
                     Model TEXT,
                     Notes TEXT,
                     ImagePath TEXT,
+                    Model3DPath TEXT,
                     CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                 )");
             await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_SMM_Elements_ElementName ON SMM_Elements(ElementName)");
@@ -1231,6 +1232,7 @@ public static class AquafrischDbContextFactory
                     ResetOnMaintenance INTEGER NOT NULL DEFAULT 0,
                     RunningBitVar TEXT,
                     MaxValue REAL,
+                    SortOrder INTEGER NOT NULL DEFAULT 0,
                     CHECK ((PlcVariable IS NOT NULL AND Formula IS NULL) OR (PlcVariable IS NULL AND Formula IS NOT NULL)),
                     FOREIGN KEY (GroupId) REFERENCES SMM_Groups(Id) ON DELETE CASCADE,
                     FOREIGN KEY (ElementId) REFERENCES SMM_Elements(Id) ON DELETE SET NULL
@@ -1319,6 +1321,10 @@ public static class AquafrischDbContextFactory
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN MaxValue REAL"); }
             catch { /* columna ya existe */ }
 
+            // Migración idempotente: SortOrder (preserva el orden del Excel para listados en HMI)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN SortOrder INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+
             // Migración idempotente: LayoutColor para Stats_Groups
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN LayoutColor TEXT"); }
             catch { /* columna ya existe */ }
@@ -1343,6 +1349,10 @@ public static class AquafrischDbContextFactory
 
             // Migración idempotente: ImagePath para SMM_Elements (foto opcional del elemento)
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Elements ADD COLUMN ImagePath TEXT"); }
+            catch { /* columna ya existe */ }
+
+            // Migración idempotente: Model3DPath para SMM_Elements (modelo 3D opcional - GLB/GLTF)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Elements ADD COLUMN Model3DPath TEXT"); }
             catch { /* columna ya existe */ }
 
             // ── Mantenimiento ──────────────────────────────────────────────

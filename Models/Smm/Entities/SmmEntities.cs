@@ -132,6 +132,16 @@ public class SmmElement
     [MaxLength(300)]
     public string? ImagePath { get; set; }
 
+    /// <summary>
+    /// Ruta opcional al modelo 3D del elemento (GLB/GLTF). Puede ser:
+    ///  - URL absoluta (http/https) → se sirve directamente.
+    ///  - Ruta relativa al wwwroot (p.ej. "element-models/bomba-p101.glb").
+    ///  - Vacía → fallback automático a wwwroot/element-models/{ElementName}.glb (o .gltf)
+    /// Útil para repuestos: permite ver la pieza aislada (rotar/zoom) en el modal LifeBar.
+    /// </summary>
+    [MaxLength(300)]
+    public string? Model3DPath { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
@@ -196,6 +206,12 @@ public class SmmVariable
     ///
     /// Solo se usa cuando CaptureMode="Delta".
     /// </summary>
+    /// <summary>
+    /// Orden en el Excel (índice de fila). Permite respetar el orden con que el
+    /// usuario lista las variables en Stats_Variables al mostrarlas en HMI.
+    /// </summary>
+    public int SortOrder { get; set; }
+
     public double? MaxValue { get; set; }
 }
 

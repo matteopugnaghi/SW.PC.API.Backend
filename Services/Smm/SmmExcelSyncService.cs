@@ -217,7 +217,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
     }
 
     // ── Stats_Elements ───────────────────────────────────────────────────────
-    // Columnas: A=ElementName B=ComponentLocation3D C=SkuAquafrisch D=Manufacturer E=Model F=Notes G=ImagePath
+    // Columnas: A=ElementName B=ComponentLocation3D C=SkuAquafrisch D=Manufacturer E=Model F=Notes G=ImagePath H=Model3DPath
     private async Task SyncElementsAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Elements");
@@ -248,6 +248,9 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             // G = ImagePath: ruta opcional a foto del elemento (URL absoluta o relativa al wwwroot).
             // Vacía → fallback automático a wwwroot/element-photos/{ElementName}.{png|jpg|webp}.
             e.ImagePath           = string.IsNullOrEmpty(Cell(sh, "G", row)) ? null : Cell(sh, "G", row);
+            // H = Model3DPath: ruta opcional al GLB/GLTF del elemento (útil para repuestos).
+            // Vacía → fallback automático a wwwroot/element-models/{ElementName}.glb.
+            e.Model3DPath         = string.IsNullOrEmpty(Cell(sh, "H", row)) ? null : Cell(sh, "H", row);
 
             row++;
         }
@@ -343,6 +346,9 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             // N = MaxValue (límite físico del counter HW antes de wrap-around).
             //     Solo aplica si CaptureMode=Delta. Vacío = "no wrap esperado" → delta negativo se marca error.
             v.MaxValue           = CellDouble(sh, "N", row);
+            // SortOrder = índice de fila Excel: respeta el orden con el que el usuario
+            // lista las variables en Stats_Variables al mostrarlas en HMI (DEC-LB).
+            v.SortOrder          = row;
 
             row++;
         }
