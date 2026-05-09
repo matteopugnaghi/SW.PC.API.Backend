@@ -118,7 +118,8 @@ namespace SW.PC.API.Backend.Controllers
                     g.CycleRunningVar, g.AlarmHistVar,
                     g.LayoutWidth, g.LayoutHeight, g.LayoutPinned, g.LayoutColor,
                     g.ShowCycleStart, g.ShowCycleEnd, g.ShowCycleDuration,
-                    g.ContinuousReadIntervalSec, g.ContinuousRetentionDays
+                    g.ContinuousReadIntervalSec, g.ContinuousRetentionDays,
+                    g.DonutMode
                 })
                 .ToListAsync();
             return Ok(groups);
@@ -137,7 +138,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     v.Id, v.VarName, v.PlcVariable, v.Unit, v.DataType,
                     v.Formula, v.FormulaScope, v.Warning, v.Critical,
-                    v.ResetOnMaintenance, v.ElementId
+                    v.ResetOnMaintenance, v.ElementId, v.MaxValue
                 })
                 .ToListAsync();
             return Ok(vars);

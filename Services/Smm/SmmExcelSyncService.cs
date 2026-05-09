@@ -154,6 +154,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
     //   E=ShowCycleStart  F=ShowCycleEnd  G=ShowCycleDuration
     //   H=AlarmHistVar  I=LayoutWidth  J=LayoutHeight  K=LayoutPinned  L=LayoutColor
     //   M=ContinuousReadIntervalSec  N=ContinuousRetentionDays  O=RunningBitVar (group-level gating)
+    //   P=DonutMode (LAST|DELTA_24H|DELTA_TODAY|AVG_24H|AVG_TODAY) — solo aplica si UiType=DonutChart
     private async Task SyncGroupsAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Groups");
@@ -194,6 +195,13 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             g.ContinuousReadIntervalSec = CellInt(sh, "M", row);
             g.ContinuousRetentionDays   = CellInt(sh, "N", row);
             g.RunningBitVar     = string.IsNullOrEmpty(Cell(sh, "O", row)) ? null : Cell(sh, "O", row);
+            // P = DonutMode (LAST|DELTA_24H|DELTA_TODAY|AVG_24H|AVG_TODAY). Default LAST si vacío o desconocido.
+            var donutModeRaw = Cell(sh, "P", row).Trim().ToUpperInvariant();
+            g.DonutMode         = donutModeRaw switch
+            {
+                "LAST" or "DELTA_24H" or "DELTA_TODAY" or "AVG_24H" or "AVG_TODAY" => donutModeRaw,
+                _ => "LAST",
+            };
             g.UpdatedAt         = DateTime.UtcNow;
 
             // Validación DEC-018: PerCycle requiere CycleRunningVar
@@ -327,6 +335,9 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             var capMode = Cell(sh, "M", row);
             v.CaptureMode        = string.IsNullOrEmpty(capMode) ? "Snapshot"
                                   : (capMode.Equals("Delta", StringComparison.OrdinalIgnoreCase) ? "Delta" : "Snapshot");
+            // N = MaxValue (límite físico del counter HW antes de wrap-around).
+            //     Solo aplica si CaptureMode=Delta. Vacío = "no wrap esperado" → delta negativo se marca error.
+            v.MaxValue           = CellDouble(sh, "N", row);
 
             row++;
         }

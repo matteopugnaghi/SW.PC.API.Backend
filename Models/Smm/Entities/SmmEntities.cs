@@ -75,6 +75,18 @@ public class SmmGroup
     /// </summary>
     public int? ContinuousRetentionDays { get; set; }
 
+    /// <summary>
+    /// Modo de agregación por defecto para UiType=DonutChart.
+    ///   - "LAST"         (default): muestra el último snapshot de cada variable (valor instantáneo).
+    ///   - "DELTA_24H"   : (last - first) en ventana móvil 24h, con wrap-around (MaxValue) si aplica.
+    ///   - "DELTA_TODAY" : (last - first) desde hoy 00:00 hora local PC, con wrap-around si aplica.
+    ///   - "AVG_24H"     : promedio de valores en ventana móvil 24h.
+    ///   - "AVG_TODAY"   : promedio de valores desde hoy 00:00 hora local PC.
+    /// El modal del donut ofrece selector con los 5 modos para override puntual.
+    /// </summary>
+    [MaxLength(20)]
+    public string DonutMode { get; set; } = "LAST";
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
@@ -150,6 +162,24 @@ public class SmmVariable
     /// </summary>
     [MaxLength(20)]
     public string CaptureMode { get; set; } = "Snapshot";
+
+    /// <summary>
+    /// Valor máximo del contador físico antes de hacer wrap-around (vuelta a 0).
+    /// Es propiedad del HARDWARE, no del tipo PLC: aunque el PLC convierta el valor
+    /// a LREAL, si el caudalímetro/encoder físico es UDINT, el wrap ocurre igualmente.
+    ///
+    /// Valores típicos:
+    ///   - UINT  16b: 65535
+    ///   - UDINT 32b: 4294967295
+    ///   - DINT  32b: 2147483647
+    ///   - Counter decimal 6 dígitos: 999999
+    ///   - Counter decimal 8 dígitos: 99999999
+    ///   - null (vacío en Excel): "no wrap esperado". Si el delta resulta negativo,
+    ///     el ciclo se marca como error con DeltaNegativeNoMaxValue (no se inventa wrap).
+    ///
+    /// Solo se usa cuando CaptureMode="Delta".
+    /// </summary>
+    public double? MaxValue { get; set; }
 }
 
 [Table("SMM_Consumables")]

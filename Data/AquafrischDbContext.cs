@@ -1194,6 +1194,7 @@ public static class AquafrischDbContextFactory
                     LayoutHeight INTEGER,
                     LayoutPinned INTEGER NOT NULL DEFAULT 0,
                     RunningBitVar TEXT,
+                    DonutMode TEXT NOT NULL DEFAULT 'LAST',
                     CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
                     UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                 )");
@@ -1227,6 +1228,7 @@ public static class AquafrischDbContextFactory
                     Critical REAL,
                     ResetOnMaintenance INTEGER NOT NULL DEFAULT 0,
                     RunningBitVar TEXT,
+                    MaxValue REAL,
                     CHECK ((PlcVariable IS NOT NULL AND Formula IS NULL) OR (PlcVariable IS NULL AND Formula IS NOT NULL)),
                     FOREIGN KEY (GroupId) REFERENCES SMM_Groups(Id) ON DELETE CASCADE,
                     FOREIGN KEY (ElementId) REFERENCES SMM_Elements(Id) ON DELETE SET NULL
@@ -1311,6 +1313,10 @@ public static class AquafrischDbContextFactory
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN CaptureMode TEXT NOT NULL DEFAULT 'Snapshot'"); }
             catch { /* columna ya existe */ }
 
+            // Migración idempotente: MaxValue (límite físico del counter HW para detectar wrap-around en CaptureMode=Delta)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN MaxValue REAL"); }
+            catch { /* columna ya existe */ }
+
             // Migración idempotente: LayoutColor para Stats_Groups
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN LayoutColor TEXT"); }
             catch { /* columna ya existe */ }
@@ -1323,6 +1329,10 @@ public static class AquafrischDbContextFactory
 
             // Migración idempotente: RunningBitVar a nivel de GRUPO (gating global previo al per-variable)
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN RunningBitVar TEXT"); }
+            catch { /* columna ya existe */ }
+
+            // Migración idempotente: DonutMode (modo de agregación por defecto para UiType=DonutChart)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN DonutMode TEXT NOT NULL DEFAULT 'LAST'"); }
             catch { /* columna ya existe */ }
 
             // ── Mantenimiento ──────────────────────────────────────────────
