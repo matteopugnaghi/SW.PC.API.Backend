@@ -87,6 +87,13 @@ public class SmmGroup
     [MaxLength(20)]
     public string DonutMode { get; set; } = "LAST";
 
+    /// <summary>
+    /// Si TRUE, el grupo NO se muestra en la vista Statistics y queda reservado
+    /// exclusivamente para la vista Mantenimiento (típicamente UiType=LifeBar).
+    /// FALSE / null → comportamiento normal (visible en Statistics).
+    /// </summary>
+    public bool ShowInMaintenance { get; set; } = false;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
@@ -114,6 +121,16 @@ public class SmmElement
 
     [MaxLength(500)]
     public string? Notes { get; set; }
+
+    /// <summary>
+    /// Ruta opcional a la foto del elemento. Puede ser:
+    ///  - URL absoluta (http/https) → se sirve directamente.
+    ///  - Ruta relativa al wwwroot (p.ej. "element-photos/bomba-p101.jpg").
+    ///  - Vacía → fallback automático a wwwroot/element-photos/{ElementName}.{png|jpg|webp}
+    ///    y si tampoco existe, el frontend cae al snapshot del nodo 3D (ComponentLocation3D).
+    /// </summary>
+    [MaxLength(300)]
+    public string? ImagePath { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

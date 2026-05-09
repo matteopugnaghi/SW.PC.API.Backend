@@ -115,11 +115,11 @@ namespace SW.PC.API.Backend.Controllers
                 .Select(g => new
                 {
                     g.Id, g.GroupName, g.UiType, g.ReadFrequency,
-                    g.CycleRunningVar, g.AlarmHistVar,
+                    g.CycleRunningVar, g.AlarmHistVar, g.RunningBitVar,
                     g.LayoutWidth, g.LayoutHeight, g.LayoutPinned, g.LayoutColor,
                     g.ShowCycleStart, g.ShowCycleEnd, g.ShowCycleDuration,
                     g.ContinuousReadIntervalSec, g.ContinuousRetentionDays,
-                    g.DonutMode
+                    g.DonutMode, g.ShowInMaintenance
                 })
                 .ToListAsync();
             return Ok(groups);
@@ -320,9 +320,80 @@ namespace SW.PC.API.Backend.Controllers
             using var db = _dbFactory.CreateDbContext();
             var elements = await db.SmmElements
                 .OrderBy(e => e.ElementName)
-                .Select(e => new { e.Id, e.ElementName, e.SkuAquafrisch, e.Manufacturer, e.Model, e.ComponentLocation3D })
+                .Select(e => new { e.Id, e.ElementName, e.SkuAquafrisch, e.Manufacturer, e.Model, e.ComponentLocation3D, e.Notes, e.ImagePath })
                 .ToListAsync();
             return Ok(elements);
+        }
+
+        /// <summary>
+        /// Devuelve la foto del elemento (LifeBar). Resolución por orden:
+        ///  1. ImagePath URL absoluta (http/https) → 302 redirect.
+        ///  2. ImagePath ruta relativa al wwwroot → sirve archivo si existe.
+        ///  3. Fallback convención: wwwroot/element-photos/{ElementName}.{png|jpg|jpeg|webp}
+        ///  4. 404 si no encuentra nada (frontend cae al snapshot 3D del nodo).
+        /// </summary>
+        [HttpGet("elements/{elementId:int}/photo")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetElementPhotoAsync(int elementId)
+        {
+            using var db = _dbFactory.CreateDbContext();
+            var elem = await db.SmmElements
+                .Where(e => e.Id == elementId)
+                .Select(e => new { e.ElementName, e.ImagePath })
+                .FirstOrDefaultAsync();
+            if (elem == null) return NotFound(new { error = "Elemento no encontrado" });
+
+            // 1. URL absoluta → redirect
+            if (!string.IsNullOrWhiteSpace(elem.ImagePath) &&
+                (elem.ImagePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                 elem.ImagePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+            {
+                return Redirect(elem.ImagePath);
+            }
+
+            var env = HttpContext.RequestServices.GetService<IWebHostEnvironment>();
+            var wwwroot = env?.WebRootPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "wwwroot");
+
+            // 2. Ruta relativa explícita
+            if (!string.IsNullOrWhiteSpace(elem.ImagePath))
+            {
+                var rel = elem.ImagePath.Replace('\\', '/').TrimStart('/');
+                var full = System.IO.Path.GetFullPath(System.IO.Path.Combine(wwwroot, rel));
+                // Sandbox: nunca salir de wwwroot
+                if (full.StartsWith(System.IO.Path.GetFullPath(wwwroot), StringComparison.OrdinalIgnoreCase)
+                    && System.IO.File.Exists(full))
+                {
+                    return PhysicalFile(full, GuessMime(full));
+                }
+            }
+
+            // 3. Fallback por convención
+            var photosDir = System.IO.Path.Combine(wwwroot, "element-photos");
+            if (System.IO.Directory.Exists(photosDir))
+            {
+                var safeName = string.Join("_", elem.ElementName.Split(System.IO.Path.GetInvalidFileNameChars()));
+                foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".webp" })
+                {
+                    var candidate = System.IO.Path.Combine(photosDir, safeName + ext);
+                    if (System.IO.File.Exists(candidate))
+                        return PhysicalFile(candidate, GuessMime(candidate));
+                }
+            }
+
+            return NotFound();
+        }
+
+        private static string GuessMime(string path)
+        {
+            var ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+            return ext switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".webp" => "image/webp",
+                ".gif" => "image/gif",
+                _ => "application/octet-stream",
+            };
         }
 
         /// <summary>Predicciones (DEC-022 — vacía en BASIC, poblada en PRO).</summary>

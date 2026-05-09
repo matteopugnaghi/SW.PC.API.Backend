@@ -1195,6 +1195,7 @@ public static class AquafrischDbContextFactory
                     LayoutPinned INTEGER NOT NULL DEFAULT 0,
                     RunningBitVar TEXT,
                     DonutMode TEXT NOT NULL DEFAULT 'LAST',
+                    ShowInMaintenance INTEGER NOT NULL DEFAULT 0,
                     CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
                     UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                 )");
@@ -1209,6 +1210,7 @@ public static class AquafrischDbContextFactory
                     Manufacturer TEXT,
                     Model TEXT,
                     Notes TEXT,
+                    ImagePath TEXT,
                     CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                 )");
             await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_SMM_Elements_ElementName ON SMM_Elements(ElementName)");
@@ -1333,6 +1335,14 @@ public static class AquafrischDbContextFactory
 
             // Migración idempotente: DonutMode (modo de agregación por defecto para UiType=DonutChart)
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN DonutMode TEXT NOT NULL DEFAULT 'LAST'"); }
+            catch { /* columna ya existe */ }
+
+            // Migración idempotente: ShowInMaintenance (oculta el grupo de Statistics, lo deja solo para vista Mantenimiento)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN ShowInMaintenance INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+
+            // Migración idempotente: ImagePath para SMM_Elements (foto opcional del elemento)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Elements ADD COLUMN ImagePath TEXT"); }
             catch { /* columna ya existe */ }
 
             // ── Mantenimiento ──────────────────────────────────────────────

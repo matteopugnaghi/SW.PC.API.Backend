@@ -202,6 +202,8 @@ public class SmmExcelSyncService : ISmmExcelSyncService
                 "LAST" or "DELTA_24H" or "DELTA_TODAY" or "AVG_24H" or "AVG_TODAY" => donutModeRaw,
                 _ => "LAST",
             };
+            // Q = ShowInMaintenance (TRUE → oculto en Statistics, solo vista Mantenimiento). Default FALSE.
+            g.ShowInMaintenance = CellBool(sh, "Q", row);
             g.UpdatedAt         = DateTime.UtcNow;
 
             // Validación DEC-018: PerCycle requiere CycleRunningVar
@@ -215,7 +217,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
     }
 
     // ── Stats_Elements ───────────────────────────────────────────────────────
-    // Columnas: A=ElementName B=ComponentLocation3D C=SkuAquafrisch D=Manufacturer E=Model F=Notes
+    // Columnas: A=ElementName B=ComponentLocation3D C=SkuAquafrisch D=Manufacturer E=Model F=Notes G=ImagePath
     private async Task SyncElementsAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Elements");
@@ -243,6 +245,9 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             e.Manufacturer        = string.IsNullOrEmpty(Cell(sh, "D", row)) ? null : Cell(sh, "D", row);
             e.Model               = string.IsNullOrEmpty(Cell(sh, "E", row)) ? null : Cell(sh, "E", row);
             e.Notes               = string.IsNullOrEmpty(Cell(sh, "F", row)) ? null : Cell(sh, "F", row);
+            // G = ImagePath: ruta opcional a foto del elemento (URL absoluta o relativa al wwwroot).
+            // Vacía → fallback automático a wwwroot/element-photos/{ElementName}.{png|jpg|webp}.
+            e.ImagePath           = string.IsNullOrEmpty(Cell(sh, "G", row)) ? null : Cell(sh, "G", row);
 
             row++;
         }
