@@ -207,14 +207,21 @@ namespace SW.PC.API.Backend.Controllers
                     alarmCode = a.AlarmCode,
                     alarmText = a.AlarmText,
                     severity = a.Severity,
-                    raisedAt = a.RaisedAt,
-                    clearedAt = a.ClearedAt,
+                    // Forzar Kind=Utc → JSON serializa con "Z" → JS interpreta como UTC y convierte a hora local.
+                    // Si no, EF/SQLite devuelve Kind=Unspecified, JS lo asume local y muestra desfase de TZ (p.ej. -2h en CEST).
+                    raisedAt = DateTime.SpecifyKind(a.RaisedAt, DateTimeKind.Utc),
+                    clearedAt = a.ClearedAt.HasValue ? DateTime.SpecifyKind(a.ClearedAt.Value, DateTimeKind.Utc) : (DateTime?)null,
                     durationInCycle_s = a.DurationInCycle_s
                 }).ToList());
 
+            // Forzar Kind=Utc en StartedAt/CompletedAt para que el JSON salga con "Z"
+            // y el frontend (new Date().toLocaleString) convierta correctamente a hora local.
             var enriched = cycles.Select(c => new
             {
-                c.Id, c.StartedAt, c.CompletedAt, c.Status, c.EndedReason,
+                c.Id,
+                StartedAt = DateTime.SpecifyKind(c.StartedAt, DateTimeKind.Utc),
+                CompletedAt = c.CompletedAt.HasValue ? DateTime.SpecifyKind(c.CompletedAt.Value, DateTimeKind.Utc) : (DateTime?)null,
+                c.Status, c.EndedReason,
                 c.AlarmsCount, c.AlarmTime_s, c.HadAlarms,
                 Readings = readingsByCycle.TryGetValue(c.Id, out var rs) ? rs : new(),
                 Alarms = alarmsByCycle.TryGetValue(c.Id, out var als) ? als : new()
@@ -229,7 +236,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             using var db = _dbFactory.CreateDbContext();
             take = System.Math.Clamp(take, 1, 5000);
-            var readings = await db.SmmReadings
+            var readingsRaw = await db.SmmReadings
                 .Where(r => r.VariableId == variableId)
                 .OrderByDescending(r => r.Timestamp)
                 .Take(take)
@@ -238,6 +245,13 @@ namespace SW.PC.API.Backend.Controllers
                     r.Id, r.Timestamp, r.Value, r.Source, r.IsError, r.ErrorReason, r.CycleId
                 })
                 .ToListAsync();
+            // Forzar Kind=Utc → JSON con "Z" → frontend lo convierte a local correctamente.
+            var readings = readingsRaw.Select(r => new
+            {
+                r.Id,
+                Timestamp = DateTime.SpecifyKind(r.Timestamp, DateTimeKind.Utc),
+                r.Value, r.Source, r.IsError, r.ErrorReason, r.CycleId
+            });
             return Ok(readings);
         }
 
