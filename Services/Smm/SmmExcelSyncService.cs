@@ -346,6 +346,8 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             // N = MaxValue (límite físico del counter HW antes de wrap-around).
             //     Solo aplica si CaptureMode=Delta. Vacío = "no wrap esperado" → delta negativo se marca error.
             v.MaxValue           = CellDouble(sh, "N", row);
+            // O = LowerIsBetter (TRUE/FALSE) — si TRUE, bajo=bueno (invierte color/delta)
+            v.LowerIsBetter      = CellBool(sh, "O", row);
             // SortOrder = índice de fila Excel: respeta el orden con el que el usuario
             // lista las variables en Stats_Variables al mostrarlas en HMI (DEC-LB).
             v.SortOrder          = row;

@@ -1325,6 +1325,10 @@ public static class AquafrischDbContextFactory
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN SortOrder INTEGER NOT NULL DEFAULT 0"); }
             catch { /* columna ya existe */ }
 
+            // Migración idempotente: LowerIsBetter (semántica del valor: bajo=bueno cuando true)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN LowerIsBetter INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+
             // Migración idempotente: LayoutColor para Stats_Groups
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN LayoutColor TEXT"); }
             catch { /* columna ya existe */ }

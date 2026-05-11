@@ -213,6 +213,14 @@ public class SmmVariable
     public int SortOrder { get; set; }
 
     public double? MaxValue { get; set; }
+
+    /// <summary>
+    /// Semántica del valor: si true, valores BAJOS son buenos y altos son malos
+    /// (ej. % reciclaje, eficiencia, MTBF, agua reciclada). Invierte el código de color
+    /// (verde↔rojo) y el signo del delta en KPIs/Heatmap/Gauge/LifeBar/etc.
+    /// Default false (alto = malo, comportamiento clásico).
+    /// </summary>
+    public bool LowerIsBetter { get; set; } = false;
 }
 
 [Table("SMM_Consumables")]

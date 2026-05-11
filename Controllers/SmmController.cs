@@ -138,7 +138,8 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     v.Id, v.VarName, v.PlcVariable, v.Unit, v.DataType,
                     v.Formula, v.FormulaScope, v.Warning, v.Critical,
-                    v.ResetOnMaintenance, v.ElementId, v.MaxValue, v.SortOrder
+                    v.ResetOnMaintenance, v.ElementId, v.MaxValue, v.SortOrder,
+                    v.LowerIsBetter
                 })
                 .ToListAsync();
             return Ok(vars);
