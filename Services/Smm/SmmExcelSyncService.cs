@@ -144,8 +144,23 @@ public class SmmExcelSyncService : ISmmExcelSyncService
 
     private static bool CellBool(IXLWorksheet sh, string col, int row)
     {
-        var s = Cell(sh, col, row).ToLowerInvariant();
-        return s == "true" || s == "1" || s == "yes" || s == "sí" || s == "si" || s == "x";
+        var c = sh.Cell($"{col}{row}");
+        // Si la celda es realmente un booleano nativo de Excel, leerlo directo
+        // (evita problemas de localización: VERDADERO/FALSO en es-ES, VERO/FALSO en it-IT, etc.)
+        if (c.DataType == XLDataType.Boolean)
+        {
+            try { return c.GetBoolean(); } catch { /* fallback a string */ }
+        }
+        var s = c.GetString().Trim().ToLowerInvariant();
+        return s == "true" || s == "1" || s == "yes" || s == "y"
+            || s == "sí" || s == "si" || s == "s"
+            || s == "x"
+            || s == "verdadero" || s == "verdader"   // es-ES
+            || s == "vero"                              // it-IT
+            || s == "vrai"                              // fr-FR
+            || s == "wahr"                              // de-DE
+            || s == "ja"                                // de/sv/nl
+            || s == "oui";                              // fr
     }
 
     // ── Stats_Groups ─────────────────────────────────────────────────────────
@@ -235,7 +250,8 @@ public class SmmExcelSyncService : ISmmExcelSyncService
     }
 
     // ── Stats_Elements ───────────────────────────────────────────────────────
-    // Columnas: A=ElementName B=ComponentLocation3D C=SkuAquafrisch D=Manufacturer E=Model F=Notes G=ImagePath H=Model3DPath I=ManualUrl
+    // Columnas: A=ElementName B=ComponentLocation3D C=SkuAquafrisch D=Manufacturer E=Model F=Notes
+    //           G=ImagePath H=Model3DPath I=ManualUrl J=ParentElementId K=OrderIndex
     private async Task SyncElementsAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Elements");
@@ -272,6 +288,10 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             // I = ManualUrl: URL al manual del fabricante. Se muestra como QR en Mantenimiento
             // para que el operario lo escanee con el móvil (la máquina industrial no navega a internet).
             e.ManualUrl           = string.IsNullOrEmpty(Cell(sh, "I", row)) ? null : Cell(sh, "I", row);
+            // J = ParentElementId: nombre del elemento padre (jerarquía). Vacío = raíz.
+            e.ParentElementId     = string.IsNullOrEmpty(Cell(sh, "J", row)) ? null : Cell(sh, "J", row);
+            // K = OrderIndex: orden de presentación entre hermanos.
+            e.OrderIndex          = int.TryParse(Cell(sh, "K", row), out var oi) ? oi : 0;
 
             row++;
         }
@@ -378,7 +398,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
     }
 
     // ── Stats_Consumables ────────────────────────────────────────────────────
-    // Columnas: A=ElementName B=TaskName C=PartSku D=PartDescription E=PartUnit F=PartDefaultQuantity
+    // Columnas: A=ElementName B=TaskName C=PartSku D=PartDescription E=PartUnit F=PartDefaultQuantity G=ManualUrl
     private async Task SyncConsumablesAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Consumables");
@@ -432,6 +452,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             c.PartDescription      = string.IsNullOrEmpty(Cell(sh, "D", row)) ? sku : Cell(sh, "D", row);
             c.PartUnit             = Cell(sh, "E", row).Length > 0 ? Cell(sh, "E", row) : "ud";
             c.PartDefaultQuantity  = CellDouble(sh, "F", row) ?? 1.0;
+            c.ManualUrl            = string.IsNullOrWhiteSpace(Cell(sh, "G", row)) ? null : Cell(sh, "G", row).Trim();
 
             row++;
         }

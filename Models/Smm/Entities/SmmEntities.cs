@@ -151,6 +151,19 @@ public class SmmElement
     [MaxLength(500)]
     public string? ManualUrl { get; set; }
 
+    /// <summary>
+    /// Jerarquía padre-hijo. Si está informado, este elemento es un sub-componente
+    /// del elemento referenciado (por ElementName, columna ParentElementId del Excel).
+    /// NULL = elemento raíz. Permite árbol de N niveles.
+    /// </summary>
+    [MaxLength(150)]
+    public string? ParentElementId { get; set; }
+
+    /// <summary>
+    /// Orden de presentación entre hermanos. Menor = primero.
+    /// </summary>
+    public int OrderIndex { get; set; } = 0;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
@@ -253,6 +266,9 @@ public class SmmConsumable
     public string PartUnit { get; set; } = "ud";
 
     public double PartDefaultQuantity { get; set; } = 1.0;
+
+    [MaxLength(500)]
+    public string? ManualUrl { get; set; } // URL al manual o datasheet del consumible (mostrado como QR para escaneo móvil)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1363,6 +1363,18 @@ public static class AquafrischDbContextFactory
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Elements ADD COLUMN ManualUrl TEXT"); }
             catch { /* columna ya existe */ }
 
+            // Migración idempotente: ManualUrl para SMM_Consumables (URL al manual o datasheet del consumible)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Consumables ADD COLUMN ManualUrl TEXT"); }
+            catch { /* columna ya existe */ }
+
+            // Migración idempotente: jerarquía padre-hijo en SMM_Elements
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Elements ADD COLUMN ParentElementId TEXT"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Elements ADD COLUMN OrderIndex INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Elements_ParentElementId ON SMM_Elements(ParentElementId)"); }
+            catch { /* índice ya existe */ }
+
             // ── Mantenimiento ──────────────────────────────────────────────
             await context.Database.ExecuteSqlRawAsync(@"
                 CREATE TABLE IF NOT EXISTS SMM_ElementLifecycles (
