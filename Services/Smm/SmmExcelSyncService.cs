@@ -214,6 +214,24 @@ public class SmmExcelSyncService : ISmmExcelSyncService
 
             row++;
         }
+
+        // Validación: SÓLO un grupo puede tener ShowInMaintenance=TRUE.
+        // Si el Excel marca varios, conservamos el primero (alfabéticamente)
+        // y degradamos los demás a FALSE para evitar mezclar variables de
+        // ciclo de vida del mismo elementId que estarían en grupos distintos.
+        var maintGroups = ctx.SmmGroups.Local
+            .Where(x => x.ShowInMaintenance)
+            .OrderBy(x => x.GroupName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (maintGroups.Count > 1)
+        {
+            var keep = maintGroups[0];
+            for (int i = 1; i < maintGroups.Count; i++)
+            {
+                maintGroups[i].ShowInMaintenance = false;
+                res.Warnings.Add($"Grupo '{maintGroups[i].GroupName}': ShowInMaintenance=TRUE ignorado — sólo un grupo puede ser de mantenimiento (activo: '{keep.GroupName}').");
+            }
+        }
     }
 
     // ── Stats_Elements ───────────────────────────────────────────────────────

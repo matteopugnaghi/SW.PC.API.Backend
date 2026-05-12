@@ -711,6 +711,53 @@ namespace SW.PC.API.Backend.Controllers
             return Ok(items);
         }
 
+        /// <summary>
+        /// Batch: histórico de intervenciones para TODOS los elementos del proyecto activo,
+        /// devuelto como diccionario { elementId: Intervention[] }. Pensado para la pantalla
+        /// de Mantenimiento (evita N llamadas con N=miles).
+        /// </summary>
+        [HttpGet("interventions/batch")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetAllInterventionsBatchAsync([FromQuery] int takePerElement = 100)
+        {
+            using var db = _dbFactory.CreateDbContext();
+            takePerElement = System.Math.Clamp(takePerElement, 1, 500);
+
+            // 1) Obtener todos los elementId existentes en SmmInterventions (evita rows huérfanas).
+            // 2) Por cada elemento, tomar las últimas N intervenciones.
+            // EF no soporta GroupBy + Take limitado en SQLite, así que cargamos todas las
+            // intervenciones ordenadas y agrupamos en memoria. Para datasets grandes se podría
+            // optimizar con SQL bruto (ROW_NUMBER), pero a día de hoy interventions ≪ readings.
+            var all = await db.SmmInterventions
+                .OrderByDescending(i => i.PerformedAt)
+                .Select(i => new
+                {
+                    i.ElementId,
+                    i.Id, i.TaskName, i.InterventionType, i.PerformedAt,
+                    i.PerformedByRole, i.PerformedByUser, i.WorkOrderRef,
+                    i.AccumulatedValueAtMaintenance, i.Notes, i.CreatedAt
+                })
+                .ToListAsync();
+
+            var result = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<object>>();
+            foreach (var i in all)
+            {
+                if (!result.TryGetValue(i.ElementId, out var list))
+                {
+                    list = new System.Collections.Generic.List<object>();
+                    result[i.ElementId] = list;
+                }
+                if (list.Count >= takePerElement) continue;
+                list.Add(new
+                {
+                    i.Id, i.TaskName, i.InterventionType, i.PerformedAt,
+                    i.PerformedByRole, i.PerformedByUser, i.WorkOrderRef,
+                    i.AccumulatedValueAtMaintenance, i.Notes, i.CreatedAt
+                });
+            }
+            return Ok(result);
+        }
+
         /// <summary>Crea una nueva intervención de mantenimiento + uso de consumibles.</summary>
         [HttpPost("interventions")]
         [Authorize]
