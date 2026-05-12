@@ -1359,6 +1359,10 @@ public static class AquafrischDbContextFactory
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Elements ADD COLUMN Model3DPath TEXT"); }
             catch { /* columna ya existe */ }
 
+            // Migración idempotente: ManualUrl para SMM_Elements (URL al manual, se muestra como QR para escanear con móvil)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Elements ADD COLUMN ManualUrl TEXT"); }
+            catch { /* columna ya existe */ }
+
             // ── Mantenimiento ──────────────────────────────────────────────
             await context.Database.ExecuteSqlRawAsync(@"
                 CREATE TABLE IF NOT EXISTS SMM_ElementLifecycles (

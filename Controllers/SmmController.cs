@@ -335,7 +335,7 @@ namespace SW.PC.API.Backend.Controllers
             using var db = _dbFactory.CreateDbContext();
             var elements = await db.SmmElements
                 .OrderBy(e => e.ElementName)
-                .Select(e => new { e.Id, e.ElementName, e.SkuAquafrisch, e.Manufacturer, e.Model, e.ComponentLocation3D, e.Notes, e.ImagePath, e.Model3DPath })
+                .Select(e => new { e.Id, e.ElementName, e.SkuAquafrisch, e.Manufacturer, e.Model, e.ComponentLocation3D, e.Notes, e.ImagePath, e.Model3DPath, e.ManualUrl })
                 .ToListAsync();
             return Ok(elements);
         }

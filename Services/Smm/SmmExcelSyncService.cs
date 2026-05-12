@@ -235,7 +235,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
     }
 
     // ── Stats_Elements ───────────────────────────────────────────────────────
-    // Columnas: A=ElementName B=ComponentLocation3D C=SkuAquafrisch D=Manufacturer E=Model F=Notes G=ImagePath H=Model3DPath
+    // Columnas: A=ElementName B=ComponentLocation3D C=SkuAquafrisch D=Manufacturer E=Model F=Notes G=ImagePath H=Model3DPath I=ManualUrl
     private async Task SyncElementsAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Elements");
@@ -269,6 +269,9 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             // H = Model3DPath: ruta opcional al GLB/GLTF del elemento (útil para repuestos).
             // Vacía → fallback automático a wwwroot/element-models/{ElementName}.glb.
             e.Model3DPath         = string.IsNullOrEmpty(Cell(sh, "H", row)) ? null : Cell(sh, "H", row);
+            // I = ManualUrl: URL al manual del fabricante. Se muestra como QR en Mantenimiento
+            // para que el operario lo escanee con el móvil (la máquina industrial no navega a internet).
+            e.ManualUrl           = string.IsNullOrEmpty(Cell(sh, "I", row)) ? null : Cell(sh, "I", row);
 
             row++;
         }

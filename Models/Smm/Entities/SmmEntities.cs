@@ -142,6 +142,15 @@ public class SmmElement
     [MaxLength(300)]
     public string? Model3DPath { get; set; }
 
+    /// <summary>
+    /// URL al manual del fabricante (PDF, web, etc.). Pensado para mostrarse como QR
+    /// en el panel de Mantenimiento — el operario lo escanea con el móvil y abre
+    /// el manual en su dispositivo (la máquina industrial NO navega a internet).
+    /// Vacío → no se muestra QR.
+    /// </summary>
+    [MaxLength(500)]
+    public string? ManualUrl { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
