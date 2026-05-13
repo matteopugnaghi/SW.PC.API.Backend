@@ -20,7 +20,8 @@ namespace SW.PC.API.Backend.Models
         Plc,            // Conexión/desconexión PLC
         System,         // Acciones del sistema (restart, TeamViewer)
         Export,         // Exportación de datos de auditoría
-        
+        Maintenance,    // SMM: borrados/purgas/resets de ciclos, snapshots e intervenciones
+
         // ✅ OT COMMUNICATION (OPC UA, Modbus, MQTT)
         OtCommunication
     }
@@ -113,6 +114,16 @@ namespace SW.PC.API.Backend.Models
         // ═══════════════════════════════════════════════════════════
         PlcConnect,
         PlcDisconnect,
+
+        // ═══════════════════════════════════════════════════════════
+        // SMM (Statistics & Maintenance Module) — borrados de BD
+        // ═══════════════════════════════════════════════════════════
+        SmmCycleSoftDelete,         // Soft-delete de un ciclo individual
+        SmmCycleGroupSoftDelete,    // Soft-delete masivo de ciclos del grupo
+        SmmCycleHardPurge,          // HARD purge de ciclos del grupo (irreversible)
+        SmmSnapshotsDelete,         // Borrado de snapshots Continuous del grupo
+        SmmMaintenanceReset,        // Reset masivo "máquina nueva"
+        SmmMaintenanceHardPurge,    // HARD purge total de mantenimiento (irreversible)
         
         // ═══════════════════════════════════════════════════════════
         // SISTEMA

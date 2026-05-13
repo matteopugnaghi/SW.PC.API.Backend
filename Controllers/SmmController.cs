@@ -11,10 +11,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using SW.PC.API.Backend.Data;
+using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.Smm;
 using SW.PC.API.Backend.Models.Smm.Entities;
 using SW.PC.API.Backend.Services;
 using SW.PC.API.Backend.Services.Smm;
+using System.Text.Json;
 
 namespace SW.PC.API.Backend.Controllers
 {
@@ -30,6 +32,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly ISmmCaptureService _capture;
         private readonly ISmmExcelSyncService _excelSync;
         private readonly ISmmPlcEdgeWatcher _edgeWatcher;
+        private readonly IAuditLogService _auditLogService;
 
         public SmmController(
             ILogger<SmmController> logger,
@@ -39,7 +42,8 @@ namespace SW.PC.API.Backend.Controllers
             IProjectDbContextFactory dbFactory,
             ISmmCaptureService capture,
             ISmmExcelSyncService excelSync,
-            ISmmPlcEdgeWatcher edgeWatcher)
+            ISmmPlcEdgeWatcher edgeWatcher,
+            IAuditLogService auditLogService)
         {
             _logger = logger;
             _excelConfigService = excelConfigService;
@@ -49,6 +53,29 @@ namespace SW.PC.API.Backend.Controllers
             _capture = capture;
             _excelSync = excelSync;
             _edgeWatcher = edgeWatcher;
+            _auditLogService = auditLogService;
+        }
+
+        /// <summary>
+        /// Helper: registra evento auditable L1 (firma SHA256 + chain hash, retención configurable).
+        /// Wrappea try/catch para que un fallo de auditoría nunca rompa la operación de negocio.
+        /// </summary>
+        private async Task LogMaintenanceAuditAsync(AuditAction action, AuditResult result, object payload, int affected = 0)
+        {
+            try
+            {
+                var userId = User?.FindFirst("sub")?.Value;
+                var userName = User?.Identity?.Name ?? "unknown";
+                var ip = HttpContext?.Connection?.RemoteIpAddress?.ToString();
+                var details = JsonSerializer.Serialize(payload);
+                await _auditLogService.LogAsync(
+                    AuditCategory.Maintenance, action, result,
+                    details, userId, userName, ip, affected);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Audit log failed for {Action}", action);
+            }
         }
 
         /// <summary>
@@ -535,6 +562,11 @@ namespace SW.PC.API.Backend.Controllers
             cycle.DeletedBy = User?.Identity?.Name ?? "admin";
             cycle.DeleteReason = req.Reason;
             await db.SaveChangesAsync();
+
+            await LogMaintenanceAuditAsync(
+                AuditAction.SmmCycleSoftDelete, AuditResult.Success,
+                new { CycleId = cycleId, GroupId = cycle.GroupId, Reason = req.Reason, DeletedBy = cycle.DeletedBy }, 1);
+
             return Ok(new { ok = true, cycleId, deletedBy = cycle.DeletedBy });
         }
 
@@ -563,6 +595,11 @@ namespace SW.PC.API.Backend.Controllers
                 c.DeleteReason = req.Reason;
             }
             await db.SaveChangesAsync();
+
+            await LogMaintenanceAuditAsync(
+                AuditAction.SmmCycleGroupSoftDelete, AuditResult.Success,
+                new { GroupId = groupId, DeletedCount = cycles.Count, Reason = req.Reason, DeletedBy = who }, cycles.Count);
+
             return Ok(new { ok = true, groupId, deleted = cycles.Count, deletedBy = who });
         }
 
@@ -606,6 +643,15 @@ namespace SW.PC.API.Backend.Controllers
             _logger.LogWarning("HARD PURGE ciclos grupo {GroupId} por {User}. Razón: {Reason}. Borrados: cycles={C}, readings={R}, continuous={CR}, snapshots={S}, alarms={A}",
                 groupId, who, req.Reason, deletedCycles, deletedReadings, deletedContinuous, deletedSnapshots, deletedAlarms);
 
+            await LogMaintenanceAuditAsync(
+                AuditAction.SmmCycleHardPurge, AuditResult.Warning,
+                new {
+                    GroupId = groupId, Reason = req.Reason, DeletedBy = who,
+                    DeletedCycles = deletedCycles, DeletedReadings = deletedReadings,
+                    DeletedContinuous = deletedContinuous, DeletedSnapshots = deletedSnapshots,
+                    DeletedAlarms = deletedAlarms
+                }, System.Math.Max(deletedCycles, 0));
+
             return Ok(new {
                 ok = true, groupId, deletedBy = who,
                 deletedCycles, deletedReadings, deletedContinuous, deletedSnapshots, deletedAlarms
@@ -631,6 +677,11 @@ namespace SW.PC.API.Backend.Controllers
 
             _logger.LogWarning("DELETE ALL SNAPSHOTS Continuous grupo {GroupId} por {User}. Razón: {Reason}. Borrados: {N}",
                 groupId, who, req.Reason, deleted);
+
+            await LogMaintenanceAuditAsync(
+                AuditAction.SmmSnapshotsDelete, AuditResult.Warning,
+                new { GroupId = groupId, Reason = req.Reason, DeletedBy = who, DeletedSnapshots = deleted },
+                System.Math.Max(deleted, 0));
 
             return Ok(new { ok = true, groupId, deletedBy = who, deletedSnapshots = deleted });
         }
@@ -755,6 +806,15 @@ namespace SW.PC.API.Backend.Controllers
             _logger.LogWarning("RESET MASIVO mantenimiento por {User}. Razón: {Reason}. Borrados: interventions={I}, usedParts={U}, lifecycles={L}. Creados: lifecycles={NL}, interventions={NI}",
                 who, req.Reason, deletedInterventions, deletedUsedParts, deletedLifecycles, createdLifecycles, createdInterventions);
 
+            await LogMaintenanceAuditAsync(
+                AuditAction.SmmMaintenanceReset, AuditResult.Warning,
+                new {
+                    Reason = req.Reason, DeletedBy = who,
+                    DeletedInterventions = deletedInterventions, DeletedUsedParts = deletedUsedParts,
+                    DeletedLifecycles = deletedLifecycles,
+                    CreatedLifecycles = createdLifecycles, CreatedInterventions = createdInterventions
+                }, System.Math.Max(createdInterventions, 0));
+
             return Ok(new {
                 ok = true, deletedBy = who,
                 deletedInterventions, deletedUsedParts, deletedLifecycles,
@@ -792,6 +852,15 @@ namespace SW.PC.API.Backend.Controllers
 
             _logger.LogWarning("HARD PURGE mantenimiento por {User}. Razón: {Reason}. Borrados: interventions={I}, usedParts={U}, lifecycles={L}, predictions={P}, predInts={PI}, derivedStats={D}",
                 who, req.Reason, deletedInterventions, deletedUsedParts, deletedLifecycles, deletedPredictions, deletedPredInts, deletedDerivedStats);
+
+            await LogMaintenanceAuditAsync(
+                AuditAction.SmmMaintenanceHardPurge, AuditResult.Warning,
+                new {
+                    Reason = req.Reason, DeletedBy = who,
+                    DeletedInterventions = deletedInterventions, DeletedUsedParts = deletedUsedParts,
+                    DeletedLifecycles = deletedLifecycles, DeletedPredictions = deletedPredictions,
+                    DeletedPredictionInterventions = deletedPredInts, DeletedDerivedStats = deletedDerivedStats
+                }, System.Math.Max(deletedInterventions, 0));
 
             return Ok(new {
                 ok = true, deletedBy = who,
