@@ -2940,13 +2940,27 @@ namespace SW.PC.API.Backend.Services
                                 break;
 
                             // ═══════════════════════════════════════════════════════════════
-                            // 📋 AUDIT LOG - EU CRA Compliance (CADRA/Alstom)
+                            // � FEATURE FLAGS GLOBALES (export ficheros + envío email)
+                            // ═══════════════════════════════════════════════════════════════
+                            case "enablefileexport":
+                            case "enable_file_export":
+                            case "enablefileexports":
+                                config.EnableFileExport = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "enableemailsending":
+                            case "enable_email_sending":
+                            case "enableemail":
+                            case "enable_email":
+                                config.EnableEmailSending = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
+                            // �📋 AUDIT LOG - EU CRA Compliance (CADRA/Alstom)
                             // ═══════════════════════════════════════════════════════════════
                             case "auditlogenabled":
                             case "auditlog_enabled":
                                 config.AuditLogEnabled = paramValue?.ToLower() == "true" || paramValue == "1";
-                                break;
-                            case "auditlogretentiondays":
+                                break;                            case "auditlogretentiondays":
                             case "auditlog_retentiondays":
                             case "auditlog_retention_days":
                                 if (int.TryParse(paramValue, out int retDays))

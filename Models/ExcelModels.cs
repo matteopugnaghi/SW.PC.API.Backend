@@ -1293,6 +1293,24 @@ namespace SW.PC.API.Backend.Models.Excel
         /// </summary>
         public string ContinuousReadTime { get; set; } = "23:59";
 
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🔘 FEATURE FLAGS GLOBALES (genéricos para todo el SW)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilita los canales de exportación a fichero (CSV, PDF, etc.) en TODA la app.
+        /// Cuando false, los botones "Guardar archivo" se ocultan/deshabilitan en todos los modales.
+        /// Útil en modo kiosko sin acceso a disco/USB/red.
+        /// </summary>
+        public bool EnableFileExport { get; set; } = false;
+
+        /// <summary>
+        /// Habilita el envío de emails desde la app (informes, alertas, etc.).
+        /// Cuando false, los botones "Enviar email" se ocultan/deshabilitan en todos los modales.
+        /// Requiere configuración SMTP (pendiente de implementar).
+        /// </summary>
+        public bool EnableEmailSending { get; set; } = false;
+
     }
 
     /// <summary>
