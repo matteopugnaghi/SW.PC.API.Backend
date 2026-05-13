@@ -1233,6 +1233,7 @@ public static class AquafrischDbContextFactory
                     RunningBitVar TEXT,
                     MaxValue REAL,
                     SortOrder INTEGER NOT NULL DEFAULT 0,
+                    ScaleFactor REAL,
                     CHECK ((PlcVariable IS NOT NULL AND Formula IS NULL) OR (PlcVariable IS NULL AND Formula IS NOT NULL)),
                     FOREIGN KEY (GroupId) REFERENCES SMM_Groups(Id) ON DELETE CASCADE,
                     FOREIGN KEY (ElementId) REFERENCES SMM_Elements(Id) ON DELETE SET NULL
@@ -1327,6 +1328,11 @@ public static class AquafrischDbContextFactory
 
             // Migración idempotente: LowerIsBetter (semántica del valor: bajo=bueno cuando true)
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN LowerIsBetter INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+
+            // Migración idempotente: ScaleFactor (factor multiplicativo aplicado al valor crudo del PLC en los DTOs de respuesta;
+            // p.ej. 0.001 para mbar→bar). El valor crudo permanece en SMM_Readings.Value.
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN ScaleFactor REAL"); }
             catch { /* columna ya existe */ }
 
             // Migración idempotente: LayoutColor para Stats_Groups

@@ -389,6 +389,10 @@ public class SmmExcelSyncService : ISmmExcelSyncService
             v.MaxValue           = CellDouble(sh, "N", row);
             // O = LowerIsBetter (TRUE/FALSE) — si TRUE, bajo=bueno (invierte color/delta)
             v.LowerIsBetter      = CellBool(sh, "O", row);
+            // P = ScaleFactor (double, opcional). Factor multiplicativo aplicado al valor crudo
+            // del PLC en los DTOs de respuesta. Vacío o 1 → sin conversión. Ej: 0.001 = mbar→bar.
+            // El valor crudo se sigue almacenando tal cual en SMM_Readings (auditable).
+            v.ScaleFactor        = CellDouble(sh, "P", row);
             // SortOrder = índice de fila Excel: respeta el orden con el que el usuario
             // lista las variables en Stats_Variables al mostrarlas en HMI (DEC-LB).
             v.SortOrder          = row;

@@ -243,6 +243,21 @@ public class SmmVariable
     /// Default false (alto = malo, comportamiento clásico).
     /// </summary>
     public bool LowerIsBetter { get; set; } = false;
+
+    /// <summary>
+    /// Factor multiplicativo de conversión de unidades aplicado al valor crudo del PLC
+    /// antes de presentarlo. El valor crudo se sigue almacenando tal cual en SMM_Readings.Value
+    /// (auditable, sin pérdida); la conversión se aplica únicamente en los DTOs de respuesta
+    /// del backend (ver SmmController). Ejemplos:
+    ///   - null o 1.0 → sin conversión.
+    ///   - 0.001       → milibar → bar (PLC envía 1500, frontend recibe 1.5).
+    ///   - 0.1         → décimas de °C → °C.
+    ///   - 100         → bar → milibar (caso inverso).
+    /// IMPORTANTE: Warning/Critical (cols H/I) y MaxValue (col N) se interpretan EN LA UNIDAD
+    /// MOSTRADA (post-escalado), coherente con el campo Unit (col D). Las fórmulas NCalc
+    /// (col F) operan sobre el valor crudo (pre-escalado).
+    /// </summary>
+    public double? ScaleFactor { get; set; }
 }
 
 [Table("SMM_Consumables")]

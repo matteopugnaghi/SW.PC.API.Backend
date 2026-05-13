@@ -166,7 +166,7 @@ namespace SW.PC.API.Backend.Controllers
                     v.Id, v.VarName, v.PlcVariable, v.Unit, v.DataType,
                     v.Formula, v.FormulaScope, v.Warning, v.Critical,
                     v.ResetOnMaintenance, v.ElementId, v.MaxValue, v.SortOrder,
-                    v.LowerIsBetter
+                    v.LowerIsBetter, v.ScaleFactor
                 })
                 .ToListAsync();
             return Ok(vars);
@@ -202,6 +202,7 @@ namespace SW.PC.API.Backend.Controllers
                                       v.VarName,
                                       v.Unit,
                                       v.DataType,
+                                      v.ScaleFactor,
                                       r.Value,
                                       r.StringValue,
                                       r.IsError,
@@ -214,7 +215,8 @@ namespace SW.PC.API.Backend.Controllers
                     varName = x.VarName,
                     unit = x.Unit,
                     dataType = x.DataType,
-                    value = x.Value,
+                    // Aplicar ScaleFactor (mbar→bar, etc.). Valor crudo permanece en SMM_Readings.
+                    value = x.Value.HasValue ? x.Value.Value * (x.ScaleFactor ?? 1.0) : (double?)null,
                     stringValue = x.StringValue,
                     isError = x.IsError,
                     errorReason = x.ErrorReason
@@ -264,6 +266,11 @@ namespace SW.PC.API.Backend.Controllers
         {
             using var db = _dbFactory.CreateDbContext();
             take = System.Math.Clamp(take, 1, 5000);
+            // Lookup ScaleFactor (1x si no definido). Aplicado al proyectar para mantener DB cruda.
+            var scale = await db.SmmVariables
+                .Where(v => v.Id == variableId)
+                .Select(v => v.ScaleFactor)
+                .FirstOrDefaultAsync() ?? 1.0;
             var readingsRaw = await db.SmmReadings
                 .Where(r => r.VariableId == variableId)
                 .OrderByDescending(r => r.Timestamp)
@@ -278,7 +285,8 @@ namespace SW.PC.API.Backend.Controllers
             {
                 r.Id,
                 Timestamp = DateTime.SpecifyKind(r.Timestamp, DateTimeKind.Utc),
-                r.Value, r.Source, r.IsError, r.ErrorReason, r.CycleId
+                Value = r.Value.HasValue ? r.Value.Value * scale : (double?)null,
+                r.Source, r.IsError, r.ErrorReason, r.CycleId
             });
             return Ok(readings);
         }
@@ -330,6 +338,12 @@ namespace SW.PC.API.Backend.Controllers
                 })
                 .ToListAsync();
 
+            // Mapa variableId → ScaleFactor (1x si null). Aplicado al proyectar (DB cruda).
+            var scaleByVar = await db.SmmVariables
+                .Where(v => v.GroupId == groupId)
+                .Select(v => new { v.Id, v.ScaleFactor })
+                .ToDictionaryAsync(v => v.Id, v => v.ScaleFactor ?? 1.0);
+
             // Agrupar por timestamp y proyectar como "snapshots"
             // Forzar Kind=Utc para que el JSON serialice con sufijo "Z" y JS lo interprete como UTC.
             var snapshots = readings
@@ -341,7 +355,9 @@ namespace SW.PC.API.Backend.Controllers
                     readings = g.Select(r => new
                     {
                         variableId = r.VariableId,
-                        value = r.Value,
+                        value = r.Value.HasValue
+                            ? r.Value.Value * (scaleByVar.TryGetValue(r.VariableId, out var s) ? s : 1.0)
+                            : (double?)null,
                         stringValue = r.StringValue,
                         isError = r.IsError,
                         errorReason = r.ErrorReason,
