@@ -236,79 +236,105 @@ public class SmmCaptureService : ISmmCaptureService
                 }
             }
 
-            // ─── 1.5) WRAP-AROUND DETECTION (Continuous, MaxValue requerido) ───
-            // Aplica solo a variables PLC numéricas con MaxValue definido (típicamente
-            // contadores HW: revoluciones de motor, ciclos UINT16/UDINT32, etc.).
-            // Estrategia: comparamos con LastRawValue persistido en SMM_Variables.
-            //   - Si raw >= last → comportamiento normal.
-            //   - Si raw < last calculamos el delta RECONSTRUIDO asumiendo wrap:
-            //         reconstructedDelta = (MaxValue + 1 - last) + raw
-            //     Esto representa cuántos pulsos físicos habría tenido que dar el
-            //     contador SI hubiera dado la vuelta una vez. Luego:
-            //     · reconstructedDelta <= MaxValue * 0.5  → wrap orgánico → WrapCount++
-            //     · reconstructedDelta >  MaxValue * 0.5  → demasiado salto para ser
-            //         wrap real (probable reset/reboot del PLC o salto manual del
-            //         operador) → marcamos IsError='PlcReset', NO incrementamos
-            //         WrapCount, NO actualizamos LastRawValue (mantenemos la base
-            //         antigua para que el próximo raw "limpio" se compare con ella).
-            // Se guarda en SMM_Readings.Value el valor NORMALIZADO MONOTÓNICO:
-            //     normalized = raw + WrapCount * (MaxValue + 1)
-            // Esto hace transparente el wrap para todo downstream (lifecycle, deltas,
-            // gráficos), sin tocar SMM_Readings ni la lógica de mantenimiento existente.
+            // ─── 1.5) WRAP-AROUND DETECTION BIDIRECCIONAL (Continuous) ───
+            // Aplica a variables PLC numéricas con MaxValue definido (contadores HW:
+            // revoluciones, ciclos UINT16/UDINT32, caudalímetros bidireccionales, etc.).
+            //
+            // Modelo: el contador es CIRCULAR de período P = MaxValue+1. Entre dos
+            // lecturas consecutivas asumimos que NO se ha movido más de medio rango
+            // (premisa física razonable: muestreamos cada ~5s; un UDINT tendría que
+            // contar >2 mil millones de pulsos/segundo para violarla → imposible).
+            //
+            // Bajo esa premisa elegimos siempre la interpretación de MENOR magnitud:
+            //   diff = raw - last
+            //   · diff >  P/2  → en realidad fue BACKWARD wrap → WrapCount-- ; signedDelta = diff - P (negativo)
+            //   · diff < -P/2  → en realidad fue FORWARD  wrap → WrapCount++ ; signedDelta = diff + P (positivo)
+            //   · |diff| ≤ P/2 → step normal (puede ser positivo O negativo: backflow)
+            //
+            // Esto cubre los 4 escenarios automáticamente sin flags:
+            //   (a) Forward step              (caso clásico, contador subiendo)
+            //   (b) Forward wrap              (raw < last cerca del máximo)
+            //   (c) Backward step / backflow  (raw < last lejos del wrap, agua retornando)
+            //   (d) Backward wrap             (raw > last cerca del cero, retorno cruzando 0)
+            //
+            // Valor normalizado guardado en SMM_Readings.Value:
+            //     normalized = raw + WrapCount * P     (WrapCount ahora puede ser negativo)
+            //
+            // Sanity: si |signedDelta| > 40% P el delta es físicamente improbable
+            // (cerca de la zona ambigua P/2) → tratamos como reset PLC con streak.
             if (!isError && value.HasValue && v.MaxValue.HasValue && v.MaxValue.Value > 0)
             {
                 var rawNum = value.Value;
+                var period = v.MaxValue.Value + 1;
                 bool detectedReset = false;
-                if (v.LastRawValue.HasValue && rawNum < v.LastRawValue.Value)
+
+                if (v.LastRawValue.HasValue)
                 {
-                    var reconstructedDelta = (v.MaxValue.Value + 1 - v.LastRawValue.Value) + rawNum;
-                    if (reconstructedDelta <= v.MaxValue.Value * 0.5)
+                    var diff = rawNum - v.LastRawValue.Value;
+                    double signedDelta;
+                    int wrapDelta;
+                    if (diff > period * 0.5)
                     {
-                        v.WrapCount++;
-                        _logger.LogInformation(
-                            "[SMM Continuous] Wrap-around detectado var '{V}' (id={Id}): last={L} → raw={R} | maxValue={M} | reconDelta={D} | wrapCount={W}",
-                            v.PlcVariable, v.Id, v.LastRawValue.Value, rawNum, v.MaxValue.Value, reconstructedDelta, v.WrapCount);
+                        signedDelta = diff - period;
+                        wrapDelta = -1; // backward wrap
+                    }
+                    else if (diff < -period * 0.5)
+                    {
+                        signedDelta = diff + period;
+                        wrapDelta = +1; // forward wrap
                     }
                     else
                     {
-                        // Auto-recovery: contamos detecciones consecutivas. Si superamos
-                        // el umbral, el PLC realmente fue reseteado físicamente (o la
-                        // baseline LastRawValue quedó obsoleta) → aceptamos el raw actual
-                        // como nueva baseline para no quedar atrapados en bucle infinito.
+                        signedDelta = diff;
+                        wrapDelta = 0;  // step normal (forward o backward)
+                    }
+
+                    if (Math.Abs(signedDelta) > period * 0.4)
+                    {
+                        // Zona ambigua: probable reset PLC físico. Aplicamos streak.
                         var consecutive = _consecutivePlcResets.AddOrUpdate(v.Id, 1, (_, c) => c + 1);
                         if (consecutive >= PlcResetConfirmThreshold)
                         {
                             _logger.LogInformation(
-                                "[SMM Continuous] PLC reset CONFIRMADO var '{V}' (id={Id}) tras {N} detecciones consecutivas: aceptamos raw={R} como nueva baseline (last era {L}, WrapCount conservado={W}).",
+                                "[SMM Continuous] PLC reset CONFIRMADO var '{V}' (id={Id}) tras {N} detecciones: aceptamos raw={R} como nueva baseline (last={L}, WrapCount conservado={W}).",
                                 v.PlcVariable, v.Id, consecutive, rawNum, v.LastRawValue.Value, v.WrapCount);
                             v.LastRawValue = rawNum;
-                            // WrapCount se conserva (el componente físico no ha cambiado;
-                            // si fue Replacement, el endpoint correspondiente ya lo puso a 0).
-                            value = rawNum + v.WrapCount * (v.MaxValue.Value + 1);
+                            value = rawNum + v.WrapCount * period;
                             _consecutivePlcResets.TryRemove(v.Id, out _);
-                            // detectedReset queda en false → seguirá flujo normal abajo.
                         }
                         else
                         {
                             isError = true;
-                            errReason = $"PlcReset(last={v.LastRawValue.Value.ToString("0.###", CultureInfo.InvariantCulture)},raw={rawNum.ToString("0.###", CultureInfo.InvariantCulture)},maxValue={v.MaxValue.Value.ToString("0.###", CultureInfo.InvariantCulture)},reconDelta={reconstructedDelta.ToString("0.###", CultureInfo.InvariantCulture)},streak={consecutive}/{PlcResetConfirmThreshold})";
+                            errReason = $"PlcReset(last={v.LastRawValue.Value.ToString("0.###", CultureInfo.InvariantCulture)},raw={rawNum.ToString("0.###", CultureInfo.InvariantCulture)},period={period.ToString("0.###", CultureInfo.InvariantCulture)},signedDelta={signedDelta.ToString("0.###", CultureInfo.InvariantCulture)},streak={consecutive}/{PlcResetConfirmThreshold})";
                             _logger.LogWarning(
-                                "[SMM Continuous] Probable reset PLC var '{V}' (id={Id}): last={L} → raw={R} | maxValue={M} | reconDelta={D} > 50% MaxValue (streak {S}/{T}). NO se incrementa WrapCount, NO se actualiza LastRawValue.",
-                                v.PlcVariable, v.Id, v.LastRawValue.Value, rawNum, v.MaxValue.Value, reconstructedDelta, consecutive, PlcResetConfirmThreshold);
+                                "[SMM Continuous] Probable reset PLC var '{V}' (id={Id}): last={L} → raw={R} | period={P} | signedDelta={D} (>40% P, streak {S}/{T}).",
+                                v.PlcVariable, v.Id, v.LastRawValue.Value, rawNum, period, signedDelta, consecutive, PlcResetConfirmThreshold);
                             detectedReset = true;
+                        }
+                    }
+                    else
+                    {
+                        _consecutivePlcResets.TryRemove(v.Id, out _);
+                        if (wrapDelta != 0)
+                        {
+                            v.WrapCount += wrapDelta;
+                            _logger.LogInformation(
+                                "[SMM Continuous] Wrap {Dir} var '{V}' (id={Id}): last={L} → raw={R} | period={P} | signedDelta={D} | wrapCount={W}",
+                                wrapDelta > 0 ? "FORWARD" : "BACKWARD", v.PlcVariable, v.Id,
+                                v.LastRawValue.Value, rawNum, period, signedDelta, v.WrapCount);
                         }
                     }
                 }
                 else
                 {
-                    // Lectura normal (raw >= LastRawValue o primera lectura) → resetear contador.
                     _consecutivePlcResets.TryRemove(v.Id, out _);
                 }
+
                 if (!isError && !detectedReset)
                 {
                     v.LastRawValue = rawNum;
-                    // Valor normalizado monotónico → se guarda en SMM_Readings.Value
-                    value = rawNum + v.WrapCount * (v.MaxValue.Value + 1);
+                    // Valor normalizado: raw + offset acumulado de wraps (WrapCount puede ser negativo)
+                    value = rawNum + v.WrapCount * period;
                 }
             }
 

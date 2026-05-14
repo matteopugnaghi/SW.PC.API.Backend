@@ -397,45 +397,55 @@ public class SmmPlcEdgeWatcher : BackgroundService, ISmmPlcEdgeWatcher
                     }
                     else if (startValues != null && startValues.TryGetValue(v.Id, out var startVal) && !double.IsNaN(startVal))
                     {
-                        var delta = num.Value - startVal;
-                        // Si el contador físico hizo wrap-around dentro del ciclo, delta sale negativo.
-                        // Distinguimos:
-                        //   (a) MaxValue definido en Excel → reconstruimos el incremento real cruzando el límite.
-                        //   (b) MaxValue NO definido       → no podemos saber si es wrap o reset PLC → marcar error
-                        //                                    (más seguro que inventar, evita falsos positivos enormes).
-                        if (delta < 0)
+                        var diff = num.Value - startVal;
+                        // Wrap-around BIDIRECCIONAL del ciclo (mismo principio que Continuous):
+                        //   Tomamos el delta de menor magnitud asumiendo que el contador
+                        //   no se mueve más de medio rango entre start y end del ciclo.
+                        //   - diff >  P/2 → wrap inverso → signedDelta = diff - P (negativo, predominó backflow)
+                        //   - diff < -P/2 → wrap forward → signedDelta = diff + P (positivo)
+                        //   - |diff| ≤ P/2 → step normal (positivo o negativo)
+                        // Si MaxValue NO está definido → no podemos aplicar wrap; aceptamos
+                        // delta sin wrap (negativo se marca como error para no inventar).
+                        if (v.MaxValue.HasValue && v.MaxValue.Value > 0)
                         {
-                            if (v.MaxValue.HasValue && v.MaxValue.Value > 0)
+                            var period = v.MaxValue.Value + 1;
+                            double signedDelta;
+                            bool wrapApplied = false;
+                            if (diff > period * 0.5)       { signedDelta = diff - period; wrapApplied = true; }
+                            else if (diff < -period * 0.5) { signedDelta = diff + period; wrapApplied = true; }
+                            else                            { signedDelta = diff; }
+
+                            // Sanity: si |signedDelta| > 40% P probable reset PLC dentro del ciclo
+                            if (Math.Abs(signedDelta) > period * 0.4)
                             {
-                                // wrap real: incremento = (max - start + 1) + end
-                                var wrapDelta = (v.MaxValue.Value - startVal + 1) + num.Value;
-                                // Sanity: si el delta reconstruido sigue siendo absurdo (> 50% del rango total),
-                                // probablemente fue un reset del PLC, no un wrap orgánico → descartar.
-                                if (wrapDelta > v.MaxValue.Value * 0.5)
-                                {
-                                    isError = true;
-                                    errReason = $"WrapDeltaTooBig(start={startVal:0.###},end={num.Value:0.###},max={v.MaxValue.Value:0.###})";
-                                    num = 0;
-                                }
-                                else
-                                {
-                                    num = wrapDelta;
-                                    _logger.LogInformation(
-                                        "[SMM] Wrap-around detectado var '{V}' ciclo {C}: start={S} end={E} max={M} → delta={D}",
-                                        v.PlcVariable, cycleId, startVal, num.Value, v.MaxValue.Value, wrapDelta);
-                                }
+                                isError = true;
+                                errReason = $"DeltaTooBig(start={startVal:0.###},end={num.Value:0.###},period={period:0.###},signedDelta={signedDelta:0.###})";
+                                num = 0;
                             }
                             else
                             {
-                                // sin MaxValue → no podemos distinguir wrap de reset → marcar y guardar 0
-                                isError = true;
-                                errReason = $"DeltaNegativeNoMaxValue(start={startVal:0.###},end={num.Value:0.###})";
-                                num = 0;
+                                num = signedDelta;
+                                if (wrapApplied)
+                                {
+                                    _logger.LogInformation(
+                                        "[SMM] Wrap-around detectado var '{V}' ciclo {C}: start={S} end={E} period={P} → signedDelta={D}",
+                                        v.PlcVariable, cycleId, startVal, num.Value, period, signedDelta);
+                                }
                             }
                         }
                         else
                         {
-                            num = delta;
+                            // sin MaxValue → no podemos distinguir wrap de reset → marcar y guardar 0
+                            if (diff < 0)
+                            {
+                                isError = true;
+                                errReason = $"DeltaNegativeNoMaxValue(start={startVal:0.###},end={num.Value:0.###})";
+                                num = 0;
+                            }
+                            else
+                            {
+                                num = diff;
+                            }
                         }
                     }
                     else
