@@ -258,6 +258,21 @@ public class SmmVariable
     /// (col F) operan sobre el valor crudo (pre-escalado).
     /// </summary>
     public double? ScaleFactor { get; set; }
+
+    /// <summary>
+    /// Número de wraps (vueltas completas del contador HW) detectados en modo Continuous.
+    /// Solo se actualiza si MaxValue está definido. Permite normalizar el valor crudo del
+    /// PLC a una serie monotónica creciente: ValueGuardado = raw + WrapCount * (MaxValue + 1).
+    /// Se resetea a 0 cuando se registra una intervención de tipo Replacement sobre el
+    /// elemento (componente nuevo de fábrica → contador HW vuelve a 0).
+    /// </summary>
+    public long WrapCount { get; set; } = 0;
+
+    /// <summary>
+    /// Último valor crudo leído del PLC (sin normalizar). Se compara con la lectura actual
+    /// para detectar wraps en Continuous. Null al inicio o tras un reset (Replacement).
+    /// </summary>
+    public double? LastRawValue { get; set; }
 }
 
 [Table("SMM_Consumables")]

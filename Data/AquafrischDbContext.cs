@@ -1234,6 +1234,8 @@ public static class AquafrischDbContextFactory
                     MaxValue REAL,
                     SortOrder INTEGER NOT NULL DEFAULT 0,
                     ScaleFactor REAL,
+                    WrapCount INTEGER NOT NULL DEFAULT 0,
+                    LastRawValue REAL,
                     CHECK ((PlcVariable IS NOT NULL AND Formula IS NULL) OR (PlcVariable IS NULL AND Formula IS NOT NULL)),
                     FOREIGN KEY (GroupId) REFERENCES SMM_Groups(Id) ON DELETE CASCADE,
                     FOREIGN KEY (ElementId) REFERENCES SMM_Elements(Id) ON DELETE SET NULL
@@ -1333,6 +1335,15 @@ public static class AquafrischDbContextFactory
             // Migración idempotente: ScaleFactor (factor multiplicativo aplicado al valor crudo del PLC en los DTOs de respuesta;
             // p.ej. 0.001 para mbar→bar). El valor crudo permanece en SMM_Readings.Value.
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN ScaleFactor REAL"); }
+            catch { /* columna ya existe */ }
+
+            // Migración idempotente: WrapCount + LastRawValue (detección de wrap-around en Continuous).
+            // WrapCount = nº de vueltas completas detectadas; LastRawValue = último valor crudo leído.
+            // ValueGuardado = raw + WrapCount * (MaxValue + 1)  → serie monotónica creciente.
+            // Ambos se resetean a 0/null al registrar una intervención InterventionType=Replacement.
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN WrapCount INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Variables ADD COLUMN LastRawValue REAL"); }
             catch { /* columna ya existe */ }
 
             // Migración idempotente: LayoutColor para Stats_Groups

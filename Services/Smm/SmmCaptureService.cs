@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SW.PC.API.Backend.Data;
 using SW.PC.API.Backend.Models.Smm.Entities;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
@@ -42,6 +43,20 @@ public class SmmCaptureService : ISmmCaptureService
     private readonly IProjectDbContextFactory _dbFactory;
     private readonly ITwinCATService _twincat;
     private readonly ILogger<SmmCaptureService> _logger;
+
+    // ─── Auto-recovery del deadlock PlcReset ───
+    // Cuando la heurística de wrap detecta un "PlcReset" (raw mucho menor que LastRawValue
+    // y reconDelta > 50% MaxValue) NO actualiza LastRawValue → si el PLC realmente fue
+    // reiniciado físicamente, todas las lecturas siguientes se quedan atrapadas en el
+    // mismo error indefinidamente. Para romper el bucle: si vemos N detecciones
+    // consecutivas para la misma variable, asumimos reset físico real y aceptamos el
+    // raw actual como nueva baseline.
+    private const int PlcResetConfirmThreshold = 3;
+    // STATIC: SmmCaptureService está registrado como Scoped, cada snapshot crea una
+    // instancia nueva. Si el dictionary fuera de instancia, el contador se reiniciaría
+    // a 0 cada lectura y NUNCA llegaría a PlcResetConfirmThreshold → loop infinito de
+    // PlcReset. Static garantiza persistencia entre instancias en el mismo proceso.
+    private static readonly ConcurrentDictionary<int, int> _consecutivePlcResets = new();
 
     public SmmCaptureService(
         IProjectDbContextFactory dbFactory,
@@ -218,6 +233,82 @@ public class SmmCaptureService : ISmmCaptureService
                 {
                     try { value = Convert.ToDouble(raw, CultureInfo.InvariantCulture); }
                     catch { isError = true; errReason = $"CastError: {raw.GetType().Name}"; }
+                }
+            }
+
+            // ─── 1.5) WRAP-AROUND DETECTION (Continuous, MaxValue requerido) ───
+            // Aplica solo a variables PLC numéricas con MaxValue definido (típicamente
+            // contadores HW: revoluciones de motor, ciclos UINT16/UDINT32, etc.).
+            // Estrategia: comparamos con LastRawValue persistido en SMM_Variables.
+            //   - Si raw >= last → comportamiento normal.
+            //   - Si raw < last calculamos el delta RECONSTRUIDO asumiendo wrap:
+            //         reconstructedDelta = (MaxValue + 1 - last) + raw
+            //     Esto representa cuántos pulsos físicos habría tenido que dar el
+            //     contador SI hubiera dado la vuelta una vez. Luego:
+            //     · reconstructedDelta <= MaxValue * 0.5  → wrap orgánico → WrapCount++
+            //     · reconstructedDelta >  MaxValue * 0.5  → demasiado salto para ser
+            //         wrap real (probable reset/reboot del PLC o salto manual del
+            //         operador) → marcamos IsError='PlcReset', NO incrementamos
+            //         WrapCount, NO actualizamos LastRawValue (mantenemos la base
+            //         antigua para que el próximo raw "limpio" se compare con ella).
+            // Se guarda en SMM_Readings.Value el valor NORMALIZADO MONOTÓNICO:
+            //     normalized = raw + WrapCount * (MaxValue + 1)
+            // Esto hace transparente el wrap para todo downstream (lifecycle, deltas,
+            // gráficos), sin tocar SMM_Readings ni la lógica de mantenimiento existente.
+            if (!isError && value.HasValue && v.MaxValue.HasValue && v.MaxValue.Value > 0)
+            {
+                var rawNum = value.Value;
+                bool detectedReset = false;
+                if (v.LastRawValue.HasValue && rawNum < v.LastRawValue.Value)
+                {
+                    var reconstructedDelta = (v.MaxValue.Value + 1 - v.LastRawValue.Value) + rawNum;
+                    if (reconstructedDelta <= v.MaxValue.Value * 0.5)
+                    {
+                        v.WrapCount++;
+                        _logger.LogInformation(
+                            "[SMM Continuous] Wrap-around detectado var '{V}' (id={Id}): last={L} → raw={R} | maxValue={M} | reconDelta={D} | wrapCount={W}",
+                            v.PlcVariable, v.Id, v.LastRawValue.Value, rawNum, v.MaxValue.Value, reconstructedDelta, v.WrapCount);
+                    }
+                    else
+                    {
+                        // Auto-recovery: contamos detecciones consecutivas. Si superamos
+                        // el umbral, el PLC realmente fue reseteado físicamente (o la
+                        // baseline LastRawValue quedó obsoleta) → aceptamos el raw actual
+                        // como nueva baseline para no quedar atrapados en bucle infinito.
+                        var consecutive = _consecutivePlcResets.AddOrUpdate(v.Id, 1, (_, c) => c + 1);
+                        if (consecutive >= PlcResetConfirmThreshold)
+                        {
+                            _logger.LogInformation(
+                                "[SMM Continuous] PLC reset CONFIRMADO var '{V}' (id={Id}) tras {N} detecciones consecutivas: aceptamos raw={R} como nueva baseline (last era {L}, WrapCount conservado={W}).",
+                                v.PlcVariable, v.Id, consecutive, rawNum, v.LastRawValue.Value, v.WrapCount);
+                            v.LastRawValue = rawNum;
+                            // WrapCount se conserva (el componente físico no ha cambiado;
+                            // si fue Replacement, el endpoint correspondiente ya lo puso a 0).
+                            value = rawNum + v.WrapCount * (v.MaxValue.Value + 1);
+                            _consecutivePlcResets.TryRemove(v.Id, out _);
+                            // detectedReset queda en false → seguirá flujo normal abajo.
+                        }
+                        else
+                        {
+                            isError = true;
+                            errReason = $"PlcReset(last={v.LastRawValue.Value.ToString("0.###", CultureInfo.InvariantCulture)},raw={rawNum.ToString("0.###", CultureInfo.InvariantCulture)},maxValue={v.MaxValue.Value.ToString("0.###", CultureInfo.InvariantCulture)},reconDelta={reconstructedDelta.ToString("0.###", CultureInfo.InvariantCulture)},streak={consecutive}/{PlcResetConfirmThreshold})";
+                            _logger.LogWarning(
+                                "[SMM Continuous] Probable reset PLC var '{V}' (id={Id}): last={L} → raw={R} | maxValue={M} | reconDelta={D} > 50% MaxValue (streak {S}/{T}). NO se incrementa WrapCount, NO se actualiza LastRawValue.",
+                                v.PlcVariable, v.Id, v.LastRawValue.Value, rawNum, v.MaxValue.Value, reconstructedDelta, consecutive, PlcResetConfirmThreshold);
+                            detectedReset = true;
+                        }
+                    }
+                }
+                else
+                {
+                    // Lectura normal (raw >= LastRawValue o primera lectura) → resetear contador.
+                    _consecutivePlcResets.TryRemove(v.Id, out _);
+                }
+                if (!isError && !detectedReset)
+                {
+                    v.LastRawValue = rawNum;
+                    // Valor normalizado monotónico → se guarda en SMM_Readings.Value
+                    value = rawNum + v.WrapCount * (v.MaxValue.Value + 1);
                 }
             }
 

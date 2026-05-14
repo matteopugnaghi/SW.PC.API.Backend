@@ -561,6 +561,89 @@ namespace SW.PC.API.Backend.Controllers
             }
         }
 
+        /// <summary>
+        /// Resetea el wrap-tracking (WrapCount=0, LastRawValue=null) de variables Continuous.
+        /// Útil para limpiar estado tras pruebas o cambios de configuración (NO sustituye al
+        /// reset automático que ocurre al registrar InterventionType=Replacement).
+        /// Modos:
+        ///   - varId=N           → resetea solo esa variable.
+        ///   - varName=...       → resetea por nombre (busca match exacto, case-insensitive).
+        ///   - sin parámetros    → resetea TODAS las variables del proyecto activo (admin only).
+        /// Devuelve cuántas filas se han actualizado.
+        /// </summary>
+        [HttpPost("admin/reset-wrap-tracking")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> ResetWrapTrackingAsync([FromQuery] int? varId = null, [FromQuery] string? varName = null)
+        {
+            using var db = _dbFactory.CreateDbContext();
+            IQueryable<Models.Smm.Entities.SmmVariable> q = db.SmmVariables
+                .Where(v => v.WrapCount != 0 || v.LastRawValue != null);
+            if (varId.HasValue)
+                q = q.Where(v => v.Id == varId.Value);
+            else if (!string.IsNullOrWhiteSpace(varName))
+                q = q.Where(v => v.VarName.ToLower() == varName.ToLower());
+
+            var rows = await q.ToListAsync();
+            foreach (var v in rows)
+            {
+                v.WrapCount = 0;
+                v.LastRawValue = null;
+            }
+            await db.SaveChangesAsync();
+
+            _logger.LogWarning("[SMM] Reset wrap-tracking manual por {User}: {N} variables. Filtros: varId={Id}, varName={Name}",
+                User?.Identity?.Name ?? "admin", rows.Count, varId?.ToString() ?? "-", varName ?? "-");
+
+            return Ok(new
+            {
+                ok = true,
+                resetCount = rows.Count,
+                vars = rows.Select(v => new { v.Id, v.VarName, v.GroupId }).ToList()
+            });
+        }
+
+        /// <summary>
+        /// DEBUG: devuelve el estado interno de wrap-tracking de una variable y sus últimas N lecturas.
+        /// Útil para diagnosticar por qué un valor no se incrementa o aparece marcado IsError.
+        /// Si hay varias variables con el mismo VarName devuelve TODAS (para detectar duplicados).
+        /// </summary>
+        [HttpGet("admin/wrap-tracking-state")]
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        public async Task<IActionResult> GetWrapTrackingStateAsync([FromQuery] string varName, [FromQuery] int lastReadings = 10)
+        {
+            if (string.IsNullOrWhiteSpace(varName))
+                return BadRequest(new { error = "varName requerido" });
+
+            using var db = _dbFactory.CreateDbContext();
+            var matches = await db.SmmVariables
+                .Where(x => x.VarName.ToLower() == varName.ToLower())
+                .ToListAsync();
+            if (matches.Count == 0) return NotFound(new { error = $"Variable '{varName}' no existe" });
+
+            var result = new List<object>();
+            foreach (var v in matches)
+            {
+                var readings = await db.SmmReadings
+                    .Where(r => r.VariableId == v.Id)
+                    .OrderByDescending(r => r.Timestamp)
+                    .Take(lastReadings)
+                    .Select(r => new { r.Timestamp, r.Value, r.IsError, r.ErrorReason, r.Source, r.CycleId })
+                    .ToListAsync();
+                result.Add(new
+                {
+                    variable = new
+                    {
+                        v.Id, v.VarName, v.PlcVariable, v.GroupId, v.ElementId,
+                        v.MaxValue, v.WrapCount, v.LastRawValue,
+                        v.Critical, v.Warning, v.ResetOnMaintenance, v.ScaleFactor,
+                        v.DataType, v.Unit, v.Formula
+                    },
+                    readings
+                });
+            }
+            return Ok(new { duplicateCount = matches.Count, items = result });
+        }
+
         /// <summary>Soft-delete de un ciclo (DEC-023 punto 6). Status sigue INMUTABLE.</summary>
         [HttpDelete("cycles/{cycleId:int}")]
         [Authorize(Roles = "Admin,SuperAdmin")]
@@ -640,7 +723,9 @@ namespace SW.PC.API.Backend.Controllers
             async Task<int> SafeDeleteAsync(string sql)
             {
                 try { return await db.Database.ExecuteSqlRawAsync(sql, groupId); }
-                catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.Message.Contains("no such table"))
+                catch (Microsoft.Data.Sqlite.SqliteException ex) when (
+                    ex.Message.Contains("no such table") ||
+                    ex.Message.Contains("no such column"))
                 { return -1; }
             }
 
@@ -655,9 +740,23 @@ namespace SW.PC.API.Backend.Controllers
                 "DELETE FROM SMM_CycleAlarms     WHERE CycleId IN (SELECT Id FROM SMM_Cycles WHERE GroupId = {0})");
             var deletedCycles    = await SafeDeleteAsync(
                 "DELETE FROM SMM_Cycles          WHERE GroupId = {0}");
+            // Estadísticas derivadas y predicciones de IA asociadas al grupo (KPI/IA).
+            // Predictions no tiene GroupId: enlazamos vía RelatedVariableId (siempre del grupo)
+            // y RelatedElementId (elementos referenciados por variables del grupo).
+            var deletedPredInts = await SafeDeleteAsync(
+                "DELETE FROM SMM_PredictionInterventions WHERE PredictionId IN (" +
+                "  SELECT Id FROM SMM_Predictions WHERE " +
+                "    RelatedVariableId IN (SELECT Id FROM SMM_Variables WHERE GroupId = {0}) OR " +
+                "    RelatedElementId  IN (SELECT DISTINCT ElementId FROM SMM_Variables WHERE GroupId = {0} AND ElementId IS NOT NULL))");
+            var deletedPredictions = await SafeDeleteAsync(
+                "DELETE FROM SMM_Predictions WHERE " +
+                "  RelatedVariableId IN (SELECT Id FROM SMM_Variables WHERE GroupId = {0}) OR " +
+                "  RelatedElementId  IN (SELECT DISTINCT ElementId FROM SMM_Variables WHERE GroupId = {0} AND ElementId IS NOT NULL)");
+            var deletedDerivedStats = await SafeDeleteAsync(
+                "DELETE FROM SMM_DerivedErrorStats WHERE GroupId = {0}");
 
-            _logger.LogWarning("HARD PURGE ciclos grupo {GroupId} por {User}. Razón: {Reason}. Borrados: cycles={C}, readings={R}, continuous={CR}, snapshots={S}, alarms={A}",
-                groupId, who, req.Reason, deletedCycles, deletedReadings, deletedContinuous, deletedSnapshots, deletedAlarms);
+            _logger.LogWarning("HARD PURGE ciclos grupo {GroupId} por {User}. Razón: {Reason}. Borrados: cycles={C}, readings={R}, continuous={CR}, snapshots={S}, alarms={A}, derivedStats={DS}, predictions={P}, predInts={PI}",
+                groupId, who, req.Reason, deletedCycles, deletedReadings, deletedContinuous, deletedSnapshots, deletedAlarms, deletedDerivedStats, deletedPredictions, deletedPredInts);
 
             await LogMaintenanceAuditAsync(
                 AuditAction.SmmCycleHardPurge, AuditResult.Warning,
@@ -665,12 +764,16 @@ namespace SW.PC.API.Backend.Controllers
                     GroupId = groupId, Reason = req.Reason, DeletedBy = who,
                     DeletedCycles = deletedCycles, DeletedReadings = deletedReadings,
                     DeletedContinuous = deletedContinuous, DeletedSnapshots = deletedSnapshots,
-                    DeletedAlarms = deletedAlarms
+                    DeletedAlarms = deletedAlarms,
+                    DeletedDerivedStats = deletedDerivedStats,
+                    DeletedPredictions = deletedPredictions,
+                    DeletedPredictionInterventions = deletedPredInts
                 }, System.Math.Max(deletedCycles, 0));
 
             return Ok(new {
                 ok = true, groupId, deletedBy = who,
-                deletedCycles, deletedReadings, deletedContinuous, deletedSnapshots, deletedAlarms
+                deletedCycles, deletedReadings, deletedContinuous, deletedSnapshots, deletedAlarms,
+                deletedDerivedStats, deletedPredictions, deletedPredictionInterventions = deletedPredInts
             });
         }
 
@@ -730,10 +833,30 @@ namespace SW.PC.API.Backend.Controllers
                 { return -1; }
             }
 
+            // 0) Snapshot On-Demand del PLC ANTES de borrar — garantiza que tendremos
+            //    una lectura fresca para usar como baseline aunque el usuario haya hecho
+            //    "Vaciar BD" justo antes (que deja SMM_Readings vacía). Sin esto, el
+            //    cálculo de baseline daría null y la barra arrancaría en consumido=raw
+            //    (no en 0%). Si el snapshot falla (p.ej. PLC desconectado) seguimos
+            //    igual: las baselines quedarán null y la barra mostrará el valor
+            //    absoluto del PLC.
+            int snapshotInserted = 0;
+            try { snapshotInserted = await _capture.OnDemandSnapshotAsync(null); }
+            catch (Exception ex) { _logger.LogWarning(ex, "[SMM] Reset masivo: snapshot On-Demand previo falló (continuamos)"); }
+
             // 1) Wipe en orden inverso a las FK
             var deletedUsedParts     = await SafeDeleteAsync("DELETE FROM SMM_ConsumableUsage");
             var deletedInterventions = await SafeDeleteAsync("DELETE FROM SMM_Interventions");
             var deletedLifecycles    = await SafeDeleteAsync("DELETE FROM SMM_ElementLifecycles");
+
+            // 1.5) Reset wrap-tracking de TODAS las variables Continuous → evita que el
+            //      contador de vueltas y la última lectura cruda contaminen el nuevo ciclo
+            //      ("máquina nueva" = como si el contador HW empezara desde cero).
+            //      OJO: lo hacemos DESPUÉS del snapshot On-Demand (paso 0) para que ese
+            //      snapshot use los valores de wrap previos (consistencia con lo que ya
+            //      hay en BD), pero ANTES de leer SMM_Readings (paso 3) para que las
+            //      baselines reflejen el valor monotónico que sí está guardado.
+            var wrapResetCount = await SafeDeleteAsync("UPDATE SMM_Variables SET WrapCount = 0, LastRawValue = NULL WHERE WrapCount <> 0 OR LastRawValue IS NOT NULL");
 
             // 2) Cargar variables candidatas (con critical>0 y elementId).
             var vars = await db.SmmVariables
@@ -776,11 +899,16 @@ namespace SW.PC.API.Backend.Controllers
                 var lifeVars  = grp.Where(v => !v.ResetOnMaintenance).ToList();
                 var maintVars = grp.Where(v =>  v.ResetOnMaintenance).ToList();
 
-                // Replacement (1 por elemento, baseline = lectura de la 1ª life var disponible).
+                // Replacement (1 por elemento, baseline = lectura de la 1ª life var QUE TENGA
+                // reading disponible). Si un mismo VarName está en varios grupos, sólo el grupo
+                // Continuous tendrá readings recientes — los grupos PerCycle/dashboard pueden
+                // no tener nada en SMM_Readings, lo que dejaría baseline=null y la barra no
+                // arrancaría a 0%. Iteramos todas y nos quedamos con la primera con valor.
                 if (lifeVars.Count > 0)
                 {
-                    var lv = lifeVars[0];
-                    double? val = latestByVar.TryGetValue(lv.Id, out var v) ? v : null;
+                    var lv = lifeVars
+                        .Select(x => new { Var = x, Val = latestByVar.TryGetValue(x.Id, out var vv) ? (double?)vv : null })
+                        .FirstOrDefault(x => x.Val.HasValue) ?? new { Var = lifeVars[0], Val = (double?)null };
                     db.SmmInterventions.Add(new SmmIntervention
                     {
                         ElementId = elementId,
@@ -790,7 +918,7 @@ namespace SW.PC.API.Backend.Controllers
                         PerformedAt = nowUtc,
                         PerformedByRole = "Admin",
                         PerformedByUser = who,
-                        AccumulatedValueAtMaintenance = val,
+                        AccumulatedValueAtMaintenance = lv.Val,
                         Notes = notes,
                         CreatedBy = who
                     });
@@ -819,8 +947,8 @@ namespace SW.PC.API.Backend.Controllers
             }
             await db.SaveChangesAsync();
 
-            _logger.LogWarning("RESET MASIVO mantenimiento por {User}. Razón: {Reason}. Borrados: interventions={I}, usedParts={U}, lifecycles={L}. Creados: lifecycles={NL}, interventions={NI}",
-                who, req.Reason, deletedInterventions, deletedUsedParts, deletedLifecycles, createdLifecycles, createdInterventions);
+            _logger.LogWarning("RESET MASIVO mantenimiento por {User}. Razón: {Reason}. Snapshot previo={S}, Borrados: interventions={I}, usedParts={U}, lifecycles={L}, wrap-tracking reset={WR}. Creados: lifecycles={NL}, interventions={NI}",
+                who, req.Reason, snapshotInserted, deletedInterventions, deletedUsedParts, deletedLifecycles, wrapResetCount, createdLifecycles, createdInterventions);
 
             await LogMaintenanceAuditAsync(
                 AuditAction.SmmMaintenanceReset, AuditResult.Warning,
@@ -833,7 +961,9 @@ namespace SW.PC.API.Backend.Controllers
 
             return Ok(new {
                 ok = true, deletedBy = who,
+                snapshotInsertedBeforeReset = snapshotInserted,
                 deletedInterventions, deletedUsedParts, deletedLifecycles,
+                wrapTrackingReset = wrapResetCount,
                 createdLifecycles, createdInterventions
             });
         }
@@ -865,9 +995,15 @@ namespace SW.PC.API.Backend.Controllers
             var deletedUsedParts     = await SafeDeleteAsync("DELETE FROM SMM_ConsumableUsage");
             var deletedInterventions = await SafeDeleteAsync("DELETE FROM SMM_Interventions");
             var deletedLifecycles    = await SafeDeleteAsync("DELETE FROM SMM_ElementLifecycles");
+            // Hard-purge incluye lecturas Continuous y reset total del wrap-tracking:
+            // dejamos las tablas operativas en estado "fábrica" (catálogo de variables
+            // se conserva, todo lo demás se borra).
+            var deletedReadings      = await SafeDeleteAsync("DELETE FROM SMM_Readings");
+            var deletedCycles        = await SafeDeleteAsync("DELETE FROM SMM_Cycles");
+            var wrapResetCount       = await SafeDeleteAsync("UPDATE SMM_Variables SET WrapCount = 0, LastRawValue = NULL WHERE WrapCount <> 0 OR LastRawValue IS NOT NULL");
 
-            _logger.LogWarning("HARD PURGE mantenimiento por {User}. Razón: {Reason}. Borrados: interventions={I}, usedParts={U}, lifecycles={L}, predictions={P}, predInts={PI}, derivedStats={D}",
-                who, req.Reason, deletedInterventions, deletedUsedParts, deletedLifecycles, deletedPredictions, deletedPredInts, deletedDerivedStats);
+            _logger.LogWarning("HARD PURGE mantenimiento por {User}. Razón: {Reason}. Borrados: interventions={I}, usedParts={U}, lifecycles={L}, predictions={P}, predInts={PI}, derivedStats={D}, readings={R}, cycles={C}, wrap-tracking reset={WR}",
+                who, req.Reason, deletedInterventions, deletedUsedParts, deletedLifecycles, deletedPredictions, deletedPredInts, deletedDerivedStats, deletedReadings, deletedCycles, wrapResetCount);
 
             await LogMaintenanceAuditAsync(
                 AuditAction.SmmMaintenanceHardPurge, AuditResult.Warning,
@@ -882,7 +1018,9 @@ namespace SW.PC.API.Backend.Controllers
                 ok = true, deletedBy = who,
                 deletedInterventions, deletedUsedParts, deletedLifecycles,
                 deletedPredictions, deletedPredictionInterventions = deletedPredInts,
-                deletedDerivedStats
+                deletedDerivedStats,
+                deletedReadings, deletedCycles,
+                wrapTrackingReset = wrapResetCount
             });
         }
 
@@ -1092,6 +1230,27 @@ namespace SW.PC.API.Backend.Controllers
                     StartedAt = intervention.PerformedAt,
                     AccumulatedValueAtStartJson = "{}"
                 });
+
+                // Reset wrap-tracking de TODAS las variables del elemento sustituido:
+                // el componente nuevo de fábrica empieza con su contador HW a 0, así que
+                // perdemos cualquier WrapCount/LastRawValue acumulado. Si no resetamos,
+                // el cálculo `raw + WrapCount * (MaxValue+1)` arrastraría wraps fantasma.
+                var elementVars = await db.SmmVariables
+                    .Where(v => v.ElementId == req.ElementId
+                                && (v.WrapCount != 0 || v.LastRawValue != null))
+                    .ToListAsync();
+                foreach (var ev in elementVars)
+                {
+                    ev.WrapCount = 0;
+                    ev.LastRawValue = null;
+                }
+                if (elementVars.Count > 0)
+                {
+                    _logger?.LogInformation(
+                        "[SMM] Replacement element {ElementId}: reset wrap-tracking en {N} variables (WrapCount=0, LastRawValue=null)",
+                        req.ElementId, elementVars.Count);
+                }
+
                 await db.SaveChangesAsync();
             }
 

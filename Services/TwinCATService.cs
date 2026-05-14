@@ -721,6 +721,35 @@ namespace SW.PC.API.Backend.Services
                         _adsClient.Read(handle, buffer.AsMemory());
                         result = BitConverter.ToUInt16(buffer, 0);
                     }
+                    else if (dataType == typeof(uint))
+                    {
+                        // ✅ Leer UDINT/DWORD de TwinCAT (32 bits = 4 bytes, unsigned)
+                        byte[] buffer = new byte[4];
+                        _adsClient.Read(handle, buffer.AsMemory());
+                        result = BitConverter.ToUInt32(buffer, 0);
+                        _logger.LogDebug("📖 Read UDINT from REAL PLC: {Var} = {Value}", variableName, result);
+                    }
+                    else if (dataType == typeof(long))
+                    {
+                        // ✅ Leer LINT de TwinCAT (64 bits = 8 bytes, signed)
+                        byte[] buffer = new byte[8];
+                        _adsClient.Read(handle, buffer.AsMemory());
+                        result = BitConverter.ToInt64(buffer, 0);
+                    }
+                    else if (dataType == typeof(ulong))
+                    {
+                        // ✅ Leer ULINT/LWORD de TwinCAT (64 bits = 8 bytes, unsigned)
+                        byte[] buffer = new byte[8];
+                        _adsClient.Read(handle, buffer.AsMemory());
+                        result = BitConverter.ToUInt64(buffer, 0);
+                    }
+                    else if (dataType == typeof(byte))
+                    {
+                        // ✅ Leer BYTE/USINT de TwinCAT (8 bits = 1 byte, unsigned)
+                        byte[] buffer = new byte[1];
+                        _adsClient.Read(handle, buffer.AsMemory());
+                        result = buffer[0];
+                    }
                     else if (dataType == typeof(sbyte))
                     {
                         // ✅ Leer SINT de TwinCAT (8 bits = 1 byte, signed)
@@ -778,7 +807,13 @@ namespace SW.PC.API.Backend.Services
                             _isConnected = true;
                         }
                     }
-                    
+
+                    if (result == null)
+                    {
+                        _logger.LogWarning("⚠️ ReadVariableAsync({Var}): tipo CLR no soportado '{Type}'. Devolviendo null. Añadir rama en TwinCATService.ReadVariableAsync.",
+                            variableName, dataType.Name);
+                    }
+
                     return result;
                 }
                 catch (TwinCAT.Ads.AdsErrorException ex) when ((int)ex.ErrorCode == 1808)
