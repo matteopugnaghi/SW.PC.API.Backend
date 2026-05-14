@@ -829,13 +829,22 @@ public static class AquafrischDbContextFactory
                     CreatedAt TEXT NOT NULL,
                     UpdatedAt TEXT,
                     CreatedBy TEXT,
-                    UpdatedBy TEXT
+                    UpdatedBy TEXT,
+                    GantryTableCount INTEGER NOT NULL DEFAULT 1
                 )");
             
             // Índices para TrainTypes
             await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_TrainTypes_Code ON TrainTypes(Code)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_TrainTypes_IsActive ON TrainTypes(IsActive)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_TrainTypes_DisplayOrder ON TrainTypes(DisplayOrder)");
+
+            // Migración: añadir columna GantryTableCount si no existe (para bases de datos existentes)
+            // Persiste el número de tablas activas del Gantry (1 = 4 tablas TAB1_*, 2 = 8 tablas TAB1_* + TAB2_*)
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE TrainTypes ADD COLUMN GantryTableCount INTEGER NOT NULL DEFAULT 1");
+            }
+            catch { /* Columna ya existe */ }
             
             // Tabla TrainTypeParameters (Parámetros de tipos de tren)
             await context.Database.ExecuteSqlRawAsync(@"

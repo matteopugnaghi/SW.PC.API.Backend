@@ -576,6 +576,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     // Actualizar existente
                     existingTrainType.Name = plcValues.RecipeName ?? $"Tren {dto.SlotNumber}";
+                    existingTrainType.GantryTableCount = plcValues.GantryTableCount;
                     existingTrainType.UpdatedAt = DateTime.UtcNow;
                     existingTrainType.UpdatedBy = username;
 
@@ -621,6 +622,7 @@ namespace SW.PC.API.Backend.Controllers
                         IsActive = true,
                         IsDefault = dto.SlotNumber == 1,
                         DisplayOrder = dto.SlotNumber,
+                        GantryTableCount = plcValues.GantryTableCount,
                         CreatedAt = DateTime.UtcNow,
                         CreatedBy = username,
                         Parameters = plcValues.Parameters.Select(p => new TrainTypeParameter
@@ -678,6 +680,7 @@ namespace SW.PC.API.Backend.Controllers
                     IsActive = existingTrainType.IsActive,
                     IsDefault = existingTrainType.IsDefault,
                     DisplayOrder = existingTrainType.DisplayOrder,
+                    GantryTableCount = existingTrainType.GantryTableCount,
                     Parameters = existingTrainType.Parameters.Select(p => new TrainTypeParameterDto
                     {
                         Id = p.Id,
@@ -746,6 +749,26 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         errorCount++;
                         errors.Add($"TrainName: {ex.Message}");
+                    }
+                }
+
+                // Escribir número de tablas activas del Gantry (1 = 4 tablas, 2 = 8 tablas)
+                if (!string.IsNullOrEmpty(trainConfig?.GantryTableCountPlcVariable))
+                {
+                    try
+                    {
+                        var countToWrite = (trainType.GantryTableCount == 1 || trainType.GantryTableCount == 2)
+                            ? trainType.GantryTableCount
+                            : 1;
+                        await _twinCATService.WriteVariableAsync(trainConfig.GantryTableCountPlcVariable, countToWrite, typeof(int));
+                        successCount++;
+                        _logger.LogInformation("✅ GantryTableCount escrito al PLC: {Var} = {Value}",
+                            trainConfig.GantryTableCountPlcVariable, countToWrite);
+                    }
+                    catch (Exception ex)
+                    {
+                        errorCount++;
+                        errors.Add($"GantryTableCount: {ex.Message}");
                     }
                 }
 
@@ -1064,6 +1087,26 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         errorCount++;
                         errors.Add($"TrainName (ALT): {ex.Message}");
+                    }
+                }
+
+                // Escribir número de tablas activas del Gantry con prefijo alternativo
+                if (!string.IsNullOrEmpty(trainConfig?.GantryTableCountPlcVariable))
+                {
+                    try
+                    {
+                        var altVariable = ApplyAlternatePrefix(trainConfig.GantryTableCountPlcVariable);
+                        var countToWrite = (trainType.GantryTableCount == 1 || trainType.GantryTableCount == 2)
+                            ? trainType.GantryTableCount
+                            : 1;
+                        await _twinCATService.WriteVariableAsync(altVariable, countToWrite, typeof(int));
+                        successCount++;
+                        _logger.LogInformation("✅ [ALT] GantryTableCount escrito: {Var} = {Value}", altVariable, countToWrite);
+                    }
+                    catch (Exception ex)
+                    {
+                        errorCount++;
+                        errors.Add($"GantryTableCount (ALT): {ex.Message}");
                     }
                 }
 
@@ -1475,6 +1518,7 @@ namespace SW.PC.API.Backend.Controllers
                 UpdatedAt = trainType.UpdatedAt,
                 CreatedBy = trainType.CreatedBy,
                 UpdatedBy = trainType.UpdatedBy,
+                GantryTableCount = trainType.GantryTableCount,
                 Parameters = trainType.Parameters.Select(p => new TrainTypeParameterDto
                 {
                     Id = p.Id,
@@ -1531,6 +1575,26 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     errorCount++;
                     errors.Add($"LineNumber: {ex.Message}");
+                }
+            }
+
+            // Escribir número de tablas activas del Gantry
+            if (!string.IsNullOrEmpty(trainConfig?.GantryTableCountPlcVariable))
+            {
+                try
+                {
+                    var countToWrite = (trainType.GantryTableCount == 1 || trainType.GantryTableCount == 2)
+                        ? trainType.GantryTableCount
+                        : 1;
+                    await _twinCATService.WriteVariableAsync(trainConfig.GantryTableCountPlcVariable, countToWrite, typeof(int));
+                    successCount++;
+                    _logger.LogInformation("✅ GantryTableCount escrito al PLC: {Var} = {Value}",
+                        trainConfig.GantryTableCountPlcVariable, countToWrite);
+                }
+                catch (Exception ex)
+                {
+                    errorCount++;
+                    errors.Add($"GantryTableCount: {ex.Message}");
                 }
             }
 
@@ -1642,6 +1706,28 @@ namespace SW.PC.API.Backend.Controllers
                 catch
                 {
                     // Ignorar errores de lectura
+                }
+            }
+
+            // Leer número de tablas activas del Gantry (1 = 4 tablas TAB1_*, 2 = 8 tablas TAB1_* + TAB2_*)
+            if (!string.IsNullOrEmpty(trainConfig?.GantryTableCountPlcVariable))
+            {
+                try
+                {
+                    var countValue = await _twinCATService.ReadVariableAsync(trainConfig.GantryTableCountPlcVariable, typeof(int));
+                    if (countValue != null)
+                    {
+                        var parsed = Convert.ToInt32(countValue);
+                        // Solo aceptar valores válidos (1 o 2)
+                        result.GantryTableCount = (parsed == 1 || parsed == 2) ? parsed : 1;
+                        _logger.LogInformation("🚆 [TIPOS DE TREN] GantryTableCount leído del PLC: {Value} (var={Var})",
+                            result.GantryTableCount, trainConfig.GantryTableCountPlcVariable);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("🚆 [TIPOS DE TREN] ⚠️ No se pudo leer GantryTableCount del PLC ({Var}): {Error}",
+                        trainConfig.GantryTableCountPlcVariable, ex.Message);
                 }
             }
 

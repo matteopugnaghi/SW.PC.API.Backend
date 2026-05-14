@@ -94,6 +94,12 @@ namespace SW.PC.API.Backend.Models
         public string? UpdatedBy { get; set; }
 
         /// <summary>
+        /// Número de tablas activas del Gantry: 1 = 4 tablas (TAB1_*), 2 = 8 tablas (TAB1_* + TAB2_*)
+        /// Se persiste para poder restaurarlo en el PLC al cargar la receta.
+        /// </summary>
+        public int GantryTableCount { get; set; } = 1;
+
+        /// <summary>
         /// Parámetros de la receta de tren (valores configurables)
         /// </summary>
         public virtual ICollection<TrainTypeParameter> Parameters { get; set; } = new List<TrainTypeParameter>();
@@ -301,6 +307,11 @@ namespace SW.PC.API.Backend.Models
         public string? CreatedBy { get; set; }
         public string? UpdatedBy { get; set; }
         public List<TrainTypeParameterDto> Parameters { get; set; } = new();
+
+        /// <summary>
+        /// Número de tablas activas del Gantry (1 = 4 tablas TAB1_*, 2 = 8 tablas TAB1_* + TAB2_*)
+        /// </summary>
+        public int GantryTableCount { get; set; } = 1;
     }
 
     /// <summary>
@@ -489,6 +500,11 @@ namespace SW.PC.API.Backend.Models
         public string? RecipeName { get; set; }
         public List<PlcTrainParameterData> Parameters { get; set; } = new();
         public List<PlcGantryTableData> GantryTables { get; set; } = new();
+
+        /// <summary>
+        /// Número de tablas activas del Gantry leído del PLC (1 = 4 tablas, 2 = 8 tablas)
+        /// </summary>
+        public int GantryTableCount { get; set; } = 1;
     }
 
     /// <summary>
