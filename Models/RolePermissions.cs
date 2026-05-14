@@ -202,6 +202,24 @@ public class ModulePermissions
     
     /// <summary>Escribir PLC 2 (Tipos de Lavado)</summary>
     public ViewPermission WashTypes_WritePLC2 { get; set; } = new();
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // 📊 STATISTICS VIEW - SUB-TABS (4 elementos)
+    // ═══════════════════════════════════════════════════════════════════
+    // Granular dentro de StatisticsView (que sigue controlando el acceso al
+    // módulo entero). Si StatisticsView.CanView=false, todos estos quedan ocultos.
+    
+    /// <summary>Tab Dashboard (KPIs + grupos)</summary>
+    public ViewPermission Statistics_Dashboard { get; set; } = new();
+    
+    /// <summary>Tab Variables (tabla de últimas lecturas)</summary>
+    public ViewPermission Statistics_Variables { get; set; } = new();
+    
+    /// <summary>Tab Mantenimiento (vida útil + intervenciones)</summary>
+    public ViewPermission Statistics_Maintenance { get; set; } = new();
+    
+    /// <summary>Tab Predicciones (análisis predictivo IA)</summary>
+    public ViewPermission Statistics_Predictions { get; set; } = new();
 }
 
 /// <summary>
@@ -317,7 +335,13 @@ public static class DefaultRolePermissions
                 WashTypes_Editor = AllPermissions(),
                 WashTypes_Save = AllPermissions(),
                 WashTypes_WritePLC1 = AllPermissions(),
-                WashTypes_WritePLC2 = AllPermissions()
+                WashTypes_WritePLC2 = AllPermissions(),
+                
+                // 📊 Statistics Sub-Tabs - TODO habilitado
+                Statistics_Dashboard = AllPermissions(),
+                Statistics_Variables = AllPermissions(),
+                Statistics_Maintenance = AllPermissions(),
+                Statistics_Predictions = AllPermissions()
             }
         };
     }
@@ -384,7 +408,13 @@ public static class DefaultRolePermissions
                 WashTypes_Editor = AllPermissions(),
                 WashTypes_Save = AllPermissions(),
                 WashTypes_WritePLC1 = AllPermissions(),
-                WashTypes_WritePLC2 = AllPermissions()
+                WashTypes_WritePLC2 = AllPermissions(),
+                
+                // 📊 Statistics Sub-Tabs - Acceso completo
+                Statistics_Dashboard = AllPermissions(),
+                Statistics_Variables = AllPermissions(),
+                Statistics_Maintenance = AllPermissions(),
+                Statistics_Predictions = AllPermissions()
             }
         };
     }
@@ -451,7 +481,13 @@ public static class DefaultRolePermissions
                 WashTypes_Editor = NoPermission(),
                 WashTypes_Save = NoPermission(),
                 WashTypes_WritePLC1 = NoPermission(),
-                WashTypes_WritePLC2 = NoPermission()
+                WashTypes_WritePLC2 = NoPermission(),
+                
+                // 📊 Statistics Sub-Tabs - Operador: solo Dashboard (no detalles técnicos)
+                Statistics_Dashboard = ReadOnlyPermission(),
+                Statistics_Variables = NoPermission(),
+                Statistics_Maintenance = NoPermission(),
+                Statistics_Predictions = NoPermission()
             }
         };
     }
@@ -518,7 +554,13 @@ public static class DefaultRolePermissions
                 WashTypes_Editor = AllPermissions(),
                 WashTypes_Save = AllPermissions(),
                 WashTypes_WritePLC1 = AllPermissions(),
-                WashTypes_WritePLC2 = AllPermissions()
+                WashTypes_WritePLC2 = AllPermissions(),
+                
+                // 📊 Statistics Sub-Tabs - Mantenimiento: rol natural, control total
+                Statistics_Dashboard = AllPermissions(),
+                Statistics_Variables = AllPermissions(),
+                Statistics_Maintenance = AllPermissions(),
+                Statistics_Predictions = AllPermissions()
             }
         };
     }
@@ -585,7 +627,13 @@ public static class DefaultRolePermissions
                 WashTypes_Editor = NoPermission(),
                 WashTypes_Save = NoPermission(),
                 WashTypes_WritePLC1 = NoPermission(),
-                WashTypes_WritePLC2 = NoPermission()
+                WashTypes_WritePLC2 = NoPermission(),
+                
+                // 📊 Statistics Sub-Tabs - Viewer: solo Dashboard read-only
+                Statistics_Dashboard = new ViewPermission { CanView = true, CanExport = true },
+                Statistics_Variables = NoPermission(),
+                Statistics_Maintenance = NoPermission(),
+                Statistics_Predictions = NoPermission()
             }
         };
     }
@@ -652,7 +700,13 @@ public static class DefaultRolePermissions
                 WashTypes_Editor = NoPermission(),
                 WashTypes_Save = NoPermission(),
                 WashTypes_WritePLC1 = NoPermission(),
-                WashTypes_WritePLC2 = NoPermission()
+                WashTypes_WritePLC2 = NoPermission(),
+                
+                // 📊 Statistics Sub-Tabs - Auditor: todo view+export
+                Statistics_Dashboard = new ViewPermission { CanView = true, CanExport = true },
+                Statistics_Variables = new ViewPermission { CanView = true, CanExport = true },
+                Statistics_Maintenance = new ViewPermission { CanView = true, CanExport = true },
+                Statistics_Predictions = new ViewPermission { CanView = true, CanExport = true }
             }
         };
     }
