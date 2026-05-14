@@ -328,10 +328,12 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         /// <summary>
-        /// Eliminar tipo de lavado
+        /// Eliminar tipo de lavado (solo SuperAdmin / Administrator)
         /// </summary>
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "SuperAdmin,Administrator")]
         [ProducesResponseType(204)]
+        [ProducesResponseType(403)]
         [ProducesResponseType(404)]
         public async Task<IActionResult> DeleteWashType(int id)
         {
@@ -345,11 +347,14 @@ namespace SW.PC.API.Backend.Controllers
 
                 var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
 
-                // Verificar si está activo
-                var isActive = await _dbContext.ActiveWashTypes.AnyAsync(a => a.WashTypeId == id);
-                if (isActive)
+                // Si está marcado como activo, eliminar primero las referencias (purga total para SuperAdmin/Administrator).
+                // Se persisten en una transacción separada para garantizar que el DELETE de ActiveWashType
+                // se ejecuta antes que el del WashType (FK ON DELETE RESTRICT a nivel de DB).
+                var activeRefs = await _dbContext.ActiveWashTypes.Where(a => a.WashTypeId == id).ToListAsync();
+                if (activeRefs.Count > 0)
                 {
-                    return BadRequest(new { error = "No se puede eliminar un tipo de lavado que está actualmente seleccionado" });
+                    _dbContext.ActiveWashTypes.RemoveRange(activeRefs);
+                    await _dbContext.SaveChangesAsync();
                 }
 
                 _dbContext.WashTypes.Remove(washType);

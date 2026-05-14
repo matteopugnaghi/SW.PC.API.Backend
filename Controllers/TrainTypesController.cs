@@ -341,10 +341,12 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         /// <summary>
-        /// Eliminar tipo de tren
+        /// Eliminar tipo de tren (solo SuperAdmin / Administrator)
         /// </summary>
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "SuperAdmin,Administrator")]
         [ProducesResponseType(200)]
+        [ProducesResponseType(403)]
         [ProducesResponseType(404)]
         public async Task<ActionResult> DeleteTrainType(int id)
         {
@@ -362,6 +364,17 @@ namespace SW.PC.API.Backend.Controllers
                 var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
                 var trainTypeName = trainType.Name;
                 var trainTypeCode = trainType.Code;
+
+                // Si está marcado como activo, eliminar primero las referencias (purga total para SuperAdmin/Administrator).
+                // IMPORTANTE: la FK ActiveTrainType -> TrainTypes está definida solo en SQL raw (ON DELETE RESTRICT)
+                // y EF no la conoce, por lo que hay que persistir el borrado de las referencias en una transacción
+                // separada para asegurar el orden correcto y evitar el RESTRICT del motor SQLite.
+                var activeRefs = await _dbContext.ActiveTrainTypes.Where(a => a.TrainTypeId == id).ToListAsync();
+                if (activeRefs.Count > 0)
+                {
+                    _dbContext.ActiveTrainTypes.RemoveRange(activeRefs);
+                    await _dbContext.SaveChangesAsync();
+                }
 
                 _dbContext.TrainTypes.Remove(trainType);
                 await _dbContext.SaveChangesAsync();

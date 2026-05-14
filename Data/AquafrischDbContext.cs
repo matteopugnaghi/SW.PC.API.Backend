@@ -348,6 +348,24 @@ public class AquafrischDbContext : DbContext
         });
 
         // ============================================
+        // Configuración de ActiveTrainType
+        // ============================================
+        modelBuilder.Entity<ActiveTrainType>(entity =>
+        {
+            entity.ToTable("ActiveTrainType");
+            entity.HasKey(e => e.Id);
+
+            entity.HasIndex(e => e.TrainTypeId);
+
+            entity.Property(e => e.SelectedBy).HasMaxLength(100);
+
+            entity.HasOne(e => e.TrainType)
+                  .WithMany()
+                  .HasForeignKey(e => e.TrainTypeId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ============================================
         // Configuración de TrainTypeParameter
         // ============================================
         modelBuilder.Entity<TrainTypeParameter>(entity =>
