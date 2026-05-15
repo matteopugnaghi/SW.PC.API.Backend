@@ -41,6 +41,15 @@ namespace SW.PC.API.Backend.Services
         
         // Estado actual de las alarmas (para enviar a nuevos clientes)
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _alarmStates = new();
+
+        // 🛡️ Variables declaradas en Excel (case-insensitive). Se usa para detectar
+        // bits PLC activados en sufijos NO declarados (Alarm/Notification/Info), lo que
+        // indica un error de configuración entre TwinCAT y el Excel.
+        private HashSet<string> _declaredAlarmKeys = new(StringComparer.OrdinalIgnoreCase);
+
+        // Anti-spam: limita cuántas veces se loguea el mismo mismatch (clave → último timestamp)
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _mismatchLogCooldown = new();
+        private static readonly TimeSpan MismatchLogCooldown = TimeSpan.FromMinutes(5);
         
         public AlarmNotificationService(
             ITwinCATService twinCATService,
@@ -84,6 +93,9 @@ namespace SW.PC.API.Backend.Services
 
                 // 3. Recargar variables de alarma del nuevo Excel
                 LoadAlarmVariablesFromExcelAsync().GetAwaiter().GetResult();
+
+                // 3.b Tras recargar, resetear cualquier alarma huérfana en clientes
+                ResetStaleActiveAlarmsAfterReload();
 
                 // 4. Re-registrar notificaciones si hay variables y el PLC está conectado
                 if (_alarmVariables.Count > 0 && _twinCATService.IsConnected)
@@ -163,6 +175,12 @@ namespace SW.PC.API.Backend.Services
                     {
                         _logger.LogInformation("🔄 PLC reconectado - re-registrando notificaciones de alarma...");
                         await RegisterAlarmNotificationsAsync();
+
+                        // 🔍 Rescanear el valor actual de TODAS las alarmas declaradas para detectar
+                        // cambios que ocurrieron mientras el PLC estaba desconectado (p.ej. el
+                        // operador limpió un bit). Sin esto, las alarmas activas en caché que
+                        // ya no están activas en el PLC quedan colgadas en el frontend.
+                        await RescanAllAlarmsAsync();
                     }
                     
                     await Task.Delay(5000, stoppingToken); // Check cada 5 segundos
@@ -217,16 +235,45 @@ namespace SW.PC.API.Backend.Services
                 var allVariables = await excelConfigService.GetMonitoredVariableNamesAsync(_config.ExcelFileName);
                 
                 // Filtrar solo las variables de alarma
-                _alarmVariables = allVariables
+                var declaredAlarmVars = allVariables
                     .Where(v => IsAlarmVariable(v))
                     .ToList();
+
+                // 📌 Snapshot de variables declaradas en Excel (para detectar misconfigs).
+                // No incluimos st_alarmHistPc porque son auto-generadas a partir de st_alarmPc.
+                _declaredAlarmKeys = new HashSet<string>(
+                    declaredAlarmVars.Where(v => v.Contains("st_alarmPc[")),
+                    StringComparer.OrdinalIgnoreCase);
+
+                // 🛡️ Para CADA índice de st_alarmPc[] usado en Excel, suscribir a los 3
+                // sufijos (.Alarm, .Notification, .Info) aunque no estén declarados, para
+                // poder DETECTAR (no mostrar) si un técnico activa por error el bit equivocado.
+                var expanded = new HashSet<string>(declaredAlarmVars, StringComparer.OrdinalIgnoreCase);
+                var suffixes = new[] { "Alarm", "Notification", "Info" };
+                var indexRegex = new System.Text.RegularExpressions.Regex(
+                    @"^(?<prefix>.*\.st_alarmPc\[\d+\])\.(Alarm|Notification|Info)$",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                foreach (var v in declaredAlarmVars.Where(v => v.Contains("st_alarmPc[")))
+                {
+                    var m = indexRegex.Match(v);
+                    if (!m.Success) continue;
+                    var prefix = m.Groups["prefix"].Value;
+                    foreach (var suffix in suffixes)
+                    {
+                        expanded.Add($"{prefix}.{suffix}");
+                    }
+                }
+
+                _alarmVariables = expanded.ToList();
                 
                 // Contar por tipo
                 var alarmPcCount = _alarmVariables.Count(v => v.Contains("st_alarmPc["));
                 var alarmHistCount = _alarmVariables.Count(v => v.Contains("st_alarmHistPc["));
+                var watchdogAdded = _alarmVariables.Count - declaredAlarmVars.Count;
                 
-                _logger.LogInformation("🔔 Variables de alarma encontradas: {Total} (activas: {Active}, historial: {History})",
-                    _alarmVariables.Count, alarmPcCount, alarmHistCount);
+                _logger.LogInformation("🔔 Variables de alarma encontradas: {Total} (activas: {Active}, historial: {History}, watchdog suffix-coverage: +{Watchdog})",
+                    _alarmVariables.Count, alarmPcCount, alarmHistCount, watchdogAdded);
                 
                 // 📝 Cargar variable LogFromTwincat desde SystemConfiguration
                 try
@@ -370,6 +417,16 @@ namespace SW.PC.API.Backend.Services
             {
                 return;
             }
+
+            // ⏱️ Transición pasiva del warm-up por tiempo (si no se ha disparado por
+            // st_alarmHistPc o LogFromTwincat). Garantiza que el detector de misconfig
+            // y el log de historial se activen aunque solo haya variables st_alarmPc.
+            if (_isInWarmupPeriod && DateTime.Now >= _warmupEndTime)
+            {
+                _isInWarmupPeriod = false;
+                _warmupAlreadyCompleted = true;
+                _logger.LogInformation("🔥 Warm-up completado (transición pasiva por tiempo).");
+            }
             
             try
             {
@@ -383,7 +440,23 @@ namespace SW.PC.API.Backend.Services
                 
                 // Actualizar estado local
                 _alarmStates[notification.VariableName] = newState;
-                
+
+                // 🛡️ Variables PLC no declaradas en Excel (suscritas como "watchdog" a los 3
+                // sufijos del índice): NUNCA se transmiten al frontend para evitar alarmas
+                // fantasma. Sólo se loguean al Registro del Sistema cuando van a TRUE
+                // (probable error de configuración entre TwinCAT y Excel) y fuera del warm-up.
+                bool isStAlarmPc = notification.VariableName.Contains("st_alarmPc[");
+                bool isDeclared = _declaredAlarmKeys.Contains(notification.VariableName);
+
+                if (isStAlarmPc && !isDeclared)
+                {
+                    if (newState && !_isInWarmupPeriod)
+                    {
+                        LogConfigurationMismatch(notification.VariableName);
+                    }
+                    return;
+                }
+
                 // ✅ SIEMPRE transmitir a clientes SignalR (el frontend necesita conocer el estado actual)
                 _ = BroadcastAlarmChangeAsync(notification.VariableName, newState, notification.Timestamp);
                 
@@ -419,6 +492,145 @@ namespace SW.PC.API.Backend.Services
             }
         }
         
+        /// <summary>
+        /// Registra una misconfiguración: el PLC ha activado un bit cuyo sufijo
+        /// (Alarm/Notification/Info) no está declarado en el Excel para ese índice.
+        /// Aplica anti-spam para no inundar el log.
+        /// </summary>
+        private void LogConfigurationMismatch(string variableName)
+        {
+            var now = DateTime.Now;
+            if (_mismatchLogCooldown.TryGetValue(variableName, out var last) &&
+                now - last < MismatchLogCooldown)
+            {
+                return; // Aún en cooldown
+            }
+            _mismatchLogCooldown[variableName] = now;
+
+            // Nota: este log entra automáticamente en el Registro del Sistema (no retentivo)
+            // a través de SystemLogBufferProvider. NO se escribe en Operation Log (retentivo).
+            _logger.LogWarning(
+                "⚠️ [ConfigMismatch] Bit PLC activado SIN definición Excel: {Variable}. " +
+                "Posible causa: sufijo (Alarm/Notification/Info) en TwinCAT no coincide con el declarado en Excel para ese índice. " +
+                "Revise la hoja 'Alarms' del ProjectConfig.xlsm.",
+                variableName);
+        }
+
+        /// <summary>
+        /// Lee el valor actual de TODAS las variables de alarma declaradas directamente del PLC
+        /// y reconcilia el estado en caché. Si encuentra diferencias respecto a <see cref="_alarmStates"/>,
+        /// actualiza la caché y emite el broadcast SignalR correspondiente.
+        ///
+        /// Se invoca en dos escenarios:
+        ///  • Tras (re)registrar las notificaciones cuando el PLC vuelve a conectarse.
+        ///  • Como red de seguridad por si ADS no entrega un valor inicial al re-suscribir.
+        ///
+        /// Sólo procesa las claves "originales" (Alarm/Notification/Info) declaradas en Excel,
+        /// nunca las suscripciones watchdog adicionales.
+        /// </summary>
+        private async Task RescanAllAlarmsAsync()
+        {
+            if (!_twinCATService.IsConnected)
+            {
+                _logger.LogDebug("⏭️ RescanAllAlarmsAsync omitido: PLC no conectado");
+                return;
+            }
+
+            if (_declaredAlarmKeys.Count == 0)
+            {
+                _logger.LogDebug("⏭️ RescanAllAlarmsAsync omitido: no hay alarmas declaradas");
+                return;
+            }
+
+            _logger.LogInformation("🔍 Rescaneando estado actual de {Count} alarmas declaradas tras reconexión...",
+                _declaredAlarmKeys.Count);
+
+            int diffsActivated = 0;
+            int diffsCleared = 0;
+            int readErrors = 0;
+            var startTime = DateTime.Now;
+
+            foreach (var variable in _declaredAlarmKeys.ToList())
+            {
+                try
+                {
+                    var raw = await _twinCATService.ReadVariableAsync(variable, typeof(bool));
+                    if (raw is not bool plcValue)
+                    {
+                        readErrors++;
+                        continue;
+                    }
+
+                    bool cachedValue = _alarmStates.TryGetValue(variable, out var s) && s;
+                    if (plcValue == cachedValue)
+                        continue;
+
+                    _alarmStates[variable] = plcValue;
+                    if (plcValue) diffsActivated++; else diffsCleared++;
+
+                    _logger.LogInformation(
+                        "🔄 [Rescan] Estado divergente detectado: {Var} caché={Cached} → PLC={Plc}",
+                        variable, cachedValue, plcValue);
+
+                    await BroadcastAlarmChangeAsync(variable, plcValue, DateTime.Now);
+                }
+                catch (Exception ex)
+                {
+                    readErrors++;
+                    _logger.LogDebug(ex, "⚠️ [Rescan] Error leyendo {Var}", variable);
+                }
+            }
+
+            var elapsed = (DateTime.Now - startTime).TotalMilliseconds;
+            if (diffsActivated + diffsCleared + readErrors > 0)
+            {
+                _logger.LogInformation(
+                    "✅ Rescan completado en {Ms:F0}ms: {Activated} activada(s), {Cleared} reseteada(s), {Errors} error(es) de lectura",
+                    elapsed, diffsActivated, diffsCleared, readErrors);
+            }
+            else
+            {
+                _logger.LogDebug("✅ Rescan completado en {Ms:F0}ms sin cambios", elapsed);
+            }
+        }
+
+        /// <summary>
+        /// Tras recargar el Excel, resetea en los clientes cualquier alarma que estuviera ACTIVA
+        /// y cuya variable ya no está declarada en la nueva configuración. Esto evita el caso
+        /// "cambio el Excel de Alarm a Info y la Alarm activa nunca se resetea".
+        /// </summary>
+        private void ResetStaleActiveAlarmsAfterReload()
+        {
+            try
+            {
+                var stale = _alarmStates
+                    .Where(kvp => kvp.Value
+                                  && kvp.Key.Contains("st_alarmPc[")
+                                  && !_declaredAlarmKeys.Contains(kvp.Key))
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+
+                foreach (var v in stale)
+                {
+                    _alarmStates[v] = false;
+                    // Log al Registro del Sistema (no retentivo) vía SystemLogBufferProvider.
+                    _logger.LogWarning(
+                        "♻️ [ConfigReload] Alarma activa sin definición tras recargar Excel: {Variable}. " +
+                        "Forzando reset en clientes.", v);
+                    _ = BroadcastAlarmChangeAsync(v, false, DateTime.Now);
+                }
+
+                if (stale.Count > 0)
+                {
+                    _logger.LogInformation("♻️ {Count} alarma(s) huérfana(s) reseteada(s) tras recarga de configuración.", stale.Count);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error en ResetStaleActiveAlarmsAfterReload");
+            }
+        }
+
         /// <summary>
         /// Registrar cambio de alarma histórica en Operation Log
         /// </summary>
