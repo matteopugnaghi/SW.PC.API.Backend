@@ -835,6 +835,7 @@ namespace SW.PC.API.Backend.Controllers
         /// El PLC realizará el escaneo y pondrá a FALSE automáticamente.
         /// </summary>
         [HttpPost("trigger-complete-diagnostic")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult> TriggerCompleteDiagnostic()
         {
             _logger.LogInformation("🔍 Solicitud de diagnóstico completo TwinCAT");
@@ -899,6 +900,7 @@ namespace SW.PC.API.Backend.Controllers
         /// Guarda la topología actual como configuración de referencia
         /// </summary>
         [HttpPost("configuration")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<SaveConfigurationResponse>> SaveConfiguration([FromBody] SaveConfigurationRequest? request)
         {
             if (!_etherCATService.IsEnabled)
@@ -972,6 +974,7 @@ namespace SW.PC.API.Backend.Controllers
         /// Elimina la configuración guardada
         /// </summary>
         [HttpDelete("configuration")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<DeleteConfigurationResponse>> DeleteConfiguration()
         {
             try
