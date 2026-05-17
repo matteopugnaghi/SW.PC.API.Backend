@@ -70,10 +70,28 @@ public class RolePermissionsService : IRolePermissionsService
                 var permissions = JsonSerializer.Deserialize<ModulePermissions>(
                     role.PermissionsJson, 
                     PermissionsJsonOptions.Options);
-                
+
+                // Obtener el conjunto de claves realmente presentes en el JSON guardado.
+                // Esto nos permite distinguir entre "módulo nuevo que nunca se guardó"
+                // (debe heredar el default) y "módulo guardado explícitamente con todo en false"
+                // (el usuario lo desmarcó a propósito y debe respetarse).
+                var savedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    using var doc = JsonDocument.Parse(role.PermissionsJson);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var p in doc.RootElement.EnumerateObject())
+                        {
+                            savedKeys.Add(p.Name);
+                        }
+                    }
+                }
+                catch (JsonException) { /* fallback: savedKeys vacío => se comporta como antes */ }
+
                 // Mergear con defaults: si un módulo nuevo no existía en el JSON guardado,
                 // hereda los permisos por defecto del rol (evita que módulos nuevos queden en false)
-                var mergedPermissions = MergeWithDefaults(permissions ?? new ModulePermissions(), roleName);
+                var mergedPermissions = MergeWithDefaults(permissions ?? new ModulePermissions(), roleName, savedKeys);
                 
                 return new RolePermissions
                 {
@@ -339,7 +357,7 @@ public class RolePermissionsService : IRolePermissionsService
     /// Si un módulo nuevo fue añadido al código pero no existía en el JSON guardado en DB,
     /// hereda los permisos por defecto del rol en lugar de quedar todo en false.
     /// </summary>
-    private ModulePermissions MergeWithDefaults(ModulePermissions saved, string roleName)
+    private ModulePermissions MergeWithDefaults(ModulePermissions saved, string roleName, HashSet<string>? savedKeys = null)
     {
         var defaults = GetDefaultPermissionsForRole(roleName).Modules;
         if (defaults == null) return saved;
@@ -350,9 +368,29 @@ public class RolePermissionsService : IRolePermissionsService
 
         foreach (var prop in props)
         {
+            // Si tenemos información de las claves realmente presentes en el JSON guardado,
+            // sólo aplicar el default cuando la propiedad NO estaba en el JSON
+            // (módulo nuevo añadido al sistema después de haber guardado los permisos).
+            // Si la propiedad estaba presente, respetar lo que el usuario guardó (incluso si es todo false).
+            if (savedKeys != null && savedKeys.Count > 0)
+            {
+                // Comparar tanto en camelCase como en el nombre original PascalCase
+                var camel = char.ToLowerInvariant(prop.Name[0]) + prop.Name.Substring(1);
+                if (savedKeys.Contains(prop.Name) || savedKeys.Contains(camel))
+                {
+                    continue; // El usuario guardó este módulo explícitamente: no tocar
+                }
+
+                var defaultVal = (ViewPermission?)prop.GetValue(defaults);
+                if (defaultVal != null)
+                {
+                    prop.SetValue(saved, defaultVal);
+                }
+                continue;
+            }
+
+            // Fallback (no se pudo parsear el JSON original): heurística antigua basada en "todo false"
             var savedVal = (ViewPermission?)prop.GetValue(saved);
-            // Si el permiso guardado tiene todo en false (valor por defecto de new ViewPermission()),
-            // y el default del rol tiene al menos un true, usar el default
             if (savedVal != null && !savedVal.CanView && !savedVal.CanCreate && !savedVal.CanEdit 
                 && !savedVal.CanDelete && !savedVal.CanExport && !savedVal.CanExecute)
             {
