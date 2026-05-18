@@ -41,33 +41,23 @@ namespace SW.PC.API.Backend.Services
             var (enableTme1, uriTme1, adsTme1, adsStatusTme1,
                  enableTme2, uriTme2, adsTme2, adsStatusTme2) = await LoadConfigAsync();
 
-            if (!enableTme1 && !enableTme2)
-            {
-                _logger.LogInformation("🌡️ TME sensors disabled in configuration. Service idle.");
-                _metricsService.SetTmeSensorStatus(1, false, false, "Disabled");
-                _metricsService.SetTmeSensorStatus(2, false, false, "Disabled");
-                return;
-            }
-
             _logger.LogInformation("🌡️ TME config: TME1={Enable1} URI={Uri1} ADS={Ads1} Status={Status1} | TME2={Enable2} URI={Uri2} ADS={Ads2} Status={Status2}",
                 enableTme1, uriTme1, adsTme1, string.IsNullOrEmpty(adsStatusTme1) ? "N/A" : adsStatusTme1,
                 enableTme2, uriTme2, adsTme2, string.IsNullOrEmpty(adsStatusTme2) ? "N/A" : adsStatusTme2);
 
-            // Marcar estado inicial
-            if (enableTme1)
-                _metricsService.SetTmeSensorStatus(1, true, false, "Starting...");
-            else
-                _metricsService.SetTmeSensorStatus(1, false, false, "Disabled");
+            // Marcar estado inicial (display / metrics)
+            _metricsService.SetTmeSensorStatus(1, enableTme1, false, enableTme1 ? "Starting..." : "Disabled");
+            _metricsService.SetTmeSensorStatus(2, enableTme2, false, enableTme2 ? "Starting..." : "Disabled");
 
-            if (enableTme2)
-                _metricsService.SetTmeSensorStatus(2, true, false, "Starting...");
-            else
-                _metricsService.SetTmeSensorStatus(2, false, false, "Disabled");
+            if (!enableTme1 && !enableTme2)
+            {
+                _logger.LogInformation("🌡️ TME sensors disabled in configuration. Will keep status vars set to 'Disabled'.");
+            }
 
             // Crear HttpClient con timeout
             using var httpClient = new HttpClient { Timeout = HttpTimeout };
 
-            // Bucle de polling
+            // Bucle de polling (siempre activo, también para refrescar "Disabled" en el PLC)
             bool firstRun = true;
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -79,22 +69,30 @@ namespace SW.PC.API.Backend.Services
                     }
                     firstRun = false;
 
-                    // Leer TME 1
+                    // TME 1: leer si habilitado, si no escribir "Disabled" al PLC
                     if (enableTme1 && !string.IsNullOrEmpty(uriTme1))
                     {
                         await ReadAndWriteSensorAsync(httpClient, 1, uriTme1, adsTme1, adsStatusTme1, stoppingToken);
                     }
+                    else
+                    {
+                        await WriteStatusToPlcAsync(1, adsStatusTme1, "Disabled");
+                    }
 
-                    // Desfase entre sensores
+                    // Desfase entre sensores (solo si ambos están habilitados y van a hacer HTTP)
                     if (enableTme1 && enableTme2)
                     {
                         await Task.Delay(SensorStaggerDelay, stoppingToken);
                     }
 
-                    // Leer TME 2
+                    // TME 2: leer si habilitado, si no escribir "Disabled" al PLC
                     if (enableTme2 && !string.IsNullOrEmpty(uriTme2))
                     {
                         await ReadAndWriteSensorAsync(httpClient, 2, uriTme2, adsTme2, adsStatusTme2, stoppingToken);
+                    }
+                    else
+                    {
+                        await WriteStatusToPlcAsync(2, adsStatusTme2, "Disabled");
                     }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
