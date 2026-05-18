@@ -714,7 +714,19 @@ if ($SkipFrontendBuild) {
             exit 1
         }
         Write-Info "npm encontrado: $($npmPath.Source)"
-        
+
+        # Limpiar build/ y cache antes del nuevo build para evitar chunks huerfanos
+        $oldBuild = Join-Path $FrontendPath "build"
+        if (Test-Path $oldBuild) {
+            Write-Info "Limpiando build/ anterior..."
+            Remove-Item -Recurse -Force $oldBuild -ErrorAction SilentlyContinue
+        }
+        $oldCache = Join-Path $FrontendPath "node_modules\.cache"
+        if (Test-Path $oldCache) {
+            Write-Info "Limpiando node_modules\.cache..."
+            Remove-Item -Recurse -Force $oldCache -ErrorAction SilentlyContinue
+        }
+
         # Temporalmente cambiar ErrorActionPreference para npm (genera muchos warnings)
         $previousErrorAction = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
@@ -769,7 +781,34 @@ if ($SkipFrontendBuild) {
         }
         
         Write-Success "Frontend compilado en: $frontendBuildPath"
-        
+
+        # Verificacion de integridad: los hashes en index.html deben existir en static/
+        Write-Step "Verificando integridad del build (hashes en index.html vs static/)..."
+        $indexHtmlPath = Join-Path $frontendBuildPath "index.html"
+        if (-not (Test-Path $indexHtmlPath)) {
+            Write-Error2 "index.html no encontrado en build/"
+            Read-Host "Presiona Enter para cerrar"
+            exit 1
+        }
+        $indexContent = Get-Content $indexHtmlPath -Raw
+        $expectedAssets = [regex]::Matches($indexContent, 'main\.[a-f0-9]+\.(js|css)') | ForEach-Object { $_.Value } | Sort-Object -Unique
+        $missingAssets = @()
+        foreach ($asset in $expectedAssets) {
+            $ext = $asset.Substring($asset.LastIndexOf('.') + 1)
+            $assetPath = Join-Path $frontendBuildPath "static\$ext\$asset"
+            if (-not (Test-Path $assetPath)) {
+                $missingAssets += $asset
+            }
+        }
+        if ($missingAssets.Count -gt 0) {
+            Write-Error2 "Build inconsistente: index.html referencia archivos que NO existen en static/:"
+            foreach ($m in $missingAssets) { Write-Host "  - $m" -ForegroundColor Red }
+            Write-Info "Esto generaria un deploy roto. Aborta y revisa el output de npm build."
+            Read-Host "Presiona Enter para cerrar"
+            exit 1
+        }
+        Write-Success "Build integro: todos los assets de index.html existen en static/"
+
         # Generar deploy-version.json para Frontend (despues del build)
         Write-Step "Generando deploy-version.json para Frontend..."
         if ($global:FrontendVersionInfo) {
@@ -979,6 +1018,17 @@ foreach (`$name in `$preserveFiles) {
 
 Write-Host "[3/7] Copiando paquete local a destino..." -ForegroundColor Yellow
 New-Item -ItemType Directory -Path `$BackendDest -Force | Out-Null
+
+# Limpiar frontend antiguo para evitar acumulacion de hashes huerfanos
+`$wwwrootDest = Join-Path `$BackendDest "wwwroot"
+if (Test-Path `$wwwrootDest) {
+    Write-Host "  Limpiando wwwroot antiguo (static, index.html, manifests)..." -ForegroundColor DarkGray
+    Remove-Item -Recurse -Force (Join-Path `$wwwrootDest "static") -ErrorAction SilentlyContinue
+    Remove-Item -Force (Join-Path `$wwwrootDest "index.html") -ErrorAction SilentlyContinue
+    Remove-Item -Force (Join-Path `$wwwrootDest "asset-manifest.json") -ErrorAction SilentlyContinue
+    Remove-Item -Force (Join-Path `$wwwrootDest "manifest.json") -ErrorAction SilentlyContinue
+}
+
 robocopy `$BackendSource `$BackendDest /E /R:2 /W:2 /NFL /NDL /NP | Out-Null
 if (`$LASTEXITCODE -gt 7) {
     throw "Robocopy fallo con codigo `$LASTEXITCODE"
