@@ -3835,6 +3835,12 @@ namespace SW.PC.API.Backend.Services
                                 if (!string.IsNullOrWhiteSpace(paramValue))
                                     config.AdsTME1 = paramValue.Trim();
                                 break;
+                            case "ads_status_tme1":
+                            case "adsstatustme1":
+                            case "ads_statustme1":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.AdsStatusTME1 = paramValue.Trim();
+                                break;
                             case "enabletme2":
                             case "enable_tme2":
                             case "enable_tme_2":
@@ -3850,6 +3856,12 @@ namespace SW.PC.API.Backend.Services
                             case "adstme2":
                                 if (!string.IsNullOrWhiteSpace(paramValue))
                                     config.AdsTME2 = paramValue.Trim();
+                                break;
+                            case "ads_status_tme2":
+                            case "adsstatustme2":
+                            case "ads_statustme2":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.AdsStatusTME2 = paramValue.Trim();
                                 break;
 
                             // ═══ SMM (Statistics & Maintenance Module) — DEC-019/024/026 ═══

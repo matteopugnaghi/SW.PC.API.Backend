@@ -38,7 +38,8 @@ namespace SW.PC.API.Backend.Services
             await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
 
             // Cargar configuración
-            var (enableTme1, uriTme1, adsTme1, enableTme2, uriTme2, adsTme2) = await LoadConfigAsync();
+            var (enableTme1, uriTme1, adsTme1, adsStatusTme1,
+                 enableTme2, uriTme2, adsTme2, adsStatusTme2) = await LoadConfigAsync();
 
             if (!enableTme1 && !enableTme2)
             {
@@ -48,8 +49,9 @@ namespace SW.PC.API.Backend.Services
                 return;
             }
 
-            _logger.LogInformation("🌡️ TME config: TME1={Enable1} URI={Uri1} ADS={Ads1} | TME2={Enable2} URI={Uri2} ADS={Ads2}",
-                enableTme1, uriTme1, adsTme1, enableTme2, uriTme2, adsTme2);
+            _logger.LogInformation("🌡️ TME config: TME1={Enable1} URI={Uri1} ADS={Ads1} Status={Status1} | TME2={Enable2} URI={Uri2} ADS={Ads2} Status={Status2}",
+                enableTme1, uriTme1, adsTme1, string.IsNullOrEmpty(adsStatusTme1) ? "N/A" : adsStatusTme1,
+                enableTme2, uriTme2, adsTme2, string.IsNullOrEmpty(adsStatusTme2) ? "N/A" : adsStatusTme2);
 
             // Marcar estado inicial
             if (enableTme1)
@@ -80,7 +82,7 @@ namespace SW.PC.API.Backend.Services
                     // Leer TME 1
                     if (enableTme1 && !string.IsNullOrEmpty(uriTme1))
                     {
-                        await ReadAndWriteSensorAsync(httpClient, 1, uriTme1, adsTme1, stoppingToken);
+                        await ReadAndWriteSensorAsync(httpClient, 1, uriTme1, adsTme1, adsStatusTme1, stoppingToken);
                     }
 
                     // Desfase entre sensores
@@ -92,7 +94,7 @@ namespace SW.PC.API.Backend.Services
                     // Leer TME 2
                     if (enableTme2 && !string.IsNullOrEmpty(uriTme2))
                     {
-                        await ReadAndWriteSensorAsync(httpClient, 2, uriTme2, adsTme2, stoppingToken);
+                        await ReadAndWriteSensorAsync(httpClient, 2, uriTme2, adsTme2, adsStatusTme2, stoppingToken);
                     }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -110,9 +112,11 @@ namespace SW.PC.API.Backend.Services
 
         /// <summary>
         /// Lee temperatura del sensor TME vía HTTP y la escribe al PLC vía ADS.
+        /// Además, escribe en la variable ADS de estado ("Done" si OK; mensaje de error si KO).
         /// </summary>
-        private async Task ReadAndWriteSensorAsync(HttpClient httpClient, int sensorIndex, string uri, string adsVariable, CancellationToken ct)
+        private async Task ReadAndWriteSensorAsync(HttpClient httpClient, int sensorIndex, string uri, string adsVariable, string adsStatusVariable, CancellationToken ct)
         {
+            string statusText;
             try
             {
                 var temperature = await ReadTemperatureAsync(httpClient, uri, ct);
@@ -120,36 +124,47 @@ namespace SW.PC.API.Backend.Services
                 if (temperature.HasValue)
                 {
                     _logger.LogDebug("🌡️ TME{Index}: {Temp:F1}°C from {URI}", sensorIndex, temperature.Value, uri);
-                    _metricsService.SetTmeSensorStatus(sensorIndex, true, true,
-                        $"OK ({temperature.Value:F1}°C)", temperature.Value);
+                    statusText = $"OK ({temperature.Value:F1}°C)";
+                    _metricsService.SetTmeSensorStatus(sensorIndex, true, true, statusText, temperature.Value);
 
                     // Escribir al PLC si hay variable ADS configurada
                     if (!string.IsNullOrEmpty(adsVariable))
                     {
                         await WriteTemperatureToPlcAsync(sensorIndex, adsVariable, temperature.Value);
                     }
+
+                    // Estado OK -> escribir "Done" en la variable de estado
+                    await WriteStatusToPlcAsync(sensorIndex, adsStatusVariable, "Done");
+                    return;
                 }
                 else
                 {
+                    statusText = "No data";
                     _logger.LogWarning("🌡️ TME{Index}: No valid temperature from {URI}", sensorIndex, uri);
-                    _metricsService.SetTmeSensorStatus(sensorIndex, true, false, "No data");
+                    _metricsService.SetTmeSensorStatus(sensorIndex, true, false, statusText);
                 }
             }
             catch (TaskCanceledException)
             {
+                statusText = $"Timeout ({HttpTimeout.TotalSeconds}s)";
                 _logger.LogWarning("🌡️ TME{Index}: HTTP timeout ({Timeout}s) connecting to {URI}", sensorIndex, HttpTimeout.TotalSeconds, uri);
-                _metricsService.SetTmeSensorStatus(sensorIndex, true, false, $"Timeout ({HttpTimeout.TotalSeconds}s)");
+                _metricsService.SetTmeSensorStatus(sensorIndex, true, false, statusText);
             }
             catch (HttpRequestException ex)
             {
+                statusText = $"HTTP Error: {ex.Message}";
                 _logger.LogWarning("🌡️ TME{Index}: HTTP error from {URI}: {Error}", sensorIndex, uri, ex.Message);
-                _metricsService.SetTmeSensorStatus(sensorIndex, true, false, $"HTTP Error: {ex.Message}");
+                _metricsService.SetTmeSensorStatus(sensorIndex, true, false, statusText);
             }
             catch (Exception ex)
             {
+                statusText = $"Error: {ex.Message}";
                 _logger.LogError(ex, "🌡️ TME{Index}: Unexpected error reading {URI}", sensorIndex, uri);
-                _metricsService.SetTmeSensorStatus(sensorIndex, true, false, $"Error: {ex.Message}");
+                _metricsService.SetTmeSensorStatus(sensorIndex, true, false, statusText);
             }
+
+            // Estado KO -> escribir el mismo mensaje de error en la variable de estado
+            await WriteStatusToPlcAsync(sensorIndex, adsStatusVariable, statusText);
         }
 
         /// <summary>
@@ -227,9 +242,38 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
+        /// Escribe el texto de estado al PLC como STRING vía ADS.
+        /// Si la variable de estado no está configurada o el PLC no está conectado, se omite silenciosamente.
+        /// </summary>
+        private async Task WriteStatusToPlcAsync(int sensorIndex, string adsStatusVariable, string statusText)
+        {
+            if (string.IsNullOrEmpty(adsStatusVariable))
+                return;
+
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var twinCatService = scope.ServiceProvider.GetRequiredService<ITwinCATService>();
+
+                if (!twinCatService.IsConnected)
+                {
+                    _logger.LogDebug("🌡️ TME{Index}: PLC not connected, skipping ADS status write to {Var}", sensorIndex, adsStatusVariable);
+                    return;
+                }
+
+                await twinCatService.WriteVariableAsync(adsStatusVariable, statusText, typeof(string));
+                _logger.LogDebug("🌡️ TME{Index}: Wrote status '{Status}' to PLC {Var}", sensorIndex, statusText, adsStatusVariable);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "🌡️ TME{Index}: Failed to write status to PLC {Var}", sensorIndex, adsStatusVariable);
+            }
+        }
+
+        /// <summary>
         /// Carga la configuración TME desde el Excel del proyecto activo.
         /// </summary>
-        private async Task<(bool enableTme1, string uriTme1, string adsTme1, bool enableTme2, string uriTme2, string adsTme2)> LoadConfigAsync()
+        private async Task<(bool enableTme1, string uriTme1, string adsTme1, string adsStatusTme1, bool enableTme2, string uriTme2, string adsTme2, string adsStatusTme2)> LoadConfigAsync()
         {
             try
             {
@@ -241,14 +285,14 @@ namespace SW.PC.API.Backend.Services
                 var systemConfig = await excelConfigService.LoadSystemConfigurationAsync(excelPath);
 
                 return (
-                    systemConfig.EnableTME1, systemConfig.UriTME1, systemConfig.AdsTME1,
-                    systemConfig.EnableTME2, systemConfig.UriTME2, systemConfig.AdsTME2
+                    systemConfig.EnableTME1, systemConfig.UriTME1, systemConfig.AdsTME1, systemConfig.AdsStatusTME1,
+                    systemConfig.EnableTME2, systemConfig.UriTME2, systemConfig.AdsTME2, systemConfig.AdsStatusTME2
                 );
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "🌡️ Failed to load TME configuration from Excel");
-                return (false, "", "", false, "", "");
+                return (false, "", "", "", false, "", "", "");
             }
         }
     }

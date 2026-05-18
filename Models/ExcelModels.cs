@@ -1263,6 +1263,9 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Variable ADS (LREAL) donde escribir la temperatura TME 1 en el PLC</summary>
         public string AdsTME1 { get; set; } = "";
 
+        /// <summary>Variable ADS (STRING) donde escribir el estado del sensor TME 1 ("Done" si OK, mensaje de error si KO)</summary>
+        public string AdsStatusTME1 { get; set; } = "";
+
         /// <summary>Habilitar sonda de temperatura TME 2</summary>
         public bool EnableTME2 { get; set; } = false;
 
@@ -1271,6 +1274,9 @@ namespace SW.PC.API.Backend.Models.Excel
 
         /// <summary>Variable ADS (LREAL) donde escribir la temperatura TME 2 en el PLC</summary>
         public string AdsTME2 { get; set; } = "";
+
+        /// <summary>Variable ADS (STRING) donde escribir el estado del sensor TME 2 ("Done" si OK, mensaje de error si KO)</summary>
+        public string AdsStatusTME2 { get; set; } = "";
 
         // ═══════════════════════════════════════════════════════════════════════════
         // 📊 SMM (Statistics & Maintenance Module) — DEC-019/024/026
