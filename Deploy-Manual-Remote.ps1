@@ -1047,12 +1047,28 @@ finally {
 "@
     Set-Content -Path (Join-Path $manualFolder "01-Deploy-Manual-IPC.ps1") -Value $helperScriptContent -Encoding UTF8
 
-    # .bat de lanzamiento elevado (doble clic -> UAC -> ejecuta el .ps1 como Admin)
-    # -NoExit mantiene la ventana abierta incluso si el .ps1 cascara antes del finally
+    # .bat de lanzamiento con auto-elevacion (doble clic -> UAC -> ejecuta el .ps1 como Admin)
+    # Patron estandar: se relanza a si mismo elevado, asi la ventana cmd se queda abierta
     $batContent = @"
 @echo off
-echo Iniciando deploy Aquafrisch Supervisor - $ProjectId ...
-powershell -Command "Start-Process powershell -ArgumentList '-NoExit -NoProfile -ExecutionPolicy Bypass -File ""%~dp001-Deploy-Manual-IPC.ps1"" -PackageRoot ""%~dp0..""' -Verb RunAs"
+cd /d "%~dp0"
+
+REM Comprobar si ya estamos elevados
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Solicitando permisos de Administrador...
+    powershell -NoProfile -Command "Start-Process '%~f0' -Verb RunAs"
+    exit /b
+)
+
+echo ==============================================
+echo  Deploy local Aquafrisch - $ProjectId
+echo ==============================================
+echo.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp001-Deploy-Manual-IPC.ps1" -PackageRoot "%~dp0.."
+echo.
+echo (Pulsa una tecla para cerrar esta ventana)
+pause >nul
 "@
     Set-Content -Path (Join-Path $manualFolder "INSTALAR.bat") -Value $batContent -Encoding ASCII
     Write-Success "Lanzador generado: ManualDeploy\INSTALAR.bat (doble clic -> UAC -> deploy automatico)"
