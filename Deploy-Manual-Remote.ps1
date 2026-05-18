@@ -860,6 +860,17 @@ if ($IsLocalCopyOnly) {
     $frontendBuildPath = "$FrontendPath\build"
     $excludeFiles = @('robots.txt', 'asset-manifest.json')
     $excludeFolders = @('docs', 'models')
+
+    # FIX: Limpiar wwwroot/static y manifests que vienen del publish del backend
+    # para evitar que Copy-Item -Recurse anide carpetas o deje hashes huerfanos.
+    $wwwrootDest = "$localBackendPath\wwwroot"
+    if (Test-Path "$wwwrootDest\static") {
+        Remove-Item -Recurse -Force "$wwwrootDest\static" -ErrorAction SilentlyContinue
+    }
+    Remove-Item -Force "$wwwrootDest\index.html" -ErrorAction SilentlyContinue
+    Remove-Item -Force "$wwwrootDest\asset-manifest.json" -ErrorAction SilentlyContinue
+    Remove-Item -Force "$wwwrootDest\manifest.json" -ErrorAction SilentlyContinue
+
     Get-ChildItem -Path $frontendBuildPath -File | Where-Object { $_.Name -notin $excludeFiles } | ForEach-Object {
         Copy-Item -Path $_.FullName -Destination "$localBackendPath\wwwroot\$($_.Name)" -Force
     }
@@ -867,21 +878,42 @@ if ($IsLocalCopyOnly) {
         Copy-Item -Path $_.FullName -Destination "$localBackendPath\wwwroot\$($_.Name)" -Recurse -Force
     }
 
-    # Copiar Proyecto (config, models, opcua-certs)
-    Write-Step "Copiando proyecto $ProjectId..."
-    $projectSourcePath = Join-Path $ProjectsPath $ProjectId
-    if (Test-Path "$projectSourcePath\config") {
-        Copy-Item -Path "$projectSourcePath\config\*" -Destination "$localProjectPath\config" -Recurse -Force
-    }
-    if (Test-Path "$projectSourcePath\models") {
-        Copy-Item -Path "$projectSourcePath\models\*" -Destination "$localProjectPath\models" -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    if (Test-Path "$projectSourcePath\opcua-certs") {
-        Copy-Item -Path "$projectSourcePath\opcua-certs\*" -Destination "$localProjectPath\opcua-certs" -Recurse -Force -ErrorAction SilentlyContinue
+    # Verificacion post-copia: los hashes en index.html del paquete deben existir en static/
+    Write-Step "Verificando integridad del paquete (hashes vs static/)..."
+    $pkgIndex = "$wwwrootDest\index.html"
+    if (Test-Path $pkgIndex) {
+        $pkgContent = Get-Content $pkgIndex -Raw
+        $pkgAssets = [regex]::Matches($pkgContent, 'main\.[a-f0-9]+\.(js|css)') | ForEach-Object { $_.Value } | Sort-Object -Unique
+        $pkgMissing = @()
+        foreach ($a in $pkgAssets) {
+            $ext = $a.Substring($a.LastIndexOf('.') + 1)
+            if (-not (Test-Path "$wwwrootDest\static\$ext\$a")) { $pkgMissing += $a }
+        }
+        if ($pkgMissing.Count -gt 0) {
+            Write-Error2 "Paquete INCONSISTENTE: index.html referencia archivos ausentes en static/:"
+            foreach ($m in $pkgMissing) { Write-Host "  - $m" -ForegroundColor Red }
+            Read-Host "Presiona Enter para cerrar"
+            exit 1
+        }
+        Write-Success "Paquete integro"
     }
 
-    # active-project.json
-    $activeProjectLocal = @"
+    # Copiar Proyecto (config, models, opcua-certs) - SOLO si NO es CodeOnly
+    if (-not $CodeOnly) {
+        Write-Step "Copiando proyecto $ProjectId..."
+        $projectSourcePath = Join-Path $ProjectsPath $ProjectId
+        if (Test-Path "$projectSourcePath\config") {
+            Copy-Item -Path "$projectSourcePath\config\*" -Destination "$localProjectPath\config" -Recurse -Force
+        }
+        if (Test-Path "$projectSourcePath\models") {
+            Copy-Item -Path "$projectSourcePath\models\*" -Destination "$localProjectPath\models" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path "$projectSourcePath\opcua-certs") {
+            Copy-Item -Path "$projectSourcePath\opcua-certs\*" -Destination "$localProjectPath\opcua-certs" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        # active-project.json (solo en modo COMPLETO; en CodeOnly se preserva el del IPC)
+        $activeProjectLocal = @"
 {
   "activeProject": "$ProjectId",
   "description": "Proyecto configurado automaticamente por Deploy-Manual-Remote.ps1 (copia local)",
@@ -889,7 +921,11 @@ if ($IsLocalCopyOnly) {
   "deployedFrom": "$env:COMPUTERNAME"
 }
 "@
-    Set-Content -Path "$localBackendPath\active-project.json" -Value $activeProjectLocal -Encoding UTF8
+        Set-Content -Path "$localBackendPath\active-project.json" -Value $activeProjectLocal -Encoding UTF8
+    } else {
+        Write-Step "Modo SOLO CODIGO: omitiendo copia de Projects/$ProjectId (config/models/opcua-certs)"
+        Write-Info "  El IPC conservara su Excel, modelos 3D, certificados OPC/UA y active-project.json"
+    }
 
     # deploy-version.json (raiz Backend)
     $deployVersionLocal = @{
