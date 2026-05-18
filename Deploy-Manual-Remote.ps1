@@ -915,9 +915,19 @@ param(
 
 `$ErrorActionPreference = "Stop"
 
+try {
+
 if ([string]::IsNullOrWhiteSpace(`$PackageRoot)) {
     `$PackageRoot = (Resolve-Path (Join-Path `$PSScriptRoot "..")).Path
 }
+
+Write-Host "==============================================" -ForegroundColor Cyan
+Write-Host " Aquafrisch Supervisor - Deploy Local         " -ForegroundColor Cyan
+Write-Host "==============================================" -ForegroundColor Cyan
+Write-Host "PackageRoot : `$PackageRoot" -ForegroundColor Gray
+Write-Host "InstallPath : `$InstallPath" -ForegroundColor Gray
+Write-Host "ServiceName : `$ServiceName" -ForegroundColor Gray
+Write-Host ""
 
 `$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not `$isAdmin) {
@@ -983,15 +993,35 @@ Write-Host "[7/7] Health check..." -ForegroundColor Yellow
 Write-Host "API active-project =>" -ForegroundColor Green
 Write-Host `$resp.Content -ForegroundColor White
 
-Write-Host "Deploy local completado. Proyecto esperado: $ProjectId" -ForegroundColor Green
+Write-Host ""
+Write-Host "==============================================" -ForegroundColor Green
+Write-Host " Deploy local completado correctamente        " -ForegroundColor Green
+Write-Host " Proyecto esperado: $ProjectId" -ForegroundColor Green
+Write-Host "==============================================" -ForegroundColor Green
+
+} catch {
+    Write-Host ""
+    Write-Host "==============================================" -ForegroundColor Red
+    Write-Host " ERROR durante el deploy local                " -ForegroundColor Red
+    Write-Host "==============================================" -ForegroundColor Red
+    Write-Host `$_.Exception.Message -ForegroundColor Red
+    Write-Host ""
+    Write-Host "StackTrace:" -ForegroundColor DarkGray
+    Write-Host `$_.ScriptStackTrace -ForegroundColor DarkGray
+}
+finally {
+    Write-Host ""
+    Read-Host "Pulsa ENTER para cerrar esta ventana"
+}
 "@
     Set-Content -Path (Join-Path $manualFolder "01-Deploy-Manual-IPC.ps1") -Value $helperScriptContent -Encoding UTF8
 
     # .bat de lanzamiento elevado (doble clic -> UAC -> ejecuta el .ps1 como Admin)
+    # -NoExit mantiene la ventana abierta incluso si el .ps1 cascara antes del finally
     $batContent = @"
 @echo off
 echo Iniciando deploy Aquafrisch Supervisor - $ProjectId ...
-powershell -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File ""%~dp001-Deploy-Manual-IPC.ps1"" -PackageRoot ""%~dp0..""' -Verb RunAs"
+powershell -Command "Start-Process powershell -ArgumentList '-NoExit -NoProfile -ExecutionPolicy Bypass -File ""%~dp001-Deploy-Manual-IPC.ps1"" -PackageRoot ""%~dp0..""' -Verb RunAs"
 "@
     Set-Content -Path (Join-Path $manualFolder "INSTALAR.bat") -Value $batContent -Encoding ASCII
     Write-Success "Lanzador generado: ManualDeploy\INSTALAR.bat (doble clic -> UAC -> deploy automatico)"
