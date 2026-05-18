@@ -1014,7 +1014,7 @@ for (`$i = 1; `$i -le `$maxAttempts; `$i++) {
             break
         }
     } catch {
-        Write-Host "  Intento `$i/`$maxAttempts: backend aun no responde..." -ForegroundColor DarkGray
+        Write-Host "  Intento `$i/`${maxAttempts}: backend aun no responde..." -ForegroundColor DarkGray
         Start-Sleep -Seconds 2
     }
 }
