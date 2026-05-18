@@ -945,7 +945,21 @@ if (-not (Test-Path `$BackendSource)) {
 
 Write-Host "[1/7] Parando servicio/proceso..." -ForegroundColor Yellow
 Stop-Service `$ServiceName -Force -ErrorAction SilentlyContinue
-taskkill /IM "SW.PC.API.Backend.exe" /F 2>`$null | Out-Null
+Start-Sleep -Seconds 2
+# Matar procesos residuales (si Stop-Service no los apago). Usamos Stop-Process
+# en vez de taskkill para que no falle en PS7 con `$PSNativeCommandUseErrorActionPreference.
+`$residual = Get-Process -Name "SW.PC.API.Backend" -ErrorAction SilentlyContinue
+if (`$residual) {
+    Write-Host "  Procesos residuales encontrados: `$(`$residual.Count). Intentando cerrar..." -ForegroundColor DarkYellow
+    foreach (`$p in `$residual) {
+        try { `$p.Kill(`$true); `$p.WaitForExit(5000) | Out-Null } catch { Write-Host "  No se pudo matar PID `$(`$p.Id): `$(`$_.Exception.Message)" -ForegroundColor DarkYellow }
+    }
+    Start-Sleep -Seconds 1
+    `$stillThere = Get-Process -Name "SW.PC.API.Backend" -ErrorAction SilentlyContinue
+    if (`$stillThere) {
+        Write-Host "  AVISO: `$(`$stillThere.Count) proceso(s) siguen vivos. Continuamos igualmente (robocopy puede fallar en archivos bloqueados)." -ForegroundColor Yellow
+    }
+}
 
 Write-Host "[2/7] Preservando configuracion local sensible..." -ForegroundColor Yellow
 New-Item -ItemType Directory -Path `$PreserveBackup -Force | Out-Null
@@ -988,8 +1002,25 @@ if (-not (Get-Service -Name `$ServiceName -ErrorAction SilentlyContinue)) {
 Write-Host "[6/7] Arrancando servicio..." -ForegroundColor Yellow
 Start-Service `$ServiceName
 
-Write-Host "[7/7] Health check..." -ForegroundColor Yellow
-`$resp = Invoke-WebRequest "http://127.0.0.1:5000/api/projects/active" -UseBasicParsing -TimeoutSec 15
+Write-Host "[7/7] Health check (esperando a que el backend escuche)..." -ForegroundColor Yellow
+`$healthUrl = "http://127.0.0.1:5000/api/projects/active"
+`$resp = `$null
+`$maxAttempts = 30
+for (`$i = 1; `$i -le `$maxAttempts; `$i++) {
+    try {
+        `$resp = Invoke-WebRequest `$healthUrl -UseBasicParsing -TimeoutSec 5
+        if (`$resp.StatusCode -eq 200) {
+            Write-Host "  Backend responde tras `$i intento(s)." -ForegroundColor Green
+            break
+        }
+    } catch {
+        Write-Host "  Intento `$i/`$maxAttempts: backend aun no responde..." -ForegroundColor DarkGray
+        Start-Sleep -Seconds 2
+    }
+}
+if (`$null -eq `$resp -or `$resp.StatusCode -ne 200) {
+    throw "Backend no respondio en `$(`$maxAttempts * 2) segundos. Revisa los logs del servicio (eventvwr) y el log de la app."
+}
 Write-Host "API active-project =>" -ForegroundColor Green
 Write-Host `$resp.Content -ForegroundColor White
 
