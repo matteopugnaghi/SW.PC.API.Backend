@@ -154,7 +154,9 @@ namespace SW.PC.API.Backend.Services
 
         /// <summary>
         /// Lee la temperatura del sensor Papouch TME desde su endpoint HTTP XML.
-        /// El XML tiene formato: <tmr><t>25.3</t></tmr> o similar.
+        /// Soporta formatos:
+        /// - <tmr><t>25.3</t></tmr>
+        /// - <thermometer><temperature>191</temperature></thermometer> (décimas de grado)
         /// </summary>
         private async Task<double?> ReadTemperatureAsync(HttpClient httpClient, string uri, CancellationToken ct)
         {
@@ -163,15 +165,21 @@ namespace SW.PC.API.Backend.Services
             if (string.IsNullOrWhiteSpace(response))
                 return null;
 
-            // Parse XML del TME: formato <root><sns><id>0</id><t>25.3</t><h>...</h></sns></root>
-            // o <tmr><t>25.3</t></tmr>
+            // Parse XML del TME: soporta <t> (formato antiguo) y <temperature> (formato Papouch)
             var doc = XDocument.Parse(response);
 
-            // Buscar elemento <t> (temperature) en cualquier nivel
+            // 1) Formato clásico: <t>25.3</t>
             var tempElement = doc.Descendants("t").FirstOrDefault();
+
+            // 2) Formato Papouch: <temperature>191</temperature> (19.1°C)
             if (tempElement == null)
             {
-                _logger.LogWarning("🌡️ No <t> element found in TME XML response: {Response}", 
+                tempElement = doc.Descendants("temperature").FirstOrDefault();
+            }
+
+            if (tempElement == null)
+            {
+                _logger.LogWarning("🌡️ No temperature element (<t> or <temperature>) found in TME XML response: {Response}", 
                     response.Length > 200 ? response[..200] : response);
                 return null;
             }
@@ -179,6 +187,13 @@ namespace SW.PC.API.Backend.Services
             var tempText = tempElement.Value.Trim();
             if (double.TryParse(tempText, NumberStyles.Float, CultureInfo.InvariantCulture, out double temperature))
             {
+                // Si llega como entero en décimas (ej: 191 => 19.1°C), convertir.
+                // Si ya trae decimal (ej: 25.3), se deja tal cual.
+                if (!tempText.Contains('.') && !tempText.Contains(',') && long.TryParse(tempText, out _))
+                {
+                    return temperature / 10.0;
+                }
+
                 return temperature;
             }
 
