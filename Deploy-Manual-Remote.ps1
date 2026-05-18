@@ -101,6 +101,7 @@ Write-Host ""
 Write-Info "PC Destino: $TargetIP"
 Write-Info "Ruta destino: $InstallPath"
 Write-Host ""
+$IsLocalCopyOnly = $false
 
 # ============================================
 # PASO 0: Seleccionar Proyecto
@@ -229,6 +230,8 @@ if ($SaveLocalCopy) {
         }
     }
     Write-Info "Copia local se guardará en: $LocalCopyPath"
+    $IsLocalCopyOnly = $true
+    Write-Info "Modo local activado: se generará paquete local y NO se intentará conexion remota"
 }
 Write-Host ""
 
@@ -794,6 +797,211 @@ if ($SkipFrontendBuild) {
         Remove-Item "$env:TEMP\npm_stdout.txt" -ErrorAction SilentlyContinue
         Remove-Item "$env:TEMP\npm_stderr.txt" -ErrorAction SilentlyContinue
     }
+}
+
+if ($IsLocalCopyOnly) {
+    Write-Header "PASO 3.5: Generando paquete LOCAL (sin conexion remota)"
+
+    # Crear estructura de carpetas local
+    $localBackendPath = "$LocalCopyPath\Backend"
+    $localProjectPath = "$LocalCopyPath\Backend\Projects\$ProjectId"
+
+    Write-Step "Creando estructura local en: $LocalCopyPath"
+    New-Item -ItemType Directory -Path "$localBackendPath\wwwroot" -Force | Out-Null
+    New-Item -ItemType Directory -Path "$localProjectPath\config" -Force | Out-Null
+    New-Item -ItemType Directory -Path "$localProjectPath\models" -Force | Out-Null
+    New-Item -ItemType Directory -Path "$localProjectPath\data" -Force | Out-Null
+
+    # Copiar Backend (desde publish)
+    Write-Step "Copiando Backend..."
+    Copy-Item -Path "$BackendPath\publish\*" -Destination $localBackendPath -Recurse -Force
+
+    # Copiar Frontend (desde build a wwwroot, excluyendo innecesarios)
+    Write-Step "Copiando Frontend (optimizado)..."
+    $frontendBuildPath = "$FrontendPath\build"
+    $excludeFiles = @('robots.txt', 'asset-manifest.json')
+    $excludeFolders = @('docs', 'models')
+    Get-ChildItem -Path $frontendBuildPath -File | Where-Object { $_.Name -notin $excludeFiles } | ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination "$localBackendPath\wwwroot\$($_.Name)" -Force
+    }
+    Get-ChildItem -Path $frontendBuildPath -Directory | Where-Object { $_.Name -notin $excludeFolders } | ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination "$localBackendPath\wwwroot\$($_.Name)" -Recurse -Force
+    }
+
+    # Copiar Proyecto (config, models, opcua-certs)
+    Write-Step "Copiando proyecto $ProjectId..."
+    $projectSourcePath = Join-Path $ProjectsPath $ProjectId
+    if (Test-Path "$projectSourcePath\config") {
+        Copy-Item -Path "$projectSourcePath\config\*" -Destination "$localProjectPath\config" -Recurse -Force
+    }
+    if (Test-Path "$projectSourcePath\models") {
+        Copy-Item -Path "$projectSourcePath\models\*" -Destination "$localProjectPath\models" -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path "$projectSourcePath\opcua-certs") {
+        Copy-Item -Path "$projectSourcePath\opcua-certs\*" -Destination "$localProjectPath\opcua-certs" -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    # active-project.json
+    $activeProjectLocal = @"
+{
+  "activeProject": "$ProjectId",
+  "description": "Proyecto configurado automaticamente por Deploy-Manual-Remote.ps1 (copia local)",
+  "deployedAt": "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
+  "deployedFrom": "$env:COMPUTERNAME"
+}
+"@
+    Set-Content -Path "$localBackendPath\active-project.json" -Value $activeProjectLocal -Encoding UTF8
+
+    # deploy-version.json (raiz Backend)
+    $deployVersionLocal = @{
+        ProjectId = $ProjectId
+        DeployedAt = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+        DeployedFrom = $env:COMPUTERNAME
+        DeployedBy = $env:USERNAME
+        Backend = $backendVersionInfo
+        Frontend = $frontendVersionInfo
+    } | ConvertTo-Json -Depth 10
+    Set-Content -Path "$localBackendPath\deploy-version.json" -Value $deployVersionLocal -Encoding UTF8
+
+    # Copiar certificado/appsettings si existen
+    if (Test-Path "$BackendPath\certificate.pfx") {
+        Copy-Item -Path "$BackendPath\certificate.pfx" -Destination "$localBackendPath\certificate.pfx" -Force
+    }
+    if (Test-Path "$BackendPath\appsettings.Production.json") {
+        Copy-Item -Path "$BackendPath\appsettings.Production.json" -Destination "$localBackendPath\appsettings.Production.json" -Force
+    }
+
+    # DEPLOY_INFO
+    $deployInfoContent = @"
+# DEPLOY LOCAL - $ProjectId
+# ========================
+# Fecha: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+# Equipo origen: $env:COMPUTERNAME
+# Usuario: $env:USERNAME
+# Backend: v$($backendVersionInfo.Version) ($($backendVersionInfo.CommitSha))
+# Frontend: v$($frontendVersionInfo.Version) ($($frontendVersionInfo.CommitSha))
+"@
+    Set-Content -Path "$LocalCopyPath\DEPLOY_INFO.txt" -Value $deployInfoContent -Encoding UTF8
+
+    # Checklist + script guia
+    Write-Step "Generando checklist automatico para despliegue manual..."
+    $manualFolder = Join-Path $LocalCopyPath "ManualDeploy"
+    New-Item -ItemType Directory -Path $manualFolder -Force | Out-Null
+
+     $checklistContent = @"
+# CHECKLIST DESPLIEGUE LOCAL - $ProjectId
+
+Fecha paquete: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+Proyecto esperado: $ProjectId
+
+1) Copiar la carpeta completa del paquete al IPC (incluyendo Backend y ManualDeploy).
+2) En el IPC, abrir PowerShell como Administrador.
+3) Ir a ManualDeploy y ejecutar:
+    .\01-Deploy-Manual-IPC.ps1
+4) Verificar salida: debe indicar "Deploy local completado" y mostrar respuesta de /api/projects/active.
+5) Abrir https://127.0.0.1:5001 y validar SCADA.
+
+Nota: el script 01-Deploy-Manual-IPC.ps1 ya para servicio/proceso, copia archivos, restaura configuracion sensible,
+registra servicio si no existe, arranca y hace health check.
+"@
+    Set-Content -Path (Join-Path $manualFolder "CHECKLIST_DESPLIEGUE_LOCAL.md") -Value $checklistContent -Encoding UTF8
+
+    $helperScriptContent = @"
+param(
+    [string]`$PackageRoot = "",
+    [string]`$InstallPath = "C:\Aquafrisch Supervisor",
+    [string]`$ServiceName = "AquafrischSupervisor"
+)
+
+`$ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace(`$PackageRoot)) {
+    `$PackageRoot = (Resolve-Path (Join-Path `$PSScriptRoot "..")).Path
+}
+
+`$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not `$isAdmin) {
+    throw "Ejecuta este script como Administrador."
+}
+
+`$BackendSource = Join-Path `$PackageRoot "Backend"
+`$BackendDest = Join-Path `$InstallPath "Backend"
+`$ServiceExePath = Join-Path `$BackendDest "SW.PC.API.Backend.exe"
+`$PreserveBackup = Join-Path `$env:TEMP ("aquafrisch_preserve_" + (Get-Date -Format "yyyyMMdd_HHmmss"))
+
+if (-not (Test-Path `$BackendSource)) {
+    throw "No se encuentra Backend en el paquete: `$BackendSource"
+}
+
+Write-Host "[1/7] Parando servicio/proceso..." -ForegroundColor Yellow
+Stop-Service `$ServiceName -Force -ErrorAction SilentlyContinue
+taskkill /IM "SW.PC.API.Backend.exe" /F 2>`$null | Out-Null
+
+Write-Host "[2/7] Preservando configuracion local sensible..." -ForegroundColor Yellow
+New-Item -ItemType Directory -Path `$PreserveBackup -Force | Out-Null
+`$preserveFiles = @(
+    "authorized_signing_keys.json",
+    "access_control_config.json",
+    "active-project.json",
+    "certificate.pfx",
+    "appsettings.Production.json"
+)
+foreach (`$name in `$preserveFiles) {
+    `$src = Join-Path `$BackendDest `$name
+    if (Test-Path `$src) {
+        Copy-Item `$src (Join-Path `$PreserveBackup `$name) -Force
+    }
+}
+
+Write-Host "[3/7] Copiando paquete local a destino..." -ForegroundColor Yellow
+New-Item -ItemType Directory -Path `$BackendDest -Force | Out-Null
+robocopy `$BackendSource `$BackendDest /E /R:2 /W:2 /NFL /NDL /NP | Out-Null
+if (`$LASTEXITCODE -gt 7) {
+    throw "Robocopy fallo con codigo `$LASTEXITCODE"
+}
+
+Write-Host "[4/7] Restaurando configuracion preservada..." -ForegroundColor Yellow
+foreach (`$name in `$preserveFiles) {
+    `$saved = Join-Path `$PreserveBackup `$name
+    if (Test-Path `$saved) {
+        Copy-Item `$saved (Join-Path `$BackendDest `$name) -Force
+    }
+}
+
+Write-Host "[5/7] Asegurando servicio de Windows..." -ForegroundColor Yellow
+if (-not (Get-Service -Name `$ServiceName -ErrorAction SilentlyContinue)) {
+    sc.exe create `$ServiceName binPath= "`"`$ServiceExePath`"" start= auto DisplayName= "`"Aquafrisch Supervisor`"" | Out-Null
+    sc.exe description `$ServiceName "Aquafrisch Supervisor - SCADA/HMI Backend (Production)" | Out-Null
+    sc.exe failure `$ServiceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 | Out-Null
+}
+
+Write-Host "[6/7] Arrancando servicio..." -ForegroundColor Yellow
+Start-Service `$ServiceName
+
+Write-Host "[7/7] Health check..." -ForegroundColor Yellow
+`$resp = Invoke-WebRequest "http://127.0.0.1:5000/api/projects/active" -UseBasicParsing -TimeoutSec 15
+Write-Host "API active-project =>" -ForegroundColor Green
+Write-Host `$resp.Content -ForegroundColor White
+
+Write-Host "Deploy local completado. Proyecto esperado: $ProjectId" -ForegroundColor Green
+"@
+    Set-Content -Path (Join-Path $manualFolder "01-Deploy-Manual-IPC.ps1") -Value $helperScriptContent -Encoding UTF8
+
+    # .bat de lanzamiento elevado (doble clic -> UAC -> ejecuta el .ps1 como Admin)
+    $batContent = @"
+@echo off
+echo Iniciando deploy Aquafrisch Supervisor - $ProjectId ...
+powershell -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File ""%~dp001-Deploy-Manual-IPC.ps1"" -PackageRoot ""%~dp0..""' -Verb RunAs"
+"@
+    Set-Content -Path (Join-Path $manualFolder "INSTALAR.bat") -Value $batContent -Encoding ASCII
+    Write-Success "Lanzador generado: ManualDeploy\INSTALAR.bat (doble clic -> UAC -> deploy automatico)"
+
+    $localFileCount = (Get-ChildItem -Path $LocalCopyPath -Recurse -File).Count
+    Write-Success "Copia local guardada: $localFileCount archivos"
+    Write-Info "Ruta: $LocalCopyPath"
+    Write-Info "No se realizo conexion remota"
+    Read-Host "Presiona Enter para cerrar"
+    exit 0
 }
 
 # ============================================
