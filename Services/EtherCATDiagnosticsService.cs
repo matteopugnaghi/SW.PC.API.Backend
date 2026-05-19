@@ -99,6 +99,14 @@ namespace SW.PC.API.Backend.Services
         private DateTime _cacheTimestamp = DateTime.MinValue;
         private readonly object _cacheLock = new();
 
+        // Cache del layout detectado de ST_SlaveStateInfo.
+        // Una vez detectado (vía patrón estándar o escaneo exhaustivo), se reutiliza en
+        // ciclos siguientes para evitar repetir el escaneo y los logs cada 30s.
+        // Se invalida automáticamente si la validación con el nuevo buffer falla
+        // (p. ej. cambio de configuración del PLC).
+        private int? _learnedSlaveInfoSize;
+        private int? _learnedNECAddrOffset;
+
         // Registros EtherCAT ESC (EtherCAT Slave Controller)
         private static class ESCRegisters
         {
@@ -1104,7 +1112,21 @@ namespace SW.PC.API.Backend.Services
         private (int Size, int NECAddrOffset) DetectSlaveInfoSize(byte[] buffer, int bytesRead)
         {
             _logger.LogDebug("🔍 Detectando tamaño de ST_SlaveStateInfo... (buffer: {Bytes} bytes)", bytesRead);
-            
+
+            // 0) Cache: si ya aprendimos el layout en una ejecución anterior, reusarlo.
+            //    Validamos contra el buffer actual; si ya no encaja, invalidamos y reintentamos.
+            if (_learnedSlaveInfoSize.HasValue && _learnedNECAddrOffset.HasValue)
+            {
+                if (TryValidateLayout(buffer, bytesRead, _learnedNECAddrOffset.Value, _learnedSlaveInfoSize.Value))
+                {
+                    return (_learnedSlaveInfoSize.Value, _learnedNECAddrOffset.Value);
+                }
+                _logger.LogInformation("♻️ Layout cacheado de ST_SlaveStateInfo ya no encaja (offset={Offset}, size={Size}); re-detectando...",
+                    _learnedNECAddrOffset.Value, _learnedSlaveInfoSize.Value);
+                _learnedSlaveInfoSize = null;
+                _learnedNECAddrOffset = null;
+            }
+
             // Posibles offsets donde podría estar nECAddr dentro de la estructura:
             // - 247 = con sESIfile: nIndex(4) + sName(81) + sType(81) + sESIfile(81) = 247
             // - 166 = sin sESIfile: nIndex(4) + sName(81) + sType(81) = 166
@@ -1117,30 +1139,20 @@ namespace SW.PC.API.Backend.Services
             {
                 foreach (var testSize in possibleSizes)
                 {
-                    // Necesitamos al menos 3 estructuras para verificar
-                    if (nECAddrOffset + (testSize * 3) > bytesRead)
-                        continue;
-                    
-                    // Leer 3 valores de nECAddr consecutivos
-                    var addr1 = BitConverter.ToUInt16(buffer, nECAddrOffset);
-                    var addr2 = BitConverter.ToUInt16(buffer, nECAddrOffset + testSize);
-                    var addr3 = BitConverter.ToUInt16(buffer, nECAddrOffset + (testSize * 2));
-                    
-                    // Verificar que son válidos (rango 1001-1256) y consecutivos
-                    if (addr1 >= 1001 && addr1 <= 1256 &&
-                        addr2 == addr1 + 1 &&
-                        addr3 == addr1 + 2)
+                    if (TryValidateLayout(buffer, bytesRead, nECAddrOffset, testSize))
                     {
                         _logger.LogInformation("✅ Patrón detectado: nECAddr en offset {Offset}, tamaño estructura = {Size} bytes",
                             nECAddrOffset, testSize);
-                        _logger.LogDebug("   Valores: {A1}, {A2}, {A3}", addr1, addr2, addr3);
+                        RememberLayout(testSize, nECAddrOffset);
                         return (testSize, nECAddrOffset);
                     }
                 }
             }
             
-            // Si no encontramos el patrón, hacer un escaneo más exhaustivo
-            _logger.LogWarning("⚠️ Patrón estándar no encontrado, haciendo escaneo exhaustivo...");
+            // Si no encontramos el patrón estándar, hacer un escaneo exhaustivo.
+            // Nota: comportamiento esperado en instalaciones cuyo ST_SlaveStateInfo difiere
+            // de los tamaños conocidos; se aprende y cachea el layout para no repetirlo.
+            _logger.LogInformation("🔎 Patrón estándar no encontrado, ejecutando escaneo exhaustivo (one-shot, se cacheará)...");
             
             // Buscar cualquier secuencia de 3 valores consecutivos en rango 1001-1256
             for (int startOffset = 0; startOffset < Math.Min(500, bytesRead - 6); startOffset += 2)
@@ -1161,16 +1173,49 @@ namespace SW.PC.API.Backend.Services
                         {
                             _logger.LogInformation("✅ Escaneo: nECAddr encontrado en offset {Offset}, tamaño = {Size} bytes",
                                 startOffset, testSize);
+                            RememberLayout(testSize, startOffset);
                             return (testSize, startOffset);
                         }
                     }
                 }
             }
             
-            // Último recurso: usar el tamaño por defecto
+            // Último recurso: usar el tamaño por defecto (esto sí es un problema real)
             _logger.LogWarning("⚠️ No se pudo detectar tamaño, usando valores por defecto: Size={Size}, Offset={Offset}", 
                 ST_SlaveStateInfo_Parsed.Size, ST_SlaveStateInfo_Parsed.Offset_nECAddr);
             return (ST_SlaveStateInfo_Parsed.Size, ST_SlaveStateInfo_Parsed.Offset_nECAddr); // 290 bytes, offset 247
+        }
+
+        /// <summary>
+        /// Valida un layout candidato (offset de nECAddr + tamaño de estructura) contra el buffer:
+        /// lee 3 valores consecutivos y verifica que sean N, N+1, N+2 en rango EtherCAT válido.
+        /// </summary>
+        private static bool TryValidateLayout(byte[] buffer, int bytesRead, int nECAddrOffset, int slaveSize)
+        {
+            if (nECAddrOffset < 0 || slaveSize <= 0) return false;
+            if (nECAddrOffset + (slaveSize * 2) + 2 > bytesRead) return false;
+
+            var addr1 = BitConverter.ToUInt16(buffer, nECAddrOffset);
+            var addr2 = BitConverter.ToUInt16(buffer, nECAddrOffset + slaveSize);
+            var addr3 = BitConverter.ToUInt16(buffer, nECAddrOffset + (slaveSize * 2));
+
+            return addr1 >= 1001 && addr1 <= 1256
+                && addr2 == addr1 + 1
+                && addr3 == addr1 + 2;
+        }
+
+        /// <summary>
+        /// Memoriza el layout detectado para reutilizarlo en ciclos posteriores.
+        /// </summary>
+        private void RememberLayout(int size, int nECAddrOffset)
+        {
+            if (_learnedSlaveInfoSize != size || _learnedNECAddrOffset != nECAddrOffset)
+            {
+                _logger.LogInformation("💾 Layout ST_SlaveStateInfo memorizado: offset={Offset}, size={Size} (se reusará en próximos ciclos)",
+                    nECAddrOffset, size);
+            }
+            _learnedSlaveInfoSize = size;
+            _learnedNECAddrOffset = nECAddrOffset;
         }
 
         /// <summary>
@@ -1472,8 +1517,28 @@ namespace SW.PC.API.Backend.Services
                 else
                 {
                     // ⭐ ESI NO encontrado - aplicar FALLBACK inteligente basado en ESIFileName/Name/DeviceType
-                    _logger.LogWarning("  ⚠️ SIN ESI para '{Name}' (VendorId=0x{V:X4}, ProductCode=0x{P:X8}, type:{Type}, esiFile:{ESI})", 
-                        slave.Name, slave.VendorId, slave.ProductCode, slave.DeviceType ?? "null", slave.ESIFileName ?? "null");
+                    // Nota: para módulos Beckhoff es ESPERADO no encontrar ESI por VendorId/ProductCode/ESIFileName
+                    // (TwinCAT no rellena esos campos en la struct PLC). El fallback por DeviceType ya identifica
+                    // el módulo en la UI. Por eso bajamos el log a Debug cuando reconocemos un prefijo Beckhoff
+                    // típico (EK/EL/ES/EP/EJ/AX/CX/BK/EPP/EQ/ER). Solo logueamos Warning para casos realmente
+                    // desconocidos (sin nombre/tipo o vendor exótico no identificado).
+                    var dtUpper = (slave.DeviceType ?? "").ToUpperInvariant();
+                    var nmUpper = (slave.Name ?? "").ToUpperInvariant();
+                    bool isKnownBeckhoff = System.Text.RegularExpressions.Regex.IsMatch(
+                        dtUpper, @"^(EK|EL|ES|EP|EPP|EJ|AX|CX|BK|FB|EQ|ER)\d{3,4}")
+                        || System.Text.RegularExpressions.Regex.IsMatch(
+                            nmUpper, @"^(EK|EL|ES|EP|EPP|EJ|AX|CX|BK|FB|EQ|ER)\d{3,4}");
+
+                    if (isKnownBeckhoff)
+                    {
+                        _logger.LogDebug("  ℹ️ Sin ESI directo para módulo Beckhoff '{Name}' (type:{Type}) - se usará fallback por tipo",
+                            slave.Name, slave.DeviceType ?? "null");
+                    }
+                    else
+                    {
+                        _logger.LogWarning("  ⚠️ SIN ESI para '{Name}' (VendorId=0x{V:X4}, ProductCode=0x{P:X8}, type:{Type}, esiFile:{ESI})",
+                            slave.Name, slave.VendorId, slave.ProductCode, slave.DeviceType ?? "null", slave.ESIFileName ?? "null");
+                    }
                     
                     // ⭐ FALLBACK: Detectar vendor por ESIFileName o nombre del dispositivo
                     var esiFileName = (slave.ESIFileName ?? "").ToUpperInvariant();

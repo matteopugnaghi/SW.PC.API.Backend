@@ -63,6 +63,15 @@ namespace SW.PC.API.Backend.Services
         {
             if (ct.IsCancellationRequested) return;
 
+            // Si SFTP está intencionalmente deshabilitado en la configuración, omitir
+            // silenciosamente el ciclo. Antes esto provocaba un LogWarning cada intervalo
+            // ("Cycle had issues: SFTP disabled") aunque era una situación normal.
+            if (!_sftpService.GetStatus().Enabled)
+            {
+                _logger.LogDebug("🔐 [SFTP-SYNC] Skipping cycle: SFTP disabled in configuration");
+                return;
+            }
+
             try
             {
                 var result = await _sftpService.RunSyncCycleAsync(_certService);

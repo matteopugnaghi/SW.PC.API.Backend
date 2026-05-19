@@ -3892,18 +3892,22 @@ namespace SW.PC.API.Backend.Services
                             case "continuousreadtime":
                             case "continuous_read_time":
                                 // Regla R16 (DEC-026): valida formato HH:mm 00-23 horas, 00-59 minutos.
+                                // Se aceptan también HH:mm:ss (Excel suele guardar el campo como hora
+                                // con segundos, ej. "23:59:00"). Si llegan segundos, se descartan y se
+                                // normaliza a HH:mm para mantener consistencia interna.
                                 // Vacío/ausente = mantener default "23:59".
                                 if (!string.IsNullOrWhiteSpace(paramValue))
                                 {
                                     var trimmed = paramValue.Trim();
-                                    var r16 = new System.Text.RegularExpressions.Regex(@"^([01]\d|2[0-3]):[0-5]\d$");
+                                    var r16 = new System.Text.RegularExpressions.Regex(@"^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$");
                                     if (r16.IsMatch(trimmed))
                                     {
-                                        config.ContinuousReadTime = trimmed;
+                                        // Normalizar a HH:mm (quitar segundos si vienen)
+                                        config.ContinuousReadTime = trimmed.Length > 5 ? trimmed.Substring(0, 5) : trimmed;
                                     }
                                     else
                                     {
-                                        _logger.LogWarning("⚠️ SMM R16: ContinuousReadTime '{Val}' formato inválido (esperado HH:mm 00:00-23:59). Usando default '23:59'.", trimmed);
+                                        _logger.LogWarning("⚠️ SMM R16: ContinuousReadTime '{Val}' formato inválido (esperado HH:mm o HH:mm:ss, 00:00-23:59). Usando default '23:59'.", trimmed);
                                     }
                                 }
                                 break;
