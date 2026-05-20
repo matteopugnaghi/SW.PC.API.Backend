@@ -133,8 +133,8 @@ $roleChoice = Read-Host "      Select (1-2, default: 1)"
 $Role = if ($roleChoice -eq '2') { 'Server' } else { 'Client' }
 
 # Defaults by role
-$defaultNtp     = if ($Role -eq 'Client') { '10.8.80.1' } else { '192.168.1.162' }
-$defaultFallback = if ($Role -eq 'Client') { '10.8.80.2' } else { '' }
+$defaultNtp     = if ($Role -eq 'Client') { '10.11.100.122' } else { '192.168.1.162' }
+$defaultFallback = if ($Role -eq 'Client') { '' } else { '' }
 
 # ============================================================================
 #  3. MODE

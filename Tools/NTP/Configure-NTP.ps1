@@ -15,11 +15,10 @@
       - Rollback support (JSON file)
       - Configurable NTP servers, poll interval, and role
 
-    NTP Chain (typical Alstom architecture):
-      CSP NTP (10.8.80.1/10.8.80.2)
-        --> FortiGate MAL (NTP relay)
-              --> IPC CLIENT (W32Time <- FortiGate)
-                    --> IPC SERVER (W32Time <- CLIENT)
+    NTP Chain (Alstom Toulouse A72.TOUTWP):
+      Firewall Alstom (10.11.100.122)
+        --> IPC CLIENT NIC2 (10.11.100.121) [W32Time relay]
+              --> IPC SERVER 192.168.1.161 (W32Time <- CLIENT 192.168.1.162)
 
 .PARAMETER Role
     IPC role: 'Client' or 'Server'.
@@ -28,12 +27,12 @@
 
 .PARAMETER NtpServer
     Primary NTP server IP or hostname.
-    Default Client: 10.8.80.1 (CSP NTP)
+    Default Client: 10.11.100.122 (Firewall Alstom)
     Default Server: 192.168.1.162 (IPC CLIENT)
 
 .PARAMETER NtpFallback
     Fallback NTP server IP (optional).
-    Default Client: 10.8.80.2
+    Default Client: (none)
 
 .PARAMETER PollIntervalSeconds
     NTP poll interval in seconds. Default: 900 (15 min).
@@ -56,10 +55,10 @@
 
 .EXAMPLE
     # CLIENT -- Local, DryRun (Spanish):
-    .\Configure-NTP.ps1 -Role Client -NtpServer 10.8.80.1 -NtpFallback 10.8.80.2 -DryRun
+    .\Configure-NTP.ps1 -Role Client -NtpServer 10.11.100.122 -DryRun
 
     # CLIENT -- Remote (French):
-    .\Configure-NTP.ps1 -Role Client -NtpServer 10.8.80.1 -ComputerName 192.168.2.163 -Credential (Get-Credential) -Language FRA
+    .\Configure-NTP.ps1 -Role Client -NtpServer 10.11.100.122 -ComputerName 192.168.2.163 -Credential (Get-Credential) -Language FRA
 
     # SERVER -- Remote, sync from CLIENT:
     .\Configure-NTP.ps1 -Role Server -NtpServer 192.168.1.162 -ComputerName 192.168.2.161 -Credential (Get-Credential)
@@ -283,10 +282,10 @@ $L = $T[$Language]
 # ============================================================================
 
 if (-not $NtpServer) {
-    $NtpServer = if ($Role -eq 'Client') { '10.8.80.1' } else { '192.168.1.162' }
+    $NtpServer = if ($Role -eq 'Client') { '10.11.100.122' } else { '192.168.1.162' }
 }
 if (-not $NtpFallback -and $Role -eq 'Client') {
-    $NtpFallback = '10.8.80.2'
+    $NtpFallback = ''
 }
 
 # ============================================================================
