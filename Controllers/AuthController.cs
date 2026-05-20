@@ -8,6 +8,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Services;
 
@@ -19,6 +20,7 @@ namespace SW.PC.API.Backend.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[EnableRateLimiting("auth")] // 🔒 EU CRA — brute-force protection (5 req/min por IP)
 public class AuthController : ControllerBase
 {
     private readonly IAuthenticationService _authService;

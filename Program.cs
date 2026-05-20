@@ -55,6 +55,41 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(optio
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = 52_428_800; // 50 MB
+
+    // 🔒 EU CRA / IEC 62443 — Fijar TLS mínimo a 1.2/1.3 explícitamente (evidencia auditable).
+    // Desactiva SSLv3/TLS 1.0/1.1 a nivel de aplicación, además de la política del SO.
+    options.ConfigureHttpsDefaults(httpsOptions =>
+    {
+        httpsOptions.SslProtocols =
+            System.Security.Authentication.SslProtocols.Tls12 |
+            System.Security.Authentication.SslProtocols.Tls13;
+    });
+});
+
+// 🔒 EU CRA / OWASP — HSTS conservador (1 día) hasta validar en producción.
+// Subir a 365 días + preload tras periodo de prueba sin incidencias.
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(1);
+    options.IncludeSubDomains = false;
+    options.Preload = false;
+});
+
+// 🔒 EU CRA / IEC 62443 — Rate limiter contra fuerza bruta en endpoints sensibles.
+// Política "auth": 5 req/min por IP en /api/auth/* y /api/recovery/*.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", httpContext =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 
 builder.Services.AddSwaggerGen(c =>
@@ -538,6 +573,8 @@ if (app.Environment.IsDevelopment())
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
+    // 🔒 EU CRA — HSTS solo en producción (no romper localhost http://).
+    app.UseHsts();
 }
 
 // Log paths for debugging
@@ -671,6 +708,9 @@ app.UseCors("ReactFrontend");
 // Permite seleccionar proyecto via header X-Project-Id o query param ?projectId=
 app.UseProjectContext();
 
+// 🔒 EU CRA / OWASP — Cabeceras de seguridad básicas (nosniff, frame-options, referrer).
+app.UseSecurityHeaders();
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🌐 SERVE REACT SPA - Default Files & Static Files
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -760,6 +800,9 @@ app.UseStaticFiles(new StaticFileOptions
 
 // Enable routing AFTER static files
 app.UseRouting();
+
+// 🔒 EU CRA — Rate limiter activo ANTES de Auth para frenar brute force.
+app.UseRateLimiter();
 
 // Authentication & Authorization
 app.UseAuthentication();

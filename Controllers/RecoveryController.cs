@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Services;
 
@@ -19,6 +20,7 @@ namespace SW.PC.API.Backend.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [AllowAnonymous] // Debe ser accesible sin autenticación (el usuario olvidó su contraseña)
+[EnableRateLimiting("auth")] // 🔒 EU CRA — brute-force protection (5 req/min por IP)
 public class RecoveryController : ControllerBase
 {
     private readonly IRecoveryCodeService _recoveryCodeService;

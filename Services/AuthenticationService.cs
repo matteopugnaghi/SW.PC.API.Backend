@@ -1576,7 +1576,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 "Usuario SuperAdmin del fabricante creado. Credenciales internas de Aquafrisch.",
                 superAdminUser.Id.ToString(), "SYSTEM");
             
-            _logger.LogWarning("🔐 Usuario SuperAdmin (fabricante) creado: superadmin / {Password}", superAdminPassword);
+            _logger.LogWarning("🔐 Usuario SuperAdmin (fabricante) creado: superadmin (credenciales internas Aquafrisch — NO se registran en log)");
             _logger.LogWarning("⚠️ IMPORTANTE: Este usuario es INTERNO de Aquafrisch. NO compartir con el cliente.");
         }
     }
@@ -1634,8 +1634,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 "Usuario administrador por defecto creado. IMPORTANTE: Cambiar contraseña inmediatamente.",
                 adminUser.Id.ToString(), "SYSTEM");
             
-            _logger.LogWarning("Usuario admin creado con contraseña temporal: {Password}. DEBE CAMBIARLA EN EL PRIMER LOGIN.", 
-                tempPassword);
+            _logger.LogWarning("Usuario admin creado con contraseña temporal (no se registra en log). DEBE CAMBIARLA EN EL PRIMER LOGIN.");
         }
     }
     

@@ -686,9 +686,10 @@ public static class AquafrischDbContextFactory
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_IsAcknowledged ON OperationLogs(IsAcknowledged)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_OperationLogs_Category_Timestamp ON OperationLogs(Category, Timestamp)");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Tabla ya existe o error menor - ignorar
+            // Tabla ya existe o error menor - ignorar (traza solo en DEBUG)
+            System.Diagnostics.Debug.WriteLine($"[DbInit] EnsureOperationLogsTable ignored: {ex.GetType().Name}: {ex.Message}");
         }
         
         // Crear tabla MachineSettings para configuraciones de máquina
@@ -731,9 +732,10 @@ public static class AquafrischDbContextFactory
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_MachineSettings_DataType ON MachineSettings(DataType)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_MachineSettings_UpdatedAt ON MachineSettings(UpdatedAt)");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Tabla ya existe o error menor - ignorar
+            // Tabla ya existe o error menor - ignorar (traza solo en DEBUG)
+            System.Diagnostics.Debug.WriteLine($"[DbInit] EnsureMachineSettingsTable ignored: {ex.GetType().Name}: {ex.Message}");
         }
     }
     
@@ -819,9 +821,10 @@ public static class AquafrischDbContextFactory
             // Índice para ActiveWashType
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ActiveWashType_WashTypeId ON ActiveWashType(WashTypeId)");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Tablas ya existen o error menor - ignorar
+            // Tablas ya existen o error menor - ignorar (traza solo en DEBUG)
+            System.Diagnostics.Debug.WriteLine($"[DbInit] EnsureWashTypesTables ignored: {ex.GetType().Name}: {ex.Message}");
         }
     }
     
@@ -925,9 +928,10 @@ public static class AquafrischDbContextFactory
             await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_TrainTypeGantryData_TrainTypeId_TableId_RowNumber ON TrainTypeGantryData(TrainTypeId, TableId, RowNumber)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_TrainTypeGantryData_TableId ON TrainTypeGantryData(TableId)");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Tablas ya existen o error menor - ignorar
+            // Tablas ya existen o error menor - ignorar (traza solo en DEBUG)
+            System.Diagnostics.Debug.WriteLine($"[DbInit] EnsureTrainTypesTables ignored: {ex.GetType().Name}: {ex.Message}");
         }
     }
     
@@ -952,9 +956,10 @@ public static class AquafrischDbContextFactory
             // Índice por ProjectId
             await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_EtherCATSavedConfigurations_ProjectId ON EtherCATSavedConfigurations(ProjectId)");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Tabla ya existe o error menor - ignorar
+            // Tabla ya existe o error menor - ignorar (traza solo en DEBUG)
+            System.Diagnostics.Debug.WriteLine($"[DbInit] EnsureEtherCATSavedConfigurationsTable ignored: {ex.GetType().Name}: {ex.Message}");
         }
     }
     
@@ -1191,9 +1196,10 @@ public static class AquafrischDbContextFactory
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_DocumentHistories_ChangedAt ON DocumentHistories(ChangedAt)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_DocumentHistories_Action ON DocumentHistories(Action)");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Tablas ya existen o error menor - ignorar
+            // Tablas ya existen o error menor - ignorar (traza solo en DEBUG)
+            System.Diagnostics.Debug.WriteLine($"[DbInit] EnsureDocumentsTables ignored: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
