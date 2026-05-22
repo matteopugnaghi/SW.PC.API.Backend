@@ -849,8 +849,8 @@ public class OperationLogsController : ControllerBase
                 return NotFound(); // Esconder en producción
             }
 
-            // Obtener DbContext directamente
-            var dbContext = HttpContext.RequestServices.GetRequiredService<AquafrischDbContext>();
+            // Obtener DbContext del proyecto activo (multi-proyecto)
+            var dbContext = HttpContext.RequestServices.GetRequiredService<IProjectDbContextFactory>().CreateDbContext();
             
             // Crear tabla si no existe (nueva estructura con ActionKey)
             await dbContext.Database.ExecuteSqlRawAsync(@"

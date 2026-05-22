@@ -157,7 +157,7 @@ public class OperationLogService : IOperationLogService
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+            using var dbContext = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>().CreateDbContext();
             
             dbContext.OperationLogs.Add(entry);
             await dbContext.SaveChangesAsync();
@@ -247,7 +247,7 @@ public class OperationLogService : IOperationLogService
             
             // Guardar en base de datos
             using var scope = _scopeFactory.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+            using var dbContext = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>().CreateDbContext();
             
             // 🔧 Asegurar que la tabla existe antes de insertar
             await EnsureOperationLogsTableExistsAsync(dbContext);
@@ -341,7 +341,7 @@ public class OperationLogService : IOperationLogService
 
             // Guardar en base de datos
             using var scope = _scopeFactory.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+            using var dbContext = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>().CreateDbContext();
             
             await EnsureOperationLogsTableExistsAsync(dbContext);
             
@@ -381,7 +381,7 @@ public class OperationLogService : IOperationLogService
     public async Task<OperationLogPagedResponse> GetLogsAsync(OperationLogFilter filter)
     {
         using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+        using var dbContext = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>().CreateDbContext();
         
         // 🔧 Asegurar que la tabla existe antes de consultar
         await EnsureOperationLogsTableExistsAsync(dbContext);
@@ -541,7 +541,7 @@ public class OperationLogService : IOperationLogService
     public async Task<List<OperationLogDto>> GetRecentLogsAsync(int count = 50, string language = "SPA")
     {
         using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+        using var dbContext = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>().CreateDbContext();
         
         // 🔧 Asegurar que la tabla existe
         await EnsureOperationLogsTableExistsAsync(dbContext);
@@ -561,7 +561,7 @@ public class OperationLogService : IOperationLogService
     public async Task<OperationLogSummary> GetSummaryAsync(string language = "SPA")
     {
         using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+        using var dbContext = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>().CreateDbContext();
         
         // 🔧 Asegurar que la tabla existe
         await EnsureOperationLogsTableExistsAsync(dbContext);
@@ -613,7 +613,7 @@ public class OperationLogService : IOperationLogService
     public async Task<bool> AcknowledgeLogAsync(int logId, string acknowledgedBy)
     {
         using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+        using var dbContext = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>().CreateDbContext();
         
         var log = await dbContext.OperationLogs.FindAsync(logId);
         if (log == null) return false;
@@ -634,7 +634,7 @@ public class OperationLogService : IOperationLogService
     public async Task<int> AcknowledgeLogsAsync(IEnumerable<int> logIds, string acknowledgedBy)
     {
         using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+        using var dbContext = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>().CreateDbContext();
         
         var now = DateTime.Now;
         var count = await dbContext.OperationLogs
@@ -663,7 +663,7 @@ public class OperationLogService : IOperationLogService
     public async Task<int> CleanupOldLogsAsync(int retentionDays = 365)
     {
         using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+        using var dbContext = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>().CreateDbContext();
         
         var cutoffDate = DateTime.Now.AddDays(-retentionDays);
         
