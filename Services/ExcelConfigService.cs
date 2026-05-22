@@ -112,6 +112,10 @@ namespace SW.PC.API.Backend.Services
         private readonly Dictionary<string, (List<StateColorConfig> Colors, DateTime Timestamp)> _stateColorsCache = new();
         private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(5); // Cache válido por 5 minutos
         private readonly object _cacheLock = new(); // Thread-safety
+
+        // 📋 EU CRA - Snapshot persistente del último SystemConfiguration leído desde disco
+        // (sobrevive a InvalidateCache para poder detectar diffs de valores en la próxima carga).
+        private readonly Dictionary<string, SystemConfiguration> _lastKnownSystemConfig = new();
         
         // 📁 Soporte Multi-Proyecto
         private IProjectContextService? _projectContext;
@@ -396,6 +400,84 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Could not write schema analysis to audit log (non-fatal)");
+            }
+        }
+
+        /// <summary>
+        /// 📋 EU CRA - Compara dos SystemConfiguration y emite un audit log L1 si hay diferencias
+        /// en campos sensibles (auth, sesiones, OPC UA, rate limits). Fire-and-forget.
+        /// </summary>
+        private async Task LogSystemConfigDiffAsync(SystemConfiguration before, SystemConfiguration after, string filePath)
+        {
+            if (_auditLogService == null) return;
+
+            try
+            {
+                var diffs = new List<object>();
+
+                // Reflection: comparamos TODAS las propiedades públicas para cumplir
+                // EU CRA Art. 13 — cualquier cambio de configuración debe quedar trazado.
+                var properties = typeof(SystemConfiguration).GetProperties(
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+
+                // Campos sensibles cuyo valor NO debe ir en claro al audit
+                var sensitiveFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "AuthJwtSecretKey",
+                    "VulnScanApiKey",
+                    "BackupRemoteApiKey"
+                };
+
+                foreach (var prop in properties)
+                {
+                    if (!prop.CanRead) continue;
+
+                    var beforeVal = prop.GetValue(before);
+                    var afterVal = prop.GetValue(after);
+
+                    bool changed;
+                    if (beforeVal == null && afterVal == null) changed = false;
+                    else if (beforeVal == null || afterVal == null) changed = true;
+                    else changed = !beforeVal.Equals(afterVal);
+
+                    if (!changed) continue;
+
+                    if (sensitiveFields.Contains(prop.Name))
+                    {
+                        // Solo registramos que cambió, no los valores
+                        diffs.Add(new { field = prop.Name, before = "***", after = "***" });
+                    }
+                    else
+                    {
+                        diffs.Add(new { field = prop.Name, before = beforeVal ?? "", after = afterVal ?? "" });
+                    }
+                }
+
+                if (diffs.Count == 0) return; // Sin cambios sensibles, no auditar.
+
+                var summary = $"System Config changed in {Path.GetFileName(filePath)}: {diffs.Count} field(s) modified";
+                var payload = new
+                {
+                    file = Path.GetFileName(filePath),
+                    changedFields = diffs,
+                    timestamp = DateTime.UtcNow
+                };
+
+                await _auditLogService.LogAsync(
+                    category: AuditCategory.System,
+                    action: AuditAction.ConfigChange,
+                    result: AuditResult.Success,
+                    details: $"{summary}. {System.Text.Json.JsonSerializer.Serialize(payload)}",
+                    userName: "system",
+                    projectId: _projectContext?.ActiveProjectId
+                );
+
+                _logger.LogInformation("📋 SystemConfig diff audited: {Count} field(s) changed in {File}",
+                    diffs.Count, Path.GetFileName(filePath));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not write SystemConfig diff to audit log (non-fatal)");
             }
         }
 
@@ -4014,6 +4096,20 @@ namespace SW.PC.API.Backend.Services
                     _metricsService.RecordExcelLoadTime(stopwatch.Elapsed.TotalMilliseconds);
                     _logger.LogDebug("⏱️ System configuration loaded in {Time}ms", stopwatch.Elapsed.TotalMilliseconds);
                     
+                    // 📋 EU CRA - Detectar cambios de valores sensibles vs snapshot anterior y emitir audit log.
+                    // Solo se ejecuta cuando realmente se ha leído desde disco (no en cache hit).
+                    SystemConfiguration? previousSnapshot;
+                    lock (_cacheLock)
+                    {
+                        _lastKnownSystemConfig.TryGetValue(cacheKey, out previousSnapshot);
+                        _lastKnownSystemConfig[cacheKey] = config;
+                    }
+                    if (previousSnapshot != null)
+                    {
+                        // Fire-and-forget: no bloqueamos la respuesta por el audit.
+                        _ = LogSystemConfigDiffAsync(previousSnapshot, config, fullPath);
+                    }
+
                     // ✅ GUARDAR EN CACHÉ POR ARCHIVO
                     lock (_cacheLock)
                     {

@@ -500,6 +500,7 @@ builder.Services.AddHostedService<WashRecipeAutoLoadService>(); // 🚿 Auto-car
 builder.Services.AddHostedService<TrainRecipeAutoLoadService>(); // 🚆 Auto-carga de tipos de tren desde PLC
 builder.Services.AddHostedService<ClientConnectionTrackerService>(); // ⏱️ Tracker de clientes conectados + contador al PLC
 builder.Services.AddHostedService<TmeSensorService>(); // 🌡️ Sondas de temperatura Papouch TME (HTTP → ADS)
+builder.Services.AddHostedService<ExcelConfigWatcherService>(); // 📋 EU CRA: auto-reload + diff-audit al detectar cambios en ProjectConfig.xlsm
 
 // Add logging
 builder.Services.AddLogging(logging =>

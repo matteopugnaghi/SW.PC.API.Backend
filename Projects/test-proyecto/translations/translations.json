@@ -10860,6 +10860,24 @@
       "FRA": "Vérification manuelle d'intégrité par {user} : {result}",
       "ITA": "Verifica manuale integrità da {user}: {result}"
     },
+    "auditLog.details.systemConfigChanged": {
+      "SPA": "Configuración del sistema modificada en {file}: {count} campo(s) cambiado(s)",
+      "ENG": "System configuration changed in {file}: {count} field(s) modified",
+      "FRA": "Configuration système modifiée dans {file} : {count} champ(s) modifié(s)",
+      "ITA": "Configurazione di sistema modificata in {file}: {count} campo/i modificato/i"
+    },
+    "auditLog.details.sqliteMaintenance": {
+      "SPA": "Mantenimiento SQLite — proyecto: {project}, BD: {db}, integridad: {integrity}, tamaño antes: {sizeBefore} bytes, tamaño después: {sizeAfter} bytes, recuperado: {reclaimed} bytes",
+      "ENG": "SQLite maintenance — project: {project}, DB: {db}, integrity: {integrity}, size before: {sizeBefore} bytes, size after: {sizeAfter} bytes, reclaimed: {reclaimed} bytes",
+      "FRA": "Maintenance SQLite — projet : {project}, BD : {db}, intégrité : {integrity}, taille avant : {sizeBefore} octets, taille après : {sizeAfter} octets, récupéré : {reclaimed} octets",
+      "ITA": "Manutenzione SQLite — progetto: {project}, DB: {db}, integrità: {integrity}, dimensione prima: {sizeBefore} byte, dimensione dopo: {sizeAfter} byte, recuperati: {reclaimed} byte"
+    },
+    "auditLog.details.modelAssetValidation": {
+      "SPA": "Validación de modelos 3D — proyecto: {project}, total: {total}, válidos: {valid}, sobredimensionados: {oversize}, cabecera inválida: {badMagic}, ilegibles: {unreadable}, límite: {maxSizeMB} MB, anomalías: {anomalies}",
+      "ENG": "3D model asset validation — project: {project}, total: {total}, valid: {valid}, oversize: {oversize}, bad magic: {badMagic}, unreadable: {unreadable}, limit: {maxSizeMB} MB, anomalies: {anomalies}",
+      "FRA": "Validation des modèles 3D — projet : {project}, total : {total}, valides : {valid}, surdimensionnés : {oversize}, en-tête invalide : {badMagic}, illisibles : {unreadable}, limite : {maxSizeMB} Mo, anomalies : {anomalies}",
+      "ITA": "Validazione modelli 3D — progetto: {project}, totale: {total}, validi: {valid}, sovradimensionati: {oversize}, intestazione non valida: {badMagic}, illeggibili: {unreadable}, limite: {maxSizeMB} MB, anomalie: {anomalies}"
+    },
     "auditLog.status.modified": {
       "SPA": "MODIFICADO",
       "ENG": "MODIFIED",

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.Excel;
 using SW.PC.API.Backend.Services;
+using System.Security.Claims;
 
 namespace SW.PC.API.Backend.Controllers
 {
@@ -435,27 +436,56 @@ namespace SW.PC.API.Backend.Controllers
         }
         
         /// <summary>
-        /// Invalidate cache and force reload of system configuration
+        /// Invalidate cache and force reload of system configuration.
+        /// 📋 EU CRA: restringido a Administrator + audit log L1.
         /// </summary>
         [HttpPost("system/reload")]
+        [Authorize(Roles = "Administrator")]
         [ProducesResponseType(200)]
-        public ActionResult ReloadSystemConfiguration()
+        public async Task<ActionResult> ReloadSystemConfiguration()
         {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userName = User.FindFirst(ClaimTypes.Name)?.Value ?? "unknown";
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+
             try
             {
-                _logger.LogInformation("🔄 Invalidating system configuration cache");
+                _logger.LogInformation("🔄 Invalidating system configuration cache (user: {User})", userName);
                 _excelConfigService.InvalidateCache();
-                return Ok(new { 
+
+                // 📋 L1 audit: registrar quién forzó la recarga.
+                // El diff de valores (si los hay) se emitirá automáticamente desde
+                // ExcelConfigService.LoadSystemConfigurationAsync en la próxima carga.
+                await _auditLog.LogAsync(
+                    AuditCategory.System,
+                    AuditAction.ConfigChange,
+                    AuditResult.Success,
+                    $"Excel cache invalidated by {userName}; next request will reload from disk",
+                    userId: userId,
+                    userName: userName,
+                    ipAddress: ipAddress,
+                    projectId: _projectContext.ProjectId);
+
+                return Ok(new {
                     message = "System configuration cache invalidated. Next request will reload from Excel.",
-                    timestamp = DateTime.Now 
+                    timestamp = DateTime.Now
                 });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error invalidating cache");
-                return StatusCode(500, new { 
+                await _auditLog.LogAsync(
+                    AuditCategory.System,
+                    AuditAction.ConfigChange,
+                    AuditResult.Failure,
+                    $"Excel cache invalidation failed: {ex.Message}",
+                    userId: userId,
+                    userName: userName,
+                    ipAddress: ipAddress,
+                    projectId: _projectContext.ProjectId);
+                return StatusCode(500, new {
                     message = "Error invalidating cache",
-                    error = ex.Message 
+                    error = ex.Message
                 });
             }
         }
