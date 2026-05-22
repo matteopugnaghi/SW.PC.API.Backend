@@ -51,7 +51,7 @@ namespace SW.PC.API.Backend.Services
         Task<BackupInfo?> GetBackupAsync(string projectId, string backupId);
         
         /// <summary>Eliminar un backup</summary>
-        Task<BackupOperationResponse> DeleteBackupAsync(string projectId, string backupId);
+        Task<BackupOperationResponse> DeleteBackupAsync(string projectId, string backupId, string? userId = null);
         
         /// <summary>Verificar integridad de un backup</summary>
         Task<BackupVerificationResponse> VerifyBackupAsync(string projectId, string backupId);
@@ -60,7 +60,7 @@ namespace SW.PC.API.Backend.Services
         Task<string?> GetBackupFilePathAsync(string projectId, string backupId);
         
         /// <summary>Importar backup desde archivo</summary>
-        Task<BackupOperationResponse> ImportBackupAsync(string projectId, Stream fileStream, string fileName);
+        Task<BackupOperationResponse> ImportBackupAsync(string projectId, Stream fileStream, string fileName, string? userId = null);
         
         /// <summary>Obtener configuración de backup del proyecto</summary>
         Task<BackupConfig> GetBackupConfigAsync(string projectId);
@@ -702,6 +702,19 @@ namespace SW.PC.API.Backend.Services
                 response.Success = false;
                 response.Message = "Error creating backup";
                 response.Errors.Add(ex.Message);
+                
+                // 📋 Audit L1: registrar el fallo (EU CRA — trazabilidad completa)
+                try
+                {
+                    await _auditLog.LogAsync(
+                        AuditCategory.Backup,
+                        AuditAction.BackupCreate,
+                        AuditResult.Failure,
+                        $"Backup creation failed: {ex.Message} (Project: {projectId})",
+                        userId ?? "system",
+                        projectId: projectId);
+                }
+                catch { /* no propagar fallos del audit */ }
             }
             
             return response;
@@ -850,12 +863,12 @@ namespace SW.PC.API.Backend.Services
                         }
                     }
                     
-                    // Also clean sbom/, audit/, logs/, translations/, pki/ if backup contains them
+                    // Also clean sbom/, translations/ if backup contains them.
+                    // ⚠️ NUNCA limpiar audit/ ni logs/: son registros forenses inmutables
+                    // (EU CRA + TISSEO SOC). Restaurar pisaría la historia real del sistema.
                     var alwaysCleanFolders = new Dictionary<string, string>
                     {
                         ["sbom/"] = projectPaths.SbomPath,
-                        ["audit/"] = projectPaths.AuditPath,
-                        ["logs/"] = projectPaths.LogsPath,
                         ["translations/"] = projectPaths.TranslationsPath
                     };
                     foreach (var (prefix, destPath) in alwaysCleanFolders)
@@ -913,9 +926,11 @@ namespace SW.PC.API.Backend.Services
                         }
                         else if (entryPath.StartsWith("audit/"))
                         {
-                            // Siempre restaurar Audit Logs (EU CRA Compliance)
-                            shouldRestore = true;
-                            _logger.LogInformation("✅ Restaurando Audit Log: {FileName}", entryPath);
+                            // 🔒 EU CRA: el audit log es INMUTABLE. NUNCA se restaura.
+                            // El audit del sistema vivo refleja la historia real, no la del backup.
+                            shouldRestore = false;
+                            _logger.LogDebug("🔒 Audit log preservado (no restaurado por compliance): {FileName}", entryPath);
+                            continue;
                         }
                         else if (entryPath == "authorized_signing_keys.json")
                         {
@@ -1013,9 +1028,11 @@ namespace SW.PC.API.Backend.Services
                         }
                         else if (entryPath.StartsWith("logs/"))
                         {
-                            // Siempre restaurar NxLog JSONL logs (TISSEO Compliance)
-                            shouldRestore = true;
-                            _logger.LogInformation("✅ Restaurando NxLog JSONL: {FileName}", entryPath);
+                            // 🔒 TISSEO SOC: los NxLog JSONL son registros forenses INMUTABLES.
+                            // NUNCA se restauran. Reflejan eventos reales del sistema vivo.
+                            shouldRestore = false;
+                            _logger.LogDebug("🔒 NxLog JSONL preservado (no restaurado por compliance): {FileName}", entryPath);
+                            continue;
                         }
                         else if (entryPath.StartsWith("translations/"))
                         {
@@ -1339,6 +1356,19 @@ namespace SW.PC.API.Backend.Services
                 response.Success = false;
                 response.Message = "Error restoring backup";
                 response.Errors.Add(ex.Message);
+                
+                // 📋 Audit L1: registrar el fallo (EU CRA — trazabilidad completa)
+                try
+                {
+                    await _auditLog.LogAsync(
+                        AuditCategory.Backup,
+                        AuditAction.BackupRestore,
+                        AuditResult.Failure,
+                        $"Backup restore failed: {request.BackupId} - {ex.Message} (Project: {projectId})",
+                        userId ?? "system",
+                        projectId: projectId);
+                }
+                catch { /* no propagar fallos del audit */ }
             }
             
             return response;
@@ -1431,7 +1461,7 @@ namespace SW.PC.API.Backend.Services
             return await ExtractBackupInfoFromZip(zipPath, projectId);
         }
 
-        public async Task<BackupOperationResponse> DeleteBackupAsync(string projectId, string backupId)
+        public async Task<BackupOperationResponse> DeleteBackupAsync(string projectId, string backupId, string? userId = null)
         {
             var response = new BackupOperationResponse();
             
@@ -1453,6 +1483,7 @@ namespace SW.PC.API.Backend.Services
                     AuditAction.BackupDelete,
                     AuditResult.Success,
                     $"Backup deleted: {backupInfo.Name} (Project: {projectId})",
+                    userId ?? "system",
                     projectId: projectId);  // 📁 Guardar en audit del proyecto correcto
                 
                 response.Success = true;
@@ -1466,6 +1497,19 @@ namespace SW.PC.API.Backend.Services
                 response.Success = false;
                 response.Message = "Error deleting backup";
                 response.Errors.Add(ex.Message);
+                
+                // 📋 Audit L1: registrar el fallo (EU CRA — trazabilidad completa)
+                try
+                {
+                    await _auditLog.LogAsync(
+                        AuditCategory.Backup,
+                        AuditAction.BackupDelete,
+                        AuditResult.Failure,
+                        $"Backup deletion failed: {backupId} - {ex.Message} (Project: {projectId})",
+                        userId ?? "system",
+                        projectId: projectId);
+                }
+                catch { /* no propagar fallos del audit */ }
             }
             
             return response;
@@ -1652,7 +1696,7 @@ namespace SW.PC.API.Backend.Services
             return Task.FromResult(File.Exists(zipPath) ? zipPath : null);
         }
 
-        public async Task<BackupOperationResponse> ImportBackupAsync(string projectId, Stream fileStream, string fileName)
+        public async Task<BackupOperationResponse> ImportBackupAsync(string projectId, Stream fileStream, string fileName, string? userId = null)
         {
             var response = new BackupOperationResponse();
             
@@ -1717,6 +1761,7 @@ namespace SW.PC.API.Backend.Services
                     AuditAction.BackupCreate,
                     AuditResult.Success,
                     $"Backup imported: {fileName} (Project: {projectId})",
+                    userId ?? "system",
                     projectId: projectId);  // 📁 Guardar en audit del proyecto correcto
                 
                 response.Success = true;
@@ -1729,6 +1774,19 @@ namespace SW.PC.API.Backend.Services
                 response.Success = false;
                 response.Message = "Error importing backup";
                 response.Errors.Add(ex.Message);
+                
+                // 📋 Audit L1: registrar el fallo (EU CRA — trazabilidad completa)
+                try
+                {
+                    await _auditLog.LogAsync(
+                        AuditCategory.Backup,
+                        AuditAction.BackupCreate,
+                        AuditResult.Failure,
+                        $"Backup import failed: {fileName} - {ex.Message} (Project: {projectId})",
+                        userId ?? "system",
+                        projectId: projectId);
+                }
+                catch { /* no propagar fallos del audit */ }
             }
             
             return response;
@@ -1895,11 +1953,36 @@ namespace SW.PC.API.Backend.Services
                 {
                     _logger.LogInformation("Cleaned up {Count} old backups for project {ProjectId}", 
                         deleted, projectId);
+                    
+                    // 📋 Audit L1: resumen de la limpieza (EU CRA — trazabilidad de retención)
+                    try
+                    {
+                        await _auditLog.LogAsync(
+                            AuditCategory.Backup,
+                            AuditAction.BackupCleanup,
+                            AuditResult.Success,
+                            $"Backup cleanup: {deleted} backup(s) removed (Project: {projectId})",
+                            projectId: projectId,
+                            affectedItemCount: deleted);
+                    }
+                    catch { /* no propagar fallos del audit */ }
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error cleaning up old backups");
+                
+                // 📋 Audit L1: registrar el fallo de limpieza
+                try
+                {
+                    await _auditLog.LogAsync(
+                        AuditCategory.Backup,
+                        AuditAction.BackupCleanup,
+                        AuditResult.Failure,
+                        $"Backup cleanup failed: {ex.Message} (Project: {projectId})",
+                        projectId: projectId);
+                }
+                catch { /* no propagar */ }
             }
             
             return deleted;

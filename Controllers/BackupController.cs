@@ -19,15 +19,18 @@ namespace SW.PC.API.Backend.Controllers
         private readonly ILogger<BackupController> _logger;
         private readonly IBackupService _backupService;
         private readonly IRequestProjectContext _requestProjectContext;
+        private readonly IAuditLogService _auditLog;
 
         public BackupController(
             ILogger<BackupController> logger,
             IBackupService backupService,
-            IRequestProjectContext requestProjectContext)
+            IRequestProjectContext requestProjectContext,
+            IAuditLogService auditLog)
         {
             _logger = logger;
             _backupService = backupService;
             _requestProjectContext = requestProjectContext;
+            _auditLog = auditLog;
         }
 
         /// <summary>
@@ -138,7 +141,7 @@ namespace SW.PC.API.Backend.Controllers
             _logger.LogInformation("DELETE /api/backup/{BackupId} - Project: {ProjectId}, User: {UserId}", 
                 backupId, projectId, userId);
             
-            var result = await _backupService.DeleteBackupAsync(projectId, backupId);
+            var result = await _backupService.DeleteBackupAsync(projectId, backupId, userId);
             
             if (!result.Success)
                 return BadRequest(result);
@@ -153,12 +156,23 @@ namespace SW.PC.API.Backend.Controllers
         public async Task<IActionResult> ExportBackup(string backupId)
         {
             var projectId = _requestProjectContext.ProjectId;
-            _logger.LogInformation("GET /api/backup/{BackupId}/export - Project: {ProjectId}", backupId, projectId);
+            var userId = User.Identity?.Name ?? "anonymous";
+            _logger.LogInformation("GET /api/backup/{BackupId}/export - Project: {ProjectId}, User: {UserId}", backupId, projectId, userId);
             
             var filePath = await _backupService.GetBackupFilePathAsync(projectId, backupId);
             
             if (filePath == null || !System.IO.File.Exists(filePath))
+            {
+                // 📋 Audit L1: intento de descarga de backup inexistente
+                await _auditLog.LogAsync(
+                    AuditCategory.Backup,
+                    AuditAction.BackupExport,
+                    AuditResult.Failure,
+                    $"Backup export failed: {backupId} not found (Project: {projectId})",
+                    userId,
+                    projectId: projectId);
                 return NotFound(new { message = "Backup file not found" });
+            }
             
             // Usar nombre custom del backup si existe
             var backupInfo = await _backupService.GetBackupAsync(projectId, backupId);
@@ -170,6 +184,19 @@ namespace SW.PC.API.Backend.Controllers
                 if (!string.IsNullOrWhiteSpace(safeName))
                     fileName = $"{safeName}.zip";
             }
+            
+            // 📋 Audit L1: registrar la descarga (exfiltración de datos — EU CRA Anexo I 2f)
+            var fileSize = new FileInfo(filePath).Length;
+            var sizeFormatted = fileSize >= 1024 * 1024
+                ? $"{fileSize / (1024.0 * 1024.0):F2} MB"
+                : $"{fileSize / 1024.0:F2} KB";
+            await _auditLog.LogAsync(
+                AuditCategory.Backup,
+                AuditAction.BackupExport,
+                AuditResult.Success,
+                $"Backup exported: {fileName} (Project: {projectId}, Size: {sizeFormatted})",
+                userId,
+                projectId: projectId);
             
             var fileStream = System.IO.File.OpenRead(filePath);
             
@@ -219,6 +246,16 @@ namespace SW.PC.API.Backend.Controllers
                     _logger.LogWarning(
                         "SCG-05: ZIP magic-bytes check failed for upload '{FileName}' (project={ProjectId}, user={UserId}). Header=[{B0:X2} {B1:X2} {B2:X2} {B3:X2}]",
                         file.FileName, projectId, userId, header[0], header[1], header[2], header[3]);
+                    
+                    // 📋 Audit L1: SCG-05 — rechazo por magic bytes inválidos (Security event)
+                    await _auditLog.LogAsync(
+                        AuditCategory.Security,
+                        AuditAction.BackupImportRejected,
+                        AuditResult.Warning,
+                        $"Backup import rejected: invalid ZIP magic bytes for '{file.FileName}' (Project: {projectId})",
+                        userId,
+                        projectId: projectId);
+                    
                     return BadRequest(new BackupOperationResponse
                     {
                         Success = false,
@@ -237,7 +274,7 @@ namespace SW.PC.API.Backend.Controllers
             }
             
             using var stream = file.OpenReadStream();
-            var result = await _backupService.ImportBackupAsync(projectId, stream, file.FileName);
+            var result = await _backupService.ImportBackupAsync(projectId, stream, file.FileName, userId);
             
             if (!result.Success)
                 return BadRequest(result);
@@ -266,9 +303,20 @@ namespace SW.PC.API.Backend.Controllers
         public async Task<ActionResult<object>> CleanupOldBackups()
         {
             var projectId = _requestProjectContext.ProjectId;
-            _logger.LogInformation("POST /api/backup/cleanup - Project: {ProjectId}", projectId);
+            var userId = User.Identity?.Name ?? "anonymous";
+            _logger.LogInformation("POST /api/backup/cleanup - Project: {ProjectId}, User: {UserId}", projectId, userId);
             
             var deleted = await _backupService.CleanupOldBackupsAsync(projectId);
+            
+            // 📋 Audit L1: registrar la invocación manual (incluso si deleted==0, queda trazada la acción del usuario)
+            await _auditLog.LogAsync(
+                AuditCategory.Backup,
+                AuditAction.BackupCleanup,
+                AuditResult.Success,
+                $"Backup cleanup: {deleted} backup(s) removed (Project: {projectId})",
+                userId,
+                projectId: projectId,
+                affectedItemCount: deleted);
             
             return Ok(new 
             { 

@@ -108,6 +108,9 @@ namespace SW.PC.API.Backend.Models
         BackupCreate,
         BackupRestore,
         BackupDelete,
+        BackupExport,           // Descarga de un backup (.zip) — exfiltración de datos
+        BackupCleanup,          // Limpieza manual de backups antiguos
+        BackupImportRejected,   // SCG-05: importación rechazada (magic bytes / formato inválido)
         
         // ═══════════════════════════════════════════════════════════
         // PLC
