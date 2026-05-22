@@ -3,7 +3,7 @@
     Pruebas automatizadas pre-deploy v1.7.2 contra backend en https://localhost:5001
 .DESCRIPTION
     Cubre:
-      1) Rate limit "auth" - sliding window 10/min (fix v1.7.2)
+      1) Rate limit "auth" - sliding window 20/5min (v1.7.5, antes 10/min en v1.7.2)
       2) (OPCIONAL) Lockout por usuario tras 5 fallos
       3) SCG-05 - Backup ImportBackup negativo (.txt renombrado a .zip)
       4) SCG-143 - Modelo .glb con magic bytes corruptos (prepara fichero; requiere reinicio)
@@ -165,17 +165,17 @@ try {
 }
 
 # ============================================================
-#  TEST 1 - Rate limit "auth" sliding window 10/min (fix v1.7.2)
+#  TEST 1 - Rate limit "auth" sliding window 20/5min (v1.7.5)
 # ============================================================
-Write-Section "TEST 1 - Rate limit 'auth' (SlidingWindow 10/min)"
-Write-Info "Disparando 15 logins con usuario inexistente desde la misma IP..."
-Write-Info "Esperado: primeros ~10 devuelven 401 Unauthorized, el resto 429 Too Many Requests"
+Write-Section "TEST 1 - Rate limit 'auth' (SlidingWindow 20/5min)"
+Write-Info "Disparando 25 logins con usuario inexistente desde la misma IP..."
+Write-Info "Esperado: primeros ~20 devuelven 401 Unauthorized, el resto 429 Too Many Requests"
 
 $ghostUser = "ratetest_nobody_$([guid]::NewGuid().ToString('N').Substring(0,8))"
 $body = @{ username = $ghostUser; password = "wrong" } | ConvertTo-Json
 $results = @{ "200"=0; "401"=0; "429"=0; "other"=0 }
 
-for ($i = 1; $i -le 15; $i++) {
+for ($i = 1; $i -le 25; $i++) {
     try {
         $r = Invoke-WebRequest -Uri "$BackendUrl/api/auth/login" -Method POST -Body $body `
             -ContentType "application/json" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
@@ -189,14 +189,16 @@ for ($i = 1; $i -le 15; $i++) {
 }
 Write-Info "Resumen: 401=$($results['401'])  429=$($results['429'])  200=$($results['200'])  other=$($results['other'])"
 
-if ($results['401'] -ge 8 -and $results['401'] -le 11 -and $results['429'] -ge 4) {
-    Write-Pass "Rate limit 'auth' activo: ~10 logins consumidos antes de 429"
+if ($results['401'] -ge 18 -and $results['401'] -le 22 -and $results['429'] -ge 3) {
+    Write-Pass "Rate limit 'auth' activo: ~20 logins consumidos antes de 429"
 } else {
     Write-Fail "Distribución inesperada - revisar política 'auth' en Program.cs"
 }
 
-Write-Info "Esperando 12 s para verificar regeneración de permits (sliding window)..."
-Start-Sleep -Seconds 12
+# v1.7.5: ventana 5min con 5 segmentos = cada segmento dura 60s. Tras 65s deberia
+# haber liberado ~4 permits (1 segmento completo). Esperamos al menos un 401 valido.
+Write-Info "Esperando 65 s para verificar regeneración de permits (sliding window 5min/5seg)..."
+Start-Sleep -Seconds 65
 try {
     $r = Invoke-WebRequest -Uri "$BackendUrl/api/auth/login" -Method POST -Body $body `
         -ContentType "application/json" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
@@ -205,11 +207,11 @@ try {
     $code = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
 }
 if ($code -eq 401) {
-    Write-Pass "Sliding window liberó permits: tras 12s nuevo intento devuelve 401 (no 429)"
+    Write-Pass "Sliding window liberó permits: tras 65s nuevo intento devuelve 401 (no 429)"
 } elseif ($code -eq 429) {
-    Write-Skip "Aún 429 tras 12s - sliding está liberando, espera más o reduce iteraciones"
+    Write-Skip "Aún 429 tras 65s - sliding lento, considerar esperar más"
 } else {
-    Write-Fail "Código inesperado tras 12s: $code"
+    Write-Fail "Código inesperado tras 65s: $code"
 }
 
 # ============================================================
