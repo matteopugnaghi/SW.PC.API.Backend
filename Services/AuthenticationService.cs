@@ -1312,10 +1312,16 @@ public class AuthenticationService : IAuthenticationService, IDisposable
     {
         try
         {
+            // 🔓 Auto-reaparición: incluir usuarios cuyo lockout ya expiró (Status==Locked + LockedUntil<=Now).
+            // El registro DB se normaliza (Status=Active, LockedUntil=null) en el siguiente intento de login
+            // mediante el bloque de auto-desbloqueo de AuthenticateAsync.
+            var now = DateTime.Now;
             var users = await Context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
-                .Where(u => u.Status == UserStatus.Active && u.LockedUntil == null)
+                .Where(u =>
+                    (u.Status == UserStatus.Active && u.LockedUntil == null) ||
+                    (u.Status == UserStatus.Locked && u.LockedUntil != null && u.LockedUntil <= now))
                 .OrderBy(u => u.UserRoles.Min(ur => (int)ur.Role!.SystemRole)) // Ordenar por rol (SuperAdmin primero)
                 .ThenBy(u => u.Username)
                 .Select(u => new AvailableUserInfo
