@@ -181,8 +181,28 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 };
             }
             
+            // Auto-desbloqueo: si el período de lockout ya expiró, reactivar la cuenta
+            // (evita que Status == Locked persista indefinidamente tras vencer LockedUntil)
+            if (user.Status == UserStatus.Locked &&
+                user.LockedUntil.HasValue &&
+                user.LockedUntil.Value <= DateTime.Now)
+            {
+                user.Status = UserStatus.Active;
+                user.LockedUntil = null;
+                user.FailedLoginAttempts = 0;
+                await Context.SaveChangesAsync();
+
+                await _auditLog.LogAsync(
+                    AuditCategory.Authentication,
+                    AuditAction.AccountUnlocked,
+                    AuditResult.Success,
+                    $"Cuenta '{user.Username}' desbloqueada automáticamente al expirar el período de lockout ({_config.LockoutMinutes} min)",
+                    user.Id.ToString(), user.Username, ipAddress,
+                    projectId: projectId);
+            }
+
             // Verificar si cuenta está bloqueada
-            if (user.Status == UserStatus.Locked || 
+            if (user.Status == UserStatus.Locked ||
                 (user.LockedUntil.HasValue && user.LockedUntil > DateTime.Now))
             {
                 var remainingMinutes = user.LockedUntil.HasValue 
