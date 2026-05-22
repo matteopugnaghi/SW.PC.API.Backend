@@ -89,6 +89,13 @@ namespace SW.PC.API.Backend.Services
         // Per-variable polling: track last poll time to respect each variable's UpdateRateMs
         private readonly Dictionary<string, DateTime> _lastPollTime = new();
 
+        // 🔒 EU CRA v1.4 Paso B - quota rejection polling (DoS detection)
+        private DateTime _lastQuotaCheck = DateTime.MinValue;
+        private uint _previousRejectedSessions;
+        private uint _previousRejectedRequests;
+        private uint _previousSecurityRejectedSessions;
+        private uint _previousSecurityRejectedRequests;
+
 
 
         public bool IsEnabled => _config.Enabled;
@@ -179,6 +186,9 @@ namespace SW.PC.API.Backend.Services
                                 _statusMessage = $"Running - {clientCount} client(s) connected, {_variables.Count} variables";
                             }
                             UpdateMetrics();
+
+                            // 🔒 EU CRA v1.4 Paso B - quota rejection check (DoS detection)
+                            await CheckQuotaRejectionsAsync();
                         }
                     }
                     catch (OperationCanceledException) { throw; }
@@ -207,6 +217,61 @@ namespace SW.PC.API.Backend.Services
             {
                 await StopServerAsync();
             }
+        }
+
+        /// <summary>
+        /// 🔒 EU CRA v1.4 Paso B - Polls OPC/UA ServerDiagnostics for rejected sessions/requests counters
+        /// and emits an OpcUaQuotaExceeded audit when deltas are detected (DoS / flooding indicator).
+        /// Runs at most every <see cref="OpcUaConfig.QuotaPollIntervalSeconds"/>.
+        /// </summary>
+        private Task CheckQuotaRejectionsAsync()
+        {
+            var interval = _config.QuotaPollIntervalSeconds > 0 ? _config.QuotaPollIntervalSeconds : 30;
+            if ((DateTime.UtcNow - _lastQuotaCheck).TotalSeconds < interval)
+                return Task.CompletedTask;
+
+            _lastQuotaCheck = DateTime.UtcNow;
+
+            try
+            {
+                var diag = _server?.CurrentInstance?.ServerDiagnostics;
+                if (diag == null) return Task.CompletedTask;
+
+                uint rejSes = diag.RejectedSessionCount;
+                uint rejReq = diag.RejectedRequestsCount;
+                uint secRejSes = diag.SecurityRejectedSessionCount;
+                uint secRejReq = diag.SecurityRejectedRequestsCount;
+
+                long dSes = (long)rejSes - _previousRejectedSessions;
+                long dReq = (long)rejReq - _previousRejectedRequests;
+                long dSecSes = (long)secRejSes - _previousSecurityRejectedSessions;
+                long dSecReq = (long)secRejReq - _previousSecurityRejectedRequests;
+
+                long total = dSes + dReq + dSecSes + dSecReq;
+                if (total > 0)
+                {
+                    var details = $"Quota rejections delta — sessions:{dSes}, requests:{dReq}, securityRejectedSessions:{dSecSes}, securityRejectedRequests:{dSecReq} (totals: {rejSes}/{rejReq}/{secRejSes}/{secRejReq})";
+                    _logger.LogWarning("🔒 OPC/UA {Details}", details);
+                    _ = _auditLogService.LogAsync(
+                        AuditCategory.OtCommunication,
+                        AuditAction.OpcUaQuotaExceeded,
+                        AuditResult.Warning,
+                        details,
+                        userName: "System",
+                        affectedItemCount: (int)Math.Min(total, int.MaxValue));
+                }
+
+                _previousRejectedSessions = rejSes;
+                _previousRejectedRequests = rejReq;
+                _previousSecurityRejectedSessions = secRejSes;
+                _previousSecurityRejectedRequests = secRejReq;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "🔒 OPC/UA quota check failed (non-fatal)");
+            }
+
+            return Task.CompletedTask;
         }
 
         private async Task LoadConfigurationAsync()
@@ -243,7 +308,17 @@ namespace SW.PC.API.Backend.Services
                 SftpUser = sysConfig.OpcUaSftpUser,
                 SftpKeyPath = sysConfig.OpcUaSftpKeyPath,
                 SftpRemotePath = sysConfig.OpcUaSftpRemotePath,
-                SftpSyncInterval = sysConfig.OpcUaSftpSyncInterval
+                SftpSyncInterval = sysConfig.OpcUaSftpSyncInterval,
+                // 🔒 EU CRA v1.4 - DoS / flooding protection
+                MaxSessionCount = sysConfig.OpcUaMaxSessionCount,
+                MaxSubscriptionCount = sysConfig.OpcUaMaxSubscriptionCount,
+                MinSessionTimeoutMs = sysConfig.OpcUaMinSessionTimeoutMs,
+                MaxSessionTimeoutMs = sysConfig.OpcUaMaxSessionTimeoutMs,
+                MinPublishingIntervalMs = sysConfig.OpcUaMinPublishingIntervalMs,
+                MaxPublishingIntervalMs = sysConfig.OpcUaMaxPublishingIntervalMs,
+                // 🔒 EU CRA v1.4 Paso B - Security audit hooks
+                AuditSessions = sysConfig.OpcUaAuditSessions,
+                QuotaPollIntervalSeconds = sysConfig.OpcUaQuotaPollIntervalSeconds
             };
 
             // ── Development SFTP override (localhost test server) ──
@@ -460,7 +535,14 @@ namespace SW.PC.API.Backend.Services
                     BaseAddresses = { baseAddress },
                     MinRequestThreadCount = 5,
                     MaxRequestThreadCount = 100,
-                    MaxQueuedRequestCount = 2000
+                    MaxQueuedRequestCount = 2000,
+                    // 🔒 EU CRA v1.4 - DoS / flooding protection (configurable desde Excel)
+                    MaxSessionCount = _config.MaxSessionCount,
+                    MaxSubscriptionCount = _config.MaxSubscriptionCount,
+                    MinSessionTimeout = _config.MinSessionTimeoutMs,
+                    MaxSessionTimeout = _config.MaxSessionTimeoutMs,
+                    MinPublishingInterval = _config.MinPublishingIntervalMs,
+                    MaxPublishingInterval = _config.MaxPublishingIntervalMs
                 },
 
                 SecurityConfiguration = new SecurityConfiguration
@@ -524,6 +606,15 @@ namespace SW.PC.API.Backend.Services
             // Configure user token policies
             appConfig.ServerConfiguration.UserTokenPolicies = BuildUserTokenPolicies();
 
+            // 🔒 EU CRA v1.4 - Log de cuotas DoS aplicadas (visibilidad para auditor)
+            _logger.LogInformation(
+                "🔒 OPC/UA DoS quotas: MaxSessions={MaxSes} MaxSubscriptions={MaxSub} " +
+                "SessionTimeout=[{MinT}..{MaxT}]ms PublishingInterval=[{MinP}..{MaxP}]ms " +
+                "MaxQueuedRequests=2000 MaxRequestThreads=100",
+                _config.MaxSessionCount, _config.MaxSubscriptionCount,
+                _config.MinSessionTimeoutMs, _config.MaxSessionTimeoutMs,
+                _config.MinPublishingIntervalMs, _config.MaxPublishingIntervalMs);
+
             _logger.LogInformation("🌐 Validating OPC/UA configuration...");
             await appConfig.Validate(ApplicationType.Server);
             _logger.LogInformation("🌐 Configuration validated OK");
@@ -541,13 +632,20 @@ namespace SW.PC.API.Backend.Services
                     break;
 
                 case "manual-trust":
-                    // Self-signed certs, manual .DER exchange — reject untrusted, log for approval
+                    // Self-signed certs, manual .DER exchange — reject untrusted, log + audit for approval
                     appConfig.CertificateValidator.CertificateValidation += (s, e) =>
                     {
                         if (e.Error.StatusCode == Opc.Ua.StatusCodes.BadCertificateUntrusted)
                         {
-                            _logger.LogWarning("🔐 Certificate rejected (untrusted): {Subject} — approve via /api/opcua/certificates/approve",
-                                e.Certificate?.Subject ?? "unknown");
+                            var subject = e.Certificate?.Subject ?? "unknown";
+                            _logger.LogWarning("🔐 Certificate rejected (untrusted): {Subject} — approve via /api/opcua/certificates/approve", subject);
+                            // 🔒 EU CRA v1.4 Paso B - explicit audit hook
+                            _ = _auditLogService.LogAsync(
+                                AuditCategory.OtCommunication,
+                                AuditAction.OpcUaCertificateRejected,
+                                AuditResult.Warning,
+                                $"Certificate rejected (manual-trust): {subject} — pending approval",
+                                userName: "System");
                         }
                     };
                     _logger.LogInformation("🔐 CertificateMode=manual-trust: Only trusted certificates accepted. Manage via /api/opcua/certificates/");
@@ -1295,31 +1393,57 @@ namespace SW.PC.API.Backend.Services
         private void OnSessionActivated(Session session, SessionEventReason reason)
         {
             var clientName = GetClientName(session);
-            var details = $"Client '{clientName}' connected";
+            var details = $"Client '{clientName}' connected (reason: {reason})";
 
             _logger.LogInformation("🌐 OPC/UA {Details}", details);
 
-            _ = _auditLogService.LogAsync(
-                AuditCategory.OtCommunication,
-                AuditAction.OpcUaClientConnect,
-                AuditResult.Success,
-                details,
-                userName: "System");
+            // 🔒 EU CRA v1.4 Paso B - audit session activation
+            if (_config.AuditSessions)
+            {
+                _ = _auditLogService.LogAsync(
+                    AuditCategory.OtCommunication,
+                    AuditAction.OpcUaSessionOpened,
+                    AuditResult.Success,
+                    details,
+                    userName: session.Identity?.DisplayName ?? "System");
+            }
         }
 
         private void OnSessionClosing(Session session, SessionEventReason reason)
         {
             var clientName = GetClientName(session);
-            var details = $"Client '{clientName}' disconnected";
+            // Heuristic: a session closing with zero requests is treated as a likely login/handshake failure
+            bool isLikelyLoginFail = false;
+            try
+            {
+                var totalReq = session.SessionDiagnostics?.TotalRequestCount?.TotalCount ?? 0u;
+                isLikelyLoginFail = totalReq == 0u;
+            }
+            catch { /* diagnostics may be unavailable */ }
+
+            var details = $"Client '{clientName}' disconnected (reason: {reason})";
 
             _logger.LogInformation("🌐 OPC/UA {Details}", details);
 
-            _ = _auditLogService.LogAsync(
-                AuditCategory.OtCommunication,
-                AuditAction.OpcUaClientDisconnect,
-                AuditResult.Success,
-                details,
-                userName: "System");
+            // 🔒 EU CRA v1.4 Paso B - audit session close (and detect login fail pattern)
+            if (isLikelyLoginFail)
+            {
+                _ = _auditLogService.LogAsync(
+                    AuditCategory.OtCommunication,
+                    AuditAction.OpcUaLoginFailed,
+                    AuditResult.Warning,
+                    $"OPC/UA likely login failed for '{clientName}' (session closed without processing any request, reason: {reason})",
+                    userName: session.Identity?.DisplayName ?? "unknown");
+            }
+            else if (_config.AuditSessions)
+            {
+                _ = _auditLogService.LogAsync(
+                    AuditCategory.OtCommunication,
+                    AuditAction.OpcUaSessionClosed,
+                    AuditResult.Success,
+                    details,
+                    userName: session.Identity?.DisplayName ?? "System");
+            }
         }
     }
 

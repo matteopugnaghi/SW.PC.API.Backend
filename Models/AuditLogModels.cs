@@ -132,6 +132,14 @@ namespace SW.PC.API.Backend.Models
         SystemStop,     // Detención de aplicación (Program.cs)
         ServiceStart,   // TeamViewer, restart-app, custom-tool
         ServiceStop,    // Detención de servicio (TeamViewer, etc.)
+        DatabaseMaintenance, // SCG-113: VACUUM + PRAGMA integrity_check periódico (SqliteMaintenanceService)
+        PlcVariablesSnapshot, // SCG-147: snapshot de variables PLC declaradas en Excel (FAT trace)
+        Model3DValidation, // SCG-05/66/143: validación magic-bytes + tamaño de modelos 3D al arranque (ModelAssetValidationService)
+
+        // ═══════════════════════════════════════════════════════════
+        // SEGURIDAD - RATE LIMITING (v1.4)
+        // ═══════════════════════════════════════════════════════════
+        RateLimitExceeded,  // 429 emitido por el rate limiter (posible brute-force / DoS)
         
         // ═══════════════════════════════════════════════════════════
         // EXPORTACIÓN
@@ -157,7 +165,16 @@ namespace SW.PC.API.Backend.Models
         OpcUaSubscriptionCreate,
         OpcUaSubscriptionDelete,
         OpcUaSecurityReject,
-        
+
+        // ═══════════════════════════════════════════════════════════
+        // OPC/UA SECURITY HOOKS (EU CRA v1.4 - Paso B)
+        // ═══════════════════════════════════════════════════════════
+        OpcUaSessionOpened,         // Sesión abierta correctamente (Info)
+        OpcUaSessionClosed,         // Sesión cerrada normalmente (Info)
+        OpcUaLoginFailed,           // ImpersonateUser falló (user/pass o cert) — Warning
+        OpcUaCertificateRejected,   // Certificado cliente rechazado por validator — Warning
+        OpcUaQuotaExceeded,         // RejectedSessionCount/RejectedRequestsCount incrementó — Warning (posible DoS)
+
         // ═══════════════════════════════════════════════════════════
         // OPC/UA CERTIFICATE MANAGEMENT (Phase 1 - Manual .DER exchange)
         // ═══════════════════════════════════════════════════════════

@@ -1,0 +1,11 @@
+=== Step A: 320 parallel curl GETs to / ===
+Elapsed: 75032 ms
+  HTTP 200: 320
+No 429s in first batch, firing two batches of 200 back-to-back...
+Retry elapsed: 92689 ms
+  HTTP 200: 400
+
+Waiting 65s for sliding window reset...
+=== Step B: 80 parallel POSTs to /hubs/scada/negotiate ===
+  HTTP 200: 80
+DONE

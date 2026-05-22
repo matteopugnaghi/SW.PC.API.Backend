@@ -1185,6 +1185,15 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             user.PasswordChangedAt = DateTime.Now;
             user.ModifiedAt = DateTime.Now;
             user.ModifiedBy = resetBy;
+            // v1.7.6: el reset administrativo también desbloquea la cuenta
+            // (antes solo cambiaba la contraseña, dejando al usuario bloqueado y oculto
+            // del listado de login que filtra por Status==Active && LockedUntil==null)
+            user.FailedLoginAttempts = 0;
+            user.LockedUntil = null;
+            if (user.Status == UserStatus.Locked)
+            {
+                user.Status = UserStatus.Active;
+            }
             
             await Context.SaveChangesAsync();
             

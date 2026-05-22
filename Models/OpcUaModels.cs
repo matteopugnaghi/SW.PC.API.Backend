@@ -51,6 +51,19 @@ namespace SW.PC.API.Backend.Models.OpcUa
         public string SftpRemotePath { get; set; } = "/certs/";
         public int SftpSyncInterval { get; set; } = 86400;
 
+        // ===== 🔒 EU CRA v1.4 - DoS / FLOODING PROTECTION (Server Quotas) =====
+        // Aplicadas por el OPC Foundation SDK. Configurables desde Excel (System Config).
+        public int MaxSessionCount { get; set; } = 50;
+        public int MaxSubscriptionCount { get; set; } = 200;
+        public int MinSessionTimeoutMs { get; set; } = 10000;
+        public int MaxSessionTimeoutMs { get; set; } = 3600000;
+        public int MinPublishingIntervalMs { get; set; } = 100;
+        public int MaxPublishingIntervalMs { get; set; } = 3600000;
+
+        // ===== EU CRA v1.4 - SECURITY AUDIT HOOKS (Paso B) =====
+        public bool AuditSessions { get; set; } = true;
+        public int QuotaPollIntervalSeconds { get; set; } = 30;
+
         // ===== RUNTIME WARNINGS =====
         /// <summary>
         /// Configuration warnings detected at startup. Exposed via /api/opcua/config and /api/opcua/status.

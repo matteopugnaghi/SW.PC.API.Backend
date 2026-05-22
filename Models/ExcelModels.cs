@@ -1250,6 +1250,39 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Intervalo de sincronización SFTP en segundos (defecto: 86400 = 24h)</summary>
         public int OpcUaSftpSyncInterval { get; set; } = 86400;
 
+        // ===== 🔒 EU CRA v1.4 - DoS / FLOODING PROTECTION (Server Quotas) =====
+        // Estas cuotas las aplica el OPC Foundation SDK (no el rate limiter ASP.NET).
+        // Si un cliente intenta superarlas, el SDK responde con códigos UA estándar:
+        // Bad_TooManySessions / Bad_TooManySubscriptions / Bad_TcpServerTooBusy.
+
+        /// <summary>Máximo de sesiones OPC/UA concurrentes (defecto: 50). Protege contra DoS por agotamiento de sockets.</summary>
+        public int OpcUaMaxSessionCount { get; set; } = 50;
+
+        /// <summary>Máximo de subscriptions totales en el servidor (defecto: 200).</summary>
+        public int OpcUaMaxSubscriptionCount { get; set; } = 200;
+
+        /// <summary>Timeout mínimo permitido para una sesión en ms (defecto: 10000 = 10s). Evita sesiones efímeras abusivas.</summary>
+        public int OpcUaMinSessionTimeoutMs { get; set; } = 10000;
+
+        /// <summary>Timeout máximo permitido para una sesión en ms (defecto: 3600000 = 60min). Evita sesiones zombies.</summary>
+        public int OpcUaMaxSessionTimeoutMs { get; set; } = 3600000;
+
+        /// <summary>Intervalo mínimo de publishing en ms (defecto: 100). Evita que un cliente pida polling ultra-rápido.</summary>
+        public int OpcUaMinPublishingIntervalMs { get; set; } = 100;
+
+        /// <summary>Intervalo máximo de publishing en ms (defecto: 3600000 = 60min).</summary>
+        public int OpcUaMaxPublishingIntervalMs { get; set; } = 3600000;
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🔒 EU CRA v1.4 - OPC/UA SECURITY AUDIT HOOKS (Paso B)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>Habilita auditoría de sesiones OPC/UA (open/close). Login fallido y rechazos de cuota se auditan siempre. (defecto: true)</summary>
+        public bool OpcUaAuditSessions { get; set; } = true;
+
+        /// <summary>Periodo en segundos del polling de ServerDiagnostics para detectar incremento de rechazos por cuota (defecto: 30s).</summary>
+        public int OpcUaQuotaPollIntervalSeconds { get; set; } = 30;
+
         // ═══════════════════════════════════════════════════════════════════════════
         // 🌡️ TME TEMPERATURE SENSORS - Papouch TME (HTTP)
         // ═══════════════════════════════════════════════════════════════════════════

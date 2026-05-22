@@ -546,6 +546,50 @@ namespace SW.PC.API.Backend.Services
                         _metricsService.SetPlcPollingStatus(true, false, "Sin variables en Excel");
                         return;
                     }
+
+                    // 🧾 SCG-147: emitir snapshot auditable de variables declaradas (FAT digital trace).
+                    // Una sola entrada por arranque/recarga, con count + SHA256 normalizado.
+                    try
+                    {
+                        using var snapScope = _serviceProvider.CreateScope();
+                        var auditLog = snapScope.ServiceProvider.GetRequiredService<IAuditLogService>();
+                        var projectContext = snapScope.ServiceProvider.GetService<IProjectContextService>();
+                        var projectId = projectContext?.ActiveProjectId ?? "default";
+
+                        var normalized = string.Join("\n",
+                            _monitoredVariables
+                                .Where(v => !string.IsNullOrWhiteSpace(v))
+                                .Select(v => v.Trim())
+                                .OrderBy(v => v, StringComparer.Ordinal));
+                        using var sha = System.Security.Cryptography.SHA256.Create();
+                        var hashHex = Convert.ToHexString(
+                            sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(normalized)));
+
+                        var details =
+                            $"project={projectId}; excelFile={_config.ExcelFileName}; " +
+                            $"variableCount={_monitoredVariables.Count}; " +
+                            $"viewMappings={_variableViewMappings.Count}; " +
+                            $"viewFilteringEnabled={_viewFilteringEnabled}; " +
+                            $"sha256={hashHex}";
+
+                        await auditLog.LogAsync(
+                            AuditCategory.Plc,
+                            AuditAction.PlcVariablesSnapshot,
+                            AuditResult.Success,
+                            details: details,
+                            userId: "system",
+                            userName: "PlcPollingService",
+                            affectedItemCount: _monitoredVariables.Count,
+                            projectId: projectId);
+
+                        _logger.LogInformation(
+                            "🧾 PLC variables snapshot audited — count: {Count}, sha256: {Hash}",
+                            _monitoredVariables.Count, hashHex);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "⚠️ No se pudo registrar el snapshot SCG-147 de variables PLC");
+                    }
                 }
                 catch (Exception ex)
                 {

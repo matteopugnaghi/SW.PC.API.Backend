@@ -302,7 +302,10 @@ public class ProjectDbContextFactory : IProjectDbContextFactory
                 await context.SaveChangesAsync();
             }
             
-            _logger.LogInformation("✅ Created default admin user (password: admin)");
+            _logger.LogWarning(
+                "⚠️ DEFAULT ADMIN CREATED — username: 'admin', temporary password: 'admin'. " +
+                "MustChangePassword=true is enforced: the FIRST LOGIN will require a new password before any other action. " +
+                "Until that change happens this deployment is NOT production-secure (SCG-148).");
         }
     }
 }

@@ -20,7 +20,10 @@ namespace SW.PC.API.Backend.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
-[EnableRateLimiting("auth")] // 🔒 EU CRA — brute-force protection (5 req/min por IP)
+// 🔒 EU CRA — brute-force protection: la política "auth" (10 req/min sliding por IP) se aplica
+// SOLO a endpoints sensibles a fuerza bruta (login, change-password). El resto del controller
+// queda protegido por el GlobalLimiter "api" (300 req/min sliding) + lockout por usuario.
+// v1.7.1 — fix UX: logout+relogin rápido ya no consume permits del límite estricto.
 public class AuthController : ControllerBase
 {
     private readonly IAuthenticationService _authService;
@@ -49,6 +52,7 @@ public class AuthController : ControllerBase
     /// <returns>Token JWT y información del usuario</returns>
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")] // 🔒 EU CRA — brute-force protection (10/min sliding por IP)
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
@@ -239,6 +243,7 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("change-password")]
     [Authorize]
+    [EnableRateLimiting("auth")] // 🔒 EU CRA — brute-force protection (10/min sliding por IP)
     [ProducesResponseType(typeof(ChangePasswordResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ChangePasswordResponse), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ChangePasswordResponse>> ChangePassword([FromBody] ChangePasswordRequest request)

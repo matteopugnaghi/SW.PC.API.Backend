@@ -36,8 +36,140 @@
 param(
     [string]$OutputDir,
     [switch]$NoExport,
-    [string]$ClientRelayIP = '192.168.1.162'
+    [string]$ClientRelayIP = '192.168.1.162',
+    [ValidateSet('ES','EN')]
+    [string]$Language = 'ES'
 )
+
+# ============================================================
+#  i18n (post-translation dictionary, ES -> EN)
+# ============================================================
+$script:Lang = $Language
+$script:I18N = [ordered]@{
+    # Section headers
+    'BIOS / TPM / Secure Boot'                                                   = 'BIOS / TPM / Secure Boot'
+    'Cuentas y politicas'                                                        = 'Accounts and policies'
+    'BitLocker'                                                                  = 'BitLocker'
+    'VBS / HVCI'                                                                 = 'VBS / HVCI'
+    'Windows Defender'                                                           = 'Windows Defender'
+    'AutoPlay / AutoRun'                                                         = 'AutoPlay / AutoRun'
+    'Servicios innecesarios'                                                     = 'Unnecessary services'
+    'IIS \(debe estar deshabilitado en headless\)'                              = 'IIS (must be disabled on headless)'
+    'Red'                                                                        = 'Network'
+    'Firewall -- perfiles y postura In/Out'                                      = 'Firewall -- profiles and In/Out posture'
+    'Firewall — reglas MAL-\*/IPC-\* \(Inbound \+ Outbound\)'                    = 'Firewall — MAL-*/IPC-* rules (Inbound + Outbound)'
+    'Audit Policy'                                                               = 'Audit Policy'
+    'NTP — SERVER sync desde CLIENT relay'                                       = 'NTP — SERVER sync from CLIENT relay'
+    'Firewall outbound UDP/123 -> CLIENT'                                        = 'Firewall outbound UDP/123 -> CLIENT'
+    'UWF'                                                                        = 'UWF'
+    'Backup imagen \(BST\)'                                                      = 'Image backup (BST)'
+    'Puertos TCP en LISTEN — evidencia para FAT'                                 = 'TCP ports in LISTEN — evidence for FAT'
+
+    # Checks / notes (longest first)
+    'TPM presente, listo y habilitado'                                           = 'TPM present, ready and enabled'
+    'Secure Boot deshabilitado \(desviacion TwinCAT Kernel Mode\)'               = 'Secure Boot disabled (TwinCAT Kernel Mode deviation)'
+    'OFF \(TwinCAT Kernel Mode sin firma WHQL\)'                                 = 'OFF (TwinCAT Kernel Mode without WHQL signature)'
+    'Desviacion documentada en checklist v1.1'                                   = 'Deviation documented in checklist v1.1'
+    'TwinCAT en RUN no deberia arrancar con SB ON'                               = 'TwinCAT in RUN should not boot with SB ON'
+    'No legible \(no UEFI o sin permisos\)'                                      = 'Not readable (no UEFI or no permissions)'
+    'Secure Boot'                                                                = 'Secure Boot'
+    'Administrator activo \(desviacion documentada — SERVER headless aislado /30\)' = 'Administrator active (documented deviation — headless SERVER isolated /30)'
+    'SERVER sin cuentas operacionales — solo admin para mantenimiento'           = 'SERVER without operational accounts — admin only for maintenance'
+    'No existe'                                                                  = 'Not found'
+    'Password policy SERVER \(desviacion: red aislada /30, sin contacto externo\)' = 'Password policy SERVER (deviation: isolated network /30, no external contact)'
+    'Banner disuasivo configurado'                                               = 'Deterrent banner configured'
+    'BitLocker OFF \(desviacion aceptable — CYBER-06117-C no lo exige\)'         = 'BitLocker OFF (acceptable deviation — CYBER-06117-C does not require it)'
+    'VBS deshabilitado \(requerido TwinCAT Kernel Mode\)'                        = 'VBS disabled (required by TwinCAT Kernel Mode)'
+    'HVCI no efectivo \(VBS=0 lo neutraliza\)'                                   = 'HVCI not effective (VBS=0 neutralises it)'
+    'sin efecto sin VBS'                                                         = 'no effect without VBS'
+    'Defender activo \(AV \+ RTP \+ Service\)'                                   = 'Defender active (AV + RTP + Service)'
+    'Exclusiones TwinCAT configuradas'                                           = 'TwinCAT exclusions configured'
+    'AutoPlay/AutoRun deshabilitados'                                            = 'AutoPlay/AutoRun disabled'
+    'Claves de registro ausentes'                                                = 'Registry keys missing'
+    'Servicios innecesarios Stopped/Disabled'                                    = 'Unnecessary services Stopped/Disabled'
+    'verificados, todos OK'                                                      = 'checked, all OK'
+    'IIS deshabilitado \(feature removed\)'                                      = 'IIS disabled (feature removed)'
+    'IIS efectivamente neutralizado \(W3SVC Stopped/Disabled\)'                  = 'IIS effectively neutralised (W3SVC Stopped/Disabled)'
+    'Sin puertos 80/443 a la escucha'                                            = 'No ports 80/443 listening'
+    'Feature instalada pero servicio bloqueado -- no expone puertos web'         = 'Feature installed but service blocked -- does not expose web ports'
+    'IIS deshabilitado'                                                          = 'IIS disabled'
+    'Feature Disabled o W3SVC Stopped/Disabled'                                  = 'Feature Disabled or W3SVC Stopped/Disabled'
+    'Configuracion IPv4'                                                         = 'IPv4 configuration'
+    'IP topologia: 192\.168\.1\.161/30'                                          = 'IP topology: 192.168.1.161/30'
+    '192\.168\.1\.161/30 en NIC1'                                                = '192.168.1.161/30 on NIC1'
+    'No detectada'                                                               = 'Not detected'
+    'IPv6 deshabilitado en todos los adaptadores'                                = 'IPv6 disabled on all adapters'
+    'IPv6 deshabilitado'                                                         = 'IPv6 disabled'
+    'Aun habilitado en:'                                                         = 'Still enabled on:'
+    'NetBIOS deshabilitado \(Mode 2\)'                                           = 'NetBIOS disabled (Mode 2)'
+    'Perfil ([A-Za-z]+): enabled \+ default Inbound=Block'                       = 'Profile $1: enabled + default Inbound=Block'
+    'Perfiles firewall'                                                          = 'Firewall profiles'
+    "Reglas MAL-\*/IPC-\* habilitadas: total=([0-9]+) \(In=([0-9]+) / Out=([0-9]+)\)" = 'MAL-*/IPC-* enabled rules: total=$1 (In=$2 / Out=$3)'
+    'Reglas MAL-\* en SERVER'                                                    = 'MAL-* rules on SERVER'
+    '0 reglas encontradas'                                                       = '0 rules found'
+    "Regla '"                                                                    = "Rule '"
+    '(?i)NO ENCONTRADA'                                                          = 'NOT FOUND'
+    'PENDIENTE v1.1 — aplicar Apply-NTP-Client-Server.ps1'                       = 'PENDING v1.1 — apply Apply-NTP-Client-Server.ps1'
+    'Reglas INBOUND MAL-\*/IPC-\* \(([0-9]+)\)'                                  = 'INBOUND MAL-*/IPC-* rules ($1)'
+    'Reglas OUTBOUND MAL-\*/IPC-\* \(([0-9]+)\)'                                 = 'OUTBOUND MAL-*/IPC-* rules ($1)'
+    'Reglas INBOUND de terceros \(([0-9]+)\)'                                    = 'Third-party INBOUND rules ($1)'
+    'Revisar con auditor que cada regla este justificada o eliminarla antes del SAT' = 'Review with auditor that each rule is justified or remove before SAT'
+    'Reglas INBOUND de Sistema Windows \(([0-9]+)\)'                             = 'Windows System INBOUND rules ($1)'
+    'Audit Policy CYBER-06117-C Annexe 2 \(subcategorias clave\)'                = 'Audit Policy CYBER-06117-C Annexe 2 (key subcategories)'
+    '([0-9]+) subcategorias verificadas'                                         = '$1 subcategories checked'
+    'Fallan:'                                                                    = 'Failing:'
+    'Ajustar con auditpol /set /subcategory:'                                    = 'Adjust with auditpol /set /subcategory:'
+    'Servicio W32Time Running/Automatic'                                         = 'W32Time service Running/Automatic'
+    'Servicio no encontrado'                                                     = 'Service not found'
+    'Peer NTP configurado contra CLIENT relay'                                   = 'NTP peer configured against CLIENT relay'
+    'Acceso denegado o servicio detenido'                                        = 'Access denied or service stopped'
+    'Source NTP actual contiene'                                                 = 'Current NTP source contains'
+    'Si Source = Local CMOS Clock => SERVER no sincroniza con relay'             = 'If Source = Local CMOS Clock => SERVER does not sync with relay'
+    'w32tm /query /status \(stratum \+ last sync\)'                              = 'w32tm /query /status (stratum + last sync)'
+    'Ping al CLIENT relay'                                                       = 'Ping to CLIENT relay'
+    'Regla outbound UDP/123 ->'                                                  = 'Outbound rule UDP/123 ->'
+    '\bexiste\b'                                                                 = 'exists'
+    'UWF Filter \(N/A en SERVER aislado /30\)'                                   = 'UWF Filter (N/A on isolated SERVER /30)'
+    'UWF aplica solo al CLIENT segun checklist 05.2-02 M46'                      = 'UWF applies only to CLIENT per checklist 05.2-02 M46'
+    'Full image backup \(Beckhoff Service Tool\)'                                = 'Full image backup (Beckhoff Service Tool)'
+    'PENDIENTE SAT — ultimo paso del hardening'                                  = 'PENDING SAT — last hardening step'
+    'Puertos TCP en LISTEN \(evidencia\)'                                        = 'TCP ports in LISTEN (evidence)'
+    'Puertos TCP en LISTEN'                                                      = 'TCP ports in LISTEN'
+
+    # Console-only banners
+    'RESUMEN DE AUDITORIA SERVER'                                                = 'SERVER AUDIT SUMMARY'
+    'FALLOS A REVISAR:'                                                          = 'FAILURES TO REVIEW:'
+    'Duracion total:'                                                            = 'Total duration:'
+    'Reporte JSON:'                                                              = 'JSON report:'
+    'Reporte MD'                                                                 = 'MD report'
+    'AUDITORIA HARDENING SERVER — A72.TOUTWP / CYBER-06117-C v1.1'               = 'SERVER HARDENING AUDIT — A72.TOUTWP / CYBER-06117-C v1.1'
+    'Auditoria SERVER finalizada\.'                                              = 'SERVER audit completed.'
+    'CLIENT relay'                                                               = 'CLIENT relay'
+
+    # Firewall dump labels
+    '--- INBOUND \(entrante\) ---'                                               = '--- INBOUND (incoming) ---'
+    '--- OUTBOUND \(saliente\) ---'                                              = '--- OUTBOUND (outgoing) ---'
+    '\(ninguna regla MAL-\*/IPC-\* en Outbound -- Windows aplica politica Allow por defecto en salida\)' = '(no MAL-*/IPC-* rules in Outbound -- Windows applies default Allow policy for outbound)'
+    '--- OTRAS REGLAS INBOUND HABILITADAS \(Sistema Windows: ([0-9]+) / Terceros: ([0-9]+)\) ---' = '--- OTHER ENABLED INBOUND RULES (Windows System: $1 / Third-party: $2) ---'
+    '\(ninguna - solo existen reglas MAL-\*/IPC-\* en Inbound\)'                 = '(none - only MAL-*/IPC-* rules exist on Inbound)'
+    '>> TERCEROS \(revisar con auditor\):'                                       = '>> THIRD-PARTY (review with auditor):'
+    '>> SISTEMA WINDOWS \(([0-9]+) reglas\) - resumen por grupo:'                = '>> WINDOWS SYSTEM ($1 rules) - summary by group:'
+    '\(sin grupo\)'                                                              = '(no group)'
+    'sin grupo'                                                                  = 'no group'
+    'reglas  -'                                                                  = 'rules  -'
+    '\(ninguna\)'                                                                = '(none)'
+}
+
+function Tr {
+    param([string]$Text)
+    if ([string]::IsNullOrEmpty($Text)) { return $Text }
+    if ($script:Lang -eq 'ES') { return $Text }
+    $s = $Text
+    foreach ($k in $script:I18N.Keys) {
+        try { $s = [regex]::Replace($s, $k, $script:I18N[$k]) } catch {}
+    }
+    return $s
+}
 
 # ============================================================
 #  Helpers (mismos que el script CLIENT)
@@ -48,6 +180,7 @@ $script:StartTime = Get-Date
 
 function Write-Header {
     param([string]$Text, [string]$Color = 'Cyan')
+    $Text = Tr $Text
     $line = '=' * 70
     Write-Host ''
     Write-Host $line -ForegroundColor $Color
@@ -57,6 +190,7 @@ function Write-Header {
 
 function Write-Section {
     param([string]$Text)
+    $Text = Tr $Text
     Write-Host ''
     Write-Host "-- $Text " -NoNewline -ForegroundColor Yellow
     Write-Host ('-' * [Math]::Max(1, 66 - $Text.Length)) -ForegroundColor DarkGray
@@ -72,14 +206,21 @@ function Add-Result {
         [string]$Actual = '',
         [string]$Note = ''
     )
+    $Check    = Tr $Check
+    $Note     = Tr $Note
+    $Expected = Tr $Expected
+    $Actual   = Tr $Actual
     $colorMap  = @{ PASS='Green'; FAIL='Red'; WARN='Yellow'; INFO='Cyan'; SKIP='DarkGray'; NA='DarkGray' }
     $symbolMap = @{ PASS='[ OK ]'; FAIL='[FAIL]'; WARN='[WARN]'; INFO='[INFO]'; SKIP='[SKIP]'; NA='[ NA ]' }
+    $lblActual   = if ($script:Lang -eq 'EN') { 'actual  ' } else { 'actual  ' }
+    $lblExpected = if ($script:Lang -eq 'EN') { 'expected' } else { 'esperado' }
+    $lblNote     = if ($script:Lang -eq 'EN') { 'note    ' } else { 'nota    ' }
     Write-Host ("  {0} {1,-12} {2}" -f $symbolMap[$Status], $Id, $Check) -ForegroundColor $colorMap[$Status]
-    if ($Actual)   { Write-Host ("           actual  : $Actual")   -ForegroundColor DarkGray }
+    if ($Actual)   { Write-Host ("           {0}: {1}" -f $lblActual,$Actual)   -ForegroundColor DarkGray }
     if ($Expected -and $Status -in @('FAIL','WARN')) {
-        Write-Host ("           esperado: $Expected") -ForegroundColor DarkGray
+        Write-Host ("           {0}: {1}" -f $lblExpected,$Expected) -ForegroundColor DarkGray
     }
-    if ($Note)     { Write-Host ("           nota    : $Note")     -ForegroundColor DarkGray }
+    if ($Note)     { Write-Host ("           {0}: {1}" -f $lblNote,$Note)     -ForegroundColor DarkGray }
 
     $script:Results.Add([PSCustomObject]@{
         Id        = $Id
@@ -402,23 +543,23 @@ function Test-Firewall-Srv {
     $outb = $rules | Where-Object Direction -eq 'Outbound' | Sort-Object Action,Name
 
     Write-Host ""
-    Write-Host "  --- INBOUND (entrante) ---" -ForegroundColor Cyan
+    Write-Host ("  " + (Tr '--- INBOUND (entrante) ---')) -ForegroundColor Cyan
     foreach ($r in $inb) {
         $color = if ($r.Action -eq 'Allow') { 'Green' } else { 'Yellow' }
-        Write-Host ("  {0,-7} {1,-5} {2,-6}/{3,-7} from={4,-22} -> {5}" -f `
+        Write-Host (("  {0,-7} {1,-5} {2,-6}/{3,-7} from={4,-22} -> {5}") -f `
             $r.Action,'IN',$r.Protocol,$r.LocalPort,$r.RemoteAddr,$r.Name) -ForegroundColor $color
     }
     Write-Host ""
-    Write-Host "  --- OUTBOUND (saliente) ---" -ForegroundColor Cyan
+    Write-Host ("  " + (Tr '--- OUTBOUND (saliente) ---')) -ForegroundColor Cyan
     if ($outb) {
         foreach ($r in $outb) {
             $color = if ($r.Action -eq 'Allow') { 'Green' } else { 'Yellow' }
             $portOut = if ($r.RemotePort -and $r.RemotePort -ne 'Any') { $r.RemotePort } else { $r.LocalPort }
-            Write-Host ("  {0,-7} {1,-5} {2,-6}/{3,-7} to={4,-22} -> {5}" -f `
+            Write-Host (("  {0,-7} {1,-5} {2,-6}/{3,-7} to={4,-22} -> {5}") -f `
                 $r.Action,'OUT',$r.Protocol,$portOut,$r.RemoteAddr,$r.Name) -ForegroundColor $color
         }
     } else {
-        Write-Host "  (ninguna regla MAL-*/IPC-* en Outbound -- Windows aplica politica Allow por defecto en salida)" -ForegroundColor Gray
+        Write-Host ("  " + (Tr '(ninguna regla MAL-*/IPC-* en Outbound -- Windows aplica politica Allow por defecto en salida)')) -ForegroundColor Gray
     }
 
     $inbSummary  = ($inb  | ForEach-Object { "{0}/{1}:{2}/{3}<-{4}" -f $_.Action,$_.Protocol,$_.LocalPort,$_.Name,$_.RemoteAddr }) -join ' | '
@@ -454,24 +595,24 @@ function Test-Firewall-Srv {
     $third = @($otherInbound | Where-Object { -not $_.System } | Sort-Object Name -Unique)
 
     Write-Host ""
-    Write-Host ("  --- OTRAS REGLAS INBOUND HABILITADAS (Sistema Windows: {0} / Terceros: {1}) ---" -f $sys.Count,$third.Count) -ForegroundColor Cyan
+    Write-Host ("  " + (Tr ('--- OTRAS REGLAS INBOUND HABILITADAS (Sistema Windows: {0} / Terceros: {1}) ---' -f $sys.Count,$third.Count))) -ForegroundColor Cyan
     if (-not $otherInbound) {
-        Write-Host "  (ninguna - solo existen reglas MAL-*/IPC-* en Inbound)" -ForegroundColor Green
+        Write-Host ("  " + (Tr '(ninguna - solo existen reglas MAL-*/IPC-* en Inbound)')) -ForegroundColor Green
     }
     if ($otherInbound -or $true) {
 
         if ($third.Count -gt 0) {
-            Write-Host "  >> TERCEROS (revisar con auditor):" -ForegroundColor Yellow
+            Write-Host ("  " + (Tr '>> TERCEROS (revisar con auditor):')) -ForegroundColor Yellow
             foreach ($r in $third) {
                 $color = if ($r.Action -eq 'Allow') { 'Yellow' } else { 'DarkYellow' }
-                Write-Host ("    {0,-7} {1,-5} /{2,-7} from={3,-25} -> {4}" -f $r.Action,$r.Protocol,$r.LocalPort,$r.RemoteAddr,$r.Name) -ForegroundColor $color
+                Write-Host (("    {0,-7} {1,-5} /{2,-7} from={3,-25} -> {4}") -f $r.Action,$r.Protocol,$r.LocalPort,$r.RemoteAddr,$r.Name) -ForegroundColor $color
             }
         }
         if ($sys.Count -gt 0) {
-            Write-Host ("  >> SISTEMA WINDOWS ({0} reglas) - resumen por grupo:" -f $sys.Count) -ForegroundColor Gray
+            Write-Host ("  " + (Tr ('>> SISTEMA WINDOWS ({0} reglas) - resumen por grupo:' -f $sys.Count))) -ForegroundColor Gray
             $sys | Group-Object Group | Sort-Object Count -Descending | ForEach-Object {
-                $g = if ([string]::IsNullOrEmpty($_.Name)) { '(sin grupo)' } else { $_.Name }
-                Write-Host ("    {0,3} reglas  -  {1}" -f $_.Count, $g) -ForegroundColor DarkGray
+                $g = if ([string]::IsNullOrEmpty($_.Name)) { (Tr '(sin grupo)') } else { $_.Name }
+                Write-Host (("    {0,3} " + (Tr 'reglas  -') + "  {1}") -f $_.Count, $g) -ForegroundColor DarkGray
             }
         }
 
@@ -677,12 +818,12 @@ function Show-Summary {
     $fails = $script:Results | Where-Object Status -eq 'FAIL'
     if ($fails) {
         Write-Host ''
-        Write-Host "  FALLOS A REVISAR:" -ForegroundColor Red
+        Write-Host ("  " + (Tr 'FALLOS A REVISAR:')) -ForegroundColor Red
         $fails | ForEach-Object { Write-Host ("   - $($_.Id): $($_.Check)") -ForegroundColor Red }
     }
     $elapsed = (Get-Date) - $script:StartTime
     Write-Host ''
-    Write-Host ("  Duracion total: {0:mm\:ss}" -f $elapsed) -ForegroundColor DarkGray
+    Write-Host (("  " + (Tr 'Duracion total:') + " {0:mm\:ss}") -f $elapsed) -ForegroundColor DarkGray
 }
 
 function Export-Report {
@@ -694,26 +835,49 @@ function Export-Report {
     $script:Results | ConvertTo-Json -Depth 4 | Set-Content -Path $json -Encoding UTF8
 
     $sb = [System.Text.StringBuilder]::new()
-    [void]$sb.AppendLine("# Hardening Audit SERVER — A72.TOUTWP (MAL Toulouse)")
-    [void]$sb.AppendLine("")
-    [void]$sb.AppendLine("- **Fecha**: $(Get-Date -Format 'yyyy-MM-dd HH:mm')")
-    [void]$sb.AppendLine("- **Host**: $env:COMPUTERNAME")
-    [void]$sb.AppendLine("- **Usuario**: $env:USERNAME")
-    [void]$sb.AppendLine("- **Ref. doc**: 06.7-A72-02 v1.1 / CYBER-06117-C Rev C")
-    [void]$sb.AppendLine("- **CLIENT relay NTP**: $ClientRelayIP")
-    [void]$sb.AppendLine("")
-    [void]$sb.AppendLine("## Resumen")
-    [void]$sb.AppendLine("")
-    [void]$sb.AppendLine("| Status | Count |")
-    [void]$sb.AppendLine("|--------|-------|")
-    $script:Results | Group-Object Status | Sort-Object Name | ForEach-Object {
-        [void]$sb.AppendLine("| $($_.Name) | $($_.Count) |")
+    if ($script:Lang -eq 'EN') {
+        [void]$sb.AppendLine("# Hardening Audit SERVER - A72.TOUTWP (MAL Toulouse)")
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("- **Date**: $(Get-Date -Format 'yyyy-MM-dd HH:mm')")
+        [void]$sb.AppendLine("- **Host**: $env:COMPUTERNAME")
+        [void]$sb.AppendLine("- **User**: $env:USERNAME")
+        [void]$sb.AppendLine("- **Doc ref.**: 06.7-A72-02 v1.1 / CYBER-06117-C Rev C")
+        [void]$sb.AppendLine("- **CLIENT NTP relay**: $ClientRelayIP")
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("## Summary")
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("| Status | Count |")
+        [void]$sb.AppendLine("|--------|-------|")
+        $script:Results | Group-Object Status | Sort-Object Name | ForEach-Object {
+            [void]$sb.AppendLine("| $($_.Name) | $($_.Count) |")
+        }
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("## Detail")
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("| ID | Cat | Check | Status | Actual | Note |")
+        [void]$sb.AppendLine("|----|-----|-------|--------|--------|------|")
+    } else {
+        [void]$sb.AppendLine("# Hardening Audit SERVER — A72.TOUTWP (MAL Toulouse)")
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("- **Fecha**: $(Get-Date -Format 'yyyy-MM-dd HH:mm')")
+        [void]$sb.AppendLine("- **Host**: $env:COMPUTERNAME")
+        [void]$sb.AppendLine("- **Usuario**: $env:USERNAME")
+        [void]$sb.AppendLine("- **Ref. doc**: 06.7-A72-02 v1.1 / CYBER-06117-C Rev C")
+        [void]$sb.AppendLine("- **CLIENT relay NTP**: $ClientRelayIP")
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("## Resumen")
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("| Status | Count |")
+        [void]$sb.AppendLine("|--------|-------|")
+        $script:Results | Group-Object Status | Sort-Object Name | ForEach-Object {
+            [void]$sb.AppendLine("| $($_.Name) | $($_.Count) |")
+        }
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("## Detalle")
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("| ID | Cat | Check | Status | Actual | Nota |")
+        [void]$sb.AppendLine("|----|-----|-------|--------|--------|------|")
     }
-    [void]$sb.AppendLine("")
-    [void]$sb.AppendLine("## Detalle")
-    [void]$sb.AppendLine("")
-    [void]$sb.AppendLine("| ID | Cat | Check | Status | Actual | Nota |")
-    [void]$sb.AppendLine("|----|-----|-------|--------|--------|------|")
     foreach ($r in $script:Results) {
         $actual = ($r.Actual -replace '\|','\|' -replace "`r?`n",' ')
         $note   = ($r.Note   -replace '\|','\|' -replace "`r?`n",' ')
@@ -723,8 +887,8 @@ function Export-Report {
     $sb.ToString() | Set-Content -Path $md -Encoding UTF8
 
     Write-Host ''
-    Write-Host "  Reporte JSON: $json" -ForegroundColor Cyan
-    Write-Host "  Reporte MD  : $md"   -ForegroundColor Cyan
+    Write-Host ((Tr 'Reporte JSON:') + " $json") -ForegroundColor Cyan
+    Write-Host ((Tr 'Reporte MD') + "  : $md")   -ForegroundColor Cyan
 }
 
 # ============================================================
@@ -732,14 +896,19 @@ function Export-Report {
 # ============================================================
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-    Write-Warning "Este script requiere ejecutarse como Administrador. Algunas verificaciones devolveran SKIP/FAIL."
+    if ($script:Lang -eq 'EN') {
+        Write-Warning "This script must run as Administrator. Some checks will return SKIP/FAIL."
+    } else {
+        Write-Warning "Este script requiere ejecutarse como Administrador. Algunas verificaciones devolveran SKIP/FAIL."
+    }
 }
 
 Write-Header "AUDITORIA HARDENING SERVER — A72.TOUTWP / CYBER-06117-C v1.1" 'Magenta'
-Write-Host ("  Host          : {0}" -f $env:COMPUTERNAME) -ForegroundColor White
-Write-Host ("  User          : {0}" -f $env:USERNAME)     -ForegroundColor White
-Write-Host ("  Date          : {0}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')) -ForegroundColor White
-Write-Host ("  CLIENT relay  : {0}" -f $ClientRelayIP)    -ForegroundColor White
+Write-Host (("  Host          : {0}") -f $env:COMPUTERNAME) -ForegroundColor White
+Write-Host (("  User          : {0}") -f $env:USERNAME)     -ForegroundColor White
+Write-Host (("  Date          : {0}") -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')) -ForegroundColor White
+Write-Host (("  " + (Tr 'CLIENT relay') + "  : {0}") -f $ClientRelayIP) -ForegroundColor White
+Write-Host (("  Lang          : {0}") -f $script:Lang) -ForegroundColor White
 
 Test-Bios-Srv
 Test-Accounts-Srv
@@ -768,4 +937,8 @@ if (-not $NoExport) {
 }
 
 Write-Host ''
-Write-Host "Auditoria SERVER finalizada." -ForegroundColor Green
+if ($script:Lang -eq 'EN') {
+    Write-Host "SERVER audit completed." -ForegroundColor Green
+} else {
+    Write-Host "Auditoria SERVER finalizada." -ForegroundColor Green
+}

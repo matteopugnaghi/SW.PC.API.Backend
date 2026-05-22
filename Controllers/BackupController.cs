@@ -204,6 +204,38 @@ namespace SW.PC.API.Backend.Controllers
                     Message = "File must be a ZIP archive" 
                 });
             
+            // 🛡️ SCG-05: validación de magic bytes ZIP (defense-in-depth sobre extensión + content-type)
+            // PK\x03\x04 = local file header | PK\x05\x06 = empty archive | PK\x07\x08 = spanned archive
+            using (var probeStream = file.OpenReadStream())
+            {
+                var header = new byte[4];
+                var readBytes = await probeStream.ReadAsync(header, 0, 4);
+                if (readBytes < 4 ||
+                    header[0] != 0x50 || header[1] != 0x4B ||
+                    !((header[2] == 0x03 && header[3] == 0x04) ||
+                      (header[2] == 0x05 && header[3] == 0x06) ||
+                      (header[2] == 0x07 && header[3] == 0x08)))
+                {
+                    _logger.LogWarning(
+                        "SCG-05: ZIP magic-bytes check failed for upload '{FileName}' (project={ProjectId}, user={UserId}). Header=[{B0:X2} {B1:X2} {B2:X2} {B3:X2}]",
+                        file.FileName, projectId, userId, header[0], header[1], header[2], header[3]);
+                    return BadRequest(new BackupOperationResponse
+                    {
+                        Success = false,
+                        Message = "File contents do not match a valid ZIP archive (magic bytes mismatch)"
+                    });
+                }
+            }
+            // Validación adicional: content-type declarado (no determinante pero añade trazabilidad)
+            if (!string.IsNullOrEmpty(file.ContentType) &&
+                !file.ContentType.Contains("zip", StringComparison.OrdinalIgnoreCase) &&
+                !file.ContentType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning(
+                    "SCG-05: unexpected Content-Type '{ContentType}' for ZIP upload '{FileName}' (project={ProjectId}, user={UserId}) — proceeding because magic bytes passed",
+                    file.ContentType, file.FileName, projectId, userId);
+            }
+            
             using var stream = file.OpenReadStream();
             var result = await _backupService.ImportBackupAsync(projectId, stream, file.FileName);
             

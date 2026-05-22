@@ -66,27 +66,132 @@ builder.WebHost.ConfigureKestrel(options =>
     });
 });
 
-// 🔒 EU CRA / OWASP — HSTS conservador (1 día) hasta validar en producción.
-// Subir a 365 días + preload tras periodo de prueba sin incidencias.
+// 🔒 EU CRA / OWASP / CYBER-06117-C — HSTS escalado a 1 año (v1.3, 2026-05-21).
+// MaxAge ≥ 31 536 000 s requerido por CYBER-06117-C. IncludeSubDomains habilitado
+// (no hay subdominios en OT aislada → sin efectos colaterales). Preload deshabilitado:
+// la lista hsts-preload de Chromium es para dominios públicos; no aplica a IPs OT internas.
+// ExcludedHosts vaciado: por defecto ASP.NET Core excluye localhost / 127.0.0.1 / [::1],
+// pero en producción OT el supervisor se sirve por IP interna (p. ej. 192.168.2.161)
+// y queremos que también los entornos de validación local emitan la cabecera.
 builder.Services.AddHsts(options =>
 {
-    options.MaxAge = TimeSpan.FromDays(1);
-    options.IncludeSubDomains = false;
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
     options.Preload = false;
+    options.ExcludedHosts.Clear();
 });
 
-// 🔒 EU CRA / IEC 62443 — Rate limiter contra fuerza bruta en endpoints sensibles.
-// Política "auth": 5 req/min por IP en /api/auth/* y /api/recovery/*.
+// 🔒 EU CRA / IEC 62443 — Rate limiter contra fuerza bruta y abuso del API.
+// • GlobalLimiter "api" (v1.4): sliding window 300 req/min por IP en TODO el API HTTP
+//   excepto SignalR (/hubs/*), que tiene su propio control de conexión y haría saltar
+//   el límite en cada reconexión del SCADA. Los assets estáticos (wwwroot, modelos GLB,
+//   chunks JS) NO pasan por este middleware porque UseStaticFiles termina el pipeline
+//   antes de UseRateLimiter. SegmentsPerWindow=6 → ventanas deslizantes de 10 s para
+//   amortiguar ráfagas legítimas (login + carga inicial de SPA).
+// • Política "auth" (v1.7.1): sliding window 10 req/min por IP, scope reducido a endpoints
+//   sensibles a brute-force (/api/auth/login, /api/auth/change-password, /api/recovery/*).
+//   Anti brute-force estricto + defensa en profundidad con lockout por usuario
+//   (FailedLoginAttempts en BD). Sliding evita el efecto «cliff» del fixed window: si
+//   un operador hace logout+relogin rápido los permits se liberan progresivamente.
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("auth", httpContext =>
-        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+
+    // 🔒 EU CRA - Auditoría L1: cada 429 se registra en el audit log como evento de seguridad.
+    // Se ejecuta fire-and-forget para no añadir latencia a la respuesta de rechazo.
+    options.OnRejected = (context, cancellationToken) =>
+    {
+        try
+        {
+            var http = context.HttpContext;
+            var auditLog = http.RequestServices.GetService<SW.PC.API.Backend.Services.IAuditLogService>();
+            if (auditLog != null)
             {
-                PermitLimit = 5,
+                var ip = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var path = http.Request.Path.Value ?? "/";
+                var method = http.Request.Method;
+                var userAgent = http.Request.Headers.UserAgent.ToString();
+                var userId = http.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var userName = http.User?.Identity?.Name;
+                var policy = (path.StartsWith("/api/auth/login", StringComparison.OrdinalIgnoreCase)
+                          || path.StartsWith("/api/auth/change-password", StringComparison.OrdinalIgnoreCase)
+                          || path.StartsWith("/api/recovery", StringComparison.OrdinalIgnoreCase))
+                          ? "auth (20/5min sliding)" : "api-global (1000/min, anon only)";
+
+                // Fire-and-forget: no bloquear la respuesta 429.
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await auditLog.LogAsync(
+                            category: SW.PC.API.Backend.Models.AuditCategory.Security,
+                            action: SW.PC.API.Backend.Models.AuditAction.RateLimitExceeded,
+                            result: SW.PC.API.Backend.Models.AuditResult.Warning,
+                            details: $"Rate limit {policy} excedido en {method} {path} (UA: {userAgent})",
+                            userId: userId,
+                            userName: userName,
+                            ipAddress: ip
+                        );
+                    }
+                    catch { /* nunca propagar fallos de audit log */ }
+                });
+            }
+        }
+        catch { /* nunca romper el rechazo 429 por un error de logging */ }
+
+        return ValueTask.CompletedTask;
+    };
+
+    options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+    {
+        // SignalR usa su propio pipeline de conexión; cualquier límite global aquí
+        // haría fallar la reconexión automática del SCADA tras una pérdida de red.
+        var path = httpContext.Request.Path;
+        if (path.StartsWithSegments("/hubs"))
+        {
+            return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("hubs");
+        }
+
+        // v1.7.4: el límite global protege contra IPs anónimas (anti brute-force, anti scraping).
+        // Las peticiones AUTENTICADAS (Bearer token válido o no) NO pasan por aquí: ya están
+        // cubiertas por (a) la política "auth" sobre endpoints sensibles, (b) lockout de
+        // usuario en BD (Auth_MaxLoginAttempts), (c) el coste real de cada request.
+        // Motivo: una SCADA loopback (una sola IP del PC industrial) emite cientos de
+        // requests/min legítimos (polling + bootstrap + multi-vista). Aplicarle el límite
+        // "uníco para todo" causaba 429 espurios durante uso normal.
+        var authHeader = httpContext.Request.Headers.Authorization.ToString();
+        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("authenticated");
+        }
+
+        var partitionKey = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return System.Threading.RateLimiting.RateLimitPartition.GetSlidingWindowLimiter(
+            partitionKey: partitionKey,
+            factory: _ => new System.Threading.RateLimiting.SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = 1000,
                 Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 6,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
+
+    // v1.7.5: ventana ampliada de 1min a 5min (requisito CRA - bloqueo persistente y
+    // visible para el operador, no solo log). La sliding window cuenta TODA peticion
+    // (login exitoso, logout, change-password), no solo los fallos. 20 permits cada
+    // 5 min/IP sigue siendo holgado para uso legitimo (ciclo login/logout normal de
+    // operador) y muy restrictivo para brute force. Defense in depth: el lockout por
+    // usuario (Auth_MaxLoginAttempts = 6) sigue activo e independiente de esta IP-policy.
+    options.AddPolicy("auth", httpContext =>
+        System.Threading.RateLimiting.RateLimitPartition.GetSlidingWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new System.Threading.RateLimiting.SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(5),
+                SegmentsPerWindow = 5,
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
@@ -148,8 +253,9 @@ builder.Services.AddSignalR(options =>
     // Default: 15s. Debe ser < ClientTimeoutInterval/2 (recomendación Microsoft)
     options.KeepAliveInterval = TimeSpan.FromSeconds(30);
     
-    // Habilitar logs detallados en desarrollo
-    options.EnableDetailedErrors = true;
+    // 🔐 SCG-148 / CWE-209: stack traces detallados SOLO en desarrollo.
+    // En Production los errores SignalR se entregan como HubException genéricas sin detalles internos.
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
 }).AddJsonProtocol(options =>
 {
     // 🔧 Configurar SignalR para usar camelCase (igual que el resto de la API)
@@ -387,6 +493,8 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<PlcPollingService>
 builder.Services.AddSingleton<AlarmNotificationService>(); // 🔔 ADS Notifications para alarmas (más eficiente que polling)
 builder.Services.AddHostedService(sp => sp.GetRequiredService<AlarmNotificationService>()); // 🔔 También como HostedService
 builder.Services.AddHostedService<IntegrityVerificationService>(); // 🔐 Verificación periódica de integridad (cada 2 min)
+builder.Services.AddHostedService<SqliteMaintenanceService>(); // 🧹 SCG-113: VACUUM + PRAGMA integrity_check periódico (cada 7 días)
+builder.Services.AddHostedService<ModelAssetValidationService>(); // 🛡️ SCG-05/66/143: validación magic-bytes + tamaño de modelos 3D al arranque
 builder.Services.AddHostedService<BackupSchedulerService>(); // 💾 Backup automático programado (DATA MANAGEMENT)
 builder.Services.AddHostedService<WashRecipeAutoLoadService>(); // 🚿 Auto-carga de recetas de lavado desde PLC
 builder.Services.AddHostedService<TrainRecipeAutoLoadService>(); // 🚆 Auto-carga de tipos de tren desde PLC
@@ -400,6 +508,12 @@ builder.Services.AddLogging(logging =>
     logging.AddDebug();
     logging.SetMinimumLevel(LogLevel.Information);
 });
+
+// 🔒 EU CRA / OWASP / IEC 62443-4-1 — ExceptionHandler global + ProblemDetails RFC 7807 (SCG-25/26, v1.4).
+// Evita fuga de stack-traces (CWE-209) y unifica el formato de error en todos los endpoints HTTP.
+// SignalR usa su propio pipeline (`HubException`) y no se ve afectado.
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<SW.PC.API.Backend.Middleware.GlobalExceptionHandler>();
 
 var app = builder.Build();
 
@@ -559,6 +673,12 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
+
+// 🔒 EU CRA / OWASP — ExceptionHandler global ANTES de cualquier otro middleware del pipeline HTTP
+// para garantizar que cualquier excepción no controlada se convierte en ProblemDetails RFC 7807
+// (sin filtrar stack-traces en Production) y queda registrada con su traceId.
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -812,7 +932,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Map SignalR Hub
-app.MapHub<ScadaHub>("/hubs/scada");
+app.MapHub<ScadaHub>("/hubs/scada").DisableRateLimiting();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🌐 SPA FALLBACK - React Router Support

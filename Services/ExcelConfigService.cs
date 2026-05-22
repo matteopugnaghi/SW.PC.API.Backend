@@ -3766,7 +3766,59 @@ namespace SW.PC.API.Backend.Services
                                 break;
 
                             // ═══════════════════════════════════════════════════════════════
-                            // 💾 BACKUP SYSTEM
+                            // � EU CRA v1.4 - OPC/UA DoS/Flooding Protection
+                            // ═══════════════════════════════════════════════════════════════
+                            case "opcuamaxsessioncount":
+                            case "opcua_max_session_count":
+                            case "opcua_maxsessions":
+                                if (int.TryParse(paramValue, out int maxSes) && maxSes > 0 && maxSes <= 10000)
+                                    config.OpcUaMaxSessionCount = maxSes;
+                                break;
+                            case "opcuamaxsubscriptioncount":
+                            case "opcua_max_subscription_count":
+                            case "opcua_maxsubscriptions":
+                                if (int.TryParse(paramValue, out int maxSub) && maxSub > 0 && maxSub <= 100000)
+                                    config.OpcUaMaxSubscriptionCount = maxSub;
+                                break;
+                            case "opcuaminsessiontimeoutms":
+                            case "opcua_min_session_timeout_ms":
+                            case "opcua_minsessiontimeout":
+                                if (int.TryParse(paramValue, out int minSesT) && minSesT >= 1000)
+                                    config.OpcUaMinSessionTimeoutMs = minSesT;
+                                break;
+                            case "opcuamaxsessiontimeoutms":
+                            case "opcua_max_session_timeout_ms":
+                            case "opcua_maxsessiontimeout":
+                                if (int.TryParse(paramValue, out int maxSesT) && maxSesT >= 10000)
+                                    config.OpcUaMaxSessionTimeoutMs = maxSesT;
+                                break;
+                            case "opcuaminpublishingintervalms":
+                            case "opcua_min_publishing_interval_ms":
+                            case "opcua_minpublishinginterval":
+                                if (int.TryParse(paramValue, out int minPub) && minPub >= 10)
+                                    config.OpcUaMinPublishingIntervalMs = minPub;
+                                break;
+                            case "opcuamaxpublishingintervalms":
+                            case "opcua_max_publishing_interval_ms":
+                            case "opcua_maxpublishinginterval":
+                                if (int.TryParse(paramValue, out int maxPub) && maxPub >= 1000)
+                                    config.OpcUaMaxPublishingIntervalMs = maxPub;
+                                break;
+
+                            // ─── EU CRA v1.4 Paso B: OPC/UA Audit Hooks ───
+                            case "opcuaauditsessions":
+                            case "opcua_audit_sessions":
+                                config.OpcUaAuditSessions = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+                            case "opcuaquotapollintervalseconds":
+                            case "opcua_quota_poll_interval_seconds":
+                            case "opcua_quotapollinterval":
+                                if (int.TryParse(paramValue, out int quotaPoll) && quotaPoll >= 5 && quotaPoll <= 3600)
+                                    config.OpcUaQuotaPollIntervalSeconds = quotaPoll;
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
+                            // �💾 BACKUP SYSTEM
                             // ═══════════════════════════════════════════════════════════════
                             case "backupenabled":
                             case "backup_enabled":
