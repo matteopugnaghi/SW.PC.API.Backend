@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SW.PC.API.Backend", "SW.PC.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SW.PC.API.Backend.Tests", "Tests\SW.PC.API.Backend.Tests.csproj", "{0B0E1F35-FE46-4C64-A6F3-8C68449F8E8D}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{96CA82B2-8ED0-4AE6-A6BA-CB173B182077}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueryBackupAudit", "Tools\QueryBackupAudit\QueryBackupAudit.csproj", "{1CC469EF-6A3E-404A-B34A-356B526F286C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +28,12 @@ Global
 		{0B0E1F35-FE46-4C64-A6F3-8C68449F8E8D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0B0E1F35-FE46-4C64-A6F3-8C68449F8E8D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0B0E1F35-FE46-4C64-A6F3-8C68449F8E8D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1CC469EF-6A3E-404A-B34A-356B526F286C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1CC469EF-6A3E-404A-B34A-356B526F286C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1CC469EF-6A3E-404A-B34A-356B526F286C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1CC469EF-6A3E-404A-B34A-356B526F286C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1CC469EF-6A3E-404A-B34A-356B526F286C} = {96CA82B2-8ED0-4AE6-A6BA-CB173B182077}
 	EndGlobalSection
 EndGlobal
