@@ -176,13 +176,13 @@ namespace SW.PC.API.Backend.Controllers
             
             if (!config.WindowsLogoutEnabled)
             {
-                return BadRequest(new { success = false, message = "Función deshabilitada por configuración" });
+                return BadRequest(new { success = false, message = "Función deshabilitada por configuración", messageKey = "systemTools.errors.featureDisabled" });
             }
             
             if (!await IsAuthorizedRoleAsync(request.Role))
             {
                 LogSystemAction("logout-windows", request.Username, request.Role, false, "Unauthorized role");
-                return Unauthorized(new { success = false, message = "No autorizado para esta acción" });
+                return Unauthorized(new { success = false, message = "No autorizado para esta acción", messageKey = "systemTools.errors.unauthorized" });
             }
 
             try
@@ -254,13 +254,13 @@ namespace SW.PC.API.Backend.Controllers
                     _logger.LogWarning("🚪 No se encontró sesión de consola activa. Output: {Output}", sessionOutput.Trim());
                 }
 
-                return Ok(new { success = true, message = "Cerrando sesión de Windows..." });
+                return Ok(new { success = true, message = "Cerrando sesión de Windows...", messageKey = "systemTools.messages.windowsLoggingOut" });
             }
             catch (Exception ex)
             {
                 LogSystemAction("logout-windows", request.Username, request.Role, false, ex.Message);
                 _logger.LogError(ex, "Error al cerrar sesión de Windows");
-                return StatusCode(500, new { success = false, message = "Error al cerrar sesión: " + ex.Message });
+                return StatusCode(500, new { success = false, message = "Error al cerrar sesión: " + ex.Message, messageKey = "systemTools.errors.logoutFailed" });
             }
         }
 
@@ -388,19 +388,19 @@ namespace SW.PC.API.Backend.Controllers
             
             if (!config.TeamViewerEnabled)
             {
-                return BadRequest(new { success = false, message = "TeamViewer deshabilitado por configuración" });
+                return BadRequest(new { success = false, message = "TeamViewer deshabilitado por configuración", messageKey = "systemTools.errors.teamviewerDisabled" });
             }
             
             if (!await IsAuthorizedRoleAsync(request.Role))
             {
                 LogSystemAction("teamviewer-service", request.Username, request.Role, false, "Unauthorized role");
-                return Unauthorized(new { success = false, message = "No autorizado para esta acción" });
+                return Unauthorized(new { success = false, message = "No autorizado para esta acción", messageKey = "systemTools.errors.unauthorized" });
             }
 
             var action = request.Action?.ToLowerInvariant();
             if (action != "start" && action != "stop")
             {
-                return BadRequest(new { success = false, message = "Acción inválida. Use 'start' o 'stop'" });
+                return BadRequest(new { success = false, message = "Acción inválida. Use 'start' o 'stop'", messageKey = "systemTools.errors.invalidAction" });
             }
 
             try
@@ -409,7 +409,7 @@ namespace SW.PC.API.Backend.Controllers
                 var serviceName = FindTeamViewerServiceName();
                 if (serviceName == null)
                 {
-                    return NotFound(new { success = false, message = "Servicio TeamViewer no encontrado en el sistema" });
+                    return NotFound(new { success = false, message = "Servicio TeamViewer no encontrado en el sistema", messageKey = "systemTools.errors.teamviewerNotFound" });
                 }
 
                 var process = new Process
@@ -449,14 +449,15 @@ namespace SW.PC.API.Backend.Controllers
                 return Ok(new { 
                     success = true, 
                     running, 
-                    message = $"TeamViewer {actionLabel} correctamente" 
+                    message = $"TeamViewer {actionLabel} correctamente",
+                    messageKey = action == "start" ? "systemTools.messages.teamviewerStarted" : "systemTools.messages.teamviewerStopped"
                 });
             }
             catch (Exception ex)
             {
                 LogSystemAction($"teamviewer-service-{action}", request.Username, request.Role, false, ex.Message);
                 _logger.LogError(ex, "Error controlando servicio TeamViewer");
-                return StatusCode(500, new { success = false, message = "Error: " + ex.Message });
+                return StatusCode(500, new { success = false, message = "Error: " + ex.Message, messageKey = "systemTools.errors.genericError" });
             }
         }
 
@@ -535,7 +536,7 @@ namespace SW.PC.API.Backend.Controllers
             if (!await IsAuthorizedRoleAsync(request.Role))
             {
                 LogSystemAction("usb-toggle", request.Username, request.Role, false, "Unauthorized role");
-                return Unauthorized(new { success = false, message = "No autorizado para esta acción" });
+                return Unauthorized(new { success = false, message = "No autorizado para esta acción", messageKey = "systemTools.errors.unauthorized" });
             }
 
             try
@@ -544,7 +545,7 @@ namespace SW.PC.API.Backend.Controllers
                 var scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tools", "Kiosk", "Toggle-UsbStorage.ps1");
                 if (!System.IO.File.Exists(scriptPath))
                 {
-                    return NotFound(new { success = false, message = $"Script no encontrado: {scriptPath}" });
+                    return NotFound(new { success = false, message = $"Script no encontrado: {scriptPath}", messageKey = "systemTools.errors.scriptNotFound" });
                 }
 
                 var process = new Process
@@ -587,14 +588,15 @@ namespace SW.PC.API.Backend.Controllers
                 return Ok(new { 
                     success = true, 
                     blocked, 
-                    message = $"USB {stateLabel} correctamente" 
+                    message = $"USB {stateLabel} correctamente",
+                    messageKey = blocked ? "systemTools.messages.usbBlocked" : "systemTools.messages.usbEnabled"
                 });
             }
             catch (Exception ex)
             {
                 LogSystemAction("usb-toggle", request.Username, request.Role, false, ex.Message);
                 _logger.LogError(ex, "Error toggling USB");
-                return StatusCode(500, new { success = false, message = "Error: " + ex.Message });
+                return StatusCode(500, new { success = false, message = "Error: " + ex.Message, messageKey = "systemTools.errors.genericError" });
             }
         }
 
@@ -612,13 +614,13 @@ namespace SW.PC.API.Backend.Controllers
             
             if (!config.AppRestartEnabled)
             {
-                return BadRequest(new { success = false, message = "Reinicio de app deshabilitado por configuración" });
+                return BadRequest(new { success = false, message = "Reinicio de app deshabilitado por configuración", messageKey = "systemTools.errors.restartDisabled" });
             }
             
             if (!await IsAuthorizedRoleAsync(request.Role))
             {
                 LogSystemAction("restart-app", request.Username, request.Role, false, "Unauthorized role");
-                return Unauthorized(new { success = false, message = "No autorizado para esta acción" });
+                return Unauthorized(new { success = false, message = "No autorizado para esta acción", messageKey = "systemTools.errors.unauthorized" });
             }
 
             try
@@ -727,13 +729,13 @@ namespace SW.PC.API.Backend.Controllers
                     Environment.Exit(0); // En producción el servicio Windows lo reinicia automáticamente
                 });
                 
-                return Ok(new { success = true, message = "Aplicación reiniciando (backend + frontend)..." });
+                return Ok(new { success = true, message = "Aplicación reiniciando (backend + frontend)...", messageKey = "systemTools.messages.appRestarting" });
             }
             catch (Exception ex)
             {
                 LogSystemAction("restart-app", request.Username, request.Role, false, ex.Message);
                 _logger.LogError(ex, "Error al reiniciar aplicación");
-                return StatusCode(500, new { success = false, message = "Error al reiniciar: " + ex.Message });
+                return StatusCode(500, new { success = false, message = "Error al reiniciar: " + ex.Message, messageKey = "systemTools.errors.restartFailed" });
             }
         }
 
@@ -747,13 +749,13 @@ namespace SW.PC.API.Backend.Controllers
             
             if (!config.NetworkDiagnosticEnabled)
             {
-                return BadRequest(new { success = false, message = "Diagnóstico de red deshabilitado por configuración" });
+                return BadRequest(new { success = false, message = "Diagnóstico de red deshabilitado por configuración", messageKey = "systemTools.errors.networkDiagDisabled" });
             }
             
             if (!await IsAuthorizedRoleAsync(request.Role))
             {
                 LogSystemAction("network-diagnostic", request.Username, request.Role, false, "Unauthorized role");
-                return Unauthorized(new { success = false, message = "No autorizado para esta acción" });
+                return Unauthorized(new { success = false, message = "No autorizado para esta acción", messageKey = "systemTools.errors.unauthorized" });
             }
 
             try
@@ -783,18 +785,28 @@ namespace SW.PC.API.Backend.Controllers
                     Success = true
                 });
 
-                // Test 5: Verificar PLC (si está configurado)
-                var plcIp = config.PlcAmsNetId?.Split('.').Take(4).FirstOrDefault() 
-                    ?? _configuration["TwinCAT:PlcIpAddress"];
-                if (!string.IsNullOrEmpty(plcIp) && plcIp != "127")
+                // Test 5: Verificar PLC TwinCAT (estado ADS real, no ping)
+                // El PLC suele bloquear ICMP pero acepta ADS — InfoPanel usa este mismo estado
+                if (!string.IsNullOrEmpty(config.PlcAmsNetId))
                 {
-                    diagnostics.Add(await PingHost(plcIp, "PLC TwinCAT"));
+                    var isPlcConnected = _twinCATService.IsConnected;
+                    _logger.LogInformation("🔍 NetworkDiagnostic: PLC TwinCAT ADS state = {Connected} (NetId={NetId})", isPlcConnected, config.PlcAmsNetId);
+                    diagnostics.Add(new NetworkTestResult
+                    {
+                        Name = "PLC TwinCAT",
+                        Host = config.PlcAmsNetId,
+                        Status = isPlcConnected ? "Online" : "Offline",
+                        ResponseTime = isPlcConnected ? "ADS" : "N/A",
+                        Success = isPlcConnected,
+                        Details = isPlcConnected ? "Conectado vía ADS" : "Sin conexión ADS"
+                    });
                 }
 
                 return Ok(new
                 {
                     success = true,
                     message = "Diagnóstico completado",
+                    messageKey = "systemTools.messages.diagnosticCompleted",
                     timestamp = DateTime.Now,
                     results = diagnostics
                 });
@@ -803,7 +815,7 @@ namespace SW.PC.API.Backend.Controllers
             {
                 LogSystemAction("network-diagnostic", request.Username, request.Role, false, ex.Message);
                 _logger.LogError(ex, "Error en diagnóstico de red");
-                return StatusCode(500, new { success = false, message = "Error en diagnóstico: " + ex.Message });
+                return StatusCode(500, new { success = false, message = "Error en diagnóstico: " + ex.Message, messageKey = "systemTools.errors.diagnostic" });
             }
         }
 
@@ -965,7 +977,7 @@ namespace SW.PC.API.Backend.Controllers
             if (!await IsAuthorizedRoleAsync(request.Role))
             {
                 LogSystemAction($"launch-custom-tool-{request.ToolId}", request.Username, request.Role, false, "Unauthorized role");
-                return Unauthorized(new { success = false, message = "No autorizado para esta acción" });
+                return Unauthorized(new { success = false, message = "No autorizado para esta acción", messageKey = "systemTools.errors.unauthorized" });
             }
 
             try
@@ -996,18 +1008,18 @@ namespace SW.PC.API.Backend.Controllers
                         toolName = config.CustomTool3Name;
                         break;
                     default:
-                        return BadRequest(new { success = false, message = $"Herramienta desconocida: {request.ToolId}" });
+                        return BadRequest(new { success = false, message = $"Herramienta desconocida: {request.ToolId}", messageKey = "systemTools.errors.unknownTool" });
                 }
 
                 if (!toolEnabled)
                 {
-                    return BadRequest(new { success = false, message = $"Herramienta '{toolName}' deshabilitada" });
+                    return BadRequest(new { success = false, message = $"Herramienta '{toolName}' deshabilitada", messageKey = "systemTools.errors.toolDisabled" });
                 }
 
                 if (!System.IO.File.Exists(toolPath))
                 {
                     LogSystemAction($"launch-{request.ToolId}", request.Username, request.Role, false, $"File not found: {toolPath}");
-                    return NotFound(new { success = false, message = $"No se encontró: {toolPath}" });
+                    return NotFound(new { success = false, message = $"No se encontró: {toolPath}", messageKey = "systemTools.errors.toolNotFound" });
                 }
 
                 LogSystemAction($"launch-{request.ToolId}", request.Username, request.Role, true, $"Launching: {toolPath}");
@@ -1033,13 +1045,13 @@ namespace SW.PC.API.Backend.Controllers
                 };
                 process.Start();
 
-                return Ok(new { success = true, message = $"{toolName} iniciado correctamente" });
+                return Ok(new { success = true, message = $"{toolName} iniciado correctamente", messageKey = "systemTools.messages.toolStarted", tool = toolName });
             }
             catch (Exception ex)
             {
                 LogSystemAction($"launch-{request.ToolId}", request.Username, request.Role, false, ex.Message);
                 _logger.LogError(ex, "Error al iniciar herramienta personalizada");
-                return StatusCode(500, new { success = false, message = "Error al iniciar: " + ex.Message });
+                return StatusCode(500, new { success = false, message = "Error al iniciar: " + ex.Message, messageKey = "systemTools.errors.startFailed" });
             }
         }
 
