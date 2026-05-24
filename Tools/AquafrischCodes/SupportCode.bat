@@ -20,7 +20,7 @@ if "%INSTALLATION_ID%"=="" (
 )
 
 set /p CHALLENGE=Challenge Code (opcional, ENTER = omitir verificacion): 
-set /p DATETIME_UTC=Fecha/hora UTC del cliente (YYYY-MM-DDTHH:MM:SSZ, ENTER = AHORA del PC tecnico): 
+set /p DATETIME_LOCAL=Fecha/hora LOCAL del cliente (YYYY-MM-DDTHH:MM:SS, ENTER = AHORA del PC tecnico): 
 
 echo.
 echo ------------------------------------------------------------
@@ -28,7 +28,7 @@ echo.
 
 set "ARGS=-InstallationId ""%INSTALLATION_ID%"""
 if not "%CHALLENGE%"=="" set "ARGS=!ARGS! -ChallengeCode ""%CHALLENGE%"""
-if not "%DATETIME_UTC%"=="" set "ARGS=!ARGS! -DateTimeUtc ""%DATETIME_UTC%"""
+if not "%DATETIME_LOCAL%"=="" set "ARGS=!ARGS! -DateTime ""%DATETIME_LOCAL%"""
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& '%~dp0GenerateSupportCode.ps1' %ARGS%"
 

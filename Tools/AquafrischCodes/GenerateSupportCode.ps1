@@ -24,12 +24,14 @@ param(
     [string]$ChallengeCode = "",
 
     [Parameter(Mandatory=$false)]
-    [string]$DateTimeUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    [string]$DateTime = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
 )
 
-# Calcular hourSlot UTC desde el parámetro (o ahora si no se pasó)
-$_parsedDt = [datetime]::Parse($DateTimeUtc).ToUniversalTime()
-$script:HourSlotUtc = $_parsedDt.ToString("yyyyMMddHH")
+# IMPORTANTE: el backend (SupportController.cs) usa DateTime.Now (hora LOCAL del servidor),
+# no UTC. El script debe usar la MISMA hora local que el PC donde corre el backend.
+# Calcular hourSlot LOCAL desde el parámetro (o ahora si no se pasó).
+$_parsedDt = [datetime]::Parse($DateTime)
+$script:HourSlotLocal = $_parsedDt.ToString("yyyyMMddHH")
 
 <#
 .SYNOPSIS
@@ -46,10 +48,11 @@ $script:HourSlotUtc = $_parsedDt.ToString("yyyyMMddHH")
     (Opcional) El código de desafío mostrado al cliente.
     Si se proporciona, se verifica que coincide antes de generar respuesta.
 
-.PARAMETER DateTimeUtc
-    (Opcional) Fecha/hora UTC del PC del cliente en formato ISO (yyyy-MM-ddTHH:mm:ssZ).
-    Por defecto usa la hora UTC actual del PC del técnico.
+.PARAMETER DateTime
+    (Opcional) Fecha/hora LOCAL del PC del cliente en formato ISO (yyyy-MM-ddTHH:mm:ss).
+    Por defecto usa la hora local actual del PC del técnico.
     Útil cuando el reloj del cliente difiere del del técnico.
+    NOTA: usa hora local porque el backend usa DateTime.Now (no UTC).
 
 .EXAMPLE
     .\GenerateSupportCode.ps1 -InstallationId "AQF-ALSTOM-001"
@@ -58,7 +61,7 @@ $script:HourSlotUtc = $_parsedDt.ToString("yyyyMMddHH")
     .\GenerateSupportCode.ps1 -InstallationId "AQF-ALSTOM-001" -ChallengeCode "A1B2C3"
 
 .EXAMPLE
-    .\GenerateSupportCode.ps1 -InstallationId "AQF-ALSTOM-001" -DateTimeUtc "2026-05-24T14:30:00Z"
+    .\GenerateSupportCode.ps1 -InstallationId "AQF-ALSTOM-001" -DateTime "2026-05-24T16:30:00"
 
 .NOTES
     ⚠️ CONFIDENCIAL - Solo para uso interno de Aquafrisch
@@ -84,7 +87,7 @@ function Get-HmacSha256 {
 function Generate-ChallengeCode {
     param(
         [string]$installationId,
-        [string]$hourSlot = $script:HourSlotUtc
+        [string]$hourSlot = $script:HourSlotLocal
     )
     
     $data = "$($installationId.ToUpper())|$hourSlot|CHALLENGE|$AQUAFRISCH_SUPPORT_SECRET"
@@ -95,7 +98,7 @@ function Generate-ChallengeCode {
 function Generate-ResponseCode {
     param(
         [string]$installationId,
-        [string]$hourSlot = $script:HourSlotUtc
+        [string]$hourSlot = $script:HourSlotLocal
     )
     
     $data = "$($installationId.ToUpper())|$hourSlot|RESPONSE|$AQUAFRISCH_SUPPORT_SECRET"
