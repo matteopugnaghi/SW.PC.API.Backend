@@ -1,0 +1,1114 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "lastModified": "2026-01-17T00:00:00Z",
+    "languages": ["SPA", "ENG", "FRA", "ITA"],
+    "defaultLanguage": "SPA",
+    "description": "Archivo de traducciones del proyecto - ISO 639-2"
+  },
+
+  "pages": {
+    "LOGIN": {
+      "description": "Página de inicio de sesión",
+      "labels": [
+        "login.banner",
+        "login.status.online",
+        "login.status.offline",
+        "login.status.checking",
+        "login.form.user_label",
+        "login.form.user_placeholder",
+        "login.form.password_label",
+        "login.form.password_placeholder",
+        "login.form.show_password",
+        "login.form.hide_password",
+        "login.button.login",
+        "login.button.authenticating",
+        "login.links.forgot_password",
+        "login.links.system_help",
+        "login.footer",
+        "login.offline.title",
+        "login.offline.message",
+        "login.offline.installation_id",
+        "login.offline.last_connection",
+        "login.support.call_aquafrisch",
+        "login.password.forgot_contact_support",
+        "login.keyboard.editing",
+        "login.keyboard.new_password",
+        "login.keyboard.confirm_password",
+        "login.keyboard.uppercase",
+        "login.keyboard.lowercase",
+        "login.keyboard.space",
+        "login.keyboard.close",
+        "login.language.select",
+        "login.language.current"
+      ]
+    },
+    "SUPPORT_MODAL": {
+      "description": "Modal de soporte técnico y recuperación de contraseña",
+      "labels": [
+        "support.title",
+        "support.title_recovery",
+        "support.loading",
+        "support.contact.title",
+        "support.contact.phone",
+        "support.contact.email",
+        "support.contact.call",
+        "support.contact.send",
+        "support.qr.scan_to_email",
+        "support.offline.title",
+        "support.offline.message",
+        "support.data.title",
+        "support.data.title_recovery",
+        "support.data.note",
+        "support.data.installation_id",
+        "support.data.not_available",
+        "support.data.user",
+        "support.data.challenge",
+        "support.data.datetime",
+        "support.recovery.call_info",
+        "support.recovery.call_item_id",
+        "support.recovery.call_item_user",
+        "support.recovery.call_item_need",
+        "support.support.call_info",
+        "support.support.call_item_id",
+        "support.support.call_item_offline",
+        "support.support.call_item_problem",
+        "support.emergency.title",
+        "support.emergency.retry",
+        "support.emergency.persist_message",
+        "support.emergency.call_support",
+        "support.emergency.indicate",
+        "support.emergency.and_offline",
+        "support.emergency.last_resort",
+        "support.recovery.title",
+        "support.recovery.note",
+        "support.recovery.code_placeholder",
+        "support.recovery.new_password_placeholder",
+        "support.recovery.confirm_password_placeholder",
+        "support.recovery.button",
+        "support.recovery.button_loading",
+        "support.recovery.success_title",
+        "support.recovery.success_message",
+        "support.recovery.close_button",
+        "support.unlock.title",
+        "support.unlock.note",
+        "support.unlock.code_placeholder",
+        "support.unlock.button",
+        "support.unlock.button_loading",
+        "support.tools.title",
+        "support.tools.teamviewer",
+        "support.tools.restart_app",
+        "support.tools.logout_windows",
+        "support.tools.audit_note",
+        "support.footer",
+        "support.footer.reload",
+        "support.footer.reload_confirm",
+        "support.keyboard.editing",
+        "support.keyboard.recovery_code",
+        "support.keyboard.new_password",
+        "support.keyboard.confirm_password",
+        "support.keyboard.close",
+        "support.error.enter_code",
+        "support.error.enter_password",
+        "support.error.password_min_length",
+        "support.error.passwords_mismatch",
+        "support.error.connection",
+        "support.error.invalid_code",
+        "support.error.session_expired",
+        "support.error.tool_not_found",
+        "support.success.code_verified",
+        "support.success.copied",
+        "support.confirm.logout_windows"
+      ]
+    },
+    "DATA_MANAGEMENT": {
+      "description": "Modal de gestión de datos, backups y restauración",
+      "labels": [
+        "data.title",
+        "data.subtitle",
+        "data.creating_backup",
+        "data.restoring_backup",
+        "data.verifying_integrity",
+        "data.importing_backup",
+        "data.confirm_delete",
+        "data.error.download",
+        "data.error.invalid_backup",
+        "data.error.select_file",
+        "data.error.import",
+        "data.error.only_zip",
+        "data.success.backup_valid",
+        "data.success.import"
+      ]
+    },
+    "TOPBAR": {
+      "description": "Barra superior - menús y controles",
+      "labels": [
+        "topBar.labelVisibility.title",
+        "topBar.labelVisibility.all",
+        "topBar.labelVisibility.none"
+      ]
+    },
+    "COMMON": {
+      "description": "Textos comunes usados en múltiples páginas",
+      "labels": [
+        "common.save",
+        "common.cancel",
+        "common.back",
+        "common.loading",
+        "common.error",
+        "common.success",
+        "common.confirm",
+        "common.delete",
+        "common.edit",
+        "common.add",
+        "common.search",
+        "common.filter",
+        "common.refresh",
+        "common.close",
+        "common.yes",
+        "common.no",
+        "common.never"
+      ]
+    }
+  },
+
+  "translations": {
+    "topBar.labelVisibility.title": {
+      "SPA": "Visibilidad Etiquetas",
+      "ENG": "Label Visibility",
+      "FRA": "Visibilité Étiquettes",
+      "ITA": "Visibilità Etichette"
+    },
+    "topBar.labelVisibility.all": {
+      "SPA": "TODOS",
+      "ENG": "ALL",
+      "FRA": "TOUS",
+      "ITA": "TUTTI"
+    },
+    "topBar.labelVisibility.none": {
+      "SPA": "NINGUNO",
+      "ENG": "NONE",
+      "FRA": "AUCUN",
+      "ITA": "NESSUNO"
+    },
+    "login.banner": {
+      "SPA": "ACCESO RESTRINGIDO. Sistema de control industrial. Uso no autorizado prohibido.",
+      "ENG": "RESTRICTED ACCESS. Industrial control system. Unauthorized use prohibited.",
+      "FRA": "ACCÈS RESTREINT. Système de contrôle industriel. Utilisation non autorisée interdite.",
+      "ITA": "ACCESSO LIMITATO. Sistema di controllo industriale. Uso non autorizzato vietato."
+    },
+    "login.status.online": {
+      "SPA": "● Conectado",
+      "ENG": "● Connected",
+      "FRA": "● Connecté",
+      "ITA": "● Connesso"
+    },
+    "login.status.offline": {
+      "SPA": "● Desconectado",
+      "ENG": "● Disconnected",
+      "FRA": "● Déconnecté",
+      "ITA": "● Disconnesso"
+    },
+    "login.status.checking": {
+      "SPA": "🔄 Verificando...",
+      "ENG": "🔄 Checking...",
+      "FRA": "🔄 Vérification...",
+      "ITA": "🔄 Verifica..."
+    },
+    "login.form.user_label": {
+      "SPA": "Usuario",
+      "ENG": "Username",
+      "FRA": "Utilisateur",
+      "ITA": "Utente"
+    },
+    "login.form.user_placeholder": {
+      "SPA": "Escriba o seleccione usuario...",
+      "ENG": "Type or select user...",
+      "FRA": "Tapez ou sélectionnez un utilisateur...",
+      "ITA": "Digita o seleziona utente..."
+    },
+    "login.form.password_label": {
+      "SPA": "Contraseña",
+      "ENG": "Password",
+      "FRA": "Mot de passe",
+      "ITA": "Password"
+    },
+    "login.form.password_placeholder": {
+      "SPA": "Toque para escribir...",
+      "ENG": "Tap to type...",
+      "FRA": "Appuyez pour écrire...",
+      "ITA": "Tocca per scrivere..."
+    },
+    "login.form.show_password": {
+      "SPA": "Mostrar contraseña",
+      "ENG": "Show password",
+      "FRA": "Afficher le mot de passe",
+      "ITA": "Mostra password"
+    },
+    "login.form.hide_password": {
+      "SPA": "Ocultar contraseña",
+      "ENG": "Hide password",
+      "FRA": "Masquer le mot de passe",
+      "ITA": "Nascondi password"
+    },
+    "login.button.login": {
+      "SPA": "ENTRAR",
+      "ENG": "LOGIN",
+      "FRA": "CONNEXION",
+      "ITA": "ACCEDI"
+    },
+    "login.button.authenticating": {
+      "SPA": "AUTENTICANDO...",
+      "ENG": "AUTHENTICATING...",
+      "FRA": "AUTHENTIFICATION...",
+      "ITA": "AUTENTICAZIONE..."
+    },
+    "login.links.forgot_password": {
+      "SPA": "¿Olvidaste contraseña?",
+      "ENG": "Forgot password?",
+      "FRA": "Mot de passe oublié ?",
+      "ITA": "Password dimenticata?"
+    },
+    "login.links.system_help": {
+      "SPA": "Ayuda del Sistema",
+      "ENG": "System Help",
+      "FRA": "Aide du système",
+      "ITA": "Aiuto di sistema"
+    },
+    "login.footer": {
+      "SPA": "Aquafrisch Supervisor © {year} • EU CRA Compliant",
+      "ENG": "Aquafrisch Supervisor © {year} • EU CRA Compliant",
+      "FRA": "Aquafrisch Supervisor © {year} • Conforme EU CRA",
+      "ITA": "Aquafrisch Supervisor © {year} • Conforme EU CRA"
+    },
+    "login.offline.title": {
+      "SPA": "El servidor no responde",
+      "ENG": "Server not responding",
+      "FRA": "Le serveur ne répond pas",
+      "ITA": "Il server non risponde"
+    },
+    "login.offline.message": {
+      "SPA": "No es posible iniciar sesión sin conexión al servidor. Contacte al personal de mantenimiento.",
+      "ENG": "Cannot log in without server connection. Contact maintenance personnel.",
+      "FRA": "Impossible de se connecter sans connexion au serveur. Contactez le personnel de maintenance.",
+      "ITA": "Impossibile accedere senza connessione al server. Contattare il personale di manutenzione."
+    },
+    "login.offline.installation_id": {
+      "SPA": "ID Instalación",
+      "ENG": "Installation ID",
+      "FRA": "ID Installation",
+      "ITA": "ID Installazione"
+    },
+    "login.offline.last_connection": {
+      "SPA": "Última conexión",
+      "ENG": "Last connection",
+      "FRA": "Dernière connexion",
+      "ITA": "Ultima connessione"
+    },
+    "login.support.call_aquafrisch": {
+      "SPA": "Llamar a Aquafrisch",
+      "ENG": "Call Aquafrisch",
+      "FRA": "Appeler Aquafrisch",
+      "ITA": "Chiama Aquafrisch"
+    },
+    "login.password.forgot_contact_support": {
+      "SPA": "¿Olvidaste tu contraseña? Contactar soporte",
+      "ENG": "Forgot your password? Contact support",
+      "FRA": "Mot de passe oublié ? Contactez le support",
+      "ITA": "Password dimenticata? Contatta il supporto"
+    },
+    "login.keyboard.editing": {
+      "SPA": "Editando",
+      "ENG": "Editing",
+      "FRA": "Édition",
+      "ITA": "Modifica"
+    },
+    "login.keyboard.new_password": {
+      "SPA": "Nueva Contraseña",
+      "ENG": "New Password",
+      "FRA": "Nouveau mot de passe",
+      "ITA": "Nuova Password"
+    },
+    "login.keyboard.confirm_password": {
+      "SPA": "Confirmar Contraseña",
+      "ENG": "Confirm Password",
+      "FRA": "Confirmer le mot de passe",
+      "ITA": "Conferma Password"
+    },
+    "login.keyboard.uppercase": {
+      "SPA": "MAYÚS",
+      "ENG": "CAPS",
+      "FRA": "MAJ",
+      "ITA": "MAIUSC"
+    },
+    "login.keyboard.lowercase": {
+      "SPA": "minús",
+      "ENG": "lower",
+      "FRA": "minus",
+      "ITA": "minusc"
+    },
+    "login.keyboard.space": {
+      "SPA": "ESPACIO",
+      "ENG": "SPACE",
+      "FRA": "ESPACE",
+      "ITA": "SPAZIO"
+    },
+    "login.keyboard.close": {
+      "SPA": "Cerrar Teclado",
+      "ENG": "Close Keyboard",
+      "FRA": "Fermer le clavier",
+      "ITA": "Chiudi Tastiera"
+    },
+    "login.language.select": {
+      "SPA": "Seleccionar idioma",
+      "ENG": "Select language",
+      "FRA": "Sélectionner la langue",
+      "ITA": "Seleziona lingua"
+    },
+    "login.language.current": {
+      "SPA": "Idioma actual",
+      "ENG": "Current language",
+      "FRA": "Langue actuelle",
+      "ITA": "Lingua attuale"
+    },
+    "login.error.connection": {
+      "SPA": "Error de conexión con el servidor. Verifique que el backend esté corriendo.",
+      "ENG": "Server connection error. Please verify the backend is running.",
+      "FRA": "Erreur de connexion au serveur. Vérifiez que le backend fonctionne.",
+      "ITA": "Errore di connessione al server. Verificare che il backend sia in esecuzione."
+    },
+    "login.error.invalid_credentials": {
+      "SPA": "Usuario o contraseña incorrectos",
+      "ENG": "Invalid username or password",
+      "FRA": "Nom d'utilisateur ou mot de passe incorrect",
+      "ITA": "Nome utente o password non validi"
+    },
+    "login.error.passwords_mismatch": {
+      "SPA": "Las contraseñas no coinciden",
+      "ENG": "Passwords do not match",
+      "FRA": "Les mots de passe ne correspondent pas",
+      "ITA": "Le password non corrispondono"
+    },
+    "login.error.password_min_length": {
+      "SPA": "La contraseña debe tener al menos {minLength} caracteres",
+      "ENG": "Password must be at least {minLength} characters",
+      "FRA": "Le mot de passe doit contenir au moins {minLength} caractères",
+      "ITA": "La password deve avere almeno {minLength} caratteri"
+    },
+    "login.error.password_require_uppercase": {
+      "SPA": "La contraseña debe tener al menos una mayúscula",
+      "ENG": "Password must contain at least one uppercase letter",
+      "FRA": "Le mot de passe doit contenir au moins une majuscule",
+      "ITA": "La password deve contenere almeno una lettera maiuscola"
+    },
+    "login.error.password_require_lowercase": {
+      "SPA": "La contraseña debe tener al menos una minúscula",
+      "ENG": "Password must contain at least one lowercase letter",
+      "FRA": "Le mot de passe doit contenir au moins une minuscule",
+      "ITA": "La password deve contenere almeno una lettera minuscola"
+    },
+    "login.error.password_require_number": {
+      "SPA": "La contraseña debe tener al menos un número",
+      "ENG": "Password must contain at least one number",
+      "FRA": "Le mot de passe doit contenir au moins un chiffre",
+      "ITA": "La password deve contenere almeno un numero"
+    },
+    "login.error.password_require_special": {
+      "SPA": "La contraseña debe tener al menos un carácter especial (!@#$%^&*...)",
+      "ENG": "Password must contain at least one special character (!@#$%^&*...)",
+      "FRA": "Le mot de passe doit contenir au moins un caractère spécial (!@#$%^&*...)",
+      "ITA": "La password deve contenere almeno un carattere speciale (!@#$%^&*...)"
+    },
+    "login.error.password_same_as_current": {
+      "SPA": "La nueva contraseña debe ser diferente a la actual",
+      "ENG": "New password must be different from current password",
+      "FRA": "Le nouveau mot de passe doit être différent du mot de passe actuel",
+      "ITA": "La nuova password deve essere diversa da quella attuale"
+    },
+    "login.error.password_common_pattern": {
+      "SPA": "La contraseña contiene patrones comunes no permitidos (admin, password, 123456...)",
+      "ENG": "Password contains common patterns that are not allowed (admin, password, 123456...)",
+      "FRA": "Le mot de passe contient des modèles communs non autorisés (admin, password, 123456...)",
+      "ITA": "La password contiene pattern comuni non consentiti (admin, password, 123456...)"
+    },
+    "login.error.password_change_error": {
+      "SPA": "Error al cambiar la contraseña",
+      "ENG": "Error changing password",
+      "FRA": "Erreur lors du changement de mot de passe",
+      "ITA": "Errore durante il cambio della password"
+    },
+    "login.error.tech_no_permission": {
+      "SPA": "No tiene permisos para acceso técnico",
+      "ENG": "You do not have permission for technical access",
+      "FRA": "Vous n'avez pas les autorisations pour l'accès technique",
+      "ITA": "Non hai i permessi per l'accesso tecnico"
+    },
+    "login.error.tech_invalid_credentials": {
+      "SPA": "Credenciales inválidas",
+      "ENG": "Invalid credentials",
+      "FRA": "Identifiants invalides",
+      "ITA": "Credenziali non valide"
+    },
+    "login.error.tech_offline_verify": {
+      "SPA": "No se puede verificar credenciales offline",
+      "ENG": "Cannot verify credentials offline",
+      "FRA": "Impossible de vérifier les identifiants hors ligne",
+      "ITA": "Impossibile verificare le credenziali offline"
+    },
+    "login.error.system_offline": {
+      "SPA": "Sistema completamente offline. Contacte soporte.",
+      "ENG": "System completely offline. Contact support.",
+      "FRA": "Système complètement hors ligne. Contactez le support.",
+      "ITA": "Sistema completamente offline. Contattare il supporto."
+    },
+    "login.error.action_error": {
+      "SPA": "Error ejecutando acción",
+      "ENG": "Error executing action",
+      "FRA": "Erreur lors de l'exécution de l'action",
+      "ITA": "Errore durante l'esecuzione dell'azione"
+    },
+    "login.success.password_changed": {
+      "SPA": "Contraseña cambiada. Por favor inicie sesión con su nueva contraseña.",
+      "ENG": "Password changed. Please log in with your new password.",
+      "FRA": "Mot de passe modifié. Veuillez vous connecter avec votre nouveau mot de passe.",
+      "ITA": "Password cambiata. Effettuare il login con la nuova password."
+    },
+    "common.save": {
+      "SPA": "Guardar",
+      "ENG": "Save",
+      "FRA": "Enregistrer",
+      "ITA": "Salva"
+    },
+    "common.cancel": {
+      "SPA": "Cancelar",
+      "ENG": "Cancel",
+      "FRA": "Annuler",
+      "ITA": "Annulla"
+    },
+    "common.back": {
+      "SPA": "Volver",
+      "ENG": "Back",
+      "FRA": "Retour",
+      "ITA": "Indietro"
+    },
+    "common.loading": {
+      "SPA": "Cargando...",
+      "ENG": "Loading...",
+      "FRA": "Chargement...",
+      "ITA": "Caricamento..."
+    },
+    "common.error": {
+      "SPA": "Error",
+      "ENG": "Error",
+      "FRA": "Erreur",
+      "ITA": "Errore"
+    },
+    "common.success": {
+      "SPA": "Éxito",
+      "ENG": "Success",
+      "FRA": "Succès",
+      "ITA": "Successo"
+    },
+    "common.confirm": {
+      "SPA": "Confirmar",
+      "ENG": "Confirm",
+      "FRA": "Confirmer",
+      "ITA": "Conferma"
+    },
+    "common.delete": {
+      "SPA": "Eliminar",
+      "ENG": "Delete",
+      "FRA": "Supprimer",
+      "ITA": "Elimina"
+    },
+    "common.edit": {
+      "SPA": "Editar",
+      "ENG": "Edit",
+      "FRA": "Modifier",
+      "ITA": "Modifica"
+    },
+    "common.add": {
+      "SPA": "Añadir",
+      "ENG": "Add",
+      "FRA": "Ajouter",
+      "ITA": "Aggiungi"
+    },
+    "common.search": {
+      "SPA": "Buscar",
+      "ENG": "Search",
+      "FRA": "Rechercher",
+      "ITA": "Cerca"
+    },
+    "common.filter": {
+      "SPA": "Filtrar",
+      "ENG": "Filter",
+      "FRA": "Filtrer",
+      "ITA": "Filtra"
+    },
+    "common.refresh": {
+      "SPA": "Actualizar",
+      "ENG": "Refresh",
+      "FRA": "Actualiser",
+      "ITA": "Aggiorna"
+    },
+    "common.close": {
+      "SPA": "Cerrar",
+      "ENG": "Close",
+      "FRA": "Fermer",
+      "ITA": "Chiudi"
+    },
+    "common.yes": {
+      "SPA": "Sí",
+      "ENG": "Yes",
+      "FRA": "Oui",
+      "ITA": "Sì"
+    },
+    "common.no": {
+      "SPA": "No",
+      "ENG": "No",
+      "FRA": "Non",
+      "ITA": "No"
+    },
+    "common.never": {
+      "SPA": "Nunca",
+      "ENG": "Never",
+      "FRA": "Jamais",
+      "ITA": "Mai"
+    },
+
+    "support.title": {
+      "SPA": "Llamar a Aquafrisch",
+      "ENG": "Call Aquafrisch",
+      "FRA": "Appeler Aquafrisch",
+      "ITA": "Chiama Aquafrisch"
+    },
+    "support.title_recovery": {
+      "SPA": "Recuperar Contraseña",
+      "ENG": "Password Recovery",
+      "FRA": "Récupération du mot de passe",
+      "ITA": "Recupero Password"
+    },
+    "support.loading": {
+      "SPA": "Cargando información...",
+      "ENG": "Loading information...",
+      "FRA": "Chargement des informations...",
+      "ITA": "Caricamento informazioni..."
+    },
+    "support.contact.title": {
+      "SPA": "Contacto Soporte Técnico",
+      "ENG": "Technical Support Contact",
+      "FRA": "Contact Support Technique",
+      "ITA": "Contatto Supporto Tecnico"
+    },
+    "support.contact.phone": {
+      "SPA": "Teléfono",
+      "ENG": "Phone",
+      "FRA": "Téléphone",
+      "ITA": "Telefono"
+    },
+    "support.contact.email": {
+      "SPA": "Email",
+      "ENG": "Email",
+      "FRA": "Email",
+      "ITA": "Email"
+    },
+    "support.contact.call": {
+      "SPA": "Llamar",
+      "ENG": "Call",
+      "FRA": "Appeler",
+      "ITA": "Chiama"
+    },
+    "support.contact.send": {
+      "SPA": "Enviar",
+      "ENG": "Send",
+      "FRA": "Envoyer",
+      "ITA": "Invia"
+    },
+    "support.contact.not_configured": {
+      "SPA": "No configurado",
+      "ENG": "Not configured",
+      "FRA": "Non configuré",
+      "ITA": "Non configurato"
+    },
+    "support.contact.copy": {
+      "SPA": "Copiar",
+      "ENG": "Copy",
+      "FRA": "Copier",
+      "ITA": "Copia"
+    },
+    "support.qr.scan_to_email": {
+      "SPA": "Escanee con su móvil para enviar un email a soporte",
+      "ENG": "Scan with your phone to send an email to support",
+      "FRA": "Scannez avec votre téléphone pour envoyer un e-mail au support",
+      "ITA": "Scansiona con il telefono per inviare un'email al supporto"
+    },
+    "support.offline.title": {
+      "SPA": "Sistema Sin Conexión",
+      "ENG": "System Offline",
+      "FRA": "Système hors ligne",
+      "ITA": "Sistema Offline"
+    },
+    "support.offline.message": {
+      "SPA": "El servidor no responde. Las herramientas remotas no están disponibles. Llame a soporte técnico para asistencia manual.",
+      "ENG": "Server not responding. Remote tools are not available. Call technical support for manual assistance.",
+      "FRA": "Le serveur ne répond pas. Les outils à distance ne sont pas disponibles. Appelez le support technique pour une assistance manuelle.",
+      "ITA": "Il server non risponde. Gli strumenti remoti non sono disponibili. Chiami il supporto tecnico per assistenza manuale."
+    },
+    "support.data.title": {
+      "SPA": "Datos de Instalación",
+      "ENG": "Installation Data",
+      "FRA": "Données d'installation",
+      "ITA": "Dati Installazione"
+    },
+    "support.data.title_recovery": {
+      "SPA": "Datos para Recuperación",
+      "ENG": "Recovery Data",
+      "FRA": "Données de récupération",
+      "ITA": "Dati per Recupero"
+    },
+    "support.data.note": {
+      "SPA": "Proporcione estos datos al técnico de soporte:",
+      "ENG": "Provide this data to the support technician:",
+      "FRA": "Fournissez ces données au technicien de support :",
+      "ITA": "Fornisca questi dati al tecnico di supporto:"
+    },
+    "support.data.installation_id": {
+      "SPA": "ID Instalación",
+      "ENG": "Installation ID",
+      "FRA": "ID Installation",
+      "ITA": "ID Installazione"
+    },
+    "support.data.not_available": {
+      "SPA": "NO DISPONIBLE",
+      "ENG": "NOT AVAILABLE",
+      "FRA": "NON DISPONIBLE",
+      "ITA": "NON DISPONIBILE"
+    },
+    "support.data.user": {
+      "SPA": "Usuario",
+      "ENG": "User",
+      "FRA": "Utilisateur",
+      "ITA": "Utente"
+    },
+    "support.data.challenge": {
+      "SPA": "Código Challenge",
+      "ENG": "Challenge Code",
+      "FRA": "Code Challenge",
+      "ITA": "Codice Challenge"
+    },
+    "support.data.datetime": {
+      "SPA": "Fecha/Hora Local",
+      "ENG": "Local Date/Time",
+      "FRA": "Date/Heure locale",
+      "ITA": "Data/Ora Locale"
+    },
+    "support.recovery.call_info": {
+      "SPA": "Al llamar, indique:",
+      "ENG": "When calling, indicate:",
+      "FRA": "Lors de l'appel, indiquez :",
+      "ITA": "Quando chiama, indichi:"
+    },
+    "support.recovery.call_item_id": {
+      "SPA": "ID de Instalación",
+      "ENG": "Installation ID",
+      "FRA": "ID d'installation",
+      "ITA": "ID Installazione"
+    },
+    "support.recovery.call_item_user": {
+      "SPA": "Usuario",
+      "ENG": "User",
+      "FRA": "Utilisateur",
+      "ITA": "Utente"
+    },
+    "support.recovery.call_item_need": {
+      "SPA": "Que necesita recuperar la contraseña",
+      "ENG": "That you need to recover the password",
+      "FRA": "Que vous devez récupérer le mot de passe",
+      "ITA": "Che ha bisogno di recuperare la password"
+    },
+    "support.support.call_info": {
+      "SPA": "Al llamar, indique:",
+      "ENG": "When calling, indicate:",
+      "FRA": "Lors de l'appel, indiquez :",
+      "ITA": "Quando chiama, indichi:"
+    },
+    "support.support.call_item_id": {
+      "SPA": "ID de Instalación (arriba)",
+      "ENG": "Installation ID (above)",
+      "FRA": "ID d'installation (ci-dessus)",
+      "ITA": "ID Installazione (sopra)"
+    },
+    "support.support.call_item_offline": {
+      "SPA": "Que el sistema está sin conexión al servidor",
+      "ENG": "That the system is offline from the server",
+      "FRA": "Que le système est hors ligne du serveur",
+      "ITA": "Che il sistema è offline dal server"
+    },
+    "support.support.call_item_problem": {
+      "SPA": "El problema que está experimentando",
+      "ENG": "The problem you are experiencing",
+      "FRA": "Le problème que vous rencontrez",
+      "ITA": "Il problema che sta riscontrando"
+    },
+    "support.emergency.title": {
+      "SPA": "Sistema Sin Conexión - Modo Emergencia",
+      "ENG": "System Offline - Emergency Mode",
+      "FRA": "Système hors ligne - Mode d'urgence",
+      "ITA": "Sistema Offline - Modalità Emergenza"
+    },
+    "support.emergency.retry": {
+      "SPA": "REINTENTAR CONEXIÓN",
+      "ENG": "RETRY CONNECTION",
+      "FRA": "RÉESSAYER LA CONNEXION",
+      "ITA": "RIPROVA CONNESSIONE"
+    },
+    "support.emergency.persist_message": {
+      "SPA": "Si el problema persiste después de varios intentos:",
+      "ENG": "If the problem persists after several attempts:",
+      "FRA": "Si le problème persiste après plusieurs tentatives :",
+      "ITA": "Se il problema persiste dopo vari tentativi:"
+    },
+    "support.emergency.call_support": {
+      "SPA": "LLAME A SOPORTE TÉCNICO",
+      "ENG": "CALL TECHNICAL SUPPORT",
+      "FRA": "APPELEZ LE SUPPORT TECHNIQUE",
+      "ITA": "CHIAMI IL SUPPORTO TECNICO"
+    },
+    "support.emergency.indicate": {
+      "SPA": "Indique",
+      "ENG": "Indicate",
+      "FRA": "Indiquez",
+      "ITA": "Indichi"
+    },
+    "support.emergency.and_offline": {
+      "SPA": "y que el sistema está sin conexión",
+      "ENG": "and that the system is offline",
+      "FRA": "et que le système est hors ligne",
+      "ITA": "e che il sistema è offline"
+    },
+    "support.emergency.last_resort": {
+      "SPA": "Último recurso: Desconecte el cable de alimentación del equipo y espere 10 segundos antes de volver a conectar.",
+      "ENG": "Last resort: Disconnect the power cable from the equipment and wait 10 seconds before reconnecting.",
+      "FRA": "Dernier recours : Débranchez le câble d'alimentation de l'équipement et attendez 10 secondes avant de rebrancher.",
+      "ITA": "Ultima risorsa: Scolleghi il cavo di alimentazione dall'apparecchiatura e attenda 10 secondi prima di ricollegare."
+    },
+    "support.recovery.title": {
+      "SPA": "Cambiar Contraseña",
+      "ENG": "Change Password",
+      "FRA": "Changer le mot de passe",
+      "ITA": "Cambia Password"
+    },
+    "support.recovery.note": {
+      "SPA": "Introduzca el código de recuperación que le ha proporcionado el técnico de Aquafrisch, junto con su nueva contraseña.",
+      "ENG": "Enter the recovery code provided by the Aquafrisch technician, along with your new password.",
+      "FRA": "Entrez le code de récupération fourni par le technicien Aquafrisch, ainsi que votre nouveau mot de passe.",
+      "ITA": "Inserisca il codice di recupero fornito dal tecnico Aquafrisch, insieme alla sua nuova password."
+    },
+    "support.recovery.code_placeholder": {
+      "SPA": "CÓDIGO DE RECUPERACIÓN (AQFR-XXXX-XXXX-XXXX)",
+      "ENG": "RECOVERY CODE (AQFR-XXXX-XXXX-XXXX)",
+      "FRA": "CODE DE RÉCUPÉRATION (AQFR-XXXX-XXXX-XXXX)",
+      "ITA": "CODICE DI RECUPERO (AQFR-XXXX-XXXX-XXXX)"
+    },
+    "support.recovery.new_password_placeholder": {
+      "SPA": "NUEVA CONTRASEÑA",
+      "ENG": "NEW PASSWORD",
+      "FRA": "NOUVEAU MOT DE PASSE",
+      "ITA": "NUOVA PASSWORD"
+    },
+    "support.recovery.confirm_password_placeholder": {
+      "SPA": "CONFIRMAR NUEVA CONTRASEÑA",
+      "ENG": "CONFIRM NEW PASSWORD",
+      "FRA": "CONFIRMER LE NOUVEAU MOT DE PASSE",
+      "ITA": "CONFERMA NUOVA PASSWORD"
+    },
+    "support.recovery.button": {
+      "SPA": "Cambiar Contraseña",
+      "ENG": "Change Password",
+      "FRA": "Changer le mot de passe",
+      "ITA": "Cambia Password"
+    },
+    "support.recovery.button_loading": {
+      "SPA": "Cambiando contraseña...",
+      "ENG": "Changing password...",
+      "FRA": "Changement du mot de passe...",
+      "ITA": "Cambio password..."
+    },
+    "support.recovery.success_title": {
+      "SPA": "Contraseña Actualizada",
+      "ENG": "Password Updated",
+      "FRA": "Mot de passe mis à jour",
+      "ITA": "Password Aggiornata"
+    },
+    "support.recovery.success_message": {
+      "SPA": "Su contraseña ha sido cambiada correctamente. Ya puede cerrar esta ventana e iniciar sesión con su nueva contraseña.",
+      "ENG": "Your password has been changed successfully. You can now close this window and log in with your new password.",
+      "FRA": "Votre mot de passe a été changé avec succès. Vous pouvez maintenant fermer cette fenêtre et vous connecter avec votre nouveau mot de passe.",
+      "ITA": "La sua password è stata cambiata con successo. Può ora chiudere questa finestra e accedere con la sua nuova password."
+    },
+    "support.recovery.close_button": {
+      "SPA": "Cerrar y volver al Login",
+      "ENG": "Close and return to Login",
+      "FRA": "Fermer et retourner à la connexion",
+      "ITA": "Chiudi e torna al Login"
+    },
+    "support.unlock.title": {
+      "SPA": "Desbloqueo Remoto",
+      "ENG": "Remote Unlock",
+      "FRA": "Déverrouillage à distance",
+      "ITA": "Sblocco Remoto"
+    },
+    "support.unlock.note": {
+      "SPA": "Si el técnico le ha dado un código de respuesta, ingréselo aquí para desbloquear las herramientas del sistema temporalmente.",
+      "ENG": "If the technician has given you a response code, enter it here to temporarily unlock the system tools.",
+      "FRA": "Si le technicien vous a donné un code de réponse, entrez-le ici pour déverrouiller temporairement les outils du système.",
+      "ITA": "Se il tecnico le ha fornito un codice di risposta, lo inserisca qui per sbloccare temporaneamente gli strumenti del sistema."
+    },
+    "support.unlock.code_placeholder": {
+      "SPA": "INGRESE CÓDIGO DE RESPUESTA",
+      "ENG": "ENTER RESPONSE CODE",
+      "FRA": "ENTREZ LE CODE DE RÉPONSE",
+      "ITA": "INSERISCA CODICE DI RISPOSTA"
+    },
+    "support.unlock.button": {
+      "SPA": "Verificar Código",
+      "ENG": "Verify Code",
+      "FRA": "Vérifier le code",
+      "ITA": "Verifica Codice"
+    },
+    "support.unlock.button_loading": {
+      "SPA": "Verificando...",
+      "ENG": "Verifying...",
+      "FRA": "Vérification...",
+      "ITA": "Verifica..."
+    },
+    "support.tools.title": {
+      "SPA": "Herramientas Desbloqueadas",
+      "ENG": "Unlocked Tools",
+      "FRA": "Outils déverrouillés",
+      "ITA": "Strumenti Sbloccati"
+    },
+    "support.tools.teamviewer": {
+      "SPA": "TeamViewer",
+      "ENG": "TeamViewer",
+      "FRA": "TeamViewer",
+      "ITA": "TeamViewer"
+    },
+    "support.tools.restart_app": {
+      "SPA": "Reiniciar Aplicación",
+      "ENG": "Restart Application",
+      "FRA": "Redémarrer l'application",
+      "ITA": "Riavvia Applicazione"
+    },
+    "support.tools.logout_windows": {
+      "SPA": "Cerrar Sesión Windows",
+      "ENG": "Windows Logout",
+      "FRA": "Déconnexion Windows",
+      "ITA": "Disconnetti Windows"
+    },
+    "support.tools.audit_note": {
+      "SPA": "Todas las acciones quedan registradas en el log de auditoría",
+      "ENG": "All actions are recorded in the audit log",
+      "FRA": "Toutes les actions sont enregistrées dans le journal d'audit",
+      "ITA": "Tutte le azioni vengono registrate nel log di audit"
+    },
+    "support.footer": {
+      "SPA": "Aquafrisch Industrial Support",
+      "ENG": "Aquafrisch Industrial Support",
+      "FRA": "Aquafrisch Industrial Support",
+      "ITA": "Aquafrisch Industrial Support"
+    },
+    "support.footer.reload": {
+      "SPA": "Recargar Página",
+      "ENG": "Reload Page",
+      "FRA": "Recharger la page",
+      "ITA": "Ricarica Pagina"
+    },
+    "support.footer.reload_confirm": {
+      "SPA": "¿Recargar la página?\n\nEsto refrescará toda la aplicación.",
+      "ENG": "Reload the page?\n\nThis will refresh the entire application.",
+      "FRA": "Recharger la page ?\n\nCela actualisera toute l'application.",
+      "ITA": "Ricaricare la pagina?\n\nQuesto aggiornerà l'intera applicazione."
+    },
+    "support.keyboard.editing": {
+      "SPA": "Editando",
+      "ENG": "Editing",
+      "FRA": "Édition",
+      "ITA": "Modifica"
+    },
+    "support.keyboard.recovery_code": {
+      "SPA": "Código de Recuperación",
+      "ENG": "Recovery Code",
+      "FRA": "Code de récupération",
+      "ITA": "Codice di Recupero"
+    },
+    "support.keyboard.new_password": {
+      "SPA": "Nueva Contraseña",
+      "ENG": "New Password",
+      "FRA": "Nouveau mot de passe",
+      "ITA": "Nuova Password"
+    },
+    "support.keyboard.confirm_password": {
+      "SPA": "Confirmar Contraseña",
+      "ENG": "Confirm Password",
+      "FRA": "Confirmer le mot de passe",
+      "ITA": "Conferma Password"
+    },
+    "support.keyboard.close": {
+      "SPA": "Cerrar Teclado",
+      "ENG": "Close Keyboard",
+      "FRA": "Fermer le clavier",
+      "ITA": "Chiudi Tastiera"
+    },
+    "support.error.enter_code": {
+      "SPA": "Por favor ingrese el código",
+      "ENG": "Please enter the code",
+      "FRA": "Veuillez entrer le code",
+      "ITA": "Per favore inserisca il codice"
+    },
+    "support.error.enter_password": {
+      "SPA": "Por favor ingrese la nueva contraseña",
+      "ENG": "Please enter the new password",
+      "FRA": "Veuillez entrer le nouveau mot de passe",
+      "ITA": "Per favore inserisca la nuova password"
+    },
+    "support.error.password_min_length": {
+      "SPA": "La contraseña debe tener al menos 4 caracteres",
+      "ENG": "Password must be at least 4 characters",
+      "FRA": "Le mot de passe doit comporter au moins 4 caractères",
+      "ITA": "La password deve avere almeno 4 caratteri"
+    },
+    "support.error.passwords_mismatch": {
+      "SPA": "Las contraseñas no coinciden",
+      "ENG": "Passwords do not match",
+      "FRA": "Les mots de passe ne correspondent pas",
+      "ITA": "Le password non corrispondono"
+    },
+    "support.error.connection": {
+      "SPA": "Error de conexión. Intente nuevamente.",
+      "ENG": "Connection error. Please try again.",
+      "FRA": "Erreur de connexion. Veuillez réessayer.",
+      "ITA": "Errore di connessione. Riprovi."
+    },
+    "support.error.invalid_code": {
+      "SPA": "Código inválido o expirado",
+      "ENG": "Invalid or expired code",
+      "FRA": "Code invalide ou expiré",
+      "ITA": "Codice non valido o scaduto"
+    },
+    "support.error.session_expired": {
+      "SPA": "La sesión de soporte ha expirado",
+      "ENG": "Support session has expired",
+      "FRA": "La session de support a expiré",
+      "ITA": "La sessione di supporto è scaduta"
+    },
+    "support.error.tool_not_found": {
+      "SPA": "Herramienta no reconocida",
+      "ENG": "Tool not recognized",
+      "FRA": "Outil non reconnu",
+      "ITA": "Strumento non riconosciuto"
+    },
+    "support.error.tool_execution": {
+      "SPA": "Error ejecutando",
+      "ENG": "Error executing",
+      "FRA": "Erreur lors de l'exécution",
+      "ITA": "Errore durante l'esecuzione"
+    },
+    "support.success.code_verified": {
+      "SPA": "Código verificado! Sesión activa por {minutes} minutos.",
+      "ENG": "Code verified! Session active for {minutes} minutes.",
+      "FRA": "Code vérifié ! Session active pendant {minutes} minutes.",
+      "ITA": "Codice verificato! Sessione attiva per {minutes} minuti."
+    },
+    "support.success.copied": {
+      "SPA": "{label} copiado al portapapeles",
+      "ENG": "{label} copied to clipboard",
+      "FRA": "{label} copié dans le presse-papiers",
+      "ITA": "{label} copiato negli appunti"
+    },
+    "support.confirm.logout_windows": {
+      "SPA": "¿Está seguro que desea cerrar la sesión de Windows?",
+      "ENG": "Are you sure you want to log out of Windows?",
+      "FRA": "Êtes-vous sûr de vouloir vous déconnecter de Windows ?",
+      "ITA": "È sicuro di voler disconnettersi da Windows?"
+    },
+    "data.title": {
+      "SPA": "Gestión de Datos",
+      "ENG": "Data Management",
+      "FRA": "Gestion des données",
+      "ITA": "Gestione Dati"
+    },
+    "data.creating_backup": {
+      "SPA": "Creando backup...",
+      "ENG": "Creating backup...",
+      "FRA": "Création de la sauvegarde...",
+      "ITA": "Creazione backup..."
+    },
+    "data.restoring_backup": {
+      "SPA": "Restaurando backup...",
+      "ENG": "Restoring backup...",
+      "FRA": "Restauration de la sauvegarde...",
+      "ITA": "Ripristino backup..."
+    },
+    "data.verifying_integrity": {
+      "SPA": "Verificando integridad...",
+      "ENG": "Verifying integrity...",
+      "FRA": "Vérification de l'intégrité...",
+      "ITA": "Verifica integrità..."
+    },
+    "data.importing_backup": {
+      "SPA": "Importando backup...",
+      "ENG": "Importing backup...",
+      "FRA": "Importation de la sauvegarde...",
+      "ITA": "Importazione backup..."
+    },
+    "data.confirm_delete": {
+      "SPA": "¿Está seguro de eliminar este backup?",
+      "ENG": "Are you sure you want to delete this backup?",
+      "FRA": "Êtes-vous sûr de vouloir supprimer cette sauvegarde ?",
+      "ITA": "È sicuro di voler eliminare questo backup?"
+    },
+    "data.error.download": {
+      "SPA": "Error al descargar",
+      "ENG": "Download error",
+      "FRA": "Erreur de téléchargement",
+      "ITA": "Errore di download"
+    },
+    "data.error.invalid_backup": {
+      "SPA": "Backup inválido",
+      "ENG": "Invalid backup",
+      "FRA": "Sauvegarde invalide",
+      "ITA": "Backup non valido"
+    },
+    "data.error.select_file": {
+      "SPA": "Seleccione un archivo ZIP para importar",
+      "ENG": "Select a ZIP file to import",
+      "FRA": "Sélectionnez un fichier ZIP à importer",
+      "ITA": "Seleziona un file ZIP da importare"
+    },
+    "data.error.import": {
+      "SPA": "Error al importar backup",
+      "ENG": "Error importing backup",
+      "FRA": "Erreur lors de l'importation de la sauvegarde",
+      "ITA": "Errore durante l'importazione del backup"
+    },
+    "data.error.only_zip": {
+      "SPA": "Solo se permiten archivos .zip",
+      "ENG": "Only .zip files are allowed",
+      "FRA": "Seuls les fichiers .zip sont autorisés",
+      "ITA": "Sono consentiti solo file .zip"
+    },
+    "data.success.backup_valid": {
+      "SPA": "Backup válido - Certificado: {certificateStatus}",
+      "ENG": "Valid backup - Certificate: {certificateStatus}",
+      "FRA": "Sauvegarde valide - Certificat : {certificateStatus}",
+      "ITA": "Backup valido - Certificato: {certificateStatus}"
+    },
+    "data.success.import": {
+      "SPA": "Backup importado correctamente",
+      "ENG": "Backup imported successfully",
+      "FRA": "Sauvegarde importée avec succès",
+      "ITA": "Backup importato correttamente"
+    }
+  }
+}
