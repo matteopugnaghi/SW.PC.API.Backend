@@ -129,6 +129,16 @@ namespace SW.PC.API.Backend.Controllers
             // Cache corto para que los cambios se vean al actualizar el manual
             Response.Headers["Cache-Control"] = "no-cache, must-revalidate";
 
+            // El manual se embebe en un <iframe> desde la app React, que en
+            // desarrollo corre en otro puerto (localhost:3000/3001) y por tanto
+            // es cross-origin respecto a este backend (localhost:5000/5001).
+            // El middleware global aplica X-Frame-Options: SAMEORIGIN que
+            // bloquearía el iframe → sobrescribimos con CSP frame-ancestors
+            // permisivo solo para esta ruta (el manual es contenido estático
+            // del proyecto, no expone datos sensibles).
+            Response.Headers.Remove("X-Frame-Options");
+            Response.Headers["Content-Security-Policy"] = "frame-ancestors *;";
+
             // Inyectar CSS para ocultar el selector de idioma interno de MkDocs
             // (el cambio de idioma se hace desde la app, no desde el manual).
             // Además eliminar los <link rel="alternate" hreflang="..."> porque el JS
