@@ -185,12 +185,19 @@ namespace SW.PC.API.Backend.Controllers
                 ipAddress: clientIp,
                 projectId: _projectContext.ProjectId);
 
+            // Filtrar herramientas según configuración del Excel
+            var allowedTools = new List<string>();
+            if (config.TeamViewerEnabled) allowedTools.Add("TeamViewer");
+            if (config.AppRestartEnabled) allowedTools.Add("Reiniciar Aplicación");
+            if (config.WindowsLogoutEnabled) allowedTools.Add("Cerrar Sesión Windows");
+
             return Ok(new
             {
                 success = true,
                 sessionId = sessionId,
                 expiresAt = expiresAt,
                 durationMinutes = config.SupportUnlockDurationMinutes,
+                allowedTools = allowedTools,
                 message = $"Acceso temporal activado por {config.SupportUnlockDurationMinutes} minutos"
             });
         }
