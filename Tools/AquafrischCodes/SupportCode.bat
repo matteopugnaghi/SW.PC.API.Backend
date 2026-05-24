@@ -26,11 +26,11 @@ echo.
 echo ------------------------------------------------------------
 echo.
 
-set "ARGS=-InstallationId ""%INSTALLATION_ID%"""
-if not "%CHALLENGE%"=="" set "ARGS=!ARGS! -ChallengeCode ""%CHALLENGE%"""
-if not "%DATETIME_LOCAL%"=="" set "ARGS=!ARGS! -DateTime ""%DATETIME_LOCAL%"""
+set "ARGS=-InstallationId "%INSTALLATION_ID%""
+if not "%CHALLENGE%"=="" set "ARGS=!ARGS! -ChallengeCode "%CHALLENGE%""
+if not "%DATETIME_LOCAL%"=="" set "ARGS=!ARGS! -DateTime "%DATETIME_LOCAL%""
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& '%~dp0GenerateSupportCode.ps1' %ARGS%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0GenerateSupportCode.ps1" !ARGS!
 
 echo.
 echo ------------------------------------------------------------
