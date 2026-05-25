@@ -115,22 +115,20 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  DELETE /api/system-logs - Clear buffer (development only)
+        //  DELETE /api/system-logs - Clear buffer (Admin/SuperAdmin)
         // ═══════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Clear all entries from the buffer. Only available in Development.
+        /// Clear all entries from the buffer. Restricted to Administrator/SuperAdmin roles.
         /// </summary>
         [HttpDelete]
+        [Authorize(Roles = "Administrator,SuperAdmin")]
         public ActionResult Clear()
         {
             try
             {
-                var env = HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
-                if (!env.IsDevelopment())
-                    return Forbid();
-
                 _logService.Clear();
+                _logger.LogInformation("System log buffer cleared by {User}", User?.Identity?.Name ?? "unknown");
                 return Ok(new { message = "System log buffer cleared" });
             }
             catch (Exception ex)

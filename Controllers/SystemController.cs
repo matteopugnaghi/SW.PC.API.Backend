@@ -541,7 +541,7 @@ namespace SW.PC.API.Backend.Controllers
 
             try
             {
-                // Ejecutar el script PowerShell de toggle
+                // Script de toggle: detecta el estado actual y lo invierte.
                 var scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tools", "Kiosk", "Toggle-UsbStorage.ps1");
                 if (!System.IO.File.Exists(scriptPath))
                 {
@@ -645,79 +645,38 @@ namespace SW.PC.API.Backend.Controllers
                 await _auditLogService.FlushAsync();
                 _logger.LogWarning("🔄 restart-app: Flush completado, continuando con reinicio...");
 
-                // Prioridad: Excel > appsettings > rutas comunes
-                var browserPaths = new[]
+                // 🔧 Cerrar el navegador kiosk (Chrome/Edge). El KioskWatchdog.ps1
+                // que corre en la sesión del usuario detectará la caída y lo relanzará
+                // automáticamente. Desde el servicio (Session 0) no podemos lanzar GUI
+                // en la sesión interactiva del usuario sin CreateProcessAsUser, así que
+                // delegamos el relanzamiento al watchdog ya existente.
+                var browserNames = new[] { "chrome", "msedge" };
+                foreach (var browserName in browserNames)
                 {
-                    @"C:\Program Files\Google\Chrome\Application\chrome.exe",
-                    @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-                    @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-                };
-
-                // Primero verificar Excel
-                string? browserPath = !string.IsNullOrEmpty(config.KioskBrowserPath) 
-                    ? config.KioskBrowserPath 
-                    : null;
-
-                // Luego appsettings
-                if (browserPath == null)
-                {
-                    var configuredBrowser = _configuration["SystemTools:BrowserPath"];
-                    browserPath = !string.IsNullOrEmpty(configuredBrowser) 
-                        ? configuredBrowser 
-                        : browserPaths.FirstOrDefault(System.IO.File.Exists);
+                    try
+                    {
+                        var killProcess = new Process
+                        {
+                            StartInfo = new ProcessStartInfo
+                            {
+                                FileName = "taskkill",
+                                Arguments = $"/IM {browserName}.exe /F",
+                                UseShellExecute = false,
+                                CreateNoWindow = true
+                            }
+                        };
+                        killProcess.Start();
+                        killProcess.WaitForExit(3000);
+                    }
+                    catch (Exception killEx)
+                    {
+                        _logger.LogWarning(killEx, "No se pudo cerrar {Browser} (puede no estar en ejecución)", browserName);
+                    }
                 }
-                else if (!System.IO.File.Exists(browserPath))
-                {
-                    browserPath = browserPaths.FirstOrDefault(System.IO.File.Exists);
-                }
 
-                var kioskArgs = !string.IsNullOrEmpty(config.KioskBrowserArgs)
-                    ? config.KioskBrowserArgs
-                    : _configuration["SystemTools:KioskUrl"] ?? "--kiosk http://localhost:3001";
-
-                // 🔧 En desarrollo, NO usar modo kiosk para facilitar pruebas
+                // 🔄 Reiniciar backend (en producción el servicio Windows lo reiniciará automáticamente,
+                // y el KioskWatchdog relanzará Chrome cuando vuelva a estar disponible).
                 var isDevelopment = _env.IsDevelopment();
-                if (isDevelopment)
-                {
-                    // Quitar --kiosk de los argumentos en desarrollo
-                    kioskArgs = kioskArgs.Replace("--kiosk ", "").Replace("--kiosk", "");
-                    _logger.LogInformation("🔧 Modo desarrollo: Deshabilitando --kiosk para facilitar pruebas");
-                }
-
-                if (browserPath != null)
-                {
-                    // Cerrar instancias existentes y reiniciar
-                    var browserName = Path.GetFileNameWithoutExtension(browserPath);
-                    var killProcess = new Process
-                    {
-                        StartInfo = new ProcessStartInfo
-                        {
-                            FileName = "taskkill",
-                            Arguments = $"/IM {browserName}.exe /F",
-                            UseShellExecute = false,
-                            CreateNoWindow = true
-                        }
-                    };
-                    killProcess.Start();
-                    killProcess.WaitForExit(3000);
-
-                    // Pequeña pausa
-                    System.Threading.Thread.Sleep(1000);
-
-                    // Reiniciar navegador
-                    var startProcess = new Process
-                    {
-                        StartInfo = new ProcessStartInfo
-                        {
-                            FileName = browserPath,
-                            Arguments = kioskArgs,
-                            UseShellExecute = true
-                        }
-                    };
-                    startProcess.Start();
-                }
-
-                // 🔄 Reiniciar backend (en producción el servicio Windows lo reiniciará automáticamente)
                 var envType = isDevelopment ? "DESARROLLO" : "PRODUCCIÓN";
                 _logger.LogWarning("🔄 {Env}: Reiniciando backend en 2 segundos...", envType);
                 
