@@ -68,7 +68,7 @@ namespace SW.PC.API.Backend.Controllers
         /// Forzar re-verificación de integridad de todos los componentes
         /// </summary>
         [HttpPost("verify")]
-        [Authorize(Roles = "Administrator,Auditor")]
+        [Authorize(Roles = "Administrator,Auditor,SuperAdmin")]
         public async Task<IActionResult> VerifyIntegrity([FromBody] ManualVerifyRequest? request = null)
         {
             var verifiedBy = request?.VerifiedBy ?? "Anonymous";

@@ -93,6 +93,7 @@ public class IpcInfoService : IIpcInfoService
         {
             // Update dynamic values only
             _cachedInfo.Cpu.UsagePercent = GetCpuUsage();
+            _cachedInfo.Cpu.CoreUsages = GetCoreUsages();
             _cachedInfo.Memory = GetMemoryInfo();
             _cachedInfo.OperatingSystem.Uptime = GetSystemUptime();
             _cachedInfo.OperatingSystem.UptimeFormatted = FormatUptime(_cachedInfo.OperatingSystem.Uptime);
