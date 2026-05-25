@@ -92,8 +92,12 @@ public class IpcInfoService : IIpcInfoService
         if (_cachedInfo != null && DateTime.Now - _cacheTimestamp < _cacheExpiration)
         {
             // Update dynamic values only
-            _cachedInfo.Cpu.UsagePercent = GetCpuUsage();
+            // 🔄 Muestrear cores primero y derivar el total de la media para evitar
+            // desvios visuales entre el total y el promedio de los nucleos.
             _cachedInfo.Cpu.CoreUsages = GetCoreUsages();
+            _cachedInfo.Cpu.UsagePercent = _cachedInfo.Cpu.CoreUsages.Count > 0
+                ? Math.Round(_cachedInfo.Cpu.CoreUsages.Average(c => c.UsagePercent), 1)
+                : GetCpuUsage();
             _cachedInfo.Memory = GetMemoryInfo();
             _cachedInfo.OperatingSystem.Uptime = GetSystemUptime();
             _cachedInfo.OperatingSystem.UptimeFormatted = FormatUptime(_cachedInfo.OperatingSystem.Uptime);
@@ -137,9 +141,15 @@ public class IpcInfoService : IIpcInfoService
         var disk = GetDiskInfo();
         var uptime = GetSystemUptime();
 
+        // 🔄 Total derivado de la media de cores para mantener coherencia con la vista detallada.
+        var cores = GetCoreUsages();
+        var totalCpu = cores.Count > 0
+            ? Math.Round(cores.Average(c => c.UsagePercent), 1)
+            : GetCpuUsage();
+
         return Task.FromResult(new IpcQuickStatus
         {
-            CpuUsagePercent = GetCpuUsage(),
+            CpuUsagePercent = totalCpu,
             MemoryUsagePercent = memory.UsagePercent,
             DiskUsagePercent = disk.UsagePercent,
             OsName = $"{Environment.OSVersion.Platform} {Environment.OSVersion.Version}",
@@ -284,8 +294,11 @@ public class IpcInfoService : IIpcInfoService
             }
         }
 
-        info.UsagePercent = GetCpuUsage();
+        // 🔄 Muestrear cores primero y derivar el total de la media (sync visual).
         info.CoreUsages = GetCoreUsages();
+        info.UsagePercent = info.CoreUsages.Count > 0
+            ? Math.Round(info.CoreUsages.Average(c => c.UsagePercent), 1)
+            : GetCpuUsage();
 
         return info;
     }
