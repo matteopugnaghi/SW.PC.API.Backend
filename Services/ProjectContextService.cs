@@ -274,6 +274,11 @@ namespace SW.PC.API.Backend.Services
                     if (projectId.StartsWith("_") || projectId.StartsWith("."))
                         continue;
                     
+                    // Ignorar "default" si existe como carpeta: ya se añade arriba como entrada legacy
+                    // (evita duplicado de key="default" en el selector del frontend)
+                    if (string.Equals(projectId, "default", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    
                     var configPath = Path.Combine(projectDir, "config");
                     var modelsPath = Path.Combine(projectDir, "models");
                     var dataPath = Path.Combine(projectDir, "data");
