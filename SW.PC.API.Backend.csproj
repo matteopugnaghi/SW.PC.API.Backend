@@ -33,6 +33,15 @@
          → FileNotFoundException al arrancar el servicio en producción. -->
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.1" NoWarn="NU1605" />
     <PackageReference Include="System.Text.Json" Version="8.0.5" NoWarn="NU1605" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="8.0.1" NoWarn="NU1605" />
+    <!-- Pin restantes transitivas 9.0.4 traídas por NCalc.Core 5.4.2 -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" NoWarn="NU1605" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" NoWarn="NU1605" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" NoWarn="NU1605" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" NoWarn="NU1605" />
+    <PackageReference Include="Microsoft.Extensions.Logging.TraceSource" Version="8.0.1" NoWarn="NU1605" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" NoWarn="NU1605" />
+    <PackageReference Include="Microsoft.Extensions.Primitives" Version="8.0.0" NoWarn="NU1605" />
     <PackageReference Include="NCalcSync" Version="5.4.2" />
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Server" Version="1.5.374.126" />
     <PackageReference Include="SSH.NET" Version="2025.1.0" />
