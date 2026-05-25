@@ -100,6 +100,13 @@ namespace SW.PC.API.Backend.Models.OpcUa
 
         /// <summary>Engineering unit (e.g., "°C", "bar", "m/s")</summary>
         public string Unit { get; set; } = string.Empty;
+
+        /// <summary>
+        /// If TRUE, value changes for this variable are NOT written to the OperationLog
+        /// (useful for high-frequency signals like watchdogs/counters that would flood the log).
+        /// Excel column I in OPC_UA_Variables sheet. Empty/FALSE = log normally.
+        /// </summary>
+        public bool ExcludeFromLog { get; set; } = false;
     }
 
     /// <summary>

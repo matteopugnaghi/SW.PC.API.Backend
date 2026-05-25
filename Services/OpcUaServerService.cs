@@ -971,10 +971,15 @@ namespace SW.PC.API.Backend.Services
                                 if (!Equals(prev, value))
                                 {
                                     _previousValues[v.VariableName] = value;
-                                    _ = _operationLogService.LogAsync(
-                                        OperationCategory.OpcUa, OperationAction.OpcUaValueChange,
-                                        $"{v.VariableName}: {prev} → {value}",
-                                        user: "PLC");
+                                    // Excel OPC_UA_Variables col I ExcludeFromLog=TRUE → no se escribe en OperationLog
+                                    // (señales de alta frecuencia tipo watchdog/contadores)
+                                    if (!v.ExcludeFromLog)
+                                    {
+                                        _ = _operationLogService.LogAsync(
+                                            OperationCategory.OpcUa, OperationAction.OpcUaValueChange,
+                                            $"{v.VariableName}: {prev} → {value}",
+                                            user: "PLC");
+                                    }
                                 }
                             }
                             else

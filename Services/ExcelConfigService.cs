@@ -5910,10 +5910,19 @@ namespace SW.PC.API.Backend.Services
                     return variables;
                 }
                 
-                // Row 1 = header: VariableName | NodeId | DataType | AccessMode | PlcSymbolPath | Description | UpdateRateMs | Unit
+                // Row 1 = header: VariableName | NodeId | DataType | AccessMode | PlcSymbolPath | Description | UpdateRateMs | Unit | ExcludeFromLog
                 int row = 2;
                 while (!string.IsNullOrEmpty(sheet.Cell($"A{row}").GetString()))
                 {
+                    var excludeRaw = sheet.Cell($"I{row}").GetString().Trim();
+                    var excludeFromLog = !string.IsNullOrEmpty(excludeRaw)
+                        && (excludeRaw.Equals("true", StringComparison.OrdinalIgnoreCase)
+                            || excludeRaw == "1"
+                            || excludeRaw.Equals("yes", StringComparison.OrdinalIgnoreCase)
+                            || excludeRaw.Equals("si", StringComparison.OrdinalIgnoreCase)
+                            || excludeRaw.Equals("sí", StringComparison.OrdinalIgnoreCase)
+                            || excludeRaw.Equals("x", StringComparison.OrdinalIgnoreCase));
+
                     var variable = new Models.OpcUa.OpcUaVariable
                     {
                         VariableName = sheet.Cell($"A{row}").GetString().Trim(),
@@ -5923,7 +5932,8 @@ namespace SW.PC.API.Backend.Services
                         PlcSymbolPath = sheet.Cell($"E{row}").GetString().Trim(),
                         Description = sheet.Cell($"F{row}").GetString().Trim(),
                         UpdateRateMs = int.TryParse(sheet.Cell($"G{row}").GetString(), out var rate) ? rate : 1000,
-                        Unit = sheet.Cell($"H{row}").GetString().Trim()
+                        Unit = sheet.Cell($"H{row}").GetString().Trim(),
+                        ExcludeFromLog = excludeFromLog
                     };
                     
                     if (!string.IsNullOrEmpty(variable.VariableName) && !string.IsNullOrEmpty(variable.NodeId))
