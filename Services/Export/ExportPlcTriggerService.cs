@@ -45,6 +45,9 @@ public class ExportPlcTriggerService : BackgroundService, IExportPlcTriggerServi
     /// <summary>taskId → último valor bool conocido (null si nunca leído).</summary>
     private readonly ConcurrentDictionary<int, bool?> _lastValueByTask = new();
 
+    /// <summary>Variables ya suscritas vía ADS por este servicio (case-insensitive).</summary>
+    private readonly HashSet<string> _subscribedVars = new(StringComparer.OrdinalIgnoreCase);
+
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
 
     public ExportPlcTriggerService(
@@ -126,6 +129,30 @@ public class ExportPlcTriggerService : BackgroundService, IExportPlcTriggerServi
             // Limpia cache de tareas que ya no son plc/enabled.
             foreach (var staleId in _lastValueByTask.Keys.Where(id => !activeIds.Contains(id)).ToList())
                 _lastValueByTask.TryRemove(staleId, out _);
+
+            // Asegura suscripción ADS para cada variable trigger que no estuviera
+            // ya suscrita (no requiere que la variable esté en PLC_Variables.xlsm).
+            foreach (var varName in nextMap.Keys)
+            {
+                if (_subscribedVars.Contains(varName)) continue;
+                try
+                {
+                    var handle = await _twincat.RegisterNotificationAsync(varName, typeof(bool), 100);
+                    if (handle != 0)
+                    {
+                        _subscribedVars.Add(varName);
+                        _logger.LogInformation("📤🎯 Trigger PLC suscrito: {Var} (handle={Handle})", varName, handle);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("[ExportPlcTrigger] No se pudo suscribir variable trigger '{Var}' (PLC no conectado o variable inexistente)", varName);
+                    }
+                }
+                catch (Exception exSub)
+                {
+                    _logger.LogWarning(exSub, "[ExportPlcTrigger] Error suscribiendo variable trigger '{Var}'", varName);
+                }
+            }
 
             _logger.LogDebug("[ExportPlcTrigger] Refresh: {VarCount} variables vigiladas, {TaskCount} tareas activas",
                 _tasksByVariable.Count, activeIds.Count);
