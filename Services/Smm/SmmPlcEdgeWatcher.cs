@@ -559,8 +559,7 @@ public class SmmPlcEdgeWatcher : BackgroundService, ISmmPlcEdgeWatcher
                             var depName = mm.Groups[1].Value.Trim();
                             return byVarName[depName].Value!.Value.ToString(CultureInfo.InvariantCulture);
                         });
-                        var expr = new NCalc.Expression(expanded, NCalc.ExpressionOptions.NoCache);
-                        var result = expr.Evaluate();
+                        var result = FormulaEvaluator.Evaluate(expanded);
                         if (result == null) { isError = true; errReason = "NullResult"; }
                         else
                         {

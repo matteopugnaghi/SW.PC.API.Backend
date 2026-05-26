@@ -211,6 +211,19 @@ public class ExportService : IExportService
             if (runtimeMetadata is not null)
             {
                 foreach (var kv in runtimeMetadata) selection.Metadata[kv.Key] = kv.Value;
+                // Promote known runtime overrides into selection.Filters so providers
+                // (que sólo leen Filters) los vean. Caso típico: popup manual de
+                // "Ejecutar ahora" envía un dateRange ad-hoc que debe ganar sobre el
+                // persistido en la tarea.
+                if (runtimeMetadata.TryGetValue("dateRange", out var dr) && dr is not null)
+                {
+                    selection.Filters["dateRange"] = dr;
+                }
+                if (runtimeMetadata.TryGetValue("groupId", out var gid) && gid is not null
+                    && !selection.Filters.ContainsKey("groupId"))
+                {
+                    selection.Filters["groupId"] = gid;
+                }
             }
             var dataset = await provider.GetDatasetAsync(selection, ct);
 

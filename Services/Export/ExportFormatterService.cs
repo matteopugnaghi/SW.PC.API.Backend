@@ -601,7 +601,17 @@ public class ExportFormatterService : IExportFormatterService
         if (raw is System.Collections.IDictionary dict)
         {
             foreach (System.Collections.DictionaryEntry e in dict)
-                AddFilterEntry(result, e.Key?.ToString() ?? "", FormatScalar(e.Value));
+            {
+                var key = e.Key?.ToString() ?? "";
+                // Los valores deserializados desde JSON llegan como JsonElement.
+                // FormatScalar(JsonElement) imprime el JSON crudo; aquí pasamos
+                // por JsonValueToString → FormatJsonObject para obtener un texto
+                // legible (p.ej. "Últimas 24 h" o "2026-05-25 → 2026-05-26").
+                var text = e.Value is JsonElement jev
+                    ? JsonValueToString(jev)
+                    : FormatScalar(e.Value);
+                AddFilterEntry(result, key, text);
+            }
             return result;
         }
         // Fallback: lo serializamos y volcamos como única entrada.
@@ -651,7 +661,24 @@ public class ExportFormatterService : IExportFormatterService
     /// </summary>
     private static string FormatJsonObject(JsonElement obj)
     {
-        // Detectar {from, to}
+        // Caso 1: rango relativo { mode:"relative", value:N, unit:"m|h|d" }
+        if (obj.TryGetProperty("mode", out var modeEl)
+            && modeEl.ValueKind == JsonValueKind.String
+            && string.Equals(modeEl.GetString(), "relative", StringComparison.OrdinalIgnoreCase))
+        {
+            var v = obj.TryGetProperty("value", out var vEl) ? JsonValueToString(vEl) : "?";
+            var u = obj.TryGetProperty("unit",  out var uEl) ? JsonValueToString(uEl) : "";
+            var unitLabel = u switch
+            {
+                "m" => "min",
+                "h" => "h",
+                "d" => "días",
+                _   => u
+            };
+            return $"Últimas {v} {unitLabel}".Trim();
+        }
+
+        // Caso 2: rango absoluto {from, to} (con o sin mode:"absolute")
         var hasFrom = obj.TryGetProperty("from", out var fromEl);
         var hasTo = obj.TryGetProperty("to", out var toEl);
         if (hasFrom || hasTo)

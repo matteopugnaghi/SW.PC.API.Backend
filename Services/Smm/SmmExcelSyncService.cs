@@ -170,6 +170,7 @@ public class SmmExcelSyncService : ISmmExcelSyncService
     //   H=AlarmHistVar  I=LayoutWidth  J=LayoutHeight  K=LayoutPinned  L=LayoutColor
     //   M=ContinuousReadIntervalSec  N=ContinuousRetentionDays  O=RunningBitVar (group-level gating)
     //   P=DonutMode (LAST|DELTA_24H|DELTA_TODAY|AVG_24H|AVG_TODAY) — solo aplica si UiType=DonutChart
+    //   Q=ShowInMaintenance  R=ShowCycleStatus  S=ShowCycleEndedReason
     private async Task SyncGroupsAsync(XLWorkbook wb, AquafrischDbContext ctx, SmmSyncResult res, HashSet<string> excelKeys, CancellationToken ct)
     {
         var sh = FindSheet(wb, "Stats_Groups");
@@ -218,7 +219,11 @@ public class SmmExcelSyncService : ISmmExcelSyncService
                 _ => "LAST",
             };
             // Q = ShowInMaintenance (TRUE → oculto en Statistics, solo vista Mantenimiento). Default FALSE.
-            g.ShowInMaintenance = CellBool(sh, "Q", row);
+            g.ShowInMaintenance      = CellBool(sh, "Q", row);
+            // R = ShowCycleStatus (TRUE → muestra columna "Estado" en tabla y exportación). Default FALSE.
+            g.ShowCycleStatus        = CellBool(sh, "R", row);
+            // S = ShowCycleEndedReason (TRUE → muestra columna "Razón fin" en tabla y exportación). Default FALSE.
+            g.ShowCycleEndedReason   = CellBool(sh, "S", row);
             g.UpdatedAt         = DateTime.UtcNow;
 
             // Validación DEC-018: PerCycle requiere CycleRunningVar

@@ -385,8 +385,7 @@ public class SmmCaptureService : ISmmCaptureService
                     {
                         var expanded = depPattern.Replace(formula, mm =>
                             byVarName[mm.Groups[1].Value.Trim()].Value!.Value.ToString(CultureInfo.InvariantCulture));
-                        var expr = new NCalc.Expression(expanded, NCalc.ExpressionOptions.NoCache);
-                        var result = expr.Evaluate();
+                        var result = FormulaEvaluator.Evaluate(expanded);
                         if (result == null) { isError = true; errReason = "NullResult"; }
                         else
                         {

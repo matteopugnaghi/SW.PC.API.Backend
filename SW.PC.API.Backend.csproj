@@ -26,15 +26,13 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.0" />
-    <!-- Pin transitivas a net8 (NCalcSync arrastraba 9.0.4 vía Microsoft.Extensions.Logging.Console).
-         NoWarn="NU1605" porque NCalc.Core 5.4.2 declara dependencia >= 9.0.4 pero las APIs
-         de ILogger / ConsoleLogger no cambian entre 8.x y 9.x. Sin este downgrade el publish
-         self-contained net8 deja System.Text.Json 8.x en disco pero las deps piden 9.0.0.0
-         → FileNotFoundException al arrancar el servicio en producción. -->
+    <!-- Pin transitivas a net8 (defensa en profundidad; ahora sin NCalc también protegen
+         frente a futuros paquetes que arrastren 9.x). NoWarn="NU1605" suprime el aviso
+         de downgrade. APIs de ILogger / ConsoleLogger son compatibles 8.x ↔ 9.x. -->
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.1" NoWarn="NU1605" />
     <PackageReference Include="System.Text.Json" Version="8.0.5" NoWarn="NU1605" />
     <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="8.0.1" NoWarn="NU1605" />
-    <!-- Pin restantes transitivas 9.0.4 traídas por NCalc.Core 5.4.2 -->
+    <!-- Pin restantes transitivas (heredado de la era NCalc; se mantiene como defensa) -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" NoWarn="NU1605" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" NoWarn="NU1605" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" NoWarn="NU1605" />
@@ -42,7 +40,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging.TraceSource" Version="8.0.1" NoWarn="NU1605" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" NoWarn="NU1605" />
     <PackageReference Include="Microsoft.Extensions.Primitives" Version="8.0.0" NoWarn="NU1605" />
-    <PackageReference Include="NCalcSync" Version="5.4.2" />
+    <!-- NCalcSync eliminado: arrastraba Microsoft.Extensions.Logging.Console 9.0.4
+         y causaba FileNotFoundException en publish self-contained net8. Sustituido
+         por Services/Smm/FormulaEvaluator.cs (DataTable.Compute, sin deps externas). -->
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Server" Version="1.5.374.126" />
     <PackageReference Include="SSH.NET" Version="2025.1.0" />
 

@@ -1234,6 +1234,8 @@ public static class AquafrischDbContextFactory
                     ShowCycleStart INTEGER NOT NULL DEFAULT 1,
                     ShowCycleEnd INTEGER NOT NULL DEFAULT 1,
                     ShowCycleDuration INTEGER NOT NULL DEFAULT 0,
+                    ShowCycleStatus INTEGER NOT NULL DEFAULT 0,
+                    ShowCycleEndedReason INTEGER NOT NULL DEFAULT 0,
                     AlarmHistVar TEXT,
                     LayoutWidth INTEGER,
                     LayoutHeight INTEGER,
@@ -1411,6 +1413,12 @@ public static class AquafrischDbContextFactory
 
             // Migración idempotente: ShowInMaintenance (oculta el grupo de Statistics, lo deja solo para vista Mantenimiento)
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN ShowInMaintenance INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+
+            // Migración idempotente: ShowCycleStatus / ShowCycleEndedReason (columnas opcionales en tabla on-screen y wizard de exportación)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN ShowCycleStatus INTEGER NOT NULL DEFAULT 0"); }
+            catch { /* columna ya existe */ }
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Groups ADD COLUMN ShowCycleEndedReason INTEGER NOT NULL DEFAULT 0"); }
             catch { /* columna ya existe */ }
 
             // Migración idempotente: ImagePath para SMM_Elements (foto opcional del elemento)

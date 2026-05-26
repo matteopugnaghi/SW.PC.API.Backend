@@ -70,7 +70,11 @@ WriteHeader(wsGroups, new[]
     // M..N (Continuous por grupo)
     "ContinuousReadIntervalSec", "ContinuousRetentionDays",
     // O (gating de grupo)
-    "RunningBitVar"
+    "RunningBitVar",
+    // P..Q
+    "DonutMode", "ShowInMaintenance",
+    // R..S (columnas opcionales en tabla on-screen y wizard de exportación)
+    "ShowCycleStatus", "ShowCycleEndedReason"
 });
 
 // Fila 2 = descripciones (no leídas por el sync, que arranca buscando datos en la fila 2

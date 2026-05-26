@@ -145,6 +145,7 @@ namespace SW.PC.API.Backend.Controllers
                     g.CycleRunningVar, g.AlarmHistVar, g.RunningBitVar,
                     g.LayoutWidth, g.LayoutHeight, g.LayoutPinned, g.LayoutColor,
                     g.ShowCycleStart, g.ShowCycleEnd, g.ShowCycleDuration,
+                    g.ShowCycleStatus, g.ShowCycleEndedReason,
                     g.ContinuousReadIntervalSec, g.ContinuousRetentionDays,
                     g.DonutMode, g.ShowInMaintenance
                 })

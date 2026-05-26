@@ -42,6 +42,8 @@ public class SmmGroup
     public bool ShowCycleStart { get; set; } = true;
     public bool ShowCycleEnd { get; set; } = true;
     public bool ShowCycleDuration { get; set; } = false;
+    public bool ShowCycleStatus { get; set; } = false;
+    public bool ShowCycleEndedReason { get; set; } = false;
 
     [MaxLength(200)]
     public string? AlarmHistVar { get; set; } // DEC-020
