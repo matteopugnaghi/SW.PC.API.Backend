@@ -165,6 +165,13 @@ public class ExportTasksController : ControllerBase
             await AuditAsync(AuditAction.ExportTaskCreate, AuditResult.Failure, $"Validación fallida: {ex.Message}", userId, userName);
             return BadRequest(new { error = ex.Message });
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Export.CreateTask error inesperado");
+            var detail = ex.InnerException?.Message ?? ex.Message;
+            await AuditAsync(AuditAction.ExportTaskCreate, AuditResult.Error, $"Excepción: {ex.GetType().Name}: {detail}", userId, userName);
+            return StatusCode(500, new { error = $"{ex.Message} | inner: {detail}", type = ex.GetType().Name, inner = ex.InnerException?.Message });
+        }
     }
 
     [HttpPut("tasks/{id:int}")]
@@ -183,6 +190,12 @@ public class ExportTasksController : ControllerBase
         {
             await AuditAsync(AuditAction.ExportTaskUpdate, AuditResult.Failure, $"Validación fallida: {ex.Message}", userId, userName);
             return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Export.UpdateTask error inesperado");
+            await AuditAsync(AuditAction.ExportTaskUpdate, AuditResult.Error, $"Excepción: {ex.GetType().Name}: {ex.Message}", userId, userName);
+            return StatusCode(500, new { error = ex.Message, type = ex.GetType().Name, inner = ex.InnerException?.Message });
         }
     }
 

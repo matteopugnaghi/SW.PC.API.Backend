@@ -366,6 +366,8 @@ builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvi
                             SW.PC.API.Backend.Services.Export.Providers.OperationLogsExportDatasetProvider>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
                             SW.PC.API.Backend.Services.Export.Providers.StatisticsChartExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.StatisticsRowsExportDatasetProvider>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetRegistry,
                             SW.PC.API.Backend.Services.Export.ExportDatasetRegistry>();builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.IExportFormatterService,
                               SW.PC.API.Backend.Services.Export.ExportFormatterService>();

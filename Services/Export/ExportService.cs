@@ -214,11 +214,43 @@ public class ExportService : IExportService
             }
             var dataset = await provider.GetDatasetAsync(selection, ct);
 
-            // 2) Formatear bytes
-            var formatted = _formatter.Format(dataset, task.Format);
-
-            // 3) Cargar config + resolver tokens del filename
+            // 2) Cargar config (necesario antes del formatter para pasarle el diseño)
             var config = DeserializeConfig(task.ConfigJson);
+
+            // 2.b) Inyectar metadatos auxiliares para el diseño del informe (cabecera/filtros).
+            //
+            // Combinamos en `appliedFilters` (en orden de prioridad creciente):
+            //   1) selection.Filters       (lo guardado en el wizard — currentFilters del host)
+            //   2) selection.Metadata["appliedFilters"]  (vino en runtimeMetadata desde el frontend
+            //      al pulsar "Ejecutar"; típicamente { dateRange: { from, to } } del popup manual)
+            //   3) dataset.Metadata["appliedFilters"]    (si el provider ya añadió alguno)
+            {
+                var combined = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                if (selection.Filters is not null)
+                {
+                    foreach (var kv in selection.Filters) combined[kv.Key] = kv.Value;
+                }
+                if (selection.Metadata.TryGetValue("appliedFilters", out var runtimeAf) && runtimeAf is not null)
+                {
+                    MergeAppliedFilters(combined, runtimeAf);
+                }
+                if (dataset.Metadata.TryGetValue("appliedFilters", out var dsAf) && dsAf is not null)
+                {
+                    MergeAppliedFilters(combined, dsAf);
+                }
+                if (combined.Count > 0)
+                {
+                    dataset.Metadata["appliedFilters"] = combined;
+                }
+            }
+            if (!dataset.Metadata.ContainsKey("projectId")
+                && !string.IsNullOrWhiteSpace(task.ProjectId))
+            {
+                dataset.Metadata["projectId"] = task.ProjectId;
+            }
+
+            // 3) Formatear bytes (incluyendo diseño del informe si aplica)
+            var formatted = _formatter.Format(dataset, task.Format, config.Report);
             var filename = ResolveFilenameTokens(config.Filename, formatted.Extension, dataset.Metadata);
 
             // 4) Cargar SystemConfig (AllowedFolders + SMTP legacy desde Excel)
@@ -389,6 +421,25 @@ public class ExportService : IExportService
         if (string.IsNullOrWhiteSpace(json)) return new ExportSelection();
         try { return JsonSerializer.Deserialize<ExportSelection>(json) ?? new ExportSelection(); }
         catch { return new ExportSelection(); }
+    }
+
+    /// <summary>
+    /// Mergea entradas de filtros adicionales sobre `target`. Acepta:
+    ///   - IDictionary&lt;string,object?&gt;
+    ///   - JsonElement Object
+    /// Las claves nuevas se añaden; las existentes se sobrescriben.
+    /// </summary>
+    private static void MergeAppliedFilters(Dictionary<string, object?> target, object source)
+    {
+        if (source is IDictionary<string, object?> dict)
+        {
+            foreach (var kv in dict) target[kv.Key] = kv.Value;
+            return;
+        }
+        if (source is JsonElement je && je.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in je.EnumerateObject()) target[prop.Name] = prop.Value;
+        }
     }
 
     /// <summary>
