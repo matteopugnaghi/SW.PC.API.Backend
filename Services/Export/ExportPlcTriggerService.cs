@@ -45,8 +45,9 @@ public class ExportPlcTriggerService : BackgroundService, IExportPlcTriggerServi
     /// <summary>taskId → último valor bool conocido (null si nunca leído).</summary>
     private readonly ConcurrentDictionary<int, bool?> _lastValueByTask = new();
 
-    /// <summary>Variables ya suscritas vía ADS por este servicio (case-insensitive).</summary>
-    private readonly HashSet<string> _subscribedVars = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Variables suscritas vía ADS por este servicio: nombre → handle ADS.</summary>
+    private readonly Dictionary<string, uint> _subscribedHandles
+        = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
 
@@ -134,13 +135,13 @@ public class ExportPlcTriggerService : BackgroundService, IExportPlcTriggerServi
             // ya suscrita (no requiere que la variable esté en PLC_Variables.xlsm).
             foreach (var varName in nextMap.Keys)
             {
-                if (_subscribedVars.Contains(varName)) continue;
+                if (_subscribedHandles.ContainsKey(varName)) continue;
                 try
                 {
                     var handle = await _twincat.RegisterNotificationAsync(varName, typeof(bool), 100);
                     if (handle != 0)
                     {
-                        _subscribedVars.Add(varName);
+                        _subscribedHandles[varName] = handle;
                         _logger.LogInformation("📤🎯 Trigger PLC suscrito: {Var} (handle={Handle})", varName, handle);
                     }
                     else
@@ -151,6 +152,23 @@ public class ExportPlcTriggerService : BackgroundService, IExportPlcTriggerServi
                 catch (Exception exSub)
                 {
                     _logger.LogWarning(exSub, "[ExportPlcTrigger] Error suscribiendo variable trigger '{Var}'", varName);
+                }
+            }
+
+            // Libera suscripciones huérfanas (variables que ya no usa ninguna tarea).
+            var orphanVars = _subscribedHandles.Keys.Where(v => !nextMap.ContainsKey(v)).ToList();
+            foreach (var varName in orphanVars)
+            {
+                var handle = _subscribedHandles[varName];
+                try
+                {
+                    var ok = await _twincat.UnregisterNotificationAsync(handle);
+                    _subscribedHandles.Remove(varName);
+                    _logger.LogInformation("📤🎯 Trigger PLC dado de baja: {Var} (handle={Handle}, ok={Ok})", varName, handle, ok);
+                }
+                catch (Exception exUnsub)
+                {
+                    _logger.LogWarning(exUnsub, "[ExportPlcTrigger] Error dando de baja variable trigger '{Var}' (handle={Handle})", varName, handle);
                 }
             }
 
