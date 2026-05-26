@@ -232,11 +232,38 @@ namespace SW.PC.API.Backend.Controllers
                     a.RaisedAt, a.ClearedAt, a.DurationInCycle_s
                 })
                 .ToListAsync();
+
+            // Resolver textos legibles desde Excel (PLC_Alarms) para filas legacy
+            // donde AlarmText == AlarmCode (== nombre PLC). Esto cubre ciclos antiguos
+            // creados antes de poblar AlarmText en el edge watcher.
+            Models.Excel.AlarmConfiguration? alarmsCfg = null;
+            try
+            {
+                var needsLookup = cycleAlarms.Any(a =>
+                    string.IsNullOrWhiteSpace(a.AlarmText) || a.AlarmText == a.AlarmCode);
+                if (needsLookup)
+                {
+                    var excelPath = _excelConfigService.GetExcelConfigPath();
+                    alarmsCfg = await _excelConfigService.LoadAlarmsAsync(excelPath);
+                }
+            }
+            catch (Exception exAlarmLookup)
+            {
+                _logger.LogDebug(exAlarmLookup, "SMM cycles: no se pudo cargar catálogo de alarmas para resolver textos");
+            }
+
+            string ResolveAlarmText(string code, string? text)
+            {
+                if (!string.IsNullOrWhiteSpace(text) && text != code) return text!;
+                var resolved = Services.Smm.SmmAlarmTextResolver.Resolve(alarmsCfg, code);
+                return !string.IsNullOrWhiteSpace(resolved) ? resolved : (text ?? code);
+            }
+
             var alarmsByCycle = cycleAlarms.GroupBy(a => a.CycleId)
                 .ToDictionary(g => g.Key, g => g.Select(a => new
                 {
                     alarmCode = a.AlarmCode,
-                    alarmText = a.AlarmText,
+                    alarmText = ResolveAlarmText(a.AlarmCode, a.AlarmText),
                     severity = a.Severity,
                     // Forzar Kind=Utc → JSON serializa con "Z" → JS interpreta como UTC y convierte a hora local.
                     // Si no, EF/SQLite devuelve Kind=Unspecified, JS lo asume local y muestra desfase de TZ (p.ej. -2h en CEST).

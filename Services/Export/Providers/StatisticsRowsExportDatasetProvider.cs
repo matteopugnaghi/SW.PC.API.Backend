@@ -24,6 +24,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using SW.PC.API.Backend.Data;
 using SW.PC.API.Backend.Models.Export;
+using SW.PC.API.Backend.Services;
 
 namespace SW.PC.API.Backend.Services.Export.Providers;
 
@@ -31,13 +32,16 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
 {
     private readonly IRequestProjectContext _projectContext;
     private readonly IProjectDbContextFactory _dbFactory;
+    private readonly IExcelConfigService _excelConfigService;
 
     public StatisticsRowsExportDatasetProvider(
         IRequestProjectContext projectContext,
-        IProjectDbContextFactory dbFactory)
+        IProjectDbContextFactory dbFactory,
+        IExcelConfigService excelConfigService)
     {
         _projectContext = projectContext;
         _dbFactory = dbFactory;
+        _excelConfigService = excelConfigService;
     }
 
     public string DatasetId => "statistics.rows";
@@ -108,7 +112,7 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
 
         if (isPerCycle)
         {
-            await BuildPerCycleAsync(db, ds, selection, groupId, vars, fromUtc, toUtc, ct);
+            await BuildPerCycleAsync(db, ds, selection, groupId, vars, fromUtc, toUtc, _excelConfigService, ct);
         }
         else
         {
@@ -124,6 +128,7 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
     private static async Task BuildPerCycleAsync(
         AquafrischDbContext db, ExportDataset ds, ExportSelection selection,
         int groupId, List<VarMeta> vars, DateTime? from, DateTime? to,
+        IExcelConfigService excelConfigService,
         CancellationToken ct)
     {
         var cycleQ = db.SmmCycles.AsNoTracking()
@@ -150,6 +155,39 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
         var readingsByCycle = readings.GroupBy(r => r.CycleId)
             .ToDictionary(g => g.Key, g => g.ToDictionary(x => x.VariableId, x => x));
 
+        // Alarmas por ciclo — para emitir nombres legibles en el export
+        var cycleAlarms = await db.SmmCycleAlarms.AsNoTracking()
+            .Where(a => cycleIds.Contains(a.CycleId))
+            .Select(a => new { a.CycleId, a.AlarmCode, a.AlarmText })
+            .ToListAsync(ct);
+
+        // Resolver textos legacy desde Excel cuando AlarmText == AlarmCode
+        SW.PC.API.Backend.Models.Excel.AlarmConfiguration? alarmsCfg = null;
+        try
+        {
+            var needsLookup = cycleAlarms.Any(a => string.IsNullOrWhiteSpace(a.AlarmText) || a.AlarmText == a.AlarmCode);
+            if (needsLookup)
+            {
+                var excelPath = excelConfigService.GetExcelConfigPath();
+                alarmsCfg = await excelConfigService.LoadAlarmsAsync(excelPath);
+            }
+        }
+        catch { /* fallback silencioso al AlarmCode */ }
+
+        string ResolveText(string code, string? text)
+        {
+            if (!string.IsNullOrWhiteSpace(text) && text != code) return text!;
+            var resolved = SW.PC.API.Backend.Services.Smm.SmmAlarmTextResolver.Resolve(alarmsCfg, code);
+            return !string.IsNullOrWhiteSpace(resolved) ? resolved : (text ?? code);
+        }
+
+        var alarmTextsByCycle = cycleAlarms
+            .GroupBy(a => a.CycleId)
+            .ToDictionary(g => g.Key, g => string.Join(", ",
+                g.Select(x => ResolveText(x.AlarmCode, x.AlarmText))
+                 .Where(s => !string.IsNullOrWhiteSpace(s))
+                 .Distinct()));
+
         var baseCols = new List<ColDef>
         {
             new("startedAt",    "Inicio"),
@@ -160,12 +198,13 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
             new("alarmsCount",  "Alarmas"),
             new("alarmTimeSec", "Tiempo alarma (s)"),
             new("hadAlarms",    "Con alarmas"),
+            new("alarmNames",   "Nombre alarmas"),
         };
         var varCols = vars.Select(v => new ColDef(v.VarName,
             string.IsNullOrEmpty(v.Unit) ? v.VarName : $"{v.VarName} ({v.Unit})")).ToList();
 
         var (selectedBase, selectedVars, columnKeys, columnLabels) =
-            ApplyFieldSelection(selection.Fields, baseCols, varCols, vars);
+            ApplyFieldSelection(EnsureAlarmNamesSelected(selection.Fields), baseCols, varCols, vars);
         ds.Columns = columnLabels;
         ds.Metadata["columnKeys"] = columnKeys;
 
@@ -188,6 +227,7 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
                     "alarmsCount"  => c.AlarmsCount,
                     "alarmTimeSec" => Math.Round(c.AlarmTime_s, 1),
                     "hadAlarms"    => c.HadAlarms,
+                    "alarmNames"   => alarmTextsByCycle.TryGetValue(c.Id, out var atxt) ? atxt : null,
                     _ => null,
                 });
             }
@@ -287,6 +327,20 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
             string.IsNullOrEmpty(v.Unit) ? v.VarName : $"{v.VarName} ({v.Unit})")).ToList();
         var (_, _, keys, labels) = ApplyFieldSelection(selectedIds, baseCols, varCols, vars);
         return (keys, labels);
+    }
+
+    // Garantiza que la columna `alarmNames` está incluida en una selección no vacía.
+    // Las tareas cron/legacy guardadas antes de añadir la columna no la tienen.
+    private static List<string> EnsureAlarmNamesSelected(List<string> selected)
+    {
+        if (selected is null || selected.Count == 0) return selected!; // vacío = incluir todo
+        if (selected.Contains("alarmNames", StringComparer.Ordinal)) return selected;
+        var copy = new List<string>(selected.Count + 1);
+        copy.AddRange(selected);
+        // Insertar después de "hadAlarms" si existe, para mantener orden coherente
+        var idx = copy.FindIndex(s => string.Equals(s, "hadAlarms", StringComparison.Ordinal));
+        if (idx >= 0) copy.Insert(idx + 1, "alarmNames"); else copy.Add("alarmNames");
+        return copy;
     }
 
     // Filtra base+vars según selection.Fields; si está vacío, incluye todo.

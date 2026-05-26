@@ -254,13 +254,31 @@ public class SmmPlcEdgeWatcher : BackgroundService, ISmmPlcEdgeWatcher
 
             if (active)
             {
+                // Resolver texto humano de la alarma desde el Excel (PLC_Alarms)
+                string alarmText = alarmVarName;
+                try
+                {
+                    var excelService = scope.ServiceProvider.GetService<IExcelConfigService>();
+                    if (excelService != null)
+                    {
+                        var excelPath = excelService.GetExcelConfigPath();
+                        var alarmsConfig = await excelService.LoadAlarmsAsync(excelPath);
+                        var resolved = SmmAlarmTextResolver.Resolve(alarmsConfig, alarmVarName);
+                        if (!string.IsNullOrWhiteSpace(resolved)) alarmText = resolved;
+                    }
+                }
+                catch (Exception exLookup)
+                {
+                    _logger.LogDebug(exLookup, "[SMM-EdgeWatcher] No se pudo resolver texto de alarma '{A}'", alarmVarName);
+                }
+
                 foreach (var cid in openCycles)
                 {
                     db.SmmCycleAlarms.Add(new SmmCycleAlarm
                     {
                         CycleId = cid,
                         AlarmCode = alarmVarName,
-                        AlarmText = alarmVarName,
+                        AlarmText = alarmText,
                         Severity = 0,
                         RaisedAt = now
                     });
