@@ -100,6 +100,16 @@ public class AquafrischDbContext : DbContext
     public DbSet<Models.Smm.Entities.SmmUserDashboardLayout> SmmUserDashboardLayouts { get; set; } = null!;
     public DbSet<Models.Smm.Entities.SmmExportLog> SmmExportLog { get; set; } = null!;
 
+    // ─── Export Manager (Fase 1) ───
+    /// <summary>Tareas persistentes del Gestor de Exportaciones (manual/plc/cron).</summary>
+    public DbSet<Models.Export.ExportTask> ExportTasks { get; set; } = null!;
+
+    /// <summary>Perfiles de carpeta destino (configurables desde UI).</summary>
+    public DbSet<Models.Export.ExportFolderProfile> ExportFolderProfiles { get; set; } = null!;
+
+    /// <summary>Perfiles SMTP (configurables desde UI, password cifrada DPAPI).</summary>
+    public DbSet<Models.Export.ExportEmailProfile> ExportEmailProfiles { get; set; } = null!;
+
     #endregion
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -635,6 +645,8 @@ public static class AquafrischDbContextFactory
         await EnsureEtherCATSavedConfigurationsTableAsync(context);
         await EnsureDocumentsTablesAsync(context);
         await EnsureSmmTablesAsync(context);
+        await EnsureExportTasksTableAsync(context);
+        await EnsureExportProfileTablesAsync(context);
     }
     
     /// <summary>
@@ -1537,6 +1549,104 @@ public static class AquafrischDbContextFactory
             // Idempotente para CREATE IF NOT EXISTS — pero logueamos para no
             // ocultar errores reales (ej. cambios de esquema, SQL inválido).
             Console.WriteLine($"[SMM] EnsureSmmTablesAsync error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Crea la tabla ExportTasks (Gestor de Exportaciones — Fase 1) si no existe.
+    /// Idempotente, seguro de llamar en cada arranque por proyecto.
+    /// </summary>
+    public static async Task EnsureExportTasksTableAsync(AquafrischDbContext context)
+    {
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ExportTasks (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ProjectId TEXT NOT NULL DEFAULT '',
+                    Source TEXT NOT NULL,
+                    Name TEXT NOT NULL,
+                    ExecutionType TEXT NOT NULL DEFAULT 'manual',
+                    CronExpression TEXT,
+                    PlcVariable TEXT,
+                    Format TEXT NOT NULL DEFAULT 'xlsx',
+                    Destinations TEXT NOT NULL DEFAULT '',
+                    ConfigJson TEXT NOT NULL DEFAULT '{}',
+                    DatasetProvider TEXT NOT NULL DEFAULT '',
+                    SelectionJson TEXT NOT NULL DEFAULT '{}',
+                    Enabled INTEGER NOT NULL DEFAULT 1,
+                    CreatedBy TEXT NOT NULL DEFAULT '',
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    LastRunAt TEXT,
+                    LastResult TEXT
+                )");
+
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_Source ON ExportTasks(Source)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_ExecutionType ON ExportTasks(ExecutionType)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_Enabled ON ExportTasks(Enabled)");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_PlcVariable ON ExportTasks(PlcVariable)");
+
+            // Migración Fase 2 — PlcLastValue (cache de flanco)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN PlcLastValue INTEGER"); }
+            catch { /* idempotente: ya existe */ }
+
+            // Migración Fase 4 — Perfiles de destino (FolderProfileId / EmailProfileId / EmailRecipients)
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN FolderProfileId TEXT"); }
+            catch { /* idempotente */ }
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN EmailProfileId TEXT"); }
+            catch { /* idempotente */ }
+            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN EmailRecipients TEXT"); }
+            catch { /* idempotente */ }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Export] EnsureExportTasksTableAsync error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Crea las tablas ExportFolderProfiles y ExportEmailProfiles (Fase 4).
+    /// Idempotente. Encadenada en EnsureDatabaseCreatedAsync.
+    /// </summary>
+    public static async Task EnsureExportProfileTablesAsync(AquafrischDbContext context)
+    {
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ExportFolderProfiles (
+                    Id TEXT PRIMARY KEY,
+                    Name TEXT NOT NULL,
+                    Path TEXT NOT NULL,
+                    Subfolder TEXT,
+                    Description TEXT,
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    UpdatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    CreatedBy TEXT NOT NULL DEFAULT ''
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportFolderProfiles_Name ON ExportFolderProfiles(Name)");
+
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS ExportEmailProfiles (
+                    Id TEXT PRIMARY KEY,
+                    Name TEXT NOT NULL,
+                    Host TEXT NOT NULL,
+                    Port INTEGER NOT NULL DEFAULT 587,
+                    Username TEXT,
+                    PasswordEncrypted TEXT,
+                    UseSsl INTEGER NOT NULL DEFAULT 1,
+                    FromAddress TEXT NOT NULL DEFAULT '',
+                    FromName TEXT,
+                    DefaultRecipients TEXT,
+                    Description TEXT,
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    UpdatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    CreatedBy TEXT NOT NULL DEFAULT ''
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportEmailProfiles_Name ON ExportEmailProfiles(Name)");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Export] EnsureExportProfileTablesAsync error: {ex.Message}");
         }
     }
 }

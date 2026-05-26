@@ -153,6 +153,13 @@ namespace SW.PC.API.Backend.Models
         StatisticsExport,       // Exportación de estadísticas
         RecipeExport,           // Exportación de recetas
         ConfigurationExport,    // Exportación de configuraciones
+
+        // ─── Export Manager Wizard (Fase 1) ───
+        ExportTaskCreate,       // Alta de tarea persistente desde el wizard
+        ExportTaskUpdate,       // Edición de tarea
+        ExportTaskDelete,       // Borrado de tarea
+        ExportTaskToggle,       // Pausar / reanudar tarea
+        ExportTaskRun,          // Ejecución (manual / cron / PLC)
         
         // ═══════════════════════════════════════════════════════════
         // OPC/UA (OT COMMUNICATION)

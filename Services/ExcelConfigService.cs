@@ -3037,6 +3037,63 @@ namespace SW.PC.API.Backend.Services
                                 break;
 
                             // ═══════════════════════════════════════════════════════════════
+                            // 📤 EXPORT MANAGER WIZARD — Carpetas autorizadas
+                            // ═══════════════════════════════════════════════════════════════
+                            case "allowedexportfolders":
+                            case "allowed_export_folders":
+                            case "exportallowedfolders":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                {
+                                    config.AllowedExportFolders = paramValue
+                                        .Split(new[] { ';', '|', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                                        .Select(s => s.Trim().Trim('"'))
+                                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                                        .ToList();
+                                }
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
+                            // 📧 SMTP — Export Manager (envío de email)
+                            // ═══════════════════════════════════════════════════════════════
+                            case "smtp:host":
+                            case "smtphost":
+                            case "smtp_host":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.SmtpHost = paramValue;
+                                break;
+                            case "smtp:port":
+                            case "smtpport":
+                            case "smtp_port":
+                                if (int.TryParse(paramValue, out var smtpPort) && smtpPort > 0)
+                                    config.SmtpPort = smtpPort;
+                                break;
+                            case "smtp:user":
+                            case "smtpuser":
+                            case "smtp_user":
+                            case "smtpusername":
+                                config.SmtpUser = paramValue ?? "";
+                                break;
+                            case "smtp:pass":
+                            case "smtppass":
+                            case "smtp_pass":
+                            case "smtppassword":
+                                config.SmtpPass = paramValue ?? "";
+                                break;
+                            case "smtp:from":
+                            case "smtpfrom":
+                            case "smtp_from":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.SmtpFrom = paramValue;
+                                break;
+                            case "smtp:enablessl":
+                            case "smtpenablessl":
+                            case "smtp_enable_ssl":
+                            case "smtpssl":
+                                config.SmtpEnableSsl = paramValue?.ToLower() == "true" || paramValue == "1";
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
                             // �📋 AUDIT LOG - EU CRA Compliance (CADRA/Alstom)
                             // ═══════════════════════════════════════════════════════════════
                             case "auditlogenabled":

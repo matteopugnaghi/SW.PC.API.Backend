@@ -1350,6 +1350,41 @@ namespace SW.PC.API.Backend.Models.Excel
         /// </summary>
         public bool EnableEmailSending { get; set; } = false;
 
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 📤 EXPORT MANAGER WIZARD — Destinos autorizados
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Lista de carpetas locales/red autorizadas como destino "local" del Export Manager.
+        /// Formato Excel: ruta absoluta por línea, o CSV separado por ';' / ',' / '|'.
+        /// El backend valida que el folder de cada ExportTask esté dentro de una autorizada
+        /// (incluye subcarpetas). Si vacía y una tarea usa destino 'local' → ejecución falla
+        /// con mensaje claro al usuario.
+        /// </summary>
+        public List<string> AllowedExportFolders { get; set; } = new();
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 📧 SMTP — Envío de email del Export Manager (System.Net.Mail)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>Servidor SMTP. Vacío = email deshabilitado.</summary>
+        public string SmtpHost { get; set; } = "";
+
+        /// <summary>Puerto SMTP (587 STARTTLS por defecto).</summary>
+        public int SmtpPort { get; set; } = 587;
+
+        /// <summary>Usuario SMTP. Vacío = autenticación anónima.</summary>
+        public string SmtpUser { get; set; } = "";
+
+        /// <summary>Password SMTP. ⚠️ Considerar mover a Windows DPAPI en futuro.</summary>
+        public string SmtpPass { get; set; } = "";
+
+        /// <summary>Dirección "From" obligatoria.</summary>
+        public string SmtpFrom { get; set; } = "";
+
+        /// <summary>Habilita STARTTLS / SSL.</summary>
+        public bool SmtpEnableSsl { get; set; } = true;
+
     }
 
     /// <summary>

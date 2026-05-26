@@ -359,7 +359,29 @@ builder.Services.AddScoped<IVulnerabilityService, VulnerabilityService>(); // �
 builder.Services.AddSingleton<IIpcInfoService, IpcInfoService>(); // 💻 IPC System Info
 builder.Services.AddSingleton<IAuditLogService, AuditLogService>(); // 📋 Audit Log (Nivel 1) - EU CRA Compliance
 
-// 📊 SMM (Statistics & Maintenance Module) — DEC-013 Fase 4 + 6.0.5
+// � Export Manager Wizard (Fase 1) — providers + registry (scoped per-request)
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.AuditExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.OperationLogsExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.StatisticsChartExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetRegistry,
+                            SW.PC.API.Backend.Services.Export.ExportDatasetRegistry>();builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.IExportFormatterService,
+                              SW.PC.API.Backend.Services.Export.ExportFormatterService>();
+builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.IExportRunner,
+                              SW.PC.API.Backend.Services.Export.Runners.LocalFileRunner>();
+builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.IExportRunner,
+                              SW.PC.API.Backend.Services.Export.Runners.EmailRunner>();
+// Perfiles de destino (carpetas + SMTP) — CRA: password cifrada DPAPI
+builder.Services.AddDataProtection(); // key-ring protegido por DPAPI en Windows
+builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.ISecretProtector,
+                              SW.PC.API.Backend.Services.Export.SecretProtector>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportProfileService,
+                           SW.PC.API.Backend.Services.Export.ExportProfileService>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportService,
+                           SW.PC.API.Backend.Services.Export.ExportService>();
+// �📊 SMM (Statistics & Maintenance Module) — DEC-013 Fase 4 + 6.0.5
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Smm.ISmmCaptureService, SW.PC.API.Backend.Services.Smm.SmmCaptureService>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Smm.ISmmExcelSyncService, SW.PC.API.Backend.Services.Smm.SmmExcelSyncService>();
 builder.Services.AddHostedService<SW.PC.API.Backend.Services.Smm.ContinuousReadJob>();
@@ -367,6 +389,14 @@ builder.Services.AddHostedService<SW.PC.API.Backend.Services.Smm.ContinuousReadJ
 builder.Services.AddSingleton<SW.PC.API.Backend.Services.Smm.SmmPlcEdgeWatcher>();
 builder.Services.AddSingleton<SW.PC.API.Backend.Services.Smm.ISmmPlcEdgeWatcher>(sp => sp.GetRequiredService<SW.PC.API.Backend.Services.Smm.SmmPlcEdgeWatcher>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SW.PC.API.Backend.Services.Smm.SmmPlcEdgeWatcher>());
+// 📤🎯 Export PLC Trigger (Fase 2): dispara ExportTasks por flanco false→true de PlcVariable
+builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.ExportPlcTriggerService>();
+builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.IExportPlcTriggerService>(sp => sp.GetRequiredService<SW.PC.API.Backend.Services.Export.ExportPlcTriggerService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SW.PC.API.Backend.Services.Export.ExportPlcTriggerService>());
+// 📄🕒 Export Cron Scheduler (Fase 3): dispara ExportTasks por expresión cron
+builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.ExportCronSchedulerService>();
+builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.IExportCronSchedulerService>(sp => sp.GetRequiredService<SW.PC.API.Backend.Services.Export.ExportCronSchedulerService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SW.PC.API.Backend.Services.Export.ExportCronSchedulerService>());
 builder.Services.AddSingleton<IOperationLogService, OperationLogService>(); // 📋 Operation Log (Nivel 2) - Acciones de operador
 builder.Services.AddSingleton<ISystemLogService, SystemLogService>(); // 📋 System Log (Nivel 3) - In-memory diagnostic buffer
 builder.Services.AddSingleton<INxLogFileService, NxLogFileService>(); // 📋 NxLog JSONL Export - TISSEO SOC PIVOT (TLS_M3_ALS_EXI_CYB_SYS_00516)
