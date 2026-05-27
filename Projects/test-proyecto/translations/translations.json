@@ -953,6 +953,9 @@
                 "exportWizard.back",
                 "exportWizard.next",
                 "exportWizard.save",
+                "exportWizard.saveChanges",
+                "exportWizard.saveChangesTooltip",
+                "exportWizard.saveChangesBlocked",
                 "exportWizard.step.what",
                 "exportWizard.step.format",
                 "exportWizard.step.dest",
@@ -14740,6 +14743,24 @@
             "ENG": "days",
             "FRA": "jours",
             "ITA": "giorni"
+        },
+        "exportWizard.saveChanges": {
+            "SPA": "Guardar cambios",
+            "ENG": "Save changes",
+            "FRA": "Enregistrer les modifications",
+            "ITA": "Salva modifiche"
+        },
+        "exportWizard.saveChangesTooltip": {
+            "SPA": "Guardar cambios sin recorrer el resto del wizard",
+            "ENG": "Save changes without stepping through the rest of the wizard",
+            "FRA": "Enregistrer les modifications sans parcourir le reste de l'assistant",
+            "ITA": "Salva le modifiche senza percorrere il resto della procedura"
+        },
+        "exportWizard.saveChangesBlocked": {
+            "SPA": "Hay pasos sin completar",
+            "ENG": "Some steps are incomplete",
+            "FRA": "Certaines étapes sont incomplètes",
+            "ITA": "Alcuni passaggi sono incompleti"
         }
     }
 }

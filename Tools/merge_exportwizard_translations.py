@@ -26,6 +26,9 @@ ENTRIES = {
     "exportWizard.back":       {"SPA": "Atrás",                       "ENG": "Back",                     "FRA": "Retour",                       "ITA": "Indietro"},
     "exportWizard.next":       {"SPA": "Siguiente",                   "ENG": "Next",                     "FRA": "Suivant",                      "ITA": "Avanti"},
     "exportWizard.save":       {"SPA": "Guardar tarea",               "ENG": "Save task",                "FRA": "Enregistrer la tâche",         "ITA": "Salva attività"},
+    "exportWizard.saveChanges":        {"SPA": "Guardar cambios",                                         "ENG": "Save changes",                                          "FRA": "Enregistrer les modifications",                              "ITA": "Salva modifiche"},
+    "exportWizard.saveChangesTooltip": {"SPA": "Guardar cambios sin recorrer el resto del wizard",       "ENG": "Save changes without stepping through the rest of the wizard", "FRA": "Enregistrer les modifications sans parcourir le reste de l'assistant", "ITA": "Salva le modifiche senza percorrere il resto della procedura"},
+    "exportWizard.saveChangesBlocked": {"SPA": "Hay pasos sin completar",                                "ENG": "Some steps are incomplete",                             "FRA": "Certaines étapes sont incomplètes",                          "ITA": "Alcuni passaggi sono incompleti"},
 
     # --- Stepper --------------------------------------------------------------
     "exportWizard.step.what":       {"SPA": "1. Qué",            "ENG": "1. What",           "FRA": "1. Quoi",          "ITA": "1. Cosa"},
