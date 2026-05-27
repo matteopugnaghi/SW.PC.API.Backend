@@ -380,6 +380,8 @@ builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvi
                             SW.PC.API.Backend.Services.Export.Providers.MaintenanceElementsHealthExportDatasetProvider>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
                             SW.PC.API.Backend.Services.Export.Providers.MaintenanceInterventionsExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.ConsumablesOrderExportDatasetProvider>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetRegistry,
                             SW.PC.API.Backend.Services.Export.ExportDatasetRegistry>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportTranslationLookup,

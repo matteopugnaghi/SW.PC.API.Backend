@@ -1,4 +1,4 @@
-﻿{
+{
     "metadata":  {
                      "version":  "1.0.0",
                      "lastModified":  "2026-05-27T12:49:54Z",
@@ -15465,6 +15465,156 @@
                                                                             "SPA":  "Vida útil",
                                                                             "FRA":  "Durée de vie",
                                                                             "ENG":  "Lifetime"
-                                                                        }
+                                                                        },
+                         "orders.export.col.lineNumber":  {
+                                                              "ITA":  "Riga",
+                                                              "SPA":  "Línea",
+                                                              "FRA":  "Ligne",
+                                                              "ENG":  "Line"
+                                                          },
+                         "orders.export.col.sku":  {
+                                                       "ITA":  "SKU",
+                                                       "SPA":  "SKU",
+                                                       "FRA":  "SKU",
+                                                       "ENG":  "SKU"
+                                                   },
+                         "orders.export.col.description":  {
+                                                               "ITA":  "Descrizione",
+                                                               "SPA":  "Descripción",
+                                                               "FRA":  "Description",
+                                                               "ENG":  "Description"
+                                                           },
+                         "orders.export.col.quantity":  {
+                                                            "ITA":  "Quantità",
+                                                            "SPA":  "Cantidad",
+                                                            "FRA":  "Quantité",
+                                                            "ENG":  "Quantity"
+                                                        },
+                         "orders.export.col.unit":  {
+                                                        "ITA":  "Unità",
+                                                        "SPA":  "Unidad",
+                                                        "FRA":  "Unité",
+                                                        "ENG":  "Unit"
+                                                    },
+                         "orders.export.col.elementName":  {
+                                                               "ITA":  "Elemento",
+                                                               "SPA":  "Elemento",
+                                                               "FRA":  "Élément",
+                                                               "ENG":  "Element"
+                                                           },
+                         "orders.export.dataset.label":  {
+                                                             "ITA":  "Ordine consumabili",
+                                                             "SPA":  "Pedido de consumibles",
+                                                             "FRA":  "Commande de consommables",
+                                                             "ENG":  "Consumables order"
+                                                         },
+                         "orders.export.dataset.desc":  {
+                                                            "ITA":  "Una riga per articolo con SKU, descrizione, quantità, unità ed elemento.",
+                                                            "SPA":  "Una fila por línea con SKU, descripción, cantidad, unidad y elemento.",
+                                                            "FRA":  "Une ligne par article avec SKU, description, quantité, unité et élément.",
+                                                            "ENG":  "One row per line with SKU, description, quantity, unit and element."
+                                                        },
+                         "statistics.order.ui.channel.wizard.label":  {
+                                                                          "ITA":  "Gestore esportazioni",
+                                                                          "SPA":  "Gestor de Exportaciones",
+                                                                          "FRA":  "Gestionnaire d\u0027exportations",
+                                                                          "ENG":  "Export Manager"
+                                                                      },
+                         "statistics.order.ui.channel.wizard.sub":  {
+                                                                        "ITA":  "Attività persistenti",
+                                                                        "SPA":  "Tareas persistentes",
+                                                                        "FRA":  "Tâches persistantes",
+                                                                        "ENG":  "Persistent tasks"
+                                                                    },
+                         "statistics.order.printable.title":  {
+                                                                  "ITA":  "Ordine consumabili",
+                                                                  "SPA":  "Pedido de consumibles",
+                                                                  "FRA":  "Commande de consommables",
+                                                                  "ENG":  "Consumables order"
+                                                              },
+                         "statistics.order.printable.sub":  {
+                                                                "ITA":  "Aquafrisch Supervisor · SMM",
+                                                                "SPA":  "Aquafrisch Supervisor · SMM",
+                                                                "FRA":  "Aquafrisch Supervisor · SMM",
+                                                                "ENG":  "Aquafrisch Supervisor · SMM"
+                                                            },
+                         "statistics.order.printable.ref":  {
+                                                                "ITA":  "Riferimento",
+                                                                "SPA":  "Referencia",
+                                                                "FRA":  "Référence",
+                                                                "ENG":  "Reference"
+                                                            },
+                         "statistics.order.printable.date":  {
+                                                                 "ITA":  "Data",
+                                                                 "SPA":  "Fecha",
+                                                                 "FRA":  "Date",
+                                                                 "ENG":  "Date"
+                                                             },
+                         "statistics.order.printable.project":  {
+                                                                    "ITA":  "Progetto",
+                                                                    "SPA":  "Proyecto",
+                                                                    "FRA":  "Projet",
+                                                                    "ENG":  "Project"
+                                                                },
+                         "statistics.order.printable.element":  {
+                                                                    "ITA":  "Elemento",
+                                                                    "SPA":  "Elemento",
+                                                                    "FRA":  "Élément",
+                                                                    "ENG":  "Element"
+                                                                },
+                         "statistics.order.printable.by":  {
+                                                               "ITA":  "Generato da",
+                                                               "SPA":  "Generado por",
+                                                               "FRA":  "Généré par",
+                                                               "ENG":  "Generated by"
+                                                           },
+                         "statistics.order.printable.lines":  {
+                                                                  "ITA":  "Righe",
+                                                                  "SPA":  "Líneas",
+                                                                  "FRA":  "Lignes",
+                                                                  "ENG":  "Lines"
+                                                              },
+                         "statistics.order.printable.notes":  {
+                                                                  "ITA":  "Note",
+                                                                  "SPA":  "Notas",
+                                                                  "FRA":  "Notes",
+                                                                  "ENG":  "Notes"
+                                                              },
+                         "statistics.order.printable.footer":  {
+                                                                   "ITA":  "Documento generato automaticamente da Aquafrisch Supervisor — SMM Module.",
+                                                                   "SPA":  "Documento generado automáticamente por Aquafrisch Supervisor — SMM Module.",
+                                                                   "FRA":  "Document généré automatiquement par Aquafrisch Supervisor — SMM Module.",
+                                                                   "ENG":  "Document automatically generated by Aquafrisch Supervisor — SMM Module."
+                                                               },
+                         "statistics.order.printable.col.sku":  {
+                                                                    "ITA":  "SKU",
+                                                                    "SPA":  "SKU",
+                                                                    "FRA":  "SKU",
+                                                                    "ENG":  "SKU"
+                                                                },
+                         "statistics.order.printable.col.description":  {
+                                                                            "ITA":  "Descrizione",
+                                                                            "SPA":  "Descripción",
+                                                                            "FRA":  "Description",
+                                                                            "ENG":  "Description"
+                                                                        },
+                         "statistics.order.printable.col.quantity":  {
+                                                                         "ITA":  "Quantità",
+                                                                         "SPA":  "Cantidad",
+                                                                         "FRA":  "Quantité",
+                                                                         "ENG":  "Quantity"
+                                                                     },
+                         "statistics.order.printable.col.unit":  {
+                                                                     "ITA":  "Unità",
+                                                                     "SPA":  "Unidad",
+                                                                     "FRA":  "Unité",
+                                                                     "ENG":  "Unit"
+                                                                 },
+                         "statistics.order.printable.col.element":  {
+                                                                        "ITA":  "Elemento",
+                                                                        "SPA":  "Elemento",
+                                                                        "FRA":  "Élément",
+                                                                        "ENG":  "Element"
+                                                                    }
                      }
 }
