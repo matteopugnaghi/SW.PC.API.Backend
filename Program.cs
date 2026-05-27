@@ -366,6 +366,10 @@ builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvi
                             SW.PC.API.Backend.Services.Export.Providers.OperationLogsExportDatasetProvider>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
                             SW.PC.API.Backend.Services.Export.Providers.StatisticsRowsExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.SbomExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.IntegrityCertificateExportDatasetProvider>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetRegistry,
                             SW.PC.API.Backend.Services.Export.ExportDatasetRegistry>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportTranslationLookup,
