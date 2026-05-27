@@ -28,13 +28,13 @@ public class OperationLogsController : ControllerBase
 {
     private readonly IOperationLogService _operationLogService;
     private readonly IAuditLogService _auditLogService;
-    private readonly IProjectContextService _projectContext;
+    private readonly IRequestProjectContext _projectContext;
     private readonly ILogger<OperationLogsController> _logger;
 
     public OperationLogsController(
         IOperationLogService operationLogService,
         IAuditLogService auditLogService,
-        IProjectContextService projectContext,
+        IRequestProjectContext projectContext,
         ILogger<OperationLogsController> logger)
     {
         _operationLogService = operationLogService;

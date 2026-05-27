@@ -22,14 +22,14 @@ namespace SW.PC.API.Backend.Controllers
         private readonly ILogger<TrainRecipeController> _logger;
         private readonly IExcelConfigService _excelService;
         private readonly ITwinCATService _twinCatService;
-        private readonly IProjectContextService _projectContext;
+        private readonly IRequestProjectContext _projectContext;
         private readonly IOperationLogService _operationLog;
         
         public TrainRecipeController(
             ILogger<TrainRecipeController> logger,
             IExcelConfigService excelService,
             ITwinCATService twinCatService,
-            IProjectContextService projectContext,
+            IRequestProjectContext projectContext,
             IOperationLogService operationLog)
         {
             _logger = logger;

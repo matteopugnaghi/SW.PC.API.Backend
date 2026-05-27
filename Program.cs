@@ -341,8 +341,10 @@ builder.Services.AddScoped<IRecoveryCodeService, RecoveryCodeService>(); // 🔐
 builder.Services.AddScoped<IRolePermissionsService, RolePermissionsService>(); // 👥 Gestión de permisos por rol
 
 // Register SCADA Services
+builder.Services.AddHttpContextAccessor(); // 📁 Necesario para ProjectModelsFileProvider (resolución por request)
 builder.Services.AddSingleton<IProjectContextService, ProjectContextService>(); // 📁 Multi-Project Support (global)
 builder.Services.AddScoped<IRequestProjectContext, RequestProjectContextService>(); // 📁 Multi-Project per-request (development multi-tenant)
+builder.Services.AddSingleton<ProjectModelsFileProvider>(); // 📁 Sirve /models resolviendo el proyecto en cada request
 
 // 📊 SMM (Statistics & Maintenance Module) — DEC-022 feature flag AquarIA Tier
 builder.Services.Configure<SmmOptions>(builder.Configuration.GetSection(SmmOptions.SectionName));
@@ -918,40 +920,44 @@ provider.Mappings[".mtl"] = "text/plain";
 provider.Mappings[".stl"] = "application/sla";
 
 // 📁 MULTI-PROJECT: Serve /models from project folder FIRST (before general wwwroot)
-// This MUST come before the general UseStaticFiles() to take precedence
+// This MUST come before the general UseStaticFiles() to take precedence.
+// Usa un IFileProvider DINÁMICO que resuelve la ruta en cada request,
+// para que los cambios de proyecto activo (SetActiveProject o header X-Project-Id)
+// se reflejen sin reiniciar el servicio.
 {
+    var dynamicModelsProvider = app.Services.GetRequiredService<ProjectModelsFileProvider>();
     var projectContextForModels = app.Services.GetRequiredService<IProjectContextService>();
+
+    // Asegurar que existe la carpeta de modelos del proyecto activo al arrancar
     var modelsPhysicalPath = projectContextForModels.ModelsPath;
-    
-    // Asegurar que existe la carpeta de modelos
     if (!Directory.Exists(modelsPhysicalPath))
     {
         Directory.CreateDirectory(modelsPhysicalPath);
         app.Logger.LogInformation("📁 Created models directory: {Path}", modelsPhysicalPath);
     }
-    
-    app.Logger.LogInformation("📁 Serving models from: {Path}", modelsPhysicalPath);
-    
+
+    app.Logger.LogInformation("📁 Initial models path: {Path} (resolved per-request via ProjectModelsFileProvider)", modelsPhysicalPath);
+
     // Serve /models directory explicitly with MIME types
     app.UseStaticFiles(new StaticFileOptions
     {
-        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(modelsPhysicalPath),
+        FileProvider = dynamicModelsProvider,
         RequestPath = "/models",
         ContentTypeProvider = provider,
         ServeUnknownFileTypes = false,
         HttpsCompression = Microsoft.AspNetCore.Http.Features.HttpsCompressionMode.Compress,
         OnPrepareResponse = ctx =>
         {
-            app.Logger.LogInformation("✅ Serving model file: {Path} with ContentType: {ContentType}", 
+            app.Logger.LogInformation("✅ Serving model file: {Path} with ContentType: {ContentType}",
                 ctx.File.PhysicalPath, ctx.Context.Response.ContentType);
             ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
             ctx.Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS";
             ctx.Context.Response.Headers["Access-Control-Allow-Headers"] = "*";
-            
+
             // 🔄 CACHE-BUSTING: Deshabilitar caché para modelos 3D (GLB/GLTF)
             // Esto asegura que los cambios en los archivos se reflejen inmediatamente
             var fileName = ctx.File.Name.ToLower();
-            if (fileName.EndsWith(".glb") || fileName.EndsWith(".gltf") || 
+            if (fileName.EndsWith(".glb") || fileName.EndsWith(".gltf") ||
                 fileName.EndsWith(".obj") || fileName.EndsWith(".mtl"))
             {
                 ctx.Context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
