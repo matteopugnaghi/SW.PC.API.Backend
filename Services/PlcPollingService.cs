@@ -875,13 +875,10 @@ namespace SW.PC.API.Backend.Services
         {
             try
             {
-                // Convertir valor a bool
-                bool isActive = value switch
-                {
-                    bool b => b,
-                    int i => i != 0,
-                    _ => false
-                };
+                // Convertir valor a bool (tolerante a byte/sbyte/short/ushort/uint/long/ulong/string).
+                // Antes solo aceptaba bool/int → cualquier otro tipo caía a false y se registraba
+                // siempre como "Deactivated", llenando el historial de eventos falsos.
+                bool isActive = AlarmNotificationService.ConvertPlcValueToBool(value);
                 
                 // Obtener servicio de operaciones
                 using var scope = _serviceProvider.CreateScope();

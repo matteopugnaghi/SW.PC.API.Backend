@@ -313,6 +313,28 @@ namespace SW.PC.API.Backend.Services
                     variableName.EndsWith("].Notification") || 
                     variableName.EndsWith("].Info"));
         }
+
+        /// <summary>
+        /// Convierte un valor PLC arbitrario a bool de forma tolerante.
+        /// El driver TwinCAT puede devolver bool/byte/sbyte/short/ushort/int/uint/long/ulong/string.
+        /// Antes solo se aceptaba bool/int y cualquier otro tipo caía silenciosamente a false,
+        /// lo que generaba registros falsos de "Deactivated" en el historial de alarmas.
+        /// </summary>
+        internal static bool ConvertPlcValueToBool(object? value)
+        {
+            switch (value)
+            {
+                case null: return false;
+                case bool b: return b;
+                case string s:
+                    if (string.IsNullOrWhiteSpace(s)) return false;
+                    if (bool.TryParse(s, out var parsed)) return parsed;
+                    return s.Trim() != "0";
+                default:
+                    try { return Convert.ToInt64(value) != 0; }
+                    catch { return false; }
+            }
+        }
         
         private async Task RegisterAlarmNotificationsAsync()
         {
@@ -430,14 +452,21 @@ namespace SW.PC.API.Backend.Services
             
             try
             {
-                // Convertir valor a bool
-                bool newState = notification.NewValue switch
+                // Convertir valor a bool (tolerante a byte/sbyte/short/ushort/uint/long/ulong/string)
+                // ⚠️ Antes solo aceptaba bool/int → cualquier otro tipo caía a false y se
+                // registraba como "Deactivated" creando ruido masivo en el historial.
+                bool newState = ConvertPlcValueToBool(notification.NewValue);
+
+                // 🔁 Deduplicación para variables de historial de alarma (st_alarmHistPc):
+                // si el estado no cambia frente al último conocido, no transmitir ni loguear.
+                // Las notificaciones push del PLC pueden repetirse y antes generaban duplicados.
+                if (notification.VariableName.Contains("st_alarmHistPc[")
+                    && _alarmStates.TryGetValue(notification.VariableName, out var prevState)
+                    && prevState == newState)
                 {
-                    bool b => b,
-                    int i => i != 0,
-                    _ => false
-                };
-                
+                    return;
+                }
+
                 // Actualizar estado local
                 _alarmStates[notification.VariableName] = newState;
 
