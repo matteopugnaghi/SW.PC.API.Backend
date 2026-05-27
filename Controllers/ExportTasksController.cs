@@ -2,13 +2,19 @@
 // ExportTasksController.cs — Endpoints REST del Gestor de Exportaciones
 // ============================================================================
 // Base: /api/export
-// Autorización: Administrator, SuperAdmin, Maintenance (enum SystemRole).
+// Autorización: por permiso de módulo "ExportManager" persistido en RolePermissions.
+//   - CanView  = listar tareas + ejecutar manualmente cualquier tarea.
+//   - CanEdit  = crear / modificar / eliminar / pausar tareas.
+//   - SuperAdmin: bypass total.
+// Por defecto Administrator y Maintenance llevan view+edit habilitados;
+// Operator/Viewer/Auditor llevan ambos deshabilitados (configurable desde UI).
 // Audit log: cada operación CRUD + Run genera entrada en AuditCategory.Export.
 // ============================================================================
 
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SW.PC.API.Backend.Authorization;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.Excel;
 using SW.PC.API.Backend.Models.Export;
@@ -19,7 +25,7 @@ namespace SW.PC.API.Backend.Controllers;
 
 [ApiController]
 [Route("api/export")]
-[Authorize(Roles = "Administrator,SuperAdmin,Maintenance")]
+[Authorize]
 public class ExportTasksController : ControllerBase
 {
     private readonly IExportService _service;
@@ -52,6 +58,7 @@ public class ExportTasksController : ControllerBase
     /// Consumido por el wizard (Step 0) para construir la UI de campos y filtros.
     /// </summary>
     [HttpGet("datasets/{source}")]
+    [RequireModulePermission("ExportManager", "view")]
     public IActionResult GetDatasetsBySource(string source)
     {
         var providers = _registry.GetBySource(source);
@@ -74,6 +81,7 @@ public class ExportTasksController : ControllerBase
     /// No expone credenciales SMTP.
     /// </summary>
     [HttpGet("environment")]
+    [RequireModulePermission("ExportManager", "view")]
     public async Task<IActionResult> GetEnvironment(CancellationToken ct = default)
     {
         var env = await _service.GetEnvironmentAsync(ct);
@@ -92,6 +100,7 @@ public class ExportTasksController : ControllerBase
     /// poblar el selector de variable trigger en tareas con ExecutionType="plc".
     /// </summary>
     [HttpGet("plc-variables")]
+    [RequireModulePermission("ExportManager", "view")]
     public async Task<IActionResult> GetPlcVariables([FromQuery] string dataType = "BOOL", CancellationToken ct = default)
     {
         try
@@ -124,6 +133,7 @@ public class ExportTasksController : ControllerBase
     /// el Wizard (Step 4) para feedback inmediato al usuario.
     /// </summary>
     [HttpGet("cron/validate")]
+    [RequireModulePermission("ExportManager", "view")]
     public IActionResult ValidateCron([FromQuery] string expression)
     {
         if (string.IsNullOrWhiteSpace(expression))
@@ -135,6 +145,7 @@ public class ExportTasksController : ControllerBase
     // ─────────────────────── CRUD ───────────────────────
 
     [HttpGet("tasks")]
+    [RequireModulePermission("ExportManager", "view")]
     public async Task<IActionResult> GetTasks([FromQuery] string? source = null, CancellationToken ct = default)
     {
         var tasks = await _service.GetTasksAsync(source, ct);
@@ -142,6 +153,7 @@ public class ExportTasksController : ControllerBase
     }
 
     [HttpGet("tasks/{id:int}")]
+    [RequireModulePermission("ExportManager", "view")]
     public async Task<IActionResult> GetTask(int id, CancellationToken ct = default)
     {
         var task = await _service.GetTaskByIdAsync(id, ct);
@@ -149,6 +161,7 @@ public class ExportTasksController : ControllerBase
     }
 
     [HttpPost("tasks")]
+    [RequireModulePermission("ExportManager", "edit")]
     public async Task<IActionResult> CreateTask([FromBody] ExportTaskRequest req, CancellationToken ct = default)
     {
         var (userId, userName) = GetUser();
@@ -175,6 +188,7 @@ public class ExportTasksController : ControllerBase
     }
 
     [HttpPut("tasks/{id:int}")]
+    [RequireModulePermission("ExportManager", "edit")]
     public async Task<IActionResult> UpdateTask(int id, [FromBody] ExportTaskRequest req, CancellationToken ct = default)
     {
         var (userId, userName) = GetUser();
@@ -200,6 +214,7 @@ public class ExportTasksController : ControllerBase
     }
 
     [HttpDelete("tasks/{id:int}")]
+    [RequireModulePermission("ExportManager", "edit")]
     public async Task<IActionResult> DeleteTask(int id, CancellationToken ct = default)
     {
         var (userId, userName) = GetUser();
@@ -210,6 +225,7 @@ public class ExportTasksController : ControllerBase
     }
 
     [HttpPost("tasks/{id:int}/toggle")]
+    [RequireModulePermission("ExportManager", "edit")]
     public async Task<IActionResult> ToggleTask(int id, [FromQuery] bool enabled, CancellationToken ct = default)
     {
         var (userId, userName) = GetUser();
@@ -223,6 +239,7 @@ public class ExportTasksController : ControllerBase
     // ─────────────────────── RUN ───────────────────────
 
     [HttpPost("tasks/{id:int}/run")]
+    [RequireModulePermission("ExportManager", "view")]
     public async Task<IActionResult> RunTask(int id, [FromBody] Dictionary<string, object?>? runtimeMetadata = null, CancellationToken ct = default)
     {
         var (userId, userName) = GetUser();
@@ -252,6 +269,7 @@ public class ExportTasksController : ControllerBase
     // ─────────────────────── PREVIEW ───────────────────────
 
     [HttpPost("preview")]
+    [RequireModulePermission("ExportManager", "view")]
     public async Task<IActionResult> Preview([FromBody] ExportPreviewRequest req, CancellationToken ct = default)
     {
         try

@@ -170,7 +170,15 @@ public class ModulePermissions
     
     /// <summary>Vista de OPC/UA Server</summary>
     public ViewPermission OpcUaView { get; set; } = new();
-    
+
+    /// <summary>
+    /// Gestor de Exportaciones (Export Manager).
+    /// CanView  = ver la lista de tareas y ejecutarlas manualmente.
+    /// CanEdit  = crear/modificar/eliminar tareas y perfiles + test SMTP.
+    /// Sin CanView no se muestra el botón "Gestor de Exportaciones".
+    /// </summary>
+    public ViewPermission ExportManager { get; set; } = new();
+
     // ═══════════════════════════════════════════════════════════════════
     // 🚂 TIPOS DE TREN - ACCIONES (4 elementos)
     // ═══════════════════════════════════════════════════════════════════
@@ -324,6 +332,7 @@ public static class DefaultRolePermissions
                 ManualModeView = AllPermissions(),
                 DocumentsView = AllPermissions(),
                 OpcUaView = AllPermissions(),
+                ExportManager = AllPermissions(),
                 
                 // 🚂 Tipos de Tren - TODO habilitado
                 TrainTypes_Editor = AllPermissions(),
@@ -397,6 +406,7 @@ public static class DefaultRolePermissions
                 ManualModeView = AllPermissions(),
                 DocumentsView = AllPermissions(),
                 OpcUaView = AllPermissions(),
+                ExportManager = AllPermissions(),
                 
                 // 🚂 Tipos de Tren
                 TrainTypes_Editor = AllPermissions(),
@@ -470,6 +480,7 @@ public static class DefaultRolePermissions
                 ManualModeView = NoPermission(),
                 DocumentsView = ReadOnlyPermission(),
                 OpcUaView = NoPermission(),
+                ExportManager = NoPermission(),
                 
                 // 🚂 Tipos de Tren - Solo ver
                 TrainTypes_Editor = NoPermission(),
@@ -543,6 +554,7 @@ public static class DefaultRolePermissions
                 ManualModeView = AllPermissions(),
                 DocumentsView = AllPermissions(),
                 OpcUaView = new ViewPermission { CanView = true, CanEdit = true },
+                ExportManager = AllPermissions(),
                 
                 // 🚂 Tipos de Tren - Control total
                 TrainTypes_Editor = AllPermissions(),
@@ -616,6 +628,7 @@ public static class DefaultRolePermissions
                 ManualModeView = NoPermission(),
                 DocumentsView = ReadOnlyPermission(),
                 OpcUaView = NoPermission(),
+                ExportManager = NoPermission(),
                 
                 // 🚂 Tipos de Tren - Sin acceso
                 TrainTypes_Editor = NoPermission(),
@@ -689,6 +702,7 @@ public static class DefaultRolePermissions
                 ManualModeView = NoPermission(),
                 DocumentsView = new ViewPermission { CanView = true, CanExport = true },
                 OpcUaView = NoPermission(),
+                ExportManager = NoPermission(),
                 
                 // 🚂 Tipos de Tren - Sin acceso
                 TrainTypes_Editor = NoPermission(),

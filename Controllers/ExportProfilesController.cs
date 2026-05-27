@@ -2,13 +2,15 @@
 // ExportProfilesController.cs — CRUD de perfiles de destino del Export Manager
 // ============================================================================
 // Base: /api/export/profiles
-// Autorización: Administrator, SuperAdmin, Maintenance.
+// Autorización: módulo "ExportManager" (CanView para listar, CanEdit para CRUD
+// y test SMTP). SuperAdmin bypass total.
 // Audit log: cada operación de escritura registra evento en AuditCategory.Export.
 // ============================================================================
 
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SW.PC.API.Backend.Authorization;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.Export;
 using SW.PC.API.Backend.Services;
@@ -18,7 +20,7 @@ namespace SW.PC.API.Backend.Controllers;
 
 [ApiController]
 [Route("api/export/profiles")]
-[Authorize(Roles = "Administrator,SuperAdmin,Maintenance")]
+[Authorize]
 public class ExportProfilesController : ControllerBase
 {
     private readonly IExportProfileService _service;
@@ -38,10 +40,12 @@ public class ExportProfilesController : ControllerBase
     // ───────────── FOLDER PROFILES ─────────────
 
     [HttpGet("folders")]
+    [RequireModulePermission("ExportManager", "view")]
     public async Task<IActionResult> ListFolders(CancellationToken ct = default)
         => Ok(await _service.ListFolderProfilesAsync(ct));
 
     [HttpGet("folders/{id}")]
+    [RequireModulePermission("ExportManager", "view")]
     public async Task<IActionResult> GetFolder(string id, CancellationToken ct = default)
     {
         var p = await _service.GetFolderProfileAsync(id, ct);
@@ -49,6 +53,7 @@ public class ExportProfilesController : ControllerBase
     }
 
     [HttpPost("folders")]
+    [RequireModulePermission("ExportManager", "edit")]
     public async Task<IActionResult> CreateFolder([FromBody] ExportFolderProfileRequest req, CancellationToken ct = default)
     {
         var (uid, uname) = GetUser();
@@ -72,6 +77,7 @@ public class ExportProfilesController : ControllerBase
     }
 
     [HttpPut("folders/{id}")]
+    [RequireModulePermission("ExportManager", "edit")]
     public async Task<IActionResult> UpdateFolder(string id, [FromBody] ExportFolderProfileRequest req, CancellationToken ct = default)
     {
         var (uid, uname) = GetUser();
@@ -95,6 +101,7 @@ public class ExportProfilesController : ControllerBase
     }
 
     [HttpDelete("folders/{id}")]
+    [RequireModulePermission("ExportManager", "edit")]
     public async Task<IActionResult> DeleteFolder(string id, CancellationToken ct = default)
     {
         var (uid, uname) = GetUser();
@@ -116,10 +123,12 @@ public class ExportProfilesController : ControllerBase
     // ───────────── EMAIL PROFILES ─────────────
 
     [HttpGet("emails")]
+    [RequireModulePermission("ExportManager", "view")]
     public async Task<IActionResult> ListEmails(CancellationToken ct = default)
         => Ok(await _service.ListEmailProfilesAsync(ct));
 
     [HttpGet("emails/{id}")]
+    [RequireModulePermission("ExportManager", "view")]
     public async Task<IActionResult> GetEmail(string id, CancellationToken ct = default)
     {
         var p = await _service.GetEmailProfileAsync(id, ct);
@@ -127,6 +136,7 @@ public class ExportProfilesController : ControllerBase
     }
 
     [HttpPost("emails")]
+    [RequireModulePermission("ExportManager", "edit")]
     public async Task<IActionResult> CreateEmail([FromBody] ExportEmailProfileRequest req, CancellationToken ct = default)
     {
         var (uid, uname) = GetUser();
@@ -150,6 +160,7 @@ public class ExportProfilesController : ControllerBase
     }
 
     [HttpPut("emails/{id}")]
+    [RequireModulePermission("ExportManager", "edit")]
     public async Task<IActionResult> UpdateEmail(string id, [FromBody] ExportEmailProfileRequest req, CancellationToken ct = default)
     {
         var (uid, uname) = GetUser();
@@ -174,6 +185,7 @@ public class ExportProfilesController : ControllerBase
     }
 
     [HttpDelete("emails/{id}")]
+    [RequireModulePermission("ExportManager", "edit")]
     public async Task<IActionResult> DeleteEmail(string id, CancellationToken ct = default)
     {
         var (uid, uname) = GetUser();
@@ -193,6 +205,7 @@ public class ExportProfilesController : ControllerBase
     }
 
     [HttpPost("emails/{id}/test")]
+    [RequireModulePermission("ExportManager", "edit")]
     public async Task<IActionResult> TestEmail(string id, [FromBody] ExportEmailTestRequest req, CancellationToken ct = default)
     {
         var (uid, uname) = GetUser();

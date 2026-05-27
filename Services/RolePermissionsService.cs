@@ -287,6 +287,13 @@ public class RolePermissionsService : IRolePermissionsService
                 Description = "Gestión documental del proyecto (DMS)",
                 Icon = "📄",
                 Category = "Documentación"
+            },
+            new() {
+                Key = "ExportManager",
+                Name = "Gestor de Exportaciones",
+                Description = "Lista, programación y ejecución de tareas de exportación (CanView = lista + ejecutar manual; CanEdit = crear/editar/eliminar tareas y perfiles)",
+                Icon = "📤",
+                Category = "Administración"
             }
         };
     }
