@@ -453,6 +453,27 @@ namespace SW.PC.API.Backend.Controllers
                 _logger.LogInformation("🔄 Invalidating system configuration cache (user: {User})", userName);
                 _excelConfigService.InvalidateCache();
 
+                // ✉️ Refrescar el status del servicio Email en MetricsService leyendo el Excel
+                // recién recargado, para que InfoPanel y wizard reflejen el cambio sin reiniciar.
+                try
+                {
+                    var excelPath = _projectContext.ExcelConfigPath;
+                    var systemConfig = await _excelConfigService.LoadSystemConfigurationAsync(excelPath);
+                    if (systemConfig != null)
+                    {
+                        var emailEnabled = systemConfig.EnableEmailSending;
+                        var emailMsg = emailEnabled
+                            ? "Habilitado (SMTP por tarea)"
+                            : "Deshabilitado en Excel (SystemConfig.EnableEmailSending)";
+                        _metricsService.SetEmailSendingStatus(emailEnabled, configured: emailEnabled, statusMessage: emailMsg);
+                        _logger.LogInformation("✉️ Email sending status refreshed — Enabled: {Enabled}", emailEnabled);
+                    }
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogWarning(emailEx, "Could not refresh email sending status after Excel reload");
+                }
+
                 // 📋 L1 audit: registrar quién forzó la recarga.
                 // El diff de valores (si los hay) se emitirá automáticamente desde
                 // ExcelConfigService.LoadSystemConfigurationAsync en la próxima carga.

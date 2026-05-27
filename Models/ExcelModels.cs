@@ -1945,6 +1945,17 @@ namespace SW.PC.API.Backend.Models.Excel
 
         /// <summary>Última temperatura leída de TME 2 (°C)</summary>
         public double? Tme2Temperature { get; set; }
+
+        // ===== ✉️ EMAIL SENDING (SMTP) =====
+
+        /// <summary>Envío de email habilitado en Excel (SystemConfig.EnableEmailSending)</summary>
+        public bool EmailSendingEnabled { get; set; }
+
+        /// <summary>SMTP configurado y validado (host, puerto, credenciales)</summary>
+        public bool EmailSendingConfigured { get; set; }
+
+        /// <summary>Último mensaje de estado del servicio de envío de email</summary>
+        public string EmailSendingStatus { get; set; } = "No iniciado";
     }
 
     #region Alarm System Models

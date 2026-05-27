@@ -80,6 +80,14 @@ namespace SW.PC.API.Backend.Services
         /// Registrar estado de una sonda TME
         /// </summary>
         void SetTmeSensorStatus(int sensorIndex, bool enabled, bool connected, string statusMessage, double? temperature = null);
+
+        // ===== ✉️ EMAIL SENDING (SMTP) =====
+
+        /// <summary>
+        /// Registrar estado del servicio de envío de email (SMTP)
+        /// </summary>
+        void SetEmailSendingStatus(bool enabled, bool configured, string statusMessage);
+
         // ===== �🔐 SOFTWARE INTEGRITY =====
 
         /// <summary>
@@ -224,7 +232,10 @@ namespace SW.PC.API.Backend.Services
                         Tme2Enabled = _servicesStatus.Tme2Enabled,
                         Tme2Connected = _servicesStatus.Tme2Connected,
                         Tme2Status = _servicesStatus.Tme2Status,
-                        Tme2Temperature = _servicesStatus.Tme2Temperature
+                        Tme2Temperature = _servicesStatus.Tme2Temperature,
+                        EmailSendingEnabled = _servicesStatus.EmailSendingEnabled,
+                        EmailSendingConfigured = _servicesStatus.EmailSendingConfigured,
+                        EmailSendingStatus = _servicesStatus.EmailSendingStatus
                     }
                 };
 
@@ -324,6 +335,17 @@ namespace SW.PC.API.Backend.Services
                     _servicesStatus.Tme2Status = statusMessage;
                     _servicesStatus.Tme2Temperature = temperature;
                 }
+                _servicesStatus.LastStatusUpdate = DateTime.Now;
+            }
+        }
+
+        public void SetEmailSendingStatus(bool enabled, bool configured, string statusMessage)
+        {
+            lock (_lock)
+            {
+                _servicesStatus.EmailSendingEnabled = enabled;
+                _servicesStatus.EmailSendingConfigured = configured;
+                _servicesStatus.EmailSendingStatus = statusMessage;
                 _servicesStatus.LastStatusUpdate = DateTime.Now;
             }
         }

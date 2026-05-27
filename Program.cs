@@ -676,6 +676,24 @@ loggerFactory.AddProvider(new SystemLogBufferProvider(systemLogService));
             );
             
             app.Logger.LogInformation("🔐 Git paths configured from Excel");
+
+            // ✉️ Inicializar estado de envío de email desde Excel (SystemConfig.EnableEmailSending).
+            // Configurado=false hasta que exista módulo SMTP real; UI muestra OFFLINE para indicar pendiente.
+            try
+            {
+                // SMTP se configura por tarea de exportación; el indicador del panel refleja
+                // únicamente la habilitación global vía Excel (SystemConfig.EnableEmailSending).
+                bool emailEnabled = systemConfig.EnableEmailSending;
+                string msg = emailEnabled
+                    ? "Habilitado (SMTP por tarea)"
+                    : "Deshabilitado en Excel (SystemConfig.EnableEmailSending)";
+                metricsService.SetEmailSendingStatus(emailEnabled, configured: emailEnabled, statusMessage: msg);
+                app.Logger.LogInformation("✉️ Email sending status initialized — Enabled: {Enabled}", emailEnabled);
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogWarning(ex, "⚠️ Could not initialize email sending status from Excel");
+            }
         }
         else
         {
