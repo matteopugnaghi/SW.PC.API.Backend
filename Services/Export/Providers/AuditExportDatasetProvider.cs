@@ -18,18 +18,34 @@ public class AuditExportDatasetProvider : IExportDatasetProvider
 {
     private readonly IAuditLogService _auditService;
     private readonly IRequestProjectContext _projectContext;
+    private readonly IExportTranslationLookup _translations;
 
     public AuditExportDatasetProvider(
         IAuditLogService auditService,
-        IRequestProjectContext projectContext)
+        IRequestProjectContext projectContext,
+        IExportTranslationLookup translations)
     {
         _auditService = auditService;
         _projectContext = projectContext;
+        _translations = translations;
     }
 
     public string DatasetId => "auditoria.logs";
     public string Source => "auditoria";
     public string DisplayName => "Logs de auditoría";
+
+    // Mapa id-columna → (claveI18n, fallbackEs). Las claves ya están en el
+    // translations.json del proyecto (añadidas al integrar L1 en ExportModal).
+    private static readonly Dictionary<string, (string Key, string Es)> ColumnI18n = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["timestamp"] = ("auditLog.export.col.timestamp", "Fecha/hora"),
+        ["category"]  = ("auditLog.export.col.category",  "Categoría"),
+        ["action"]    = ("auditLog.export.col.action",    "Acción"),
+        ["result"]    = ("auditLog.export.col.result",    "Resultado"),
+        ["userName"]  = ("auditLog.export.col.user",      "Usuario"),
+        ["details"]   = ("auditLog.export.col.details",   "Detalles"),
+        // ipAddress / userId no tienen clave i18n: fallback al label del field.
+    };
 
     public IReadOnlyList<ExportFieldDefinition> AvailableFields { get; } = new List<ExportFieldDefinition>
     {
@@ -74,13 +90,24 @@ public class AuditExportDatasetProvider : IExportDatasetProvider
             ? selection.Fields
             : AvailableFields.Where(f => f.DefaultIncluded).Select(f => f.Id).ToList();
 
-        var columns = fields.Select(id => AvailableFields.FirstOrDefault(f => f.Id == id)?.Label ?? id).ToList();
+        var lang = string.IsNullOrWhiteSpace(selection.Language) ? "SPA" : selection.Language!;
+
+        // Cabeceras traducidas según selection.Language (fallback español).
+        var columns = fields
+            .Select(id =>
+            {
+                if (ColumnI18n.TryGetValue(id, out var meta))
+                    return _translations.GetLabel(meta.Key, lang, meta.Es);
+                return AvailableFields.FirstOrDefault(f => f.Id == id)?.Label ?? id;
+            })
+            .ToList();
 
         var rows = response.Entries.Select(e => fields.Select(id => MapField(e, id)).ToArray()).ToList();
 
         return new ExportDataset
         {
             Columns = columns,
+            ColumnIds = fields.ToList(),
             Rows = rows,
             TotalRows = response.TotalCount,
             Metadata =
