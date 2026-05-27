@@ -17,13 +17,16 @@ public class OperationLogsExportDatasetProvider : IExportDatasetProvider
 {
     private readonly IOperationLogService _opService;
     private readonly IRequestProjectContext _projectContext;
+    private readonly IExportTranslationLookup _translations;
 
     public OperationLogsExportDatasetProvider(
         IOperationLogService opService,
-        IRequestProjectContext projectContext)
+        IRequestProjectContext projectContext,
+        IExportTranslationLookup translations)
     {
         _opService = opService;
         _projectContext = projectContext;
+        _translations = translations;
     }
 
     public string DatasetId => "operationlogs.entries";
@@ -72,6 +75,24 @@ public class OperationLogsExportDatasetProvider : IExportDatasetProvider
         new() { Id = "searchText",        Label = "Buscar texto",     Type = "text" },
     };
 
+    // Mapa id-columna → (claveI18n, fallbackEs). Las claves se añaden al
+    // translations.json del proyecto para que el header del XLSX/HTML respete
+    // el idioma elegido en el wizard.
+    private static readonly Dictionary<string, (string Key, string Es)> ColumnI18n = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["timestamp"]      = ("operationLogs.export.col.timestamp",     "Fecha/hora"),
+        ["category"]       = ("operationLogs.export.col.category",      "Categoría"),
+        ["action"]         = ("operationLogs.export.col.action",        "Acción"),
+        ["severity"]       = ("operationLogs.export.col.severity",      "Severidad"),
+        ["user"]           = ("operationLogs.export.col.user",          "Usuario"),
+        ["description"]    = ("operationLogs.export.col.description",   "Descripción"),
+        ["message"]        = ("operationLogs.export.col.message",       "Mensaje"),
+        ["plcVariable"]    = ("operationLogs.export.col.plcVariable",   "Variable PLC"),
+        ["alarmCode"]      = ("operationLogs.export.col.alarmCode",     "Código alarma"),
+        ["acknowledged"]   = ("operationLogs.export.col.acknowledged",  "Reconocido"),
+        ["acknowledgedBy"] = ("operationLogs.export.col.acknowledgedBy","Reconocido por"),
+    };
+
     public async Task<ExportDataset> GetDatasetAsync(ExportSelection selection, CancellationToken ct = default)
     {
         var filter = BuildFilter(selection);
@@ -81,17 +102,27 @@ public class OperationLogsExportDatasetProvider : IExportDatasetProvider
             ? selection.Fields
             : AvailableFields.Where(f => f.DefaultIncluded).Select(f => f.Id).ToList();
 
+        var lang = string.IsNullOrWhiteSpace(selection.Language) ? "SPA" : selection.Language!;
+
+        // Cabeceras traducidas según selection.Language (fallback español).
         var columns = fields
-            .Select(id => AvailableFields.FirstOrDefault(f => f.Id == id)?.Label ?? id)
+            .Select(id =>
+            {
+                if (ColumnI18n.TryGetValue(id, out var meta))
+                    return _translations.GetLabel(meta.Key, lang, meta.Es);
+                // Fallback al label hardcodeado del field si no hay clave i18n.
+                return AvailableFields.FirstOrDefault(f => f.Id == id)?.Label ?? id;
+            })
             .ToList();
 
         var rows = response.Items
-            .Select(e => fields.Select(id => MapField(e, id)).ToArray())
+            .Select(e => fields.Select(id => MapField(e, id, lang)).ToArray())
             .ToList();
 
         return new ExportDataset
         {
             Columns = columns,
+            ColumnIds = fields.ToList(),
             Rows = rows,
             TotalRows = response.TotalCount,
             Metadata =
@@ -110,6 +141,8 @@ public class OperationLogsExportDatasetProvider : IExportDatasetProvider
         {
             Page = 1,
             PageSize = selection.PreviewLimit ?? 10_000,
+            // Idioma para resolver Message (texto de alarma desde Excel) en el lenguaje elegido.
+            Language = string.IsNullOrWhiteSpace(selection.Language) ? "SPA" : selection.Language!,
         };
 
         if (selection.Filters.TryGetValue("dateRange", out var range) && range is IDictionary<string, object?> dict)
@@ -153,14 +186,20 @@ public class OperationLogsExportDatasetProvider : IExportDatasetProvider
         return f;
     }
 
-    private static object? MapField(OperationLogDto e, string fieldId) => fieldId switch
+    private object? MapField(OperationLogDto e, string fieldId, string lang) => fieldId switch
     {
         "timestamp"      => e.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"),
-        "category"       => e.Category,
-        "action"         => e.Action,
+        // Convención del proyecto: operationLogs.category.{camelCase} (la clave en
+        // translations.json es singular y la primera letra del enum va en minúscula).
+        "category"       => _translations.GetLabel($"operationLogs.category.{ToCamel(e.Category)}", lang, e.Category),
+        // Acción: operationLogs.action.{PascalCase} (mismo nombre del enum OperationAction).
+        "action"         => _translations.GetLabel($"operationLogs.action.{e.Action}", lang, e.Action),
+        // Severidad: no existe traducción dedicada en translations.json — fallback al enum.
         "severity"       => e.Severity,
         "user"           => e.User,
         "description"    => e.Description,
+        // Message ya viene traducido por OperationLogService.ConvertToDtosWithAlarmTextAsync
+        // usando filter.Language (que arriba fijamos a selection.Language).
         "message"        => e.Message,
         "plcVariable"    => e.PlcVariable,
         "alarmCode"      => e.AlarmCode,
@@ -168,4 +207,7 @@ public class OperationLogsExportDatasetProvider : IExportDatasetProvider
         "acknowledgedBy" => e.AcknowledgedBy,
         _ => null
     };
+
+    private static string ToCamel(string? s)
+        => string.IsNullOrEmpty(s) ? (s ?? "") : char.ToLowerInvariant(s![0]) + s.Substring(1);
 }
