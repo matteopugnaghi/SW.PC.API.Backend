@@ -36,6 +36,13 @@ public class ExportSelection
     public int? PreviewLimit { get; set; }
 
     /// <summary>
+    /// Idioma en que se generan las cabeceras del documento exportado
+    /// (SPA, ENG, ITA, FRA). Si es null o no se encuentra traducción,
+    /// el provider usa el fallback hardcodeado (típicamente español).
+    /// </summary>
+    public string? Language { get; set; }
+
+    /// <summary>
     /// Metadatos volátiles por ejecución (no se persisten en SelectionJson).
     /// Ej.: pngBase64 = captura del gráfico echarts realizada en el cliente
     /// justo antes de pulsar "Ejecutar". El runner los pasa al provider.
@@ -51,6 +58,12 @@ public class ExportDataset
 {
     /// <summary>Cabeceras de columnas (display label, no IDs).</summary>
     public List<string> Columns { get; set; } = new();
+
+    /// <summary>
+    /// IDs estables de cada columna (alineados a Columns).
+    /// Permite a la UI re-mapear el header al label traducido del lado cliente.
+    /// </summary>
+    public List<string> ColumnIds { get; set; } = new();
 
     /// <summary>
     /// Filas de datos. Cada elemento es una fila con celdas alineadas a Columns.

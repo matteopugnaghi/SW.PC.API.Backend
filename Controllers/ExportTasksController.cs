@@ -260,9 +260,11 @@ public class ExportTasksController : ControllerBase
             return Ok(new
             {
                 columns = dataset.Columns,
+                columnIds = dataset.ColumnIds,
                 rows = dataset.Rows,
                 totalRows = dataset.TotalRows,
-                truncated = dataset.Metadata.TryGetValue("truncated", out var t) && t is bool b && b
+                truncated = dataset.Metadata.TryGetValue("truncated", out var t) && t is bool b && b,
+                metadata = dataset.Metadata
             });
         }
         catch (InvalidOperationException ex)

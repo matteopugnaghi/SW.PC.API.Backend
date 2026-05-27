@@ -33,15 +33,18 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
     private readonly IRequestProjectContext _projectContext;
     private readonly IProjectDbContextFactory _dbFactory;
     private readonly IExcelConfigService _excelConfigService;
+    private readonly IExportTranslationLookup _translations;
 
     public StatisticsRowsExportDatasetProvider(
         IRequestProjectContext projectContext,
         IProjectDbContextFactory dbFactory,
-        IExcelConfigService excelConfigService)
+        IExcelConfigService excelConfigService,
+        IExportTranslationLookup translations)
     {
         _projectContext = projectContext;
         _dbFactory = dbFactory;
         _excelConfigService = excelConfigService;
+        _translations = translations;
     }
 
     public string DatasetId => "statistics.rows";
@@ -119,7 +122,44 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
             await BuildContinuousAsync(db, ds, selection, groupId, vars, fromUtc, toUtc, ct);
         }
 
+        // Traducir cabeceras al idioma pedido (selection.Language). Fallback al
+        // label hardcodeado (español) si no hay clave/idioma o lookup vacío.
+        TranslateColumnHeaders(ds, selection.Language);
+
         return ds;
+    }
+
+    // Mapa labelKey base → (claveI18n, fallbackEs). Las claves coinciden con
+    // las que el frontend usa para el checklist "Campos a incluir", de modo
+    // que preview y archivo exportado muestren EXACTAMENTE el mismo texto.
+    private static readonly Dictionary<string, (string Key, string Es)> BaseColumnI18n = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["timestamp"]    = ("statistics.column.fecha",          "Fecha/hora"),
+        ["startedAt"]    = ("statistics.column.inicio",         "Inicio"),
+        ["completedAt"]  = ("statistics.column.fin",            "Fin"),
+        ["durationSec"]  = ("statistics.column.duracion",       "Duración (s)"),
+        ["status"]       = ("statistics.column.estado",         "Estado"),
+        ["endedReason"]  = ("statistics.column.razon_fin",      "Razón fin"),
+        ["alarmsCount"]  = ("statistics.column.alarmas",        "Alarmas"),
+        ["alarmTimeSec"] = ("statistics.column.tiempo_alarma",  "Tiempo alarma (s)"),
+        ["hadAlarms"]    = ("statistics.column.con_alarmas",    "Con alarmas"),
+        ["alarmNames"]   = ("statistics.column.nombre_alarmas", "Nombre alarmas"),
+    };
+
+    private void TranslateColumnHeaders(ExportDataset ds, string? lang)
+    {
+        if (string.IsNullOrWhiteSpace(lang)) return;
+        if (ds.ColumnIds.Count == 0 || ds.Columns.Count != ds.ColumnIds.Count) return;
+
+        for (int i = 0; i < ds.ColumnIds.Count; i++)
+        {
+            var id = ds.ColumnIds[i];
+            if (BaseColumnI18n.TryGetValue(id, out var meta))
+            {
+                ds.Columns[i] = _translations.GetLabel(meta.Key, lang, meta.Es);
+            }
+            // Variables OPC/UA: no hay clave i18n → se deja el VarName tal cual.
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -206,6 +246,7 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
         var (selectedBase, selectedVars, columnKeys, columnLabels) =
             ApplyFieldSelection(EnsureAlarmNamesSelected(selection.Fields), baseCols, varCols, vars);
         ds.Columns = columnLabels;
+        ds.ColumnIds = columnKeys;
         ds.Metadata["columnKeys"] = columnKeys;
 
         foreach (var c in cycles)
@@ -272,6 +313,7 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
         {
             var only = BuildContinuousColumnsOnly(selection.Fields, vars);
             ds.Columns = only.Labels;
+            ds.ColumnIds = only.Keys;
             ds.Metadata["columnKeys"] = only.Keys;
             return;
         }
@@ -293,6 +335,7 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
         var (selectedBase, selectedVars, columnKeys, columnLabels) =
             ApplyFieldSelection(selection.Fields, baseCols, varCols, vars);
         ds.Columns = columnLabels;
+        ds.ColumnIds = columnKeys;
         ds.Metadata["columnKeys"] = columnKeys;
 
         foreach (var ts in recentTs)

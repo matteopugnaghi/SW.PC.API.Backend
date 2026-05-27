@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Merge ExportManagerWizard translations into project translations.json.
 
-One-shot script: idempotent — re-running just overwrites the same keys.
-Run from repo root:
-    py Tools/merge_exportwizard_translations.py
+Idempotent — re-running just overwrites the same keys.
+
+Usage (from repo root):
+    py Tools/merge_exportwizard_translations.py                  # default project (A72.TOUTWP)
+    py Tools/merge_exportwizard_translations.py A70.SOMEPROJECT  # one specific project
+    py Tools/merge_exportwizard_translations.py --all            # every Projects/*/translations/translations.json found
 """
 import json
 import sys
 from collections import OrderedDict
 from pathlib import Path
 
-TARGET = Path(__file__).resolve().parent.parent / "Projects" / "A72.TOUTWP" / "translations" / "translations.json"
+PROJECTS_ROOT = Path(__file__).resolve().parent.parent / "Projects"
+DEFAULT_PROJECT = "A72.TOUTWP"
 
 # All exportWizard.* keys with SPA (verbatim from React fallbacks) + ENG/FRA/ITA.
 ENTRIES = {
@@ -37,6 +41,14 @@ ENTRIES = {
     "exportWizard.fields":             {"SPA": "Campos a incluir",                                       "ENG": "Fields to include",                                    "FRA": "Champs à inclure",                                      "ITA": "Campi da includere"},
     "exportWizard.noFields":           {"SPA": "(Dataset sin campos seleccionables — se exporta tal cual)", "ENG": "(Dataset with no selectable fields — exported as-is)", "FRA": "(Jeu de données sans champs sélectionnables — exporté tel quel)", "ITA": "(Dataset senza campi selezionabili — esportato così com'è)"},
     "exportWizard.filters":            {"SPA": "Filtros",                                                "ENG": "Filters",                                              "FRA": "Filtres",                                               "ITA": "Filtri"},
+    "exportWizard.dateRange.absolute": {"SPA": "Absoluto",                                               "ENG": "Absolute",                                             "FRA": "Absolu",                                                "ITA": "Assoluto"},
+    "exportWizard.dateRange.relative": {"SPA": "Relativo",                                               "ENG": "Relative",                                             "FRA": "Relatif",                                               "ITA": "Relativo"},
+    "exportWizard.dateRange.from":     {"SPA": "Desde",                                                  "ENG": "From",                                                 "FRA": "Du",                                                    "ITA": "Da"},
+    "exportWizard.dateRange.to":       {"SPA": "Hasta",                                                  "ENG": "To",                                                   "FRA": "Au",                                                    "ITA": "A"},
+    "exportWizard.dateRange.last":     {"SPA": "Últimas",                                                "ENG": "Last",                                                 "FRA": "Dernières",                                             "ITA": "Ultime"},
+    "exportWizard.dateRange.unit.m":   {"SPA": "minutos",                                                "ENG": "minutes",                                              "FRA": "minutes",                                               "ITA": "minuti"},
+    "exportWizard.dateRange.unit.h":   {"SPA": "horas",                                                  "ENG": "hours",                                                "FRA": "heures",                                                "ITA": "ore"},
+    "exportWizard.dateRange.unit.d":   {"SPA": "días",                                                   "ENG": "days",                                                 "FRA": "jours",                                                 "ITA": "giorni"},
     "exportWizard.preview":            {"SPA": "Previsualizar (5 filas)",                                "ENG": "Preview (5 rows)",                                     "FRA": "Aperçu (5 lignes)",                                     "ITA": "Anteprima (5 righe)"},
     "exportWizard.previewUnavailable": {"SPA": "Preview no disponible para este dataset",                "ENG": "Preview not available for this dataset",               "FRA": "Aperçu non disponible pour ce jeu de données",          "ITA": "Anteprima non disponibile per questo dataset"},
     "exportWizard.previewLocalEmpty":  {"SPA": "Sin datos para previsualizar.",                          "ENG": "No data to preview.",                                  "FRA": "Aucune donnée à prévisualiser.",                        "ITA": "Nessun dato da visualizzare in anteprima."},
@@ -47,6 +59,8 @@ ENTRIES = {
     "exportWizard.formatTitle":   {"SPA": "Formato de salida",                                                          "ENG": "Output format",                                                                "FRA": "Format de sortie",                                                                 "ITA": "Formato di output"},
     "exportWizard.noPdfNote":     {"SPA": "Nota: PDF no se ofrece aquí (usa el botón \"Imprimir\" del modal anfitrión).", "ENG": "Note: PDF is not offered here (use the \"Print\" button in the host modal).",    "FRA": "Note : le PDF n'est pas proposé ici (utilisez le bouton « Imprimer » de la modale hôte).", "ITA": "Nota: il PDF non è disponibile qui (usa il pulsante \"Stampa\" della finestra ospite)."},
     "exportWizard.pngHiddenNote": {"SPA": "PNG no está disponible para este origen: solo se ofrece cuando el contenido es un gráfico.", "ENG": "PNG is not available for this source: it is only offered when the content is a chart.", "FRA": "PNG n'est pas disponible pour cette source : il n'est proposé que lorsque le contenu est un graphique.", "ITA": "PNG non è disponibile per questa origine: viene offerto solo quando il contenuto è un grafico."},
+    "exportWizard.languageTitle": {"SPA": "Idioma del documento exportado", "ENG": "Exported document language", "FRA": "Langue du document exporté", "ITA": "Lingua del documento esportato"},
+    "exportWizard.languageNote":  {"SPA": "Las cabeceras del archivo (CSV/XLSX) se generarán en este idioma. Los nombres de variables OPC/UA se mantienen como en el PLC.", "ENG": "File headers (CSV/XLSX) will be generated in this language. OPC/UA variable names are kept as in the PLC.", "FRA": "Les en-têtes du fichier (CSV/XLSX) seront générés dans cette langue. Les noms des variables OPC/UA restent ceux du PLC.", "ITA": "Le intestazioni del file (CSV/XLSX) saranno generate in questa lingua. I nomi delle variabili OPC/UA restano come nel PLC."},
 
     # --- Step 2: Destinos -----------------------------------------------------
     "exportWizard.destTitle":              {"SPA": "Marca los destinos (al menos uno)",                                                                "ENG": "Select destinations (at least one)",                                                       "FRA": "Sélectionnez les destinations (au moins une)",                                              "ITA": "Seleziona le destinazioni (almeno una)"},
@@ -144,21 +158,142 @@ ENTRIES = {
     "exportWizard.s.plc":      {"SPA": "Trigger PLC: {v}",                                   "ENG": "PLC trigger: {v}",                         "FRA": "Déclencheur PLC : {v}",                          "ITA": "Trigger PLC: {v}"},
     "exportWizard.s.cron":     {"SPA": "Cron: {v}",                                          "ENG": "Cron: {v}",                                "FRA": "Cron : {v}",                                     "ITA": "Cron: {v}"},
     "exportWizard.s.manual":   {"SPA": "Manual (▶ desde la lista de tareas)",                "ENG": "Manual (▶ from the task list)",            "FRA": "Manuel (▶ depuis la liste des tâches)",          "ITA": "Manuale (▶ dall'elenco delle attività)"},
+
+    # ═══ ExportTasksPanel (lista de tareas persistentes) ════════════════════════
+    "exportTasks.title":                {"SPA": "Gestor de exportaciones",                                                 "ENG": "Export manager",                                                       "FRA": "Gestionnaire d'exportations",                                              "ITA": "Gestore esportazioni"},
+    "exportTasks.subtitle":             {"SPA": "Tareas del módulo: {source}",                                             "ENG": "Module tasks: {source}",                                               "FRA": "Tâches du module : {source}",                                              "ITA": "Attività del modulo: {source}"},
+    "exportTasks.loading":              {"SPA": "Cargando…",                                                               "ENG": "Loading…",                                                             "FRA": "Chargement…",                                                              "ITA": "Caricamento…"},
+    "exportTasks.count":                {"SPA": "{count} tarea(s)",                                                        "ENG": "{count} task(s)",                                                      "FRA": "{count} tâche(s)",                                                         "ITA": "{count} attività"},
+    "exportTasks.refresh":              {"SPA": "Recargar",                                                                "ENG": "Reload",                                                               "FRA": "Recharger",                                                                "ITA": "Ricarica"},
+    "exportTasks.noDatasets":           {"SPA": "El módulo no ha declarado datasets exportables",                          "ENG": "The module has not declared any exportable datasets",                  "FRA": "Le module n'a déclaré aucun jeu de données exportable",                    "ITA": "Il modulo non ha dichiarato dataset esportabili"},
+    "exportTasks.new":                  {"SPA": "Nueva tarea",                                                             "ENG": "New task",                                                             "FRA": "Nouvelle tâche",                                                           "ITA": "Nuova attività"},
+    "exportTasks.empty":                {"SPA": "No hay tareas configuradas todavía. Pulsa \"Nueva tarea\" para crear una.","ENG": "No tasks configured yet. Click \"New task\" to create one.",            "FRA": "Aucune tâche configurée pour le moment. Cliquez sur « Nouvelle tâche ».","ITA": "Nessuna attività configurata. Clicca \"Nuova attività\" per crearne una."},
+    "exportTasks.paused":               {"SPA": "Pausada",                                                                 "ENG": "Paused",                                                               "FRA": "En pause",                                                                 "ITA": "In pausa"},
+    "exportTasks.lastRun":              {"SPA": "Última ejecución",                                                        "ENG": "Last run",                                                             "FRA": "Dernière exécution",                                                       "ITA": "Ultima esecuzione"},
+    "exportTasks.never":                {"SPA": "nunca",                                                                   "ENG": "never",                                                                "FRA": "jamais",                                                                   "ITA": "mai"},
+    "exportTasks.run":                  {"SPA": "Ejecutar",                                                                "ENG": "Run",                                                                  "FRA": "Exécuter",                                                                 "ITA": "Esegui"},
+    "exportTasks.edit":                 {"SPA": "Editar",                                                                  "ENG": "Edit",                                                                 "FRA": "Modifier",                                                                 "ITA": "Modifica"},
+    "exportTasks.pause":                {"SPA": "Pausar",                                                                  "ENG": "Pause",                                                                "FRA": "Mettre en pause",                                                          "ITA": "Pausa"},
+    "exportTasks.resume":               {"SPA": "Reanudar",                                                                "ENG": "Resume",                                                               "FRA": "Reprendre",                                                                "ITA": "Riprendi"},
+    "exportTasks.delete":               {"SPA": "Eliminar",                                                                "ENG": "Delete",                                                               "FRA": "Supprimer",                                                                "ITA": "Elimina"},
+    "exportTasks.confirmDelete":        {"SPA": "¿Eliminar la tarea \"{name}\"? Esta acción no se puede deshacer.",        "ENG": "Delete task \"{name}\"? This action cannot be undone.",                "FRA": "Supprimer la tâche « {name} » ? Cette action est irréversible.",          "ITA": "Eliminare l'attività \"{name}\"? L'azione non può essere annullata."},
+    "exportTasks.runPrompt.title":      {"SPA": "Ejecutar tarea",                                                          "ENG": "Run task",                                                             "FRA": "Exécuter la tâche",                                                        "ITA": "Esegui attività"},
+    "exportTasks.runPrompt.help":       {"SPA": "Selecciona el rango de fechas para esta ejecución. Dejar vacío exporta todos los datos disponibles.", "ENG": "Select the date range for this run. Leave empty to export all available data.", "FRA": "Sélectionnez la plage de dates pour cette exécution. Laisser vide exporte toutes les données disponibles.", "ITA": "Seleziona l'intervallo di date per questa esecuzione. Lasciare vuoto esporta tutti i dati disponibili."},
+    "exportTasks.runPrompt.from":       {"SPA": "Desde",                                                                   "ENG": "From",                                                                 "FRA": "Du",                                                                       "ITA": "Da"},
+    "exportTasks.runPrompt.to":         {"SPA": "Hasta",                                                                   "ENG": "To",                                                                   "FRA": "Au",                                                                       "ITA": "A"},
+    "exportTasks.runPrompt.invalid":    {"SPA": "\"Desde\" no puede ser posterior a \"Hasta\".",                           "ENG": "\"From\" cannot be later than \"To\".",                                "FRA": "« Du » ne peut pas être postérieur à « Au ».",                            "ITA": "\"Da\" non può essere successivo a \"A\"."},
+    "exportTasks.runPrompt.cancel":     {"SPA": "Cancelar",                                                                "ENG": "Cancel",                                                               "FRA": "Annuler",                                                                  "ITA": "Annulla"},
+    "exportTasks.runPrompt.confirm":    {"SPA": "Ejecutar",                                                                "ENG": "Run",                                                                  "FRA": "Exécuter",                                                                 "ITA": "Esegui"},
+
+    # ═══ ExportModal (modal anfitrión con los 3 botones de exportación) ════════
+    "exportModal.header.title":            {"SPA": "Exportar",                              "ENG": "Export",                              "FRA": "Exporter",                                "ITA": "Esporta"},
+    "exportModal.header.rowsCount_one":    {"SPA": "{count} fila a exportar",               "ENG": "{count} row to export",               "FRA": "{count} ligne à exporter",                "ITA": "{count} riga da esportare"},
+    "exportModal.header.rowsCount_other":  {"SPA": "{count} filas a exportar",              "ENG": "{count} rows to export",              "FRA": "{count} lignes à exporter",               "ITA": "{count} righe da esportare"},
+    "exportModal.content.title":           {"SPA": "Contenido a exportar",                  "ENG": "Content to export",                   "FRA": "Contenu à exporter",                      "ITA": "Contenuto da esportare"},
+    "exportModal.content.empty":           {"SPA": "Sin datos disponibles.",                "ENG": "No data available.",                  "FRA": "Aucune donnée disponible.",               "ITA": "Nessun dato disponibile."},
+    "exportModal.content.help":            {"SPA": "Imprimir genera el informe completo en PDF. El QR codifica un correo al soporte; si el contenido es muy largo se recorta automáticamente (más nuevo primero).", "ENG": "Print generates the full PDF report. The QR encodes a support email; if the content is too long it is automatically truncated (newest first).", "FRA": "Imprimer génère le rapport PDF complet. Le QR encode un e-mail au support ; si le contenu est trop long, il est tronqué automatiquement (le plus récent en premier).", "ITA": "Stampa genera il report PDF completo. Il QR codifica un'e-mail al supporto; se il contenuto è troppo lungo viene troncato automaticamente (più recente per primo)."},
+    "exportModal.channel.sectionTitle":    {"SPA": "Vía de envío",                          "ENG": "Delivery channel",                    "FRA": "Voie d'envoi",                            "ITA": "Canale di invio"},
+    "exportModal.channel.preparing":       {"SPA": "preparando…",                           "ENG": "preparing…",                          "FRA": "préparation…",                            "ITA": "preparazione…"},
+    "exportModal.channel.print.label":     {"SPA": "Imprimir / PDF",                        "ENG": "Print / PDF",                         "FRA": "Imprimer / PDF",                          "ITA": "Stampa / PDF"},
+    "exportModal.channel.print.sub":       {"SPA": "Diálogo navegador",                     "ENG": "Browser dialog",                      "FRA": "Boîte de dialogue du navigateur",         "ITA": "Finestra del browser"},
+    "exportModal.channel.qr.label":        {"SPA": "Generar QR",                            "ENG": "Generate QR",                         "FRA": "Générer un QR",                           "ITA": "Genera QR"},
+    "exportModal.channel.qr.sub":          {"SPA": "Abre Mail en el móvil",                 "ENG": "Opens Mail on mobile",                "FRA": "Ouvre Mail sur le mobile",                "ITA": "Apre Mail sul cellulare"},
+    "exportModal.channel.email.label":     {"SPA": "Enviar email",                          "ENG": "Send email",                          "FRA": "Envoyer un e-mail",                       "ITA": "Invia e-mail"},
+    "exportModal.channel.email.sub":       {"SPA": "Pendiente SMTP",                        "ENG": "SMTP pending",                        "FRA": "SMTP en attente",                         "ITA": "SMTP in attesa"},
+    "exportModal.channel.manager.label":   {"SPA": "Gestor de exportaciones",               "ENG": "Export manager",                      "FRA": "Gestionnaire d'exportations",             "ITA": "Gestore esportazioni"},
+    "exportModal.channel.manager.sub":     {"SPA": "Tareas persistentes",                   "ENG": "Persistent tasks",                    "FRA": "Tâches persistantes",                     "ITA": "Attività persistenti"},
+    "exportModal.channel.kioskNotice":     {"SPA": "Sistema en kiosko: \"Email\" deshabilitado en SystemConfig (Excel).", "ENG": "Kiosk system: \"Email\" disabled in SystemConfig (Excel).", "FRA": "Système en mode kiosque : « E-mail » désactivé dans SystemConfig (Excel).", "ITA": "Sistema in modalità chiosco: \"Email\" disabilitato in SystemConfig (Excel)."},
+    "exportModal.report.defaultTitle":     {"SPA": "Informe",                               "ENG": "Report",                              "FRA": "Rapport",                                 "ITA": "Report"},
+    "exportModal.report.generated":        {"SPA": "Generado",                              "ENG": "Generated",                           "FRA": "Généré",                                  "ITA": "Generato"},
+    "exportModal.report.generatedBy":      {"SPA": "Generado desde Aquafrisch Supervisor",  "ENG": "Generated from Aquafrisch Supervisor","FRA": "Généré depuis Aquafrisch Supervisor",     "ITA": "Generato da Aquafrisch Supervisor"},
+    "exportModal.report.noData":           {"SPA": "Sin datos.",                            "ENG": "No data.",                            "FRA": "Aucune donnée.",                          "ITA": "Nessun dato."},
+    "exportModal.report.footer":           {"SPA": "Documento generado automáticamente por Aquafrisch Supervisor.",       "ENG": "Document automatically generated by Aquafrisch Supervisor.",       "FRA": "Document généré automatiquement par Aquafrisch Supervisor.",       "ITA": "Documento generato automaticamente da Aquafrisch Supervisor."},
+    "exportModal.qr.date":                 {"SPA": "Fecha",                                 "ENG": "Date",                                "FRA": "Date",                                    "ITA": "Data"},
+    "exportModal.qr.omitted":              {"SPA": "[+{count} omitidos — ver PDF]",         "ENG": "[+{count} omitted — see PDF]",        "FRA": "[+{count} omis — voir le PDF]",           "ITA": "[+{count} omessi — vedi PDF]"},
+    "exportModal.error.print":             {"SPA": "Error generando informe",               "ENG": "Error generating report",             "FRA": "Erreur lors de la génération du rapport", "ITA": "Errore nella generazione del report"},
+    "exportModal.error.qr":                {"SPA": "Error generando QR",                    "ENG": "Error generating QR",                 "FRA": "Erreur lors de la génération du QR",      "ITA": "Errore nella generazione del QR"},
+
+    # ═══ ExportDestinationManager (modal "Gestionar destinos") ════════════════
+    "exportDest.title":                    {"SPA": "Gestionar destinos de exportación",                        "ENG": "Manage export destinations",                                  "FRA": "Gérer les destinations d'exportation",                            "ITA": "Gestisci destinazioni di esportazione"},
+    "exportDest.loading":                  {"SPA": "Cargando…",                                                 "ENG": "Loading…",                                                    "FRA": "Chargement…",                                                     "ITA": "Caricamento…"},
+    "exportDest.errorDeleting":            {"SPA": "Error eliminando",                                          "ENG": "Error deleting",                                              "FRA": "Erreur lors de la suppression",                                   "ITA": "Errore durante l'eliminazione"},
+    "exportDest.tab.folders":              {"SPA": "Carpetas ({count})",                                        "ENG": "Folders ({count})",                                           "FRA": "Dossiers ({count})",                                              "ITA": "Cartelle ({count})"},
+    "exportDest.tab.email":                {"SPA": "Cuentas SMTP ({count})",                                    "ENG": "SMTP accounts ({count})",                                     "FRA": "Comptes SMTP ({count})",                                          "ITA": "Account SMTP ({count})"},
+    "exportDest.col.name":                 {"SPA": "Nombre",                                                    "ENG": "Name",                                                        "FRA": "Nom",                                                             "ITA": "Nome"},
+    "exportDest.col.path":                 {"SPA": "Ruta",                                                      "ENG": "Path",                                                        "FRA": "Chemin",                                                          "ITA": "Percorso"},
+    "exportDest.col.subfolder":            {"SPA": "Subcarpeta",                                                "ENG": "Subfolder",                                                   "FRA": "Sous-dossier",                                                    "ITA": "Sottocartella"},
+    "exportDest.col.hostPort":             {"SPA": "Host:Port",                                                 "ENG": "Host:Port",                                                   "FRA": "Hôte:Port",                                                       "ITA": "Host:Port"},
+    "exportDest.col.from":                 {"SPA": "Desde",                                                     "ENG": "From",                                                        "FRA": "De",                                                              "ITA": "Da"},
+    "exportDest.col.ssl":                  {"SPA": "SSL",                                                       "ENG": "SSL",                                                         "FRA": "SSL",                                                             "ITA": "SSL"},
+    "exportDest.col.pass":                 {"SPA": "Pass",                                                      "ENG": "Pass",                                                        "FRA": "Pass",                                                            "ITA": "Pass"},
+    "exportDest.col.actions":              {"SPA": "Acciones",                                                  "ENG": "Actions",                                                     "FRA": "Actions",                                                         "ITA": "Azioni"},
+    "exportDest.action.edit":              {"SPA": "Editar",                                                    "ENG": "Edit",                                                        "FRA": "Modifier",                                                        "ITA": "Modifica"},
+    "exportDest.action.delete":            {"SPA": "Eliminar",                                                  "ENG": "Delete",                                                      "FRA": "Supprimer",                                                       "ITA": "Elimina"},
+    "exportDest.action.test":              {"SPA": "Probar",                                                    "ENG": "Test",                                                        "FRA": "Tester",                                                          "ITA": "Prova"},
+    "exportDest.action.cancel":            {"SPA": "Cancelar",                                                  "ENG": "Cancel",                                                      "FRA": "Annuler",                                                         "ITA": "Annulla"},
+    "exportDest.action.save":              {"SPA": "Guardar",                                                   "ENG": "Save",                                                        "FRA": "Enregistrer",                                                     "ITA": "Salva"},
+    "exportDest.folder.new":               {"SPA": "Nueva carpeta",                                             "ENG": "New folder",                                                  "FRA": "Nouveau dossier",                                                 "ITA": "Nuova cartella"},
+    "exportDest.folder.empty":             {"SPA": "Sin carpetas. Crea la primera.",                            "ENG": "No folders. Create the first one.",                           "FRA": "Aucun dossier. Créez le premier.",                                "ITA": "Nessuna cartella. Crea la prima."},
+    "exportDest.folder.newTitle":          {"SPA": "Nueva carpeta",                                             "ENG": "New folder",                                                  "FRA": "Nouveau dossier",                                                 "ITA": "Nuova cartella"},
+    "exportDest.folder.editTitle":         {"SPA": "Editar carpeta",                                            "ENG": "Edit folder",                                                 "FRA": "Modifier le dossier",                                             "ITA": "Modifica cartella"},
+    "exportDest.folder.confirmDelete":     {"SPA": "¿Eliminar perfil de carpeta '{name}'?",                     "ENG": "Delete folder profile '{name}'?",                             "FRA": "Supprimer le profil de dossier « {name} » ?",                    "ITA": "Eliminare il profilo cartella '{name}'?"},
+    "exportDest.folder.namePh":            {"SPA": "Backups producción",                                        "ENG": "Production backups",                                          "FRA": "Sauvegardes production",                                          "ITA": "Backup produzione"},
+    "exportDest.folder.pathPh":            {"SPA": "C:\\Exports  ·  \\\\servidor\\share",                       "ENG": "C:\\Exports  ·  \\\\server\\share",                           "FRA": "C:\\Exports  ·  \\\\serveur\\partage",                            "ITA": "C:\\Exports  ·  \\\\server\\share"},
+    "exportDest.folder.subfolderPh":       {"SPA": "auditoría/{fecha}",                                         "ENG": "audit/{fecha}",                                               "FRA": "audit/{fecha}",                                                   "ITA": "audit/{fecha}"},
+    "exportDest.folder.browse":            {"SPA": "Examinar…",                                                 "ENG": "Browse…",                                                     "FRA": "Parcourir…",                                                      "ITA": "Sfoglia…"},
+    "exportDest.folder.browseTitle":       {"SPA": "Explorar carpetas del servidor",                            "ENG": "Browse server folders",                                       "FRA": "Parcourir les dossiers du serveur",                               "ITA": "Esplora le cartelle del server"},
+    "exportDest.email.new":                {"SPA": "Nueva cuenta SMTP",                                         "ENG": "New SMTP account",                                            "FRA": "Nouveau compte SMTP",                                             "ITA": "Nuovo account SMTP"},
+    "exportDest.email.empty":              {"SPA": "Sin cuentas. Crea la primera.",                             "ENG": "No accounts. Create the first one.",                          "FRA": "Aucun compte. Créez le premier.",                                 "ITA": "Nessun account. Crea il primo."},
+    "exportDest.email.newTitle":           {"SPA": "Nueva cuenta SMTP",                                         "ENG": "New SMTP account",                                            "FRA": "Nouveau compte SMTP",                                             "ITA": "Nuovo account SMTP"},
+    "exportDest.email.editTitle":          {"SPA": "Editar cuenta SMTP",                                        "ENG": "Edit SMTP account",                                           "FRA": "Modifier le compte SMTP",                                         "ITA": "Modifica account SMTP"},
+    "exportDest.email.confirmDelete":      {"SPA": "¿Eliminar cuenta SMTP '{name}'?",                           "ENG": "Delete SMTP account '{name}'?",                               "FRA": "Supprimer le compte SMTP « {name} » ?",                          "ITA": "Eliminare l'account SMTP '{name}'?"},
+    "exportDest.email.testPrompt":         {"SPA": "Enviar prueba desde '{name}'.\nDestinatario:",              "ENG": "Send test from '{name}'.\nRecipient:",                        "FRA": "Envoyer un test depuis « {name} ».\nDestinataire :",            "ITA": "Invia test da '{name}'.\nDestinatario:"},
+    "exportDest.email.testOk":             {"SPA": "Email de prueba enviado",                                   "ENG": "Test email sent",                                             "FRA": "E-mail de test envoyé",                                           "ITA": "E-mail di prova inviata"},
+    "exportDest.email.testFail":           {"SPA": "Falló",                                                     "ENG": "Failed",                                                      "FRA": "Échec",                                                           "ITA": "Fallito"},
+    "exportDest.email.namePh":             {"SPA": "SMTP corporativo",                                          "ENG": "Corporate SMTP",                                              "FRA": "SMTP d'entreprise",                                               "ITA": "SMTP aziendale"},
+    "exportDest.email.useSsl":             {"SPA": "Usar SSL",                                                  "ENG": "Use SSL",                                                     "FRA": "Utiliser SSL",                                                    "ITA": "Usa SSL"},
+    "exportDest.email.passwordNotice":     {"SPA": "La contraseña se cifra en BD (DPAPI) y nunca se devuelve al cliente.", "ENG": "The password is encrypted in DB (DPAPI) and never returned to the client.", "FRA": "Le mot de passe est chiffré en BD (DPAPI) et n'est jamais renvoyé au client.", "ITA": "La password viene cifrata nel DB (DPAPI) e non viene mai restituita al client."},
+    "exportDest.field.name":               {"SPA": "Nombre",                                                    "ENG": "Name",                                                        "FRA": "Nom",                                                             "ITA": "Nome"},
+    "exportDest.field.path":               {"SPA": "Ruta (carpeta base)",                                       "ENG": "Path (base folder)",                                          "FRA": "Chemin (dossier de base)",                                        "ITA": "Percorso (cartella base)"},
+    "exportDest.field.subfolder":          {"SPA": "Subcarpeta opcional (acepta tokens {fecha} {hora})",        "ENG": "Optional subfolder (accepts tokens {fecha} {hora})",          "FRA": "Sous-dossier optionnel (accepte les jetons {fecha} {hora})",      "ITA": "Sottocartella opzionale (accetta i token {fecha} {hora})"},
+    "exportDest.field.description":        {"SPA": "Descripción",                                               "ENG": "Description",                                                 "FRA": "Description",                                                     "ITA": "Descrizione"},
+    "exportDest.field.host":               {"SPA": "Host",                                                      "ENG": "Host",                                                        "FRA": "Hôte",                                                            "ITA": "Host"},
+    "exportDest.field.port":               {"SPA": "Puerto",                                                    "ENG": "Port",                                                        "FRA": "Port",                                                            "ITA": "Porta"},
+    "exportDest.field.ssl":                {"SPA": "SSL/TLS",                                                   "ENG": "SSL/TLS",                                                     "FRA": "SSL/TLS",                                                         "ITA": "SSL/TLS"},
+    "exportDest.field.user":               {"SPA": "Usuario (opcional)",                                        "ENG": "Username (optional)",                                         "FRA": "Utilisateur (optionnel)",                                         "ITA": "Utente (opzionale)"},
+    "exportDest.field.pass":               {"SPA": "Contraseña",                                                "ENG": "Password",                                                    "FRA": "Mot de passe",                                                    "ITA": "Password"},
+    "exportDest.field.passEdit":           {"SPA": "Contraseña (vacío = sin cambios){current}",                 "ENG": "Password (empty = no changes){current}",                      "FRA": "Mot de passe (vide = pas de changement){current}",                "ITA": "Password (vuoto = nessuna modifica){current}"},
+    "exportDest.field.fromAddress":        {"SPA": "Email remitente (From)",                                    "ENG": "Sender email (From)",                                         "FRA": "E-mail expéditeur (From)",                                        "ITA": "E-mail mittente (From)"},
+    "exportDest.field.fromName":           {"SPA": "Nombre remitente",                                          "ENG": "Sender name",                                                 "FRA": "Nom de l'expéditeur",                                             "ITA": "Nome mittente"},
+    "exportDest.field.defaultRecipients":  {"SPA": "Destinatarios por defecto (CSV, opcional)",                 "ENG": "Default recipients (CSV, optional)",                          "FRA": "Destinataires par défaut (CSV, optionnel)",                       "ITA": "Destinatari predefiniti (CSV, opzionale)"},
+}
+
+# Page-level groupings (which translations.json "pages" entry each key belongs to)
+PAGE_GROUPS = {
+    "EXPORT_WIZARD": "exportWizard.",
+    "EXPORT_TASKS":  "exportTasks.",
+    "EXPORT_MODAL":  "exportModal.",
+    "EXPORT_DEST":   "exportDest.",
+}
+PAGE_DESCRIPTIONS = {
+    "EXPORT_WIZARD": "Wizard de exportación (Aquafrisch Export Manager)",
+    "EXPORT_TASKS":  "Listado de tareas persistentes del Export Manager",
+    "EXPORT_MODAL":  "Modal anfitrión de exportación (Imprimir / QR / Gestor)",
+    "EXPORT_DEST":   "Gestor de destinos de exportación (carpetas + SMTP)",
 }
 
 
-def main():
-    if not TARGET.exists():
-        print(f"ERROR: {TARGET} not found", file=sys.stderr)
-        return 1
+def merge_one(target: Path) -> int:
+    if not target.exists():
+        print(f"SKIP: {target} not found")
+        return 0
 
-    # Preserve key order in the file by loading as ordered dict.
-    with TARGET.open("r", encoding="utf-8") as f:
+    with target.open("r", encoding="utf-8") as f:
         data = json.load(f, object_pairs_hook=OrderedDict)
 
     translations = data.get("translations")
     if translations is None:
-        print("ERROR: 'translations' key missing", file=sys.stderr)
+        print(f"ERROR: 'translations' key missing in {target}", file=sys.stderr)
         return 1
 
     added = 0
@@ -175,25 +310,41 @@ def main():
             ("ITA", v["ITA"]),
         ])
 
-    # Register a documentation page entry (idempotent).
     pages = data.get("pages")
     if pages is not None:
-        pages["EXPORT_WIZARD"] = OrderedDict([
-            ("description", "Wizard de exportación (Aquafrisch Export Manager)"),
-            ("labels", list(ENTRIES.keys())),
-        ])
+        for page_id, prefix in PAGE_GROUPS.items():
+            pages[page_id] = OrderedDict([
+                ("description", PAGE_DESCRIPTIONS[page_id]),
+                ("labels", [k for k in ENTRIES.keys() if k.startswith(prefix)]),
+            ])
 
-    # Bump lastModified
     md = data.get("metadata")
     if md is not None:
         md["lastModified"] = "2026-05-27T00:00:00Z"
 
-    with TARGET.open("w", encoding="utf-8") as f:
+    with target.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
         f.write("\n")
 
-    print(f"OK: {added} added, {updated} updated. Total exportWizard keys: {len(ENTRIES)}")
+    print(f"OK [{target.parent.parent.name}]: {added} added, {updated} updated")
     return 0
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] == "--all":
+        targets = sorted(PROJECTS_ROOT.glob("*/translations/translations.json"))
+        if not targets:
+            print("No translations.json files found under Projects/*/translations/")
+            return 1
+    else:
+        project = args[0] if args else DEFAULT_PROJECT
+        targets = [PROJECTS_ROOT / project / "translations" / "translations.json"]
+
+    rc = 0
+    for t in targets:
+        rc |= merge_one(t)
+    return rc
 
 
 if __name__ == "__main__":

@@ -367,7 +367,9 @@ builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvi
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
                             SW.PC.API.Backend.Services.Export.Providers.StatisticsRowsExportDatasetProvider>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetRegistry,
-                            SW.PC.API.Backend.Services.Export.ExportDatasetRegistry>();builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.IExportFormatterService,
+                            SW.PC.API.Backend.Services.Export.ExportDatasetRegistry>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportTranslationLookup,
+                            SW.PC.API.Backend.Services.Export.ExportTranslationLookup>();builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.IExportFormatterService,
                               SW.PC.API.Backend.Services.Export.ExportFormatterService>();
 builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.IExportRunner,
                               SW.PC.API.Backend.Services.Export.Runners.LocalFileRunner>();
