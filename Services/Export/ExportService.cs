@@ -15,6 +15,7 @@
 
 using System.Text.Json;
 using SW.PC.API.Backend.Data;
+using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.Export;
 
 namespace SW.PC.API.Backend.Services.Export;
@@ -53,6 +54,7 @@ public class ExportService : IExportService
     private readonly IRequestProjectContext _projectContext;
     private readonly IExcelConfigService _excelConfig;
     private readonly IExportProfileService _profiles;
+    private readonly IAuditLogService _audit;
     private readonly ILogger<ExportService> _logger;
 
     public ExportService(
@@ -63,6 +65,7 @@ public class ExportService : IExportService
         IRequestProjectContext projectContext,
         IExcelConfigService excelConfig,
         IExportProfileService profiles,
+        IAuditLogService audit,
         ILogger<ExportService> logger)
     {
         _dbFactory = dbFactory;
@@ -72,6 +75,7 @@ public class ExportService : IExportService
         _projectContext = projectContext;
         _excelConfig = excelConfig;
         _profiles = profiles;
+        _audit = audit;
         _logger = logger;
     }
 
@@ -342,6 +346,23 @@ public class ExportService : IExportService
             response.Summary = okCount == response.Results.Count ? "ok"
                 : okCount > 0 ? $"ok (parcial {okCount}/{response.Results.Count})"
                 : "error: ningún destino completado";
+
+            // 6.b) Audit por destino fallido (mensaje completo del runner)
+            foreach (var failed in response.Results.Where(r => !r.Success))
+            {
+                var detail = $"Tarea {task.Id} destino '{failed.DestinationType}' falló: {Truncate(failed.ErrorMessage ?? "(sin mensaje)", 800)}";
+                try
+                {
+                    await _audit.LogAsync(
+                        AuditCategory.Export, AuditAction.ExportTaskRun, AuditResult.Failure,
+                        detail,
+                        projectId: _projectContext.ProjectId);
+                }
+                catch (Exception exAud)
+                {
+                    _logger.LogWarning(exAud, "[Export] No se pudo registrar audit de destino fallido (task={Id}, dest={Dest})", task.Id, failed.DestinationType);
+                }
+            }
 
             task.LastRunAt = DateTime.UtcNow;
             task.LastResult = response.Summary;
