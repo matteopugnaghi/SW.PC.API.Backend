@@ -28,35 +28,55 @@ public interface IExportFormatterService
     /// <param name="dataset">Datos resueltos por un IExportDatasetProvider.</param>
     /// <param name="format">"xlsx" | "csv" | "json" | "html" | "png".</param>
     /// <param name="report">Diseño opcional del informe (solo aplica a xlsx/html). Si null, layout básico.</param>
+    /// <param name="translateLabel">
+    /// Función opcional <c>(labelId, fallback) =&gt; texto</c> para localizar
+    /// las cadenas estáticas del informe ("Filtros aplicados", "Resumen",
+    /// "Columna", "Fecha"...). Si es <c>null</c> se devuelve el fallback (ES).
+    /// </param>
+    /// <param name="language">Idioma destino (SPA/ENG/FRA/ITA). Solo se usa
+    /// para el atributo <c>lang</c> del HTML y, en el futuro, formato de fechas.</param>
     /// <returns>Bytes + content-type MIME + extensión recomendada (sin punto).</returns>
-    FormattedExport Format(ExportDataset dataset, string format, ReportDesignConfig? report = null);
+    FormattedExport Format(
+        ExportDataset dataset,
+        string format,
+        ReportDesignConfig? report = null,
+        Func<string, string, string>? translateLabel = null,
+        string? language = null);
 }
 
 public record FormattedExport(byte[] Bytes, string ContentType, string Extension);
 
 public class ExportFormatterService : IExportFormatterService
 {
-    public FormattedExport Format(ExportDataset dataset, string format, ReportDesignConfig? report = null)
+    public FormattedExport Format(
+        ExportDataset dataset,
+        string format,
+        ReportDesignConfig? report = null,
+        Func<string, string, string>? translateLabel = null,
+        string? language = null)
     {
         if (dataset is null) throw new ArgumentNullException(nameof(dataset));
         if (string.IsNullOrWhiteSpace(format)) throw new ArgumentException("Format vacío", nameof(format));
 
+        // Traductor seguro: si no se pasa, devuelve el fallback ES.
+        var T = translateLabel ?? ((_, fb) => fb);
+
         return format.ToLowerInvariant() switch
         {
-            "xlsx" => FormatXlsx(dataset, report),
+            "xlsx" => FormatXlsx(dataset, report, T),
             "csv"  => FormatCsv(dataset),
             "json" => FormatJson(dataset),
-            "html" => FormatHtml(dataset, report),
+            "html" => FormatHtml(dataset, report, T, language),
             "png"  => FormatPng(dataset),
             _ => throw new NotSupportedException($"Formato '{format}' no soportado.")
         };
     }
 
-    // ───────────────────────── XLSX ─────────────────────────
-    private static FormattedExport FormatXlsx(ExportDataset ds, ReportDesignConfig? rpt)
+    // ─────────────────────── XLSX ───────────────────────
+    private static FormattedExport FormatXlsx(ExportDataset ds, ReportDesignConfig? rpt, Func<string, string, string> T)
     {
         using var wb = new XLWorkbook();
-        var ws = wb.Worksheets.Add("Datos");
+        var ws = wb.Worksheets.Add(T("export.sheet.dataName", "Datos"));
 
         var headerColor = ParseColor(rpt?.HeaderColor, XLColor.FromArgb(23, 162, 184));
         var accentColor = ParseColor(rpt?.AccentColor, XLColor.FromArgb(11, 85, 102));
@@ -111,9 +131,9 @@ public class ExportFormatterService : IExportFormatterService
 
             var metaParts = new List<string>();
             if (!string.IsNullOrWhiteSpace(rpt.CompanyName)) metaParts.Add(rpt.CompanyName!);
-            if (rpt.ShowDate) metaParts.Add($"Fecha: {DateTime.Now:yyyy-MM-dd HH:mm}");
+            if (rpt.ShowDate) metaParts.Add($"{T("export.meta.date", "Fecha")}: {DateTime.Now:yyyy-MM-dd HH:mm}");
             if (rpt.ShowProject && ds.Metadata.TryGetValue("projectId", out var pid) && pid is not null)
-                metaParts.Add($"Proyecto: {pid}");
+                metaParts.Add($"{T("export.meta.project", "Proyecto")}: {pid}");
             if (metaParts.Count > 0)
             {
                 var metaCell = ws.Cell(currentRow, textStartCol);
@@ -133,11 +153,11 @@ public class ExportFormatterService : IExportFormatterService
         if (rpt is not null && rpt.IncludeFilters
             && ds.Metadata.TryGetValue("appliedFilters", out var afRaw) && afRaw is not null)
         {
-            var filters = NormalizeAppliedFilters(afRaw);
+            var filters = NormalizeAppliedFilters(afRaw, T);
             if (filters.Count > 0)
             {
                 var hdr = ws.Cell(currentRow, 1);
-                hdr.Value = "Filtros aplicados";
+                hdr.Value = T("export.section.appliedFilters", "Filtros aplicados");
                 hdr.Style.Font.Bold = true;
                 hdr.Style.Font.FontColor = XLColor.White;
                 hdr.Style.Fill.BackgroundColor = accentColor;
@@ -215,7 +235,7 @@ public class ExportFormatterService : IExportFormatterService
                 currentRow++; // separador
                 // Título de bloque (ocupa toda la anchura del informe)
                 var hdr = ws.Cell(currentRow, 1);
-                hdr.Value = "Resumen";
+                hdr.Value = T("export.section.summary", "Resumen");
                 hdr.Style.Font.Bold = true;
                 hdr.Style.Font.FontColor = XLColor.White;
                 hdr.Style.Fill.BackgroundColor = accentColor;
@@ -224,7 +244,7 @@ public class ExportFormatterService : IExportFormatterService
 
                 // Cabecera de la sub-tabla
                 var colHeaderCell = ws.Cell(currentRow, 1);
-                colHeaderCell.Value = "Columna";
+                colHeaderCell.Value = T("export.summary.column", "Columna");
                 colHeaderCell.Style.Font.Bold = true;
                 colHeaderCell.Style.Font.FontColor = XLColor.White;
                 colHeaderCell.Style.Fill.BackgroundColor = headerColor;
@@ -355,7 +375,7 @@ public class ExportFormatterService : IExportFormatterService
     }
 
     // ───────────────────────── HTML ─────────────────────────
-    private static FormattedExport FormatHtml(ExportDataset ds, ReportDesignConfig? rpt)
+    private static FormattedExport FormatHtml(ExportDataset ds, ReportDesignConfig? rpt, Func<string, string, string> T, string? language)
     {
         var headerColor = SanitizeColor(rpt?.HeaderColor, "#17a2b8");
         var accentColor = SanitizeColor(rpt?.AccentColor, "#0b5566");
@@ -377,18 +397,18 @@ public class ExportFormatterService : IExportFormatterService
                 sb.Append($"<h2>{HtmlEscape(rpt.Subtitle!)}</h2>");
             var metaParts = new List<string>();
             if (!string.IsNullOrWhiteSpace(rpt.CompanyName)) metaParts.Add(HtmlEscape(rpt.CompanyName!));
-            if (rpt.ShowDate) metaParts.Add($"Fecha: {DateTime.Now:yyyy-MM-dd HH:mm}");
+            if (rpt.ShowDate) metaParts.Add($"{HtmlEscape(T("export.meta.date", "Fecha"))}: {DateTime.Now:yyyy-MM-dd HH:mm}");
             if (rpt.ShowProject && ds.Metadata.TryGetValue("projectId", out var pid) && pid is not null)
-                metaParts.Add($"Proyecto: {HtmlEscape(pid.ToString() ?? "")}");
+                metaParts.Add($"{HtmlEscape(T("export.meta.project", "Proyecto"))}: {HtmlEscape(pid.ToString() ?? "")}");
             if (metaParts.Count > 0)
                 sb.Append($"<p class=\"rpt-meta\">{string.Join(" &middot; ", metaParts)}</p>");
             sb.Append("</div></header>");
         }
         else
         {
-            sb.Append("<header class=\"rpt-header rpt-header-basic\"><h1>Informe</h1>");
+            sb.Append($"<header class=\"rpt-header rpt-header-basic\"><h1>{HtmlEscape(T("export.html.reportTitle", "Informe"))}</h1>");
             if (ds.Metadata.TryGetValue("generatedAt", out var when))
-                sb.Append($"<p class=\"rpt-meta\">Generado: {HtmlEscape(when?.ToString() ?? "")}</p>");
+                sb.Append($"<p class=\"rpt-meta\">{HtmlEscape(T("export.html.generated", "Generado"))}: {HtmlEscape(when?.ToString() ?? "")}</p>");
             sb.Append("</header>");
         }
 
@@ -396,10 +416,10 @@ public class ExportFormatterService : IExportFormatterService
         if (rpt is not null && rpt.IncludeFilters
             && ds.Metadata.TryGetValue("appliedFilters", out var afRaw) && afRaw is not null)
         {
-            var filters = NormalizeAppliedFilters(afRaw);
+            var filters = NormalizeAppliedFilters(afRaw, T);
             if (filters.Count > 0)
             {
-                sb.Append("<section class=\"rpt-filters\"><h3>Filtros aplicados</h3><dl>");
+                sb.Append($"<section class=\"rpt-filters\"><h3>{HtmlEscape(T("export.section.appliedFilters", "Filtros aplicados"))}</h3><dl>");
                 foreach (var (label, value) in filters)
                     sb.Append($"<dt>{HtmlEscape(label)}</dt><dd>{HtmlEscape(value)}</dd>");
                 sb.Append("</dl></section>");
@@ -436,9 +456,9 @@ public class ExportFormatterService : IExportFormatterService
                     .Where(col => summary.Any(s => s.Values.ContainsKey(col)))
                     .ToList();
                 var aggNames = summary.Select(s => s.AggName).ToList();
-                sb.Append("<h3 class=\"rpt-summary-title\">Resumen</h3>");
+                sb.Append($"<h3 class=\"rpt-summary-title\">{HtmlEscape(T("export.section.summary", "Resumen"))}</h3>");
                 sb.Append("<table class=\"rpt-summary-table\"><thead><tr>");
-                sb.Append("<th>Columna</th>");
+                sb.Append($"<th>{HtmlEscape(T("export.summary.column", "Columna"))}</th>");
                 foreach (var a in aggNames)
                     sb.Append($"<th>{HtmlEscape(a.ToUpperInvariant())}</th>");
                 sb.Append("</tr></thead><tbody>");
@@ -465,8 +485,8 @@ public class ExportFormatterService : IExportFormatterService
             sb.Append($"<footer class=\"rpt-footer\">{HtmlEscape(rpt.FooterText!)}</footer>");
 
         var full = $@"<!DOCTYPE html>
-<html lang=""es""><head><meta charset=""utf-8"" />
-<title>Informe</title>
+<html lang=""{HtmlEscape(MapLangToHtmlAttr(language))}""><head><meta charset=""utf-8"" />
+<title>{HtmlEscape(T("export.html.reportTitle", "Informe"))}</title>
 <style>
  body{{font-family:Segoe UI,Arial,sans-serif;margin:24px;color:#222;}}
  .rpt-header{{display:flex;gap:16px;align-items:center;border-bottom:3px solid {accentColor};padding-bottom:12px;margin-bottom:16px;}}
@@ -587,7 +607,7 @@ public class ExportFormatterService : IExportFormatterService
     /// Convierte <c>Metadata["appliedFilters"]</c> en lista de pares (etiqueta, valor)
     /// para mostrar arriba del informe. Acepta Dictionary o JsonElement.
     /// </summary>
-    private static List<(string Label, string Value)> NormalizeAppliedFilters(object? raw)
+    private static List<(string Label, string Value)> NormalizeAppliedFilters(object? raw, Func<string, string, string> T)
     {
         var result = new List<(string, string)>();
         if (raw is null) return result;
@@ -595,7 +615,7 @@ public class ExportFormatterService : IExportFormatterService
         if (raw is JsonElement je && je.ValueKind == JsonValueKind.Object)
         {
             foreach (var prop in je.EnumerateObject())
-                AddFilterEntry(result, prop.Name, JsonValueToString(prop.Value));
+                AddFilterEntry(result, prop.Name, JsonValueToString(prop.Value, T), T);
             return result;
         }
         if (raw is System.Collections.IDictionary dict)
@@ -608,48 +628,48 @@ public class ExportFormatterService : IExportFormatterService
                 // por JsonValueToString → FormatJsonObject para obtener un texto
                 // legible (p.ej. "Últimas 24 h" o "2026-05-25 → 2026-05-26").
                 var text = e.Value is JsonElement jev
-                    ? JsonValueToString(jev)
+                    ? JsonValueToString(jev, T)
                     : FormatScalar(e.Value);
-                AddFilterEntry(result, key, text);
+                AddFilterEntry(result, key, text, T);
             }
             return result;
         }
         // Fallback: lo serializamos y volcamos como única entrada.
         var s = raw.ToString();
-        if (!string.IsNullOrWhiteSpace(s)) result.Add(("filtros", s));
+        if (!string.IsNullOrWhiteSpace(s)) result.Add((T("export.filter.fallback", "filtros"), s));
         return result;
     }
 
     /// <summary>
     /// Añade una entrada a la lista de filtros aplicados solo si tiene valor real.
-    /// Aplica etiquetas legibles para claves técnicas conocidas.
+    /// Aplica etiquetas legibles (traducidas) para claves técnicas conocidas.
     /// </summary>
-    private static void AddFilterEntry(List<(string, string)> list, string key, string value)
+    private static void AddFilterEntry(List<(string, string)> list, string key, string value, Func<string, string, string> T)
     {
         if (string.IsNullOrWhiteSpace(value)) return;            // omitir vacíos
         if (string.Equals(value, "null", StringComparison.OrdinalIgnoreCase)) return;
         var label = key switch
         {
-            "dateRange" => "Rango de fechas",
-            "dateFrom"   => "Desde",
-            "dateTo"     => "Hasta",
-            "groupId"    => "Grupo (id)",
-            "groupName"  => "Grupo",
-            "uiType"     => "Tipo de vista",
+            "dateRange" => T("export.filter.dateRange", "Rango de fechas"),
+            "dateFrom"  => T("export.filter.dateFrom",  "Desde"),
+            "dateTo"    => T("export.filter.dateTo",    "Hasta"),
+            "groupId"   => T("export.filter.groupId",   "Grupo (id)"),
+            "groupName" => T("export.filter.groupName", "Grupo"),
+            "uiType"    => T("export.filter.uiType",    "Tipo de vista"),
             _ => key
         };
         list.Add((label, value));
     }
 
-    private static string JsonValueToString(JsonElement v) => v.ValueKind switch
+    private static string JsonValueToString(JsonElement v, Func<string, string, string> T) => v.ValueKind switch
     {
         JsonValueKind.String => v.GetString() ?? string.Empty,
         JsonValueKind.Number => v.ToString(),
         JsonValueKind.True => "true",
         JsonValueKind.False => "false",
         JsonValueKind.Null => string.Empty,
-        JsonValueKind.Array => string.Join(", ", v.EnumerateArray().Select(JsonValueToString)),
-        JsonValueKind.Object => FormatJsonObject(v),
+        JsonValueKind.Array => string.Join(", ", v.EnumerateArray().Select(x => JsonValueToString(x, T))),
+        JsonValueKind.Object => FormatJsonObject(v, T),
         _ => v.ToString()
     };
 
@@ -659,23 +679,23 @@ public class ExportFormatterService : IExportFormatterService
     /// si ambos están vacíos devuelve string vacío para que AddFilterEntry lo omita.
     /// El resto se renderiza como "k=v, k=v".
     /// </summary>
-    private static string FormatJsonObject(JsonElement obj)
+    private static string FormatJsonObject(JsonElement obj, Func<string, string, string> T)
     {
         // Caso 1: rango relativo { mode:"relative", value:N, unit:"m|h|d" }
         if (obj.TryGetProperty("mode", out var modeEl)
             && modeEl.ValueKind == JsonValueKind.String
             && string.Equals(modeEl.GetString(), "relative", StringComparison.OrdinalIgnoreCase))
         {
-            var v = obj.TryGetProperty("value", out var vEl) ? JsonValueToString(vEl) : "?";
-            var u = obj.TryGetProperty("unit",  out var uEl) ? JsonValueToString(uEl) : "";
+            var v = obj.TryGetProperty("value", out var vEl) ? JsonValueToString(vEl, T) : "?";
+            var u = obj.TryGetProperty("unit",  out var uEl) ? JsonValueToString(uEl, T) : "";
             var unitLabel = u switch
             {
-                "m" => "min",
-                "h" => "h",
-                "d" => "días",
+                "m" => T("export.filter.unit.min",  "min"),
+                "h" => T("export.filter.unit.h",    "h"),
+                "d" => T("export.filter.unit.days", "días"),
                 _   => u
             };
-            return $"Últimas {v} {unitLabel}".Trim();
+            return $"{T("export.filter.relative.last", "Últimas")} {v} {unitLabel}".Trim();
         }
 
         // Caso 2: rango absoluto {from, to} (con o sin mode:"absolute")
@@ -683,8 +703,8 @@ public class ExportFormatterService : IExportFormatterService
         var hasTo = obj.TryGetProperty("to", out var toEl);
         if (hasFrom || hasTo)
         {
-            var from = hasFrom ? JsonValueToString(fromEl) : string.Empty;
-            var to = hasTo ? JsonValueToString(toEl) : string.Empty;
+            var from = hasFrom ? JsonValueToString(fromEl, T) : string.Empty;
+            var to = hasTo ? JsonValueToString(toEl, T) : string.Empty;
             if (string.IsNullOrWhiteSpace(from) && string.IsNullOrWhiteSpace(to)) return string.Empty;
             if (string.IsNullOrWhiteSpace(from)) return $"… → {to}";
             if (string.IsNullOrWhiteSpace(to)) return $"{from} → …";
@@ -693,11 +713,22 @@ public class ExportFormatterService : IExportFormatterService
         var parts = new List<string>();
         foreach (var p in obj.EnumerateObject())
         {
-            var val = JsonValueToString(p.Value);
+            var val = JsonValueToString(p.Value, T);
             if (!string.IsNullOrWhiteSpace(val)) parts.Add($"{p.Name}={val}");
         }
         return string.Join(", ", parts);
     }
+
+    // Mapeo idioma de export (SPA/ENG/FRA/ITA) → código BCP-47 del atributo
+    // <html lang> y similares. Si no se reconoce, se usa "es" por compatibilidad.
+    private static string MapLangToHtmlAttr(string? lang) => (lang?.Trim().ToUpperInvariant()) switch
+    {
+        "ENG" => "en",
+        "FRA" => "fr",
+        "ITA" => "it",
+        "SPA" => "es",
+        _      => "es",
+    };
 
     /// <summary>
     /// Calcula agregaciones (SUM/AVG/MIN/MAX/COUNT) por columna. En modo "auto"

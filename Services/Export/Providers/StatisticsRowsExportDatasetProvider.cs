@@ -201,11 +201,17 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
             .Select(a => new { a.CycleId, a.AlarmCode, a.AlarmText })
             .ToListAsync(ct);
 
-        // Resolver textos legacy desde Excel cuando AlarmText == AlarmCode
+        // Resolver textos desde Excel. Si el usuario seleccionó un idioma distinto
+        // de SPA, siempre intentamos la resolución por Excel (que devuelve el texto
+        // en el idioma pedido); el AlarmText guardado en BD está siempre en SPA y
+        // se usa como fallback final.
+        var alarmLang = string.IsNullOrWhiteSpace(selection.Language) ? "SPA" : selection.Language!;
+        var isNonSpanish = !string.Equals(alarmLang, "SPA", StringComparison.OrdinalIgnoreCase);
         SW.PC.API.Backend.Models.Excel.AlarmConfiguration? alarmsCfg = null;
         try
         {
-            var needsLookup = cycleAlarms.Any(a => string.IsNullOrWhiteSpace(a.AlarmText) || a.AlarmText == a.AlarmCode);
+            var needsLookup = isNonSpanish
+                || cycleAlarms.Any(a => string.IsNullOrWhiteSpace(a.AlarmText) || a.AlarmText == a.AlarmCode);
             if (needsLookup)
             {
                 var excelPath = excelConfigService.GetExcelConfigPath();
@@ -216,8 +222,14 @@ public class StatisticsRowsExportDatasetProvider : IExportDatasetProvider
 
         string ResolveText(string code, string? text)
         {
+            // En idiomas distintos de SPA, priorizamos siempre la traducción del Excel.
+            if (isNonSpanish)
+            {
+                var translated = SW.PC.API.Backend.Services.Smm.SmmAlarmTextResolver.Resolve(alarmsCfg, code, alarmLang);
+                if (!string.IsNullOrWhiteSpace(translated)) return translated!;
+            }
             if (!string.IsNullOrWhiteSpace(text) && text != code) return text!;
-            var resolved = SW.PC.API.Backend.Services.Smm.SmmAlarmTextResolver.Resolve(alarmsCfg, code);
+            var resolved = SW.PC.API.Backend.Services.Smm.SmmAlarmTextResolver.Resolve(alarmsCfg, code, alarmLang);
             return !string.IsNullOrWhiteSpace(resolved) ? resolved : (text ?? code);
         }
 

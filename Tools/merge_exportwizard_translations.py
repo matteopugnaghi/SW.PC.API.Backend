@@ -266,20 +266,45 @@ ENTRIES = {
     "exportDest.field.fromAddress":        {"SPA": "Email remitente (From)",                                    "ENG": "Sender email (From)",                                         "FRA": "E-mail expéditeur (From)",                                        "ITA": "E-mail mittente (From)"},
     "exportDest.field.fromName":           {"SPA": "Nombre remitente",                                          "ENG": "Sender name",                                                 "FRA": "Nom de l'expéditeur",                                             "ITA": "Nome mittente"},
     "exportDest.field.defaultRecipients":  {"SPA": "Destinatarios por defecto (CSV, opcional)",                 "ENG": "Default recipients (CSV, optional)",                          "FRA": "Destinataires par défaut (CSV, optionnel)",                       "ITA": "Destinatari predefiniti (CSV, opzionale)"},
+
+    # ═══ Backend formatter: cadenas estáticas del informe XLSX/HTML ══════════════════════════════
+    # Usadas por Services/Export/ExportFormatterService.cs a través del lookup.
+    "export.sheet.dataName":           {"SPA": "Datos",              "ENG": "Data",              "FRA": "Données",          "ITA": "Dati"},
+    "export.meta.date":                {"SPA": "Fecha",              "ENG": "Date",              "FRA": "Date",              "ITA": "Data"},
+    "export.meta.project":             {"SPA": "Proyecto",           "ENG": "Project",           "FRA": "Projet",            "ITA": "Progetto"},
+    "export.section.appliedFilters":   {"SPA": "Filtros aplicados",  "ENG": "Applied filters",   "FRA": "Filtres appliqués", "ITA": "Filtri applicati"},
+    "export.section.summary":          {"SPA": "Resumen",            "ENG": "Summary",           "FRA": "Résumé",            "ITA": "Riepilogo"},
+    "export.summary.column":           {"SPA": "Columna",            "ENG": "Column",            "FRA": "Colonne",           "ITA": "Colonna"},
+    "export.html.reportTitle":         {"SPA": "Informe",            "ENG": "Report",            "FRA": "Rapport",           "ITA": "Report"},
+    "export.html.generated":           {"SPA": "Generado",           "ENG": "Generated",         "FRA": "Généré",            "ITA": "Generato"},
+    # Etiquetas legibles para claves técnicas de filtros aplicados
+    "export.filter.dateRange":         {"SPA": "Rango de fechas",    "ENG": "Date range",        "FRA": "Plage de dates",    "ITA": "Intervallo date"},
+    "export.filter.dateFrom":          {"SPA": "Desde",              "ENG": "From",              "FRA": "Du",                "ITA": "Da"},
+    "export.filter.dateTo":            {"SPA": "Hasta",              "ENG": "To",                "FRA": "Au",                "ITA": "A"},
+    "export.filter.groupId":           {"SPA": "Grupo (id)",         "ENG": "Group (id)",        "FRA": "Groupe (id)",       "ITA": "Gruppo (id)"},
+    "export.filter.groupName":         {"SPA": "Grupo",              "ENG": "Group",             "FRA": "Groupe",            "ITA": "Gruppo"},
+    "export.filter.uiType":            {"SPA": "Tipo de vista",      "ENG": "View type",         "FRA": "Type de vue",       "ITA": "Tipo di vista"},
+    "export.filter.fallback":          {"SPA": "filtros",            "ENG": "filters",           "FRA": "filtres",           "ITA": "filtri"},
+    "export.filter.relative.last":     {"SPA": "Últimas",            "ENG": "Last",              "FRA": "Dernières",         "ITA": "Ultime"},
+    "export.filter.unit.min":          {"SPA": "min",                "ENG": "min",               "FRA": "min",               "ITA": "min"},
+    "export.filter.unit.h":            {"SPA": "h",                  "ENG": "h",                 "FRA": "h",                 "ITA": "h"},
+    "export.filter.unit.days":         {"SPA": "días",               "ENG": "days",              "FRA": "jours",             "ITA": "giorni"},
 }
 
 # Page-level groupings (which translations.json "pages" entry each key belongs to)
 PAGE_GROUPS = {
-    "EXPORT_WIZARD": "exportWizard.",
-    "EXPORT_TASKS":  "exportTasks.",
-    "EXPORT_MODAL":  "exportModal.",
-    "EXPORT_DEST":   "exportDest.",
+    "EXPORT_WIZARD":   "exportWizard.",
+    "EXPORT_TASKS":    "exportTasks.",
+    "EXPORT_MODAL":    "exportModal.",
+    "EXPORT_DEST":     "exportDest.",
+    "EXPORT_FORMATTER": "export.",
 }
 PAGE_DESCRIPTIONS = {
-    "EXPORT_WIZARD": "Wizard de exportación (Aquafrisch Export Manager)",
-    "EXPORT_TASKS":  "Listado de tareas persistentes del Export Manager",
-    "EXPORT_MODAL":  "Modal anfitrión de exportación (Imprimir / QR / Gestor)",
-    "EXPORT_DEST":   "Gestor de destinos de exportación (carpetas + SMTP)",
+    "EXPORT_WIZARD":   "Wizard de exportación (Aquafrisch Export Manager)",
+    "EXPORT_TASKS":    "Listado de tareas persistentes del Export Manager",
+    "EXPORT_MODAL":    "Modal anfitrión de exportación (Imprimir / QR / Gestor)",
+    "EXPORT_DEST":     "Gestor de destinos de exportación (carpetas + SMTP)",
+    "EXPORT_FORMATTER":"Cadenas estáticas del informe generado (XLSX/HTML)",
 }
 
 
@@ -312,10 +337,20 @@ def merge_one(target: Path) -> int:
 
     pages = data.get("pages")
     if pages is not None:
+        # Para evitar solapes (p.ej. "export." captura tambi\u00e9n "exportWizard."),
+        # un label se asigna a la p\u00e1gina cuyo prefijo coincidente es MÁS LARGO.
+        all_prefixes = list(PAGE_GROUPS.values())
+
+        def best_prefix(key: str) -> str | None:
+            matches = [p for p in all_prefixes if key.startswith(p)]
+            if not matches:
+                return None
+            return max(matches, key=len)
+
         for page_id, prefix in PAGE_GROUPS.items():
             pages[page_id] = OrderedDict([
                 ("description", PAGE_DESCRIPTIONS[page_id]),
-                ("labels", [k for k in ENTRIES.keys() if k.startswith(prefix)]),
+                ("labels", [k for k in ENTRIES.keys() if best_prefix(k) == prefix]),
             ])
 
     md = data.get("metadata")

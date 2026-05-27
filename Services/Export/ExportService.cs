@@ -54,6 +54,7 @@ public class ExportService : IExportService
     private readonly IRequestProjectContext _projectContext;
     private readonly IExcelConfigService _excelConfig;
     private readonly IExportProfileService _profiles;
+    private readonly IExportTranslationLookup _translations;
     private readonly IAuditLogService _audit;
     private readonly ILogger<ExportService> _logger;
 
@@ -65,6 +66,7 @@ public class ExportService : IExportService
         IRequestProjectContext projectContext,
         IExcelConfigService excelConfig,
         IExportProfileService profiles,
+        IExportTranslationLookup translations,
         IAuditLogService audit,
         ILogger<ExportService> logger)
     {
@@ -75,6 +77,7 @@ public class ExportService : IExportService
         _projectContext = projectContext;
         _excelConfig = excelConfig;
         _profiles = profiles;
+        _translations = translations;
         _audit = audit;
         _logger = logger;
     }
@@ -267,7 +270,11 @@ public class ExportService : IExportService
             }
 
             // 3) Formatear bytes (incluyendo diseño del informe si aplica)
-            var formatted = _formatter.Format(dataset, task.Format, config.Report);
+            // El traductor permite localizar las cadenas estáticas del informe
+            // ("Filtros aplicados", "Resumen", "Columna", etc.) según selection.Language.
+            var lang = selection.Language;
+            Func<string, string, string> translate = (key, fb) => _translations.GetLabel(key, lang, fb);
+            var formatted = _formatter.Format(dataset, task.Format, config.Report, translate, lang);
             var filename = ResolveFilenameTokens(config.Filename, formatted.Extension, dataset.Metadata);
 
             // 4) Cargar SystemConfig (AllowedFolders + SMTP legacy desde Excel)

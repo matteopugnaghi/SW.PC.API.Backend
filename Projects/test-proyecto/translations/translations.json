@@ -1184,6 +1184,30 @@
                 "exportDest.field.fromName",
                 "exportDest.field.defaultRecipients"
             ]
+        },
+        "EXPORT_FORMATTER": {
+            "description": "Cadenas estáticas del informe generado (XLSX/HTML)",
+            "labels": [
+                "export.sheet.dataName",
+                "export.meta.date",
+                "export.meta.project",
+                "export.section.appliedFilters",
+                "export.section.summary",
+                "export.summary.column",
+                "export.html.reportTitle",
+                "export.html.generated",
+                "export.filter.dateRange",
+                "export.filter.dateFrom",
+                "export.filter.dateTo",
+                "export.filter.groupId",
+                "export.filter.groupName",
+                "export.filter.uiType",
+                "export.filter.fallback",
+                "export.filter.relative.last",
+                "export.filter.unit.min",
+                "export.filter.unit.h",
+                "export.filter.unit.days"
+            ]
         }
     },
     "translations": {
@@ -14602,6 +14626,120 @@
             "ENG": "Default recipients (CSV, optional)",
             "FRA": "Destinataires par défaut (CSV, optionnel)",
             "ITA": "Destinatari predefiniti (CSV, opzionale)"
+        },
+        "export.sheet.dataName": {
+            "SPA": "Datos",
+            "ENG": "Data",
+            "FRA": "Données",
+            "ITA": "Dati"
+        },
+        "export.meta.date": {
+            "SPA": "Fecha",
+            "ENG": "Date",
+            "FRA": "Date",
+            "ITA": "Data"
+        },
+        "export.meta.project": {
+            "SPA": "Proyecto",
+            "ENG": "Project",
+            "FRA": "Projet",
+            "ITA": "Progetto"
+        },
+        "export.section.appliedFilters": {
+            "SPA": "Filtros aplicados",
+            "ENG": "Applied filters",
+            "FRA": "Filtres appliqués",
+            "ITA": "Filtri applicati"
+        },
+        "export.section.summary": {
+            "SPA": "Resumen",
+            "ENG": "Summary",
+            "FRA": "Résumé",
+            "ITA": "Riepilogo"
+        },
+        "export.summary.column": {
+            "SPA": "Columna",
+            "ENG": "Column",
+            "FRA": "Colonne",
+            "ITA": "Colonna"
+        },
+        "export.html.reportTitle": {
+            "SPA": "Informe",
+            "ENG": "Report",
+            "FRA": "Rapport",
+            "ITA": "Report"
+        },
+        "export.html.generated": {
+            "SPA": "Generado",
+            "ENG": "Generated",
+            "FRA": "Généré",
+            "ITA": "Generato"
+        },
+        "export.filter.dateRange": {
+            "SPA": "Rango de fechas",
+            "ENG": "Date range",
+            "FRA": "Plage de dates",
+            "ITA": "Intervallo date"
+        },
+        "export.filter.dateFrom": {
+            "SPA": "Desde",
+            "ENG": "From",
+            "FRA": "Du",
+            "ITA": "Da"
+        },
+        "export.filter.dateTo": {
+            "SPA": "Hasta",
+            "ENG": "To",
+            "FRA": "Au",
+            "ITA": "A"
+        },
+        "export.filter.groupId": {
+            "SPA": "Grupo (id)",
+            "ENG": "Group (id)",
+            "FRA": "Groupe (id)",
+            "ITA": "Gruppo (id)"
+        },
+        "export.filter.groupName": {
+            "SPA": "Grupo",
+            "ENG": "Group",
+            "FRA": "Groupe",
+            "ITA": "Gruppo"
+        },
+        "export.filter.uiType": {
+            "SPA": "Tipo de vista",
+            "ENG": "View type",
+            "FRA": "Type de vue",
+            "ITA": "Tipo di vista"
+        },
+        "export.filter.fallback": {
+            "SPA": "filtros",
+            "ENG": "filters",
+            "FRA": "filtres",
+            "ITA": "filtri"
+        },
+        "export.filter.relative.last": {
+            "SPA": "Últimas",
+            "ENG": "Last",
+            "FRA": "Dernières",
+            "ITA": "Ultime"
+        },
+        "export.filter.unit.min": {
+            "SPA": "min",
+            "ENG": "min",
+            "FRA": "min",
+            "ITA": "min"
+        },
+        "export.filter.unit.h": {
+            "SPA": "h",
+            "ENG": "h",
+            "FRA": "h",
+            "ITA": "h"
+        },
+        "export.filter.unit.days": {
+            "SPA": "días",
+            "ENG": "days",
+            "FRA": "jours",
+            "ITA": "giorni"
         }
     }
 }
