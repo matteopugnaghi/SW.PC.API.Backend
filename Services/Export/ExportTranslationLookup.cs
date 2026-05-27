@@ -84,12 +84,38 @@ public class ExportTranslationLookup : IExportTranslationLookup
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
+        // El archivo del proyecto tiene la forma:
+        //   { "metadata": {...}, "pages": {...}, "translations": { labelId: { LANG: text } } }
+        // Por compatibilidad aceptamos también labels colgando de la raíz
+        // (formato plano que usaron versiones tempranas).
         var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var prop in root.EnumerateObject())
+
+        if (root.TryGetProperty("translations", out var trEl) && trEl.ValueKind == JsonValueKind.Object)
         {
-            // Ignorar metadata/pages — el resto son labels { LANG: "texto" }
-            if (prop.Name.Equals("metadata", StringComparison.OrdinalIgnoreCase)) continue;
-            if (prop.Name.Equals("pages", StringComparison.OrdinalIgnoreCase)) continue;
+            FillFromLabels(trEl, result);
+        }
+        else
+        {
+            FillFromLabels(root, result, skipReservedRoots: true);
+        }
+
+        lock (_cacheLock) { _cache[projectId] = (result, DateTime.Now); }
+        return result;
+    }
+
+    private static void FillFromLabels(
+        JsonElement labelsObj,
+        Dictionary<string, Dictionary<string, string>> target,
+        bool skipReservedRoots = false)
+    {
+        foreach (var prop in labelsObj.EnumerateObject())
+        {
+            if (skipReservedRoots)
+            {
+                if (prop.Name.Equals("metadata", StringComparison.OrdinalIgnoreCase)) continue;
+                if (prop.Name.Equals("pages", StringComparison.OrdinalIgnoreCase)) continue;
+                if (prop.Name.Equals("translations", StringComparison.OrdinalIgnoreCase)) continue;
+            }
             if (prop.Value.ValueKind != JsonValueKind.Object) continue;
 
             var inner = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -98,10 +124,7 @@ public class ExportTranslationLookup : IExportTranslationLookup
                 if (langProp.Value.ValueKind == JsonValueKind.String)
                     inner[langProp.Name] = langProp.Value.GetString() ?? "";
             }
-            if (inner.Count > 0) result[prop.Name] = inner;
+            if (inner.Count > 0) target[prop.Name] = inner;
         }
-
-        lock (_cacheLock) { _cache[projectId] = (result, DateTime.Now); }
-        return result;
     }
 }
