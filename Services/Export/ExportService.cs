@@ -275,6 +275,21 @@ public class ExportService : IExportService
             var lang = selection.Language;
             Func<string, string, string> translate = (key, fb) => _translations.GetLabel(key, lang, fb);
             var formatted = _formatter.Format(dataset, task.Format, config.Report, translate, lang);
+
+            // Tokens contextuales adicionales para ResolveFilenameTokens:
+            // source, dataset, format, project, taskId, taskName, year, month, day, uuid.
+            var nowCtx = DateTime.Now;
+            dataset.Metadata.TryAdd("source", task.Source ?? string.Empty);
+            dataset.Metadata.TryAdd("dataset", task.DatasetProvider ?? string.Empty);
+            dataset.Metadata.TryAdd("format", task.Format ?? string.Empty);
+            dataset.Metadata.TryAdd("project", task.ProjectId ?? string.Empty);
+            dataset.Metadata.TryAdd("taskId", task.Id);
+            dataset.Metadata.TryAdd("taskName", task.Name ?? string.Empty);
+            dataset.Metadata.TryAdd("year", nowCtx.ToString("yyyy"));
+            dataset.Metadata.TryAdd("month", nowCtx.ToString("MM"));
+            dataset.Metadata.TryAdd("day", nowCtx.ToString("dd"));
+            dataset.Metadata.TryAdd("uuid", Guid.NewGuid().ToString("N").Substring(0, 8));
+
             var filename = ResolveFilenameTokens(config.Filename, formatted.Extension, dataset.Metadata);
 
             // 4) Cargar SystemConfig (AllowedFolders + SMTP legacy desde Excel)

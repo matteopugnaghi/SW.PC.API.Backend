@@ -75,6 +75,26 @@ public class LocalFileRunner : IExportRunner
         try
         {
             Directory.CreateDirectory(canonicalFolder);
+
+            // Estrategia anti-sobreescritura (incremental / skip)
+            var strategy = (ctx.Config?.OnFileExists ?? "overwrite").Trim().ToLowerInvariant();
+            if (File.Exists(fullPath))
+            {
+                if (strategy == "skip")
+                {
+                    result.Success = true;
+                    result.Path = fullPath;
+                    result.SizeBytes = new FileInfo(fullPath).Length;
+                    result.ErrorMessage = $"Archivo ya existe — escritura omitida (estrategia 'skip').";
+                    return result;
+                }
+                if (strategy == "rename")
+                {
+                    fullPath = FindNextAvailablePath(fullPath);
+                }
+                // 'overwrite' o cualquier otro valor → comportamiento por defecto
+            }
+
             await File.WriteAllBytesAsync(fullPath, ctx.File.Bytes, ct);
 
             result.Success = true;
@@ -123,5 +143,23 @@ public class LocalFileRunner : IExportRunner
         // Bloquea separadores y referencias relativas explícitas.
         if (filename.Contains('/') || filename.Contains('\\') || filename.Contains("..")) return false;
         return true;
+    }
+
+    /// <summary>
+    /// Busca el siguiente nombre libre añadiendo sufijo _001, _002, … antes de la extensión.
+    /// Ej.: <c>report.xlsx</c> → <c>report_001.xlsx</c> si ya existe.
+    /// Aborta tras 9999 intentos (devuelve la última ruta probada).
+    /// </summary>
+    private static string FindNextAvailablePath(string fullPath)
+    {
+        var dir = Path.GetDirectoryName(fullPath) ?? string.Empty;
+        var name = Path.GetFileNameWithoutExtension(fullPath);
+        var ext = Path.GetExtension(fullPath);
+        for (int i = 1; i <= 9999; i++)
+        {
+            var candidate = Path.Combine(dir, $"{name}_{i:D3}{ext}");
+            if (!File.Exists(candidate)) return candidate;
+        }
+        return Path.Combine(dir, $"{name}_{DateTime.Now:yyyyMMddHHmmssfff}{ext}");
     }
 }

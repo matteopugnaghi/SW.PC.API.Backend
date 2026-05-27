@@ -370,6 +370,16 @@ builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvi
                             SW.PC.API.Backend.Services.Export.Providers.SbomExportDatasetProvider>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
                             SW.PC.API.Backend.Services.Export.Providers.IntegrityCertificateExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.DeploymentCertificatesExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.AuthorizedSigningKeysExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.SslCertificateExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.MaintenanceElementsHealthExportDatasetProvider>();
+builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetProvider,
+                            SW.PC.API.Backend.Services.Export.Providers.MaintenanceInterventionsExportDatasetProvider>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportDatasetRegistry,
                             SW.PC.API.Backend.Services.Export.ExportDatasetRegistry>();
 builder.Services.AddScoped<SW.PC.API.Backend.Services.Export.IExportTranslationLookup,

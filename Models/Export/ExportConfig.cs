@@ -27,6 +27,14 @@ public class ExportConfig
     public ExportEmailConfig? Email { get; set; }
 
     /// <summary>
+    /// Estrategia cuando el archivo destino ya existe (solo destino "local"):
+    ///   - "overwrite" (default): sobreescribe el archivo existente.
+    ///   - "rename": añade sufijo numérico incremental (_001, _002, …) hasta encontrar un nombre libre.
+    ///   - "skip": no escribe nada y devuelve Success=true con mensaje informativo.
+    /// </summary>
+    public string? OnFileExists { get; set; } = "overwrite";
+
+    /// <summary>
     /// Diseño del informe (cabecera, logo, resumen, pie). Solo aplica a
     /// formatos enriquecidos: <c>xlsx</c> y <c>html</c>. Si es null el
     /// formatter usa el layout básico (sin marca/empresa/resumen).

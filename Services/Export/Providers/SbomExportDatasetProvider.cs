@@ -29,7 +29,7 @@ public class SbomExportDatasetProvider : IExportDatasetProvider
     }
 
     public string DatasetId => "cra.sbom";
-    public string Source => "integrity";
+    public string Source => "sbom";
     public string DisplayName => "SBOM (componentes)";
 
     private static readonly Dictionary<string, (string Key, string Es)> ColumnI18n = new(StringComparer.OrdinalIgnoreCase)
