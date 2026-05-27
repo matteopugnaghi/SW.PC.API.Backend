@@ -465,18 +465,28 @@ public class ExportService : IExportService
              .Distinct()
              .ToArray();
 
-    private static ExportConfig DeserializeConfig(string json)
+    private ExportConfig DeserializeConfig(string json)
     {
         if (string.IsNullOrWhiteSpace(json)) return new ExportConfig();
         try { return JsonSerializer.Deserialize<ExportConfig>(json) ?? new ExportConfig(); }
-        catch { return new ExportConfig(); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[Export] DeserializeConfig falló — usando config vacía. JSON inicio: {Head}",
+                json.Length > 120 ? json[..120] + "…" : json);
+            return new ExportConfig();
+        }
     }
 
-    private static ExportSelection DeserializeSelection(string json)
+    private ExportSelection DeserializeSelection(string json)
     {
         if (string.IsNullOrWhiteSpace(json)) return new ExportSelection();
         try { return JsonSerializer.Deserialize<ExportSelection>(json) ?? new ExportSelection(); }
-        catch { return new ExportSelection(); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[Export] DeserializeSelection falló — usando selección vacía. JSON inicio: {Head}",
+                json.Length > 120 ? json[..120] + "…" : json);
+            return new ExportSelection();
+        }
     }
 
     /// <summary>
@@ -571,7 +581,7 @@ public class ExportService : IExportService
 
     private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max];
 
-    private static ExportTaskResponse ToResponse(ExportTask t) => new()
+    private ExportTaskResponse ToResponse(ExportTask t) => new()
     {
         Id = t.Id,
         ProjectId = t.ProjectId,

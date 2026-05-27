@@ -269,7 +269,13 @@ public class ExportTasksController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Export.Preview rechazado por validación (dataset={Dataset})", req?.DatasetProvider);
             return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Export.Preview error inesperado (dataset={Dataset})", req?.DatasetProvider);
+            return StatusCode(500, new { error = ex.Message, type = ex.GetType().Name });
         }
     }
 

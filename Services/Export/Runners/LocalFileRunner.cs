@@ -12,12 +12,18 @@
 //   - El filename NO puede contener separadores ni caracteres prohibidos.
 // ============================================================================
 
+using Microsoft.Extensions.Logging;
 using SW.PC.API.Backend.Models.Export;
 
 namespace SW.PC.API.Backend.Services.Export.Runners;
 
 public class LocalFileRunner : IExportRunner
 {
+    private readonly ILogger<LocalFileRunner>? _logger;
+
+    public LocalFileRunner() { }
+    public LocalFileRunner(ILogger<LocalFileRunner> logger) { _logger = logger; }
+
     public string DestinationType => "local";
 
     public async Task<ExportResult> ExecuteAsync(ExportRunContext ctx, CancellationToken ct = default)
@@ -103,16 +109,19 @@ public class LocalFileRunner : IExportRunner
         }
         catch (UnauthorizedAccessException ex)
         {
+            _logger?.LogWarning(ex, "[ExportLocal] Permisos insuficientes escribiendo en '{Folder}'", canonicalFolder);
             result.Success = false;
             result.ErrorMessage = $"Permisos insuficientes para escribir en '{canonicalFolder}': {ex.Message}";
         }
         catch (IOException ex)
         {
+            _logger?.LogWarning(ex, "[ExportLocal] Error de E/S escribiendo en '{Path}'", fullPath);
             result.Success = false;
             result.ErrorMessage = $"Error de E/S: {ex.Message}";
         }
         catch (Exception ex)
         {
+            _logger?.LogError(ex, "[ExportLocal] Error inesperado escribiendo en '{Path}'", fullPath);
             result.Success = false;
             result.ErrorMessage = $"Error inesperado: {ex.Message}";
         }

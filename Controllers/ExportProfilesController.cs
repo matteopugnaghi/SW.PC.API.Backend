@@ -64,6 +64,11 @@ public class ExportProfilesController : ControllerBase
             await AuditAsync(AuditAction.ExportTaskCreate, AuditResult.Failure, $"FolderProfile validación fallida: {ex.Message}", uid, uname);
             return BadRequest(new { error = ex.Message });
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Export.CreateFolder error inesperado (name='{Name}')", req?.Name);
+            return StatusCode(500, new { error = ex.Message, type = ex.GetType().Name });
+        }
     }
 
     [HttpPut("folders/{id}")]
@@ -82,17 +87,30 @@ public class ExportProfilesController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Export.UpdateFolder error inesperado (id={Id})", id);
+            return StatusCode(500, new { error = ex.Message, type = ex.GetType().Name });
+        }
     }
 
     [HttpDelete("folders/{id}")]
     public async Task<IActionResult> DeleteFolder(string id, CancellationToken ct = default)
     {
         var (uid, uname) = GetUser();
-        var ok = await _service.DeleteFolderProfileAsync(id, ct);
-        if (!ok) return NotFound();
-        await AuditAsync(AuditAction.ExportTaskDelete, AuditResult.Success,
-            $"FolderProfile eliminado id={id}", uid, uname);
-        return NoContent();
+        try
+        {
+            var ok = await _service.DeleteFolderProfileAsync(id, ct);
+            if (!ok) return NotFound();
+            await AuditAsync(AuditAction.ExportTaskDelete, AuditResult.Success,
+                $"FolderProfile eliminado id={id}", uid, uname);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Export.DeleteFolder error inesperado (id={Id})", id);
+            return StatusCode(500, new { error = ex.Message, type = ex.GetType().Name });
+        }
     }
 
     // ───────────── EMAIL PROFILES ─────────────
@@ -124,6 +142,11 @@ public class ExportProfilesController : ControllerBase
             await AuditAsync(AuditAction.ExportTaskCreate, AuditResult.Failure, $"EmailProfile validación fallida: {ex.Message}", uid, uname);
             return BadRequest(new { error = ex.Message });
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Export.CreateEmail error inesperado (name='{Name}', host='{Host}')", req?.Name, req?.Host);
+            return StatusCode(500, new { error = ex.Message, type = ex.GetType().Name });
+        }
     }
 
     [HttpPut("emails/{id}")]
@@ -143,29 +166,50 @@ public class ExportProfilesController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Export.UpdateEmail error inesperado (id={Id})", id);
+            return StatusCode(500, new { error = ex.Message, type = ex.GetType().Name });
+        }
     }
 
     [HttpDelete("emails/{id}")]
     public async Task<IActionResult> DeleteEmail(string id, CancellationToken ct = default)
     {
         var (uid, uname) = GetUser();
-        var ok = await _service.DeleteEmailProfileAsync(id, ct);
-        if (!ok) return NotFound();
-        await AuditAsync(AuditAction.ExportTaskDelete, AuditResult.Success,
-            $"EmailProfile eliminado id={id}", uid, uname);
-        return NoContent();
+        try
+        {
+            var ok = await _service.DeleteEmailProfileAsync(id, ct);
+            if (!ok) return NotFound();
+            await AuditAsync(AuditAction.ExportTaskDelete, AuditResult.Success,
+                $"EmailProfile eliminado id={id}", uid, uname);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Export.DeleteEmail error inesperado (id={Id})", id);
+            return StatusCode(500, new { error = ex.Message, type = ex.GetType().Name });
+        }
     }
 
     [HttpPost("emails/{id}/test")]
     public async Task<IActionResult> TestEmail(string id, [FromBody] ExportEmailTestRequest req, CancellationToken ct = default)
     {
         var (uid, uname) = GetUser();
-        var resp = await _service.TestEmailProfileAsync(id, req, ct);
-        await AuditAsync(
-            AuditAction.ExportTaskRun,
-            resp.Success ? AuditResult.Success : AuditResult.Failure,
-            $"EmailProfile {id} test → {req.To}: {resp.Message}", uid, uname);
-        return resp.Success ? Ok(resp) : BadRequest(resp);
+        try
+        {
+            var resp = await _service.TestEmailProfileAsync(id, req, ct);
+            await AuditAsync(
+                AuditAction.ExportTaskRun,
+                resp.Success ? AuditResult.Success : AuditResult.Failure,
+                $"EmailProfile {id} test → {req.To}: {resp.Message}", uid, uname);
+            return resp.Success ? Ok(resp) : BadRequest(resp);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Export.TestEmail error inesperado (id={Id}, to='{To}')", id, req?.To);
+            return StatusCode(500, new { error = ex.Message, type = ex.GetType().Name });
+        }
     }
 
     // ───────────── Helpers ─────────────

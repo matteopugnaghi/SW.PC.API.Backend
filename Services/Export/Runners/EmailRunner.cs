@@ -9,12 +9,18 @@
 
 using System.Net;
 using System.Net.Mail;
+using Microsoft.Extensions.Logging;
 using SW.PC.API.Backend.Models.Export;
 
 namespace SW.PC.API.Backend.Services.Export.Runners;
 
 public class EmailRunner : IExportRunner
 {
+    private readonly ILogger<EmailRunner>? _logger;
+
+    public EmailRunner() { }
+    public EmailRunner(ILogger<EmailRunner> logger) { _logger = logger; }
+
     public string DestinationType => "email";
 
     public async Task<ExportResult> ExecuteAsync(ExportRunContext ctx, CancellationToken ct = default)
@@ -71,16 +77,21 @@ public class EmailRunner : IExportRunner
         }
         catch (FormatException ex)
         {
+            _logger?.LogWarning(ex, "[ExportEmail] Dirección de correo inválida (task='{Task}')", ctx.Task.Name);
             result.Success = false;
             result.ErrorMessage = $"Dirección de correo inválida: {ex.Message}";
         }
         catch (SmtpException ex)
         {
+            _logger?.LogWarning(ex, "[ExportEmail] Fallo SMTP {Status} enviando a '{Host}:{Port}' (task='{Task}')",
+                ex.StatusCode, ctx.Smtp.Host, ctx.Smtp.Port, ctx.Task.Name);
             result.Success = false;
             result.ErrorMessage = $"Error SMTP ({ex.StatusCode}): {ex.Message}";
         }
         catch (Exception ex)
         {
+            _logger?.LogError(ex, "[ExportEmail] Error inesperado enviando email (task='{Task}', host='{Host}')",
+                ctx.Task.Name, ctx.Smtp.Host);
             result.Success = false;
             result.ErrorMessage = $"Error inesperado: {ex.Message}";
         }
