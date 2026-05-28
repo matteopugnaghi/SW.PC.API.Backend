@@ -634,19 +634,28 @@ public static class AquafrischDbContextFactory
         }
         
         // Crear base de datos si no existe
-        await context.Database.EnsureCreatedAsync();
-        
+        await RunStepAsync("EnsureCreatedAsync", () => context.Database.EnsureCreatedAsync());
+
         // Asegurar que TODAS las tablas auxiliares existen y tienen seed data
-        // (OperationLogs, MachineSettings, WashTypes, TrainTypes, EtherCAT, Documents, Categories, etc.)
-        await EnsureOperationLogsTableAsync(context);
-        await EnsureMachineSettingsTableAsync(context);
-        await EnsureWashTypesTablesAsync(context);
-        await EnsureTrainTypesTablesAsync(context);
-        await EnsureEtherCATSavedConfigurationsTableAsync(context);
-        await EnsureDocumentsTablesAsync(context);
-        await EnsureSmmTablesAsync(context);
-        await EnsureExportTasksTableAsync(context);
-        await EnsureExportProfileTablesAsync(context);
+        await RunStepAsync(nameof(EnsureOperationLogsTableAsync), () => EnsureOperationLogsTableAsync(context));
+        await RunStepAsync(nameof(EnsureMachineSettingsTableAsync), () => EnsureMachineSettingsTableAsync(context));
+        await RunStepAsync(nameof(EnsureWashTypesTablesAsync), () => EnsureWashTypesTablesAsync(context));
+        await RunStepAsync(nameof(EnsureTrainTypesTablesAsync), () => EnsureTrainTypesTablesAsync(context));
+        await RunStepAsync(nameof(EnsureEtherCATSavedConfigurationsTableAsync), () => EnsureEtherCATSavedConfigurationsTableAsync(context));
+        await RunStepAsync(nameof(EnsureDocumentsTablesAsync), () => EnsureDocumentsTablesAsync(context));
+        await RunStepAsync(nameof(EnsureSmmTablesAsync), () => EnsureSmmTablesAsync(context));
+        await RunStepAsync(nameof(EnsureExportTasksTableAsync), () => EnsureExportTasksTableAsync(context));
+        await RunStepAsync(nameof(EnsureExportProfileTablesAsync), () => EnsureExportProfileTablesAsync(context));
+
+        static async Task RunStepAsync(string step, Func<Task> action)
+        {
+            try { await action(); }
+            catch (Exception ex)
+            {
+                // Re-throw envolviendo con el nombre del paso para identificar al culpable en logs
+                throw new InvalidOperationException($"[EnsureDatabaseCreatedAsync] Paso '{step}' falló: {ex.GetType().Name}: {ex.Message}", ex);
+            }
+        }
     }
     
     /// <summary>

@@ -190,7 +190,10 @@ public class ProjectDbContextFactory : IProjectDbContextFactory
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Lazy-init schema falló para {Path}", dbPath);
+                // Log con stack completo (incluye InnerException) para identificar
+                // el paso de schema que falla (cada Ensure*Async va envuelto en
+                // RunStepAsync en AquafrischDbContextFactory.EnsureDatabaseCreatedAsync).
+                _logger.LogError(ex, "Lazy-init schema falló para {Path}\n--- Detalle ---\n{Detail}", dbPath, ex.ToString());
                 _ensuredPaths.TryRemove(dbPath, out _);
             }
         }
