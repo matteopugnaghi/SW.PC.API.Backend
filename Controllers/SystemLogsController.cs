@@ -119,10 +119,10 @@ namespace SW.PC.API.Backend.Controllers
         // ═══════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Clear all entries from the buffer. Restricted to Administrator/SuperAdmin roles.
+        /// Clear all entries from the buffer. Restricted to Administrator/SuperAdmin/Maintenance roles.
         /// </summary>
         [HttpDelete]
-        [Authorize(Roles = "Administrator,SuperAdmin")]
+        [Authorize(Roles = "Administrator,SuperAdmin,Maintenance")]
         public ActionResult Clear()
         {
             try
