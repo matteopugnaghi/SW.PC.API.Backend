@@ -234,7 +234,15 @@ public class NxLogFileService : INxLogFileService
         lock (_configLock)
         {
             if (_configLoaded) return;
-            
+
+            // 🛡️ Marcar PRIMERO para romper recursión:
+            //   LoadSystemConfigurationAsync → LogSystemConfigDiffAsync (audit) →
+            //   AuditLogService.LogAsync → NxLogFileService.WriteAuditEventAsync →
+            //   EnsureConfigLoaded → LoadSystemConfigurationAsync → ... → StackOverflow.
+            // El `lock` C# es reentrante (mismo thread), así que sin este flag-first
+            // la cadena fire-and-forget de audit-diff cae en bucle infinito.
+            _configLoaded = true;
+
             try
             {
                 var excelPath = _projectContext.ExcelConfigPath;
@@ -254,8 +262,6 @@ public class NxLogFileService : INxLogFileService
                 _logger.LogWarning(ex, "⚠️ Error loading NxLog config from Excel, defaulting to disabled");
                 _enabled = false;
             }
-            
-            _configLoaded = true;
         }
     }
     
