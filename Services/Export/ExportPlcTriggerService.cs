@@ -101,6 +101,9 @@ public class ExportPlcTriggerService : BackgroundService, IExportPlcTriggerServi
             var dbFactory = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>();
             using var db = dbFactory.CreateDbContext();
 
+            // Auto-heal: garantiza la tabla en cada refresh (idempotente y barato)
+            await AquafrischDbContextFactory.EnsureExportTasksTableAsync(db);
+
             var plcTasks = await db.ExportTasks
                 .Where(t => t.ExecutionType == "plc"
                             && t.Enabled

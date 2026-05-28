@@ -97,6 +97,9 @@ public class ExportCronSchedulerService : BackgroundService, IExportCronSchedule
             var dbFactory = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>();
             using var db = dbFactory.CreateDbContext();
 
+            // Auto-heal: garantiza la tabla en cada tick (idempotente y barato)
+            await AquafrischDbContextFactory.EnsureExportTasksTableAsync(db);
+
             var candidates = await db.ExportTasks
                 .Where(t => t.ExecutionType == "cron"
                             && t.Enabled
