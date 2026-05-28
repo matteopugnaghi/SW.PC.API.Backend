@@ -534,10 +534,81 @@ if (Should-Run 'Accounts') {
     if (Test-Path $avatarScript) {
         Write-Step 'Accounts' "Asignando avatar Aquafrisch a usuarios..." 'INFO'
         try {
-            & $avatarScript -Users @($KioskUser, $AdminUser, $AdvancedUser)
+            if ($script:isRemote) {
+                $remoteAvatarDir = Join-Path $SupervisorPath 'Backend\Tools\Kiosk'
+                $remoteWwwRootDir = Join-Path $SupervisorPath 'Backend\wwwroot'
+
+                Invoke-OnTarget -ScriptBlock {
+                    param($ToolsDir, $WwwRootDir)
+                    foreach ($dir in @($ToolsDir, $WwwRootDir)) {
+                        if (-not (Test-Path $dir)) {
+                            New-Item -Path $dir -ItemType Directory -Force | Out-Null
+                        }
+                    }
+                } -ArgumentList $remoteAvatarDir, $remoteWwwRootDir
+
+                $localLogoIcon = Join-Path $scriptDir '..\..\wwwroot\LOGO.ico'
+                $remoteLogoInWwwroot = Join-Path $remoteWwwRootDir 'LOGO.ico'
+                $remoteLogoInTools   = Join-Path $remoteAvatarDir 'LOGO.ico'
+                if (Test-Path $localLogoIcon) {
+                    Copy-Item -Path $localLogoIcon -Destination $remoteLogoInWwwroot -ToSession $script:remoteSession -Force
+                    Copy-Item -Path $localLogoIcon -Destination $remoteLogoInTools -ToSession $script:remoteSession -Force
+                } else {
+                    Write-Step 'Accounts' "LOGO.ico no encontrado en origen: $localLogoIcon" 'WARN'
+                }
+
+                $remoteAvatarScript = Join-Path $remoteAvatarDir 'Set-UserAvatars.ps1'
+                Copy-Item -Path $avatarScript -Destination $remoteAvatarScript -ToSession $script:remoteSession -Force
+
+                Invoke-Command -Session $script:remoteSession -ScriptBlock {
+                    param($AvatarPath, $AvatarImagePath, $KioskUser, $AdminUser, $AdvancedUser)
+                    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+                    & $AvatarPath -ImagePath $AvatarImagePath -Users @($KioskUser, $AdminUser, $AdvancedUser)
+                } -ArgumentList $remoteAvatarScript, $remoteLogoInTools, $KioskUser, $AdminUser, $AdvancedUser
+            } else {
+                & $avatarScript -Users @($KioskUser, $AdminUser, $AdvancedUser)
+            }
         }
         catch {
             Write-Step 'Accounts' "Avatar: $($_.Exception.Message)" 'WARN'
+        }
+    }
+
+    # --- Aplicar wallpaper por defecto (Server.png) a usuarios de escritorio ---
+    $wallpaperScript = Join-Path $PSScriptRoot "Set-Wallpaper.ps1"
+    $serverWallpaper = Join-Path $scriptDir "Server.png"
+    if (Test-Path $wallpaperScript) {
+        if (Test-Path $serverWallpaper) {
+            Write-Step 'Accounts' "Aplicando wallpaper por defecto (Server.png)..." 'INFO'
+            try {
+                if ($script:isRemote) {
+                    $remoteWallpaperDir = Join-Path $SupervisorPath 'Backend\Tools\Kiosk'
+                    Invoke-OnTarget -ScriptBlock {
+                        param($Dir)
+                        if (-not (Test-Path $Dir)) {
+                            New-Item -Path $Dir -ItemType Directory -Force | Out-Null
+                        }
+                    } -ArgumentList $remoteWallpaperDir
+
+                    $remoteWallpaperScript = Join-Path $remoteWallpaperDir 'Set-Wallpaper.ps1'
+                    $remoteWallpaperImage = Join-Path $remoteWallpaperDir 'Server.png'
+                    Copy-Item -Path $wallpaperScript -Destination $remoteWallpaperScript -ToSession $script:remoteSession -Force
+                    Copy-Item -Path $serverWallpaper -Destination $remoteWallpaperImage -ToSession $script:remoteSession -Force
+
+                    Invoke-Command -Session $script:remoteSession -ScriptBlock {
+                        param($WallpaperPath, $ImagePath, $AdminUser, $AdvancedUser)
+                        Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+                        & $WallpaperPath -ImagePath $ImagePath -Style Fill -Users @($AdminUser, $AdvancedUser)
+                    } -ArgumentList $remoteWallpaperScript, $remoteWallpaperImage, $AdminUser, $AdvancedUser
+                } else {
+                    & $wallpaperScript -ImagePath $serverWallpaper -Style Fill -Users @($AdminUser, $AdvancedUser)
+                }
+            }
+            catch {
+                Write-Step 'Accounts' "Wallpaper: $($_.Exception.Message)" 'WARN'
+            }
+        } else {
+            Write-Step 'Accounts' "Wallpaper no aplicado: no existe $serverWallpaper" 'WARN'
         }
     }
 }
@@ -729,7 +800,7 @@ if (Should-Run 'Shell') {
             if ($profilePath) {
                 $ntUserDat = Join-Path $profilePath 'NTUSER.DAT'
                 if (-not (Test-Path "Registry::HKEY_USERS\$userSID") -and (Test-Path $ntUserDat)) {
-                    reg load "HKU\$userSID" $ntUserDat 2>$null
+                    reg load "HKU\$userSID" $ntUserDat 2>$null | Out-Null
                     $hiveLoaded = $true
                 }
 
@@ -742,14 +813,16 @@ if (Should-Run 'Shell') {
                 if ($hiveLoaded) {
                     [GC]::Collect()
                     Start-Sleep -Milliseconds 500
-                    reg unload "HKU\$userSID" 2>$null
+                    reg unload "HKU\$userSID" 2>$null | Out-Null
                 }
             }
 
-            return @{ Status = 'OK'; Msg = "Custom shell → $ShellValue"; PrevShell = $prevShell }
+            return [PSCustomObject]@{ Status = 'OK'; Msg = "Custom shell → $ShellValue"; PrevShell = $prevShell }
         } -ArgumentList $KioskUser, $launchScript
 
-        if ($shellResult.Status -eq 'FAIL') {
+        if ($null -eq $shellResult -or -not ($shellResult.PSObject.Properties.Name -contains 'Status')) {
+            Write-Step 'Shell' "Resultado inesperado al configurar el shell: $shellResult" 'FAIL'
+        } elseif ($shellResult.Status -eq 'FAIL') {
             Write-Step 'Shell' $shellResult.Msg 'FAIL'
         } else {
             Write-Step 'Shell' "Custom shell configurado para '$KioskUser': $launchScript" 'OK'
@@ -861,14 +934,47 @@ if (Should-Run 'KeyboardFilter') {
 if (Should-Run 'Firewall') {
     Write-Host "`n═══ FASE: Firewall (§18) ═══" -ForegroundColor Yellow
 
+    if (-not $DryRun) {
+        $fwProfiles = Invoke-OnTarget -ScriptBlock {
+            # Ensure Windows Firewall is actually active on all profiles.
+            Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True -ErrorAction SilentlyContinue | Out-Null
+            $p = Get-NetFirewallProfile -Profile Domain,Private,Public -ErrorAction SilentlyContinue |
+                Select-Object Name, Enabled
+            return $p
+        }
+        foreach ($p in $fwProfiles) {
+            if ($p.Enabled) {
+                Write-Step 'Firewall' "Perfil $($p.Name): firewall habilitado" 'OK'
+            } else {
+                Write-Step 'Firewall' "Perfil $($p.Name): firewall no habilitado" 'FAIL'
+            }
+        }
+    } else {
+        Write-Step 'Firewall' "[DRY] Habilitaria firewall en perfiles Domain/Private/Public" 'DRY'
+    }
+
+    # NOTA: RDP (3389) se deja abierto a nivel firewall para mantenimiento remoto.
+    # SMB (137-139, 445) sigue bloqueado por defecto; el script de deploy lo desbloquea
+    # temporalmente durante la copia y lo vuelve a habilitar al terminar.
     $firewallRules = @(
         @{ Name = 'AQF Supervisor HTTPS';     Port = 5001; Protocol = 'TCP'; Action = 'Allow'; Desc = 'HTTPS red corporativa (§18)' },
         @{ Name = 'AQF Supervisor HTTP local'; Port = 5000; Protocol = 'TCP'; Action = 'Allow'; RemoteAddr = '127.0.0.1'; Desc = 'HTTP solo localhost (§18)' },
         @{ Name = 'AQF Block HTTP remote';     Port = 5000; Protocol = 'TCP'; Action = 'Block'; Desc = 'Bloquear HTTP remoto (§18)' },
-        @{ Name = 'AQF Block RDP';             Port = 3389; Protocol = 'TCP'; Action = 'Block'; Desc = 'RDP bloqueado (§18)' },
         @{ Name = 'AQF Block SSH';             Port = 22;   Protocol = 'TCP'; Action = 'Block'; Desc = 'SSH bloqueado (§18)' },
+        @{ Name = 'AQF Block SMB NetBIOS-NS';  Port = 137; Protocol = 'UDP'; Action = 'Block'; Desc = 'SMB/NetBIOS NS bloqueado (§18)' },
+        @{ Name = 'AQF Block SMB NetBIOS-DGM'; Port = 138; Protocol = 'UDP'; Action = 'Block'; Desc = 'SMB/NetBIOS DGM bloqueado (§18)' },
+        @{ Name = 'AQF Block SMB NetBIOS-SSN'; Port = 139; Protocol = 'TCP'; Action = 'Block'; Desc = 'SMB/NetBIOS SSN bloqueado (§18)' },
+        @{ Name = 'AQF Block SMB Direct';      Port = 445; Protocol = 'TCP'; Action = 'Block'; Desc = 'SMB Direct bloqueado (§18)' },
         @{ Name = 'AQF Block ADS Discovery';   Port = 48899; Protocol = 'UDP'; Action = 'Block'; Desc = 'ADS Discovery bloqueado (§21)' }
     )
+
+    # Limpieza: eliminar la antigua regla 'AQF Block RDP' si existe en equipos previos
+    if (-not $DryRun) {
+        Invoke-OnTarget -ScriptBlock {
+            $r = Get-NetFirewallRule -DisplayName 'AQF Block RDP' -ErrorAction SilentlyContinue
+            if ($r) { $r | Remove-NetFirewallRule -ErrorAction SilentlyContinue | Out-Null }
+        } | Out-Null
+    }
 
     foreach ($rule in $firewallRules) {
         if ($DryRun) {
@@ -880,8 +986,12 @@ if (Should-Run 'Firewall') {
 
         $created = Invoke-OnTarget -ScriptBlock {
             param($RuleName, $Port, $Protocol, $Action, $RemoteAddr, $Desc)
+
+            # Recreate deterministically to avoid stale/incorrect legacy definitions.
             $existing = Get-NetFirewallRule -Name $RuleName -ErrorAction SilentlyContinue
-            if ($existing) { return 'EXISTS' }
+            if ($existing) {
+                Remove-NetFirewallRule -Name $RuleName -ErrorAction SilentlyContinue | Out-Null
+            }
 
             $params = @{
                 Name        = $RuleName
@@ -892,20 +1002,79 @@ if (Should-Run 'Firewall') {
                 Action      = $Action
                 Description = $Desc
                 Enabled     = 'True'
+                Profile     = 'Any'
             }
             if ($RemoteAddr -and $RemoteAddr -ne 'Any') {
                 $params['RemoteAddress'] = $RemoteAddr
             }
             New-NetFirewallRule @params | Out-Null
+            if ($existing) { return 'UPDATED' }
             return 'CREATED'
         } -ArgumentList $rule.Name, $rule.Port, $rule.Protocol, $rule.Action, $ruleRemoteAddr, $rule.Desc
 
-        if ($created -eq 'EXISTS') {
-            Write-Step 'Firewall' "Regla '$($rule.Name)' ya existe" 'SKIP'
+        if ($created -eq 'UPDATED') {
+            Write-Step 'Firewall' "Regla actualizada: $($rule.Name)" 'OK'
+            Save-RollbackAction -Type 'FirewallRuleCreated' -Data @{ RuleName = $rule.Name }
         } else {
             Write-Step 'Firewall' "Regla creada: $($rule.Name)" 'OK'
             Save-RollbackAction -Type 'FirewallRuleCreated' -Data @{ RuleName = $rule.Name }
         }
+    }
+
+    # Disable legacy/non-AQF allow rules that keep exposing restricted ports.
+    if (-not $DryRun) {
+        $disabledLegacyAllowRules = Invoke-OnTarget -ScriptBlock {
+            $targetPorts = @('5000','22','137','138','139','445','3389','48899')
+            $disabled = 0
+
+            Get-NetFirewallRule -Direction Inbound -Action Allow -Enabled True -ErrorAction SilentlyContinue |
+                ForEach-Object {
+                    $rule = $_
+                    if ($rule.Name -like 'AQF *' -or $rule.DisplayName -like 'AQF *') { return }
+
+                    $pf = $rule | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue
+                    if (-not $pf) { return }
+
+                    $ports = @($pf.LocalPort) | Where-Object { $_ }
+                    if (-not $ports -or $ports.Count -eq 0) { return }
+
+                    $matchesRestrictedPort = $false
+                    foreach ($portExpr in $ports) {
+                        foreach ($segment in ($portExpr -split ',')) {
+                            $seg = $segment.Trim()
+                            if ([string]::IsNullOrWhiteSpace($seg) -or $seg -eq 'Any') { continue }
+
+                            if ($seg -match '^(\d+)-(\d+)$') {
+                                $start = [int]$matches[1]
+                                $end = [int]$matches[2]
+                                foreach ($tp in $targetPorts) {
+                                    $tpInt = [int]$tp
+                                    if ($tpInt -ge $start -and $tpInt -le $end) {
+                                        $matchesRestrictedPort = $true
+                                        break
+                                    }
+                                }
+                            } elseif ($targetPorts -contains $seg) {
+                                $matchesRestrictedPort = $true
+                            }
+
+                            if ($matchesRestrictedPort) { break }
+                        }
+                        if ($matchesRestrictedPort) { break }
+                    }
+
+                    if ($matchesRestrictedPort) {
+                        Disable-NetFirewallRule -Name $rule.Name -ErrorAction SilentlyContinue | Out-Null
+                        $disabled++
+                    }
+                }
+
+            return $disabled
+        }
+
+        Write-Step 'Firewall' "Reglas ALLOW heredadas deshabilitadas (puertos restringidos): $disabledLegacyAllowRules" 'OK'
+    } else {
+        Write-Step 'Firewall' "[DRY] Deshabilitaria reglas ALLOW heredadas en puertos restringidos" 'DRY'
     }
 
     # Deshabilitar IPv6 y NetBIOS
@@ -1154,8 +1323,10 @@ if (Should-Run 'CopyTools') {
         }
     } -ArgumentList $remoteToolsDir
 
-    # Copiar todos los archivos .ps1 y .bat del directorio de scripts
-    $toolFiles = Get-ChildItem -Path $scriptDir -File | Where-Object { $_.Extension -in '.ps1', '.bat' }
+    # Copiar scripts operativos y wallpaper por defecto
+    $toolFiles = Get-ChildItem -Path $scriptDir -File | Where-Object {
+        $_.Extension -in '.ps1', '.bat' -or $_.Name -eq 'Server.png'
+    }
 
     foreach ($file in $toolFiles) {
         $dstFile = Join-Path $remoteToolsDir $file.Name

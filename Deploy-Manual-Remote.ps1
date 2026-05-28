@@ -31,7 +31,7 @@
 
 param(
     [string]$TargetIP = "192.168.2.161",
-    [string]$TargetUser = "Administrator",
+    [string]$TargetUser = "aqf-admin",
     [string]$TargetPassword = 'Aqua2014$$',
     [string]$InstallPath = "C:\Aquafrisch Supervisor",
     [string]$ProjectId = "",  # Si se especifica, no pregunta
@@ -1175,6 +1175,38 @@ Write-Header "PASO 4: Conectando al PC remoto ($TargetIP)"
 $RemotePath = "\\$TargetIP\C`$\$($InstallPath.TrimStart('C:\'))"
 $SecurePassword = ConvertTo-SecureString $TargetPassword -AsPlainText -Force
 $Credential = New-Object System.Management.Automation.PSCredential ($TargetUser, $SecurePassword)
+
+# --- Pre-paso: abrir SMB temporalmente si Configure-Kiosk lo bloqueo ---
+# Reglas 'AQF Block SMB *' bloquean los puertos 137/138/139/445 a nivel firewall.
+# Las deshabilitamos via WinRM (puerto 5985, siempre abierto) durante el deploy
+# y las volveremos a habilitar en el PASO 11.
+$SmbBlockRules = @('AQF Block SMB Direct','AQF Block SMB NetBIOS-NS','AQF Block SMB NetBIOS-DGM','AQF Block SMB NetBIOS-SSN')
+$RestoreSmbBlock = $false
+try {
+    Write-Step "Comprobando reglas firewall SMB en remoto via WinRM..."
+    $previouslyEnabled = Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+        param($names)
+        $enabled = @()
+        foreach ($n in $names) {
+            $r = Get-NetFirewallRule -DisplayName $n -ErrorAction SilentlyContinue
+            if ($r -and $r.Enabled -eq 'True') {
+                $enabled += $n
+                Disable-NetFirewallRule -DisplayName $n -ErrorAction SilentlyContinue | Out-Null
+            }
+        }
+        return ,$enabled
+    } -ArgumentList (,$SmbBlockRules) -ErrorAction Stop
+    if ($previouslyEnabled -and $previouslyEnabled.Count -gt 0) {
+        $RestoreSmbBlock = $true
+        $script:SmbBlockToRestore = $previouslyEnabled
+        Write-Info "  SMB desbloqueado temporalmente: $($previouslyEnabled -join ', ')"
+        Start-Sleep -Seconds 2
+    } else {
+        Write-Info "  Sin reglas SMB Block activas, nada que desbloquear"
+    }
+} catch {
+    Write-Info "  No se pudo consultar firewall via WinRM ($($_.Exception.Message.Split([Environment]::NewLine)[0])). Continuando."
+}
 
 Write-Step "Estableciendo conexion de red..."
 
@@ -2876,6 +2908,23 @@ Write-Header "PASO 11: Limpieza"
 
 & net use "\\$TargetIP\C`$" /delete /y 2>&1 | Out-Null
 Write-Success "Conexion de red cerrada"
+
+# --- Restaurar reglas firewall SMB Block si las desactivamos en el PASO 4 ---
+if ($RestoreSmbBlock -and $script:SmbBlockToRestore) {
+    try {
+        Write-Step "Restaurando reglas firewall SMB en remoto..."
+        Invoke-Command -ComputerName $TargetIP -Credential $Credential -ScriptBlock {
+            param($names)
+            foreach ($n in $names) {
+                Enable-NetFirewallRule -DisplayName $n -ErrorAction SilentlyContinue | Out-Null
+            }
+        } -ArgumentList (,$script:SmbBlockToRestore) -ErrorAction Stop
+        Write-Success "SMB Block restaurado: $($script:SmbBlockToRestore -join ', ')"
+    } catch {
+        Write-Info "  No se pudo restaurar firewall SMB via WinRM: $($_.Exception.Message.Split([Environment]::NewLine)[0])"
+        Write-Info "  Reactivalo manualmente en el PC remoto con: Enable-NetFirewallRule -DisplayName '$($script:SmbBlockToRestore -join "','"  )'"
+    }
+}
 
 # ============================================
 # RESUMEN FINAL
