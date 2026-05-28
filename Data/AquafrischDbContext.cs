@@ -1566,50 +1566,44 @@ public static class AquafrischDbContextFactory
     /// </summary>
     public static async Task EnsureExportTasksTableAsync(AquafrischDbContext context)
     {
-        try
-        {
-            await context.Database.ExecuteSqlRawAsync(@"
-                CREATE TABLE IF NOT EXISTS ExportTasks (
-                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ProjectId TEXT NOT NULL DEFAULT '',
-                    Source TEXT NOT NULL,
-                    Name TEXT NOT NULL,
-                    ExecutionType TEXT NOT NULL DEFAULT 'manual',
-                    CronExpression TEXT,
-                    PlcVariable TEXT,
-                    Format TEXT NOT NULL DEFAULT 'xlsx',
-                    Destinations TEXT NOT NULL DEFAULT '',
-                    ConfigJson TEXT NOT NULL DEFAULT '{}',
-                    DatasetProvider TEXT NOT NULL DEFAULT '',
-                    SelectionJson TEXT NOT NULL DEFAULT '{}',
-                    Enabled INTEGER NOT NULL DEFAULT 1,
-                    CreatedBy TEXT NOT NULL DEFAULT '',
-                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
-                    LastRunAt TEXT,
-                    LastResult TEXT
-                )");
+        // No envolver en try/catch silenciador: si CREATE TABLE falla, queremos
+        // que la excepción burbujee al caller para que se vea la causa real
+        // (DB path inválido, permisos, etc.) en lugar de re-fallar en el SELECT
+        // siguiente con "no such table".
+        await context.Database.ExecuteSqlRawAsync(@"
+            CREATE TABLE IF NOT EXISTS ExportTasks (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ProjectId TEXT NOT NULL DEFAULT '',
+                Source TEXT NOT NULL,
+                Name TEXT NOT NULL,
+                ExecutionType TEXT NOT NULL DEFAULT 'manual',
+                CronExpression TEXT,
+                PlcVariable TEXT,
+                Format TEXT NOT NULL DEFAULT 'xlsx',
+                Destinations TEXT NOT NULL DEFAULT '',
+                ConfigJson TEXT NOT NULL DEFAULT '{}',
+                DatasetProvider TEXT NOT NULL DEFAULT '',
+                SelectionJson TEXT NOT NULL DEFAULT '{}',
+                Enabled INTEGER NOT NULL DEFAULT 1,
+                CreatedBy TEXT NOT NULL DEFAULT '',
+                CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                LastRunAt TEXT,
+                LastResult TEXT
+            )");
 
-            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_Source ON ExportTasks(Source)");
-            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_ExecutionType ON ExportTasks(ExecutionType)");
-            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_Enabled ON ExportTasks(Enabled)");
-            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_PlcVariable ON ExportTasks(PlcVariable)");
+        await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_Source ON ExportTasks(Source)");
+        await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_ExecutionType ON ExportTasks(ExecutionType)");
+        await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_Enabled ON ExportTasks(Enabled)");
+        await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_ExportTasks_PlcVariable ON ExportTasks(PlcVariable)");
 
-            // Migración Fase 2 — PlcLastValue (cache de flanco)
-            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN PlcLastValue INTEGER"); }
-            catch { /* idempotente: ya existe */ }
-
-            // Migración Fase 4 — Perfiles de destino (FolderProfileId / EmailProfileId / EmailRecipients)
-            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN FolderProfileId TEXT"); }
-            catch { /* idempotente */ }
-            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN EmailProfileId TEXT"); }
-            catch { /* idempotente */ }
-            try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN EmailRecipients TEXT"); }
-            catch { /* idempotente */ }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[Export] EnsureExportTasksTableAsync error: {ex.Message}");
-        }
+        try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN PlcLastValue INTEGER"); }
+        catch { /* columna ya existe */ }
+        try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN FolderProfileId TEXT"); }
+        catch { /* columna ya existe */ }
+        try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN EmailProfileId TEXT"); }
+        catch { /* columna ya existe */ }
+        try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE ExportTasks ADD COLUMN EmailRecipients TEXT"); }
+        catch { /* columna ya existe */ }
     }
 
     /// <summary>
