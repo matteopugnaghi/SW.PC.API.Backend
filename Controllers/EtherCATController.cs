@@ -922,6 +922,18 @@ namespace SW.PC.API.Backend.Controllers
                     ConfigurationHash = saved.ConfigurationHash
                 });
             }
+            catch (InvalidOperationException ex)
+            {
+                // Estado del servicio no válido para guardar (sin caché, datos sin
+                // enriquecer, sin comunicación con PLC...). No es un crash; el
+                // mensaje lleva la causa concreta para mostrar al usuario.
+                _logger.LogWarning("⚠️ EtherCAT save rejected: {Message}", ex.Message);
+                return Conflict(new SaveConfigurationResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving EtherCAT configuration");

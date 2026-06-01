@@ -2838,11 +2838,16 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// Guarda la topología actual como configuración de referencia en la base de datos.
         /// 
-        /// IMPORTANTE: NO relee del PLC. Persiste exactamente la topología que está en
-        /// caché (la última cargada por "Rescanear TwinCAT"). Si se releyera aquí sin
-        /// haber pulsado antes Diagnostic.bCompleteDiag, FB_EtherCATDiag devuelve los
-        /// strings vacíos (sName/sType/sESIfile en "Not found" y VendorId/ProductCode=0),
-        /// y la baseline guardada quedaría corrupta.
+        /// Estrategia:
+        ///   1. Si hay topología cacheada (último "Rescanear TwinCAT" exitoso), se usa
+        ///      esa directamente (no se vuelve a leer el PLC).
+        ///   2. Si la caché está vacía (p.ej. el frontend pidió un diagnóstico completo
+        ///      por la ruta /trigger-complete-diagnostic que no rellena la caché del
+        ///      servicio), se hace una lectura fresca con rescan:true.
+        ///   3. En ambos casos se valida que los datos están enriquecidos: si algún
+        ///      esclavo tiene VendorId=0 o DeviceType="Not found", FB_EtherCATDiag aún
+        ///      no había rellenado los strings y rechazamos la operación con un mensaje
+        ///      claro, evitando persistir basura.
         /// </summary>
         public async Task<EtherCATSavedConfiguration> SaveConfigurationAsync(string? notes = null)
         {
@@ -2854,8 +2859,8 @@ namespace SW.PC.API.Backend.Services
 
             if (topology == null)
             {
-                throw new InvalidOperationException(
-                    "No hay topología en memoria para guardar. Pulse 'Rescanear TwinCAT' antes de guardar la configuración.");
+                _logger.LogInformation("💾 Save: caché vacía → leyendo topología del PLC (rescan)");
+                topology = await GetTopologyAsync(rescan: true);
             }
 
             if (topology.HasCommunicationError)
