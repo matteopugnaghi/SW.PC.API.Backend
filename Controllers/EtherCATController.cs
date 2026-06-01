@@ -668,8 +668,8 @@ namespace SW.PC.API.Backend.Controllers
                 _logger.LogInformation("⚡ EtherCAT optimized topology requested");
                 
                 // Primero verificar si hay configuración guardada
-                var hasSaved = await _etherCATService.HasSavedConfigurationAsync();
-                if (!hasSaved)
+                var savedRow = await _etherCATService.GetSavedConfigurationAsync();
+                if (savedRow == null)
                 {
                     // No hay config guardada - indicar al frontend que use /topology normal
                     return Ok(new { 
@@ -678,7 +678,27 @@ namespace SW.PC.API.Backend.Controllers
                     });
                 }
 
-                // Cargar topología guardada con estados actualizados
+                // ⭐ Esquema v2: payload literal del frontend. Devolverlo verbatim
+                //    para que el frontend lo procese exactamente como un rescaneo.
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(savedRow.TopologyJson);
+                    if (doc.RootElement.TryGetProperty("schemaVersion", out var verEl) &&
+                        verEl.ValueKind == System.Text.Json.JsonValueKind.Number &&
+                        verEl.GetInt32() == 2 &&
+                        doc.RootElement.TryGetProperty("payload", out var payloadEl))
+                    {
+                        return Content(
+                            "{\"hasConfiguration\":true,\"schemaVersion\":2,\"savedAt\":\"" + savedRow.SavedAt.ToString("o") + "\",\"totalSlaves\":" + savedRow.TotalSlaves + ",\"rawPayload\":" + payloadEl.GetRawText() + "}",
+                            "application/json");
+                    }
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    // JSON no es v2 → cae al path legacy de abajo
+                }
+
+                // Legacy: topología v1 (EtherCATTopology serializado)
                 var topology = await _etherCATService.GetSavedTopologyWithCurrentStatesAsync();
                 
                 if (topology == null)
@@ -911,7 +931,22 @@ namespace SW.PC.API.Backend.Controllers
             try
             {
                 _logger.LogInformation("💾 EtherCAT: Saving configuration...");
-                var saved = await _etherCATService.SaveConfigurationAsync(request?.Notes);
+                EtherCATSavedConfiguration saved;
+                if (request?.Payload is System.Text.Json.JsonElement payload && payload.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    // Persistir el payload literal del frontend (lo que ves es lo que guardas)
+                    var rawJson = payload.GetRawText();
+                    var total = request.TotalSlaves;
+                    if (total <= 0 && payload.TryGetProperty("slaves", out var slavesEl) && slavesEl.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        total = slavesEl.GetArrayLength();
+                    }
+                    saved = await _etherCATService.SaveConfigurationFromPayloadAsync(rawJson, total, request.Notes);
+                }
+                else
+                {
+                    saved = await _etherCATService.SaveConfigurationAsync(request?.Notes);
+                }
                 
                 return Ok(new SaveConfigurationResponse
                 {
@@ -2698,6 +2733,14 @@ namespace SW.PC.API.Backend.Controllers
     public class SaveConfigurationRequest
     {
         public string? Notes { get; set; }
+        /// <summary>
+        /// Payload literal del diagnóstico mostrado por el frontend (resultado de
+        /// /api/ethercat/plc-diag tras Rescanear TwinCAT). Cuando viene presente,
+        /// el backend lo persiste verbatim sin reinterpretar nada.
+        /// </summary>
+        public System.Text.Json.JsonElement? Payload { get; set; }
+        /// <summary>Nº de esclavos en el payload (lo calcula el frontend a partir de slaves.length).</summary>
+        public int TotalSlaves { get; set; }
     }
 
     public class SaveConfigurationResponse

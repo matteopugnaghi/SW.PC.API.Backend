@@ -44,6 +44,14 @@ namespace SW.PC.API.Backend.Services
         /// <summary>Guarda la topología actual como configuración de referencia</summary>
         Task<EtherCATSavedConfiguration> SaveConfigurationAsync(string? notes = null);
 
+        /// <summary>
+        /// Guarda la topología tal y como el frontend la recibió del diagnóstico
+        /// completo del PLC (payload literal). No reinterpreta nada: lo que se
+        /// pinta es exactamente lo que se persiste, evitando que parsers
+        /// distintos en backend introduzcan layouts diferentes a los mostrados.
+        /// </summary>
+        Task<EtherCATSavedConfiguration> SaveConfigurationFromPayloadAsync(string rawPayloadJson, int totalSlaves, string? notes = null);
+
         /// <summary>Obtiene la configuración guardada (si existe)</summary>
         Task<EtherCATSavedConfiguration?> GetSavedConfigurationAsync();
 
@@ -2930,6 +2938,78 @@ namespace SW.PC.API.Backend.Services
 
             await dbContext.SaveChangesAsync();
             return existing;
+        }
+
+        /// <summary>
+        /// Guarda exactamente el payload que el frontend acaba de mostrar (resultado
+        /// de /api/ethercat/plc-diag tras Rescanear TwinCAT). Se almacena envuelto
+        /// con schemaVersion=2 para que GetSavedTopologyWithCurrentStatesAsync sepa
+        /// devolverlo verbatim al frontend.
+        /// </summary>
+        public async Task<EtherCATSavedConfiguration> SaveConfigurationFromPayloadAsync(string rawPayloadJson, int totalSlaves, string? notes = null)
+        {
+            if (string.IsNullOrWhiteSpace(rawPayloadJson))
+            {
+                throw new InvalidOperationException("Payload vacío: no hay datos del rescaneo para guardar.");
+            }
+
+            // Validar que es JSON válido antes de tocar BD
+            using (var doc = JsonDocument.Parse(rawPayloadJson))
+            {
+                // Sanidad: debe tener al menos un array 'slaves' no vacío
+                if (!doc.RootElement.TryGetProperty("slaves", out var slavesEl) ||
+                    slavesEl.ValueKind != JsonValueKind.Array ||
+                    slavesEl.GetArrayLength() == 0)
+                {
+                    throw new InvalidOperationException("Payload inválido: no contiene esclavos.");
+                }
+            }
+
+            var wrapped = "{\"schemaVersion\":2,\"savedAt\":\"" + DateTime.Now.ToString("o") +
+                          "\",\"payload\":" + rawPayloadJson + "}";
+
+            var projectId = _projectContext.ActiveProjectId;
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AquafrischDbContext>();
+
+            var existing = await dbContext.EtherCATSavedConfigurations
+                .FirstOrDefaultAsync(c => c.ProjectId == projectId);
+
+            if (existing != null)
+            {
+                existing.TopologyJson = wrapped;
+                existing.TotalSlaves = totalSlaves;
+                existing.SavedAt = DateTime.Now;
+                existing.Notes = notes;
+                existing.ConfigurationHash = ComputePayloadHash(rawPayloadJson);
+                _logger.LogInformation("💾 EtherCAT: Payload v2 actualizado para proyecto {ProjectId} ({Count} esclavos)",
+                    projectId, totalSlaves);
+            }
+            else
+            {
+                existing = new EtherCATSavedConfiguration
+                {
+                    ProjectId = projectId,
+                    TopologyJson = wrapped,
+                    TotalSlaves = totalSlaves,
+                    SavedAt = DateTime.Now,
+                    Notes = notes,
+                    ConfigurationHash = ComputePayloadHash(rawPayloadJson)
+                };
+                dbContext.EtherCATSavedConfigurations.Add(existing);
+                _logger.LogInformation("💾 EtherCAT: Payload v2 nuevo guardado para proyecto {ProjectId} ({Count} esclavos)",
+                    projectId, totalSlaves);
+            }
+
+            await dbContext.SaveChangesAsync();
+            return existing;
+        }
+
+        private static string ComputePayloadHash(string rawJson)
+        {
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            var bytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(rawJson));
+            return Convert.ToHexString(bytes);
         }
 
         /// <summary>
