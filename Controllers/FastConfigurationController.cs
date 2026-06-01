@@ -245,7 +245,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.BoolSettings.Count ? excelConfig.BoolSettings[idx] : null;
-                    if (setting != null)
+                    if (setting != null && kvp.Key == $"fcbool_{SanitizeId(setting.Description)}_{idx}")
                     {
                         try
                         {
@@ -287,7 +287,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.IntSettings.Count ? excelConfig.IntSettings[idx] : null;
-                    if (setting != null)
+                    if (setting != null && kvp.Key == $"fcint_{SanitizeId(setting.Description)}_{idx}")
                     {
                         try
                         {
@@ -329,7 +329,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.LRealSettings.Count ? excelConfig.LRealSettings[idx] : null;
-                    if (setting != null)
+                    if (setting != null && kvp.Key == $"fclreal_{SanitizeId(setting.Description)}_{idx}")
                     {
                         try
                         {

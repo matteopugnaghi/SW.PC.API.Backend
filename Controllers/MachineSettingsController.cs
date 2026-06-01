@@ -290,7 +290,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.BoolSettings.Count ? excelConfig.BoolSettings[idx] : null;
-                    if (setting != null)
+                    if (setting != null && kvp.Key == $"bool_{SanitizeId(setting.Name)}_{idx}")
                     {
                         try
                         {
@@ -332,7 +332,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.IntSettings.Count ? excelConfig.IntSettings[idx] : null;
-                    if (setting != null)
+                    if (setting != null && kvp.Key == $"int_{SanitizeId(setting.Name)}_{idx}")
                     {
                         try
                         {
@@ -374,7 +374,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.LongRealSettings.Count ? excelConfig.LongRealSettings[idx] : null;
-                    if (setting != null)
+                    if (setting != null && kvp.Key == $"lreal_{SanitizeId(setting.Name)}_{idx}")
                     {
                         try
                         {
@@ -416,7 +416,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.LongReal2Settings.Count ? excelConfig.LongReal2Settings[idx] : null;
-                    if (setting != null)
+                    if (setting != null && kvp.Key == $"lreal2_{SanitizeId(setting.Name)}_{idx}")
                     {
                         try
                         {
@@ -509,6 +509,26 @@ namespace SW.PC.API.Backend.Controllers
         {
             try
             {
+                var excelPath = _excelConfigService.GetExcelConfigPath();
+                var excelConfig = await _excelConfigService.LoadSettingsPageAsync(excelPath);
+
+                // Construir conjunto de IDs can\u00f3nicos actuales (los que coinciden con el Excel actual).
+                // Esto evita devolver valores de IDs obsoletos (nombres antiguos en Excel) que
+                // contaminar\u00edan el estado del frontend y, al escribir luego al PLC, sobrescribir\u00edan
+                // la variable PLC con un valor viejo (porque dos IDs distintos resuelven al mismo \u00edndice).
+                var validBoolIds = new HashSet<string>(StringComparer.Ordinal);
+                for (int i = 0; i < excelConfig.BoolSettings.Count; i++)
+                    validBoolIds.Add($"bool_{SanitizeId(excelConfig.BoolSettings[i].Name)}_{i}");
+                var validIntIds = new HashSet<string>(StringComparer.Ordinal);
+                for (int i = 0; i < excelConfig.IntSettings.Count; i++)
+                    validIntIds.Add($"int_{SanitizeId(excelConfig.IntSettings[i].Name)}_{i}");
+                var validLRealIds = new HashSet<string>(StringComparer.Ordinal);
+                for (int i = 0; i < excelConfig.LongRealSettings.Count; i++)
+                    validLRealIds.Add($"lreal_{SanitizeId(excelConfig.LongRealSettings[i].Name)}_{i}");
+                var validLReal2Ids = new HashSet<string>(StringComparer.Ordinal);
+                for (int i = 0; i < excelConfig.LongReal2Settings.Count; i++)
+                    validLReal2Ids.Add($"lreal2_{SanitizeId(excelConfig.LongReal2Settings[i].Name)}_{i}");
+
                 var settings = await _dbContext.MachineSettings.ToListAsync();
 
                 var response = new MachineSettingsValuesResponse
@@ -517,55 +537,40 @@ namespace SW.PC.API.Backend.Controllers
                     Timestamp = DateTime.UtcNow
                 };
 
+                int skippedStale = 0;
                 foreach (var setting in settings)
                 {
-                    // Usar el prefijo del ID para determinar el tipo
                     var id = setting.ParameterId;
-                    
-                    if (id.StartsWith("bool_"))
+
+                    if (validBoolIds.Contains(id))
                     {
                         if (bool.TryParse(setting.Value, out var boolVal))
                             response.BoolValues[id] = boolVal;
                     }
-                    else if (id.StartsWith("int_"))
+                    else if (validIntIds.Contains(id))
                     {
                         if (int.TryParse(setting.Value, out var intVal))
                             response.IntValues[id] = intVal;
                     }
-                    else if (id.StartsWith("lreal2_"))
+                    else if (validLReal2Ids.Contains(id))
                     {
                         if (double.TryParse(setting.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var dblVal))
                             response.LongReal2Values[id] = dblVal;
                     }
-                    else if (id.StartsWith("lreal_"))
+                    else if (validLRealIds.Contains(id))
                     {
                         if (double.TryParse(setting.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var dblVal))
                             response.LongRealValues[id] = dblVal;
                     }
                     else
                     {
-                        // Fallback para datos antiguos sin prefijo
-                        switch (setting.DataType.ToLower())
-                        {
-                            case "bool":
-                                if (bool.TryParse(setting.Value, out var oldBoolVal))
-                                    response.BoolValues[id] = oldBoolVal;
-                                break;
-                            case "int":
-                                if (int.TryParse(setting.Value, out var oldIntVal))
-                                    response.IntValues[id] = oldIntVal;
-                                break;
-                            case "longreal":
-                            case "longreal2":
-                            case "double":
-                                if (double.TryParse(setting.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var oldDblVal))
-                                    response.LongRealValues[id] = oldDblVal;
-                                break;
-                        }
+                        skippedStale++;
                     }
                 }
 
-                _logger.LogInformation("⚙️ Read {Count} values from database", settings.Count);
+                _logger.LogInformation("⚙️ Read {Count} values from database ({Skipped} obsoletos ignorados)",
+                    response.BoolValues.Count + response.IntValues.Count + response.LongRealValues.Count + response.LongReal2Values.Count,
+                    skippedStale);
 
                 return Ok(response);
             }
@@ -603,6 +608,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.BoolSettings.Count ? excelConfig.BoolSettings[idx] : null;
+                    if (setting == null || kvp.Key != $"bool_{SanitizeId(setting.Name)}_{idx}") continue;
                     var newValue = kvp.Value.ToString().ToLower();
                     var oldValue = currentSettings.TryGetValue(kvp.Key, out var old) ? old : null;
                     
@@ -625,6 +631,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.IntSettings.Count ? excelConfig.IntSettings[idx] : null;
+                    if (setting == null || kvp.Key != $"int_{SanitizeId(setting.Name)}_{idx}") continue;
                     var newValue = kvp.Value.ToString();
                     var oldValue = currentSettings.TryGetValue(kvp.Key, out var old) ? old : null;
                     
@@ -647,6 +654,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.LongRealSettings.Count ? excelConfig.LongRealSettings[idx] : null;
+                    if (setting == null || kvp.Key != $"lreal_{SanitizeId(setting.Name)}_{idx}") continue;
                     var newValue = kvp.Value.ToString(CultureInfo.InvariantCulture);
                     var oldValue = currentSettings.TryGetValue(kvp.Key, out var old) ? old : null;
                     
@@ -669,6 +677,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     var idx = ExtractIndexFromId(kvp.Key);
                     var setting = idx >= 0 && idx < excelConfig.LongReal2Settings.Count ? excelConfig.LongReal2Settings[idx] : null;
+                    if (setting == null || kvp.Key != $"lreal2_{SanitizeId(setting.Name)}_{idx}") continue;
                     var newValue = kvp.Value.ToString(CultureInfo.InvariantCulture);
                     var oldValue = currentSettings.TryGetValue(kvp.Key, out var old) ? old : null;
                     
