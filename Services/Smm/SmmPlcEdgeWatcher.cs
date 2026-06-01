@@ -129,10 +129,16 @@ public class SmmPlcEdgeWatcher : BackgroundService, ISmmPlcEdgeWatcher
     private void OnPlcVariableChanged(object? sender, PlcNotification notification)
     {
         // 🔔 Tracking de alarmas durante ciclos abiertos (DEC-018)
+        // Solo registramos eventos del HISTORIAL (st_alarmHistPc[..]). Las activas
+        // (st_alarmPc[..]) ya están reflejadas por el pulso del historial y, si las
+        // procesáramos aquí, generarían filas duplicadas en SMM_CycleAlarms.
         if (AlarmNotificationService.IsAlarmVariable(notification.VariableName))
         {
-            if (TryToBool(notification.NewValue, out var alarmActive))
+            if (notification.VariableName.IndexOf("st_alarmHistPc[", StringComparison.OrdinalIgnoreCase) >= 0
+                && TryToBool(notification.NewValue, out var alarmActive))
+            {
                 _ = Task.Run(() => HandleAlarmChangeAsync(notification.VariableName, alarmActive));
+            }
             return;
         }
 
