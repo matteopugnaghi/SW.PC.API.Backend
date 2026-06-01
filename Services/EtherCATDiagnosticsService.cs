@@ -2836,15 +2836,46 @@ namespace SW.PC.API.Backend.Services
         // ===== MÉTODOS PARA CONFIGURACIÓN GUARDADA =====
 
         /// <summary>
-        /// Guarda la topología actual como configuración de referencia en la base de datos
+        /// Guarda la topología actual como configuración de referencia en la base de datos.
+        /// 
+        /// IMPORTANTE: NO relee del PLC. Persiste exactamente la topología que está en
+        /// caché (la última cargada por "Rescanear TwinCAT"). Si se releyera aquí sin
+        /// haber pulsado antes Diagnostic.bCompleteDiag, FB_EtherCATDiag devuelve los
+        /// strings vacíos (sName/sType/sESIfile en "Not found" y VendorId/ProductCode=0),
+        /// y la baseline guardada quedaría corrupta.
         /// </summary>
         public async Task<EtherCATSavedConfiguration> SaveConfigurationAsync(string? notes = null)
         {
-            var topology = await GetTopologyAsync(rescan: true);
-            
+            EtherCATTopology? topology;
+            lock (_cacheLock)
+            {
+                topology = _cachedTopology;
+            }
+
+            if (topology == null)
+            {
+                throw new InvalidOperationException(
+                    "No hay topología en memoria para guardar. Pulse 'Rescanear TwinCAT' antes de guardar la configuración.");
+            }
+
             if (topology.HasCommunicationError)
             {
                 throw new InvalidOperationException($"No se puede guardar configuración: {topology.ErrorMessage}");
+            }
+
+            // Validar que los datos están enriquecidos (no son una lectura "rápida" del
+            // FB sin haber pasado por bCompleteDiag). Si hay esclavos sin VendorId o
+            // con tipo "Not found", el FB aún no había rellenado el array completo.
+            var unenriched = topology.Slaves
+                .Where(s => s.VendorId == 0 || string.Equals(s.DeviceType, "Not found", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (unenriched.Count > 0 && topology.Slaves.Count > 0)
+            {
+                var sample = string.Join(", ", unenriched.Take(3).Select(s => $"'{s.Name}'"));
+                throw new InvalidOperationException(
+                    $"No se puede guardar: {unenriched.Count}/{topology.Slaves.Count} esclavos sin datos ESI " +
+                    $"(VendorId=0 o type='Not found'). Ejemplos: {sample}. " +
+                    "Pulse 'Rescanear TwinCAT' y espere a que termine antes de guardar.");
             }
 
             var projectId = _projectContext.ActiveProjectId;
