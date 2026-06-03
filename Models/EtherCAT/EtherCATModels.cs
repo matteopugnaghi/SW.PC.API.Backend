@@ -260,6 +260,23 @@ namespace SW.PC.API.Backend.Models.EtherCAT
     }
 
     /// <summary>
+    /// Estado vivo de un esclavo (overlay sobre payload guardado v2). Se devuelve
+    /// por GetCurrentSlaveStatesAsync indexado por nECAddr.
+    /// </summary>
+    public class SlaveLiveStateDto
+    {
+        public string EEcState { get; set; } = "UNDEFINED";
+        public int RawStateValue { get; set; }
+        public bool[] PortsActive { get; set; } = new bool[4];
+        public uint CRCErrorCount { get; set; }
+        public uint CRCErrorPortA { get; set; }
+        public uint CRCErrorPortB { get; set; }
+        public uint CRCErrorPortC { get; set; }
+        public uint CRCErrorPortD { get; set; }
+        public bool HasErrors { get; set; }
+    }
+
+    /// <summary>
     /// Resultado de comparación entre configuración guardada y estado actual
     /// </summary>
     public class EtherCATConfigurationComparison

@@ -52,6 +52,14 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         Task<EtherCATSavedConfiguration> SaveConfigurationFromPayloadAsync(string rawPayloadJson, int totalSlaves, string? notes = null);
 
+        /// <summary>
+        /// Lee sólo los estados actuales de los esclavos desde el PLC (eEcState +
+        /// puertos activos + CRC por puerto) keyed por nECAddr. Se usa para hacer
+        /// overlay de live-state sobre un payload guardado (schemaVersion=2) sin
+        /// reescanear toda la topología.
+        /// </summary>
+        Task<Dictionary<ushort, SlaveLiveStateDto>> GetCurrentSlaveStatesAsync();
+
         /// <summary>Obtiene la configuración guardada (si existe)</summary>
         Task<EtherCATSavedConfiguration?> GetSavedConfigurationAsync();
 
@@ -3010,6 +3018,42 @@ namespace SW.PC.API.Backend.Services
             using var sha = System.Security.Cryptography.SHA256.Create();
             var bytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(rawJson));
             return Convert.ToHexString(bytes);
+        }
+
+        /// <summary>
+        /// Wrapper p\u00fablico de ReadSlaveStatesOnlyAsync (DTO friendly) usado por el
+        /// controller para hacer overlay live-state sobre payload v2 guardado.
+        /// </summary>
+        public async Task<Dictionary<ushort, SlaveLiveStateDto>> GetCurrentSlaveStatesAsync()
+        {
+            var raw = await ReadSlaveStatesOnlyAsync();
+            var result = new Dictionary<ushort, SlaveLiveStateDto>(raw.Count);
+            foreach (var kv in raw)
+            {
+                var s = kv.Value;
+                var stateName = s.State switch
+                {
+                    EtherCATState.Init => "INIT",
+                    EtherCATState.PreOp => "PREOP",
+                    EtherCATState.Bootstrap => "BOOT",
+                    EtherCATState.SafeOp => "SAFEOP",
+                    EtherCATState.Operational => "OP",
+                    _ => "UNDEFINED"
+                };
+                result[kv.Key] = new SlaveLiveStateDto
+                {
+                    EEcState = stateName,
+                    RawStateValue = (int)s.State,
+                    PortsActive = s.PortsActive ?? new bool[4],
+                    CRCErrorCount = s.ErrorCounters?.CRCErrorCount ?? 0,
+                    CRCErrorPortA = s.ErrorCounters?.CRCErrorPortA ?? 0,
+                    CRCErrorPortB = s.ErrorCounters?.CRCErrorPortB ?? 0,
+                    CRCErrorPortC = s.ErrorCounters?.CRCErrorPortC ?? 0,
+                    CRCErrorPortD = s.ErrorCounters?.CRCErrorPortD ?? 0,
+                    HasErrors = s.Health == NodeHealth.Error
+                };
+            }
+            return result;
         }
 
         /// <summary>

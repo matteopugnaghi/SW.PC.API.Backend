@@ -679,17 +679,82 @@ namespace SW.PC.API.Backend.Controllers
                 }
 
                 // ⭐ Esquema v2: payload literal del frontend. Devolverlo verbatim
-                //    para que el frontend lo procese exactamente como un rescaneo.
+                //    para que el frontend lo procese exactamente como un rescaneo,
+                //    pero con un overlay de live-state (eEcState + puertos + CRC)
+                //    aplicado por slave (matched por nECAddr) para que no se vea
+                //    siempre OP cuando el PLC está en otro estado.
                 try
                 {
-                    using var doc = System.Text.Json.JsonDocument.Parse(savedRow.TopologyJson);
-                    if (doc.RootElement.TryGetProperty("schemaVersion", out var verEl) &&
-                        verEl.ValueKind == System.Text.Json.JsonValueKind.Number &&
-                        verEl.GetInt32() == 2 &&
-                        doc.RootElement.TryGetProperty("payload", out var payloadEl))
+                    var rootNode = System.Text.Json.Nodes.JsonNode.Parse(savedRow.TopologyJson);
+                    if (rootNode is System.Text.Json.Nodes.JsonObject rootObj &&
+                        rootObj["schemaVersion"]?.GetValue<int>() == 2 &&
+                        rootObj["payload"] is System.Text.Json.Nodes.JsonObject payloadObj)
                     {
+                        // Leer estados actuales del PLC (ligero, sólo arrSlaveInfo)
+                        Dictionary<ushort, SlaveLiveStateDto> liveStates;
+                        try
+                        {
+                            liveStates = await _etherCATService.GetCurrentSlaveStatesAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "No se pudieron leer estados live, devolviendo payload guardado sin overlay");
+                            liveStates = new Dictionary<ushort, SlaveLiveStateDto>();
+                        }
+
+                        if (liveStates.Count > 0 && payloadObj["slaves"] is System.Text.Json.Nodes.JsonArray slavesArr)
+                        {
+                            int patched = 0;
+                            foreach (var slaveNode in slavesArr)
+                            {
+                                if (slaveNode is not System.Text.Json.Nodes.JsonObject slaveObj) continue;
+                                var addrNode = slaveObj["nECAddr"];
+                                if (addrNode == null) continue;
+                                ushort addr;
+                                try { addr = (ushort)addrNode.GetValue<int>(); } catch { continue; }
+                                if (!liveStates.TryGetValue(addr, out var live)) continue;
+
+                                // Sobrescribir state.eEcState + rawStateValue + bPortX
+                                if (slaveObj["state"] is System.Text.Json.Nodes.JsonObject stateObj)
+                                {
+                                    stateObj["eEcState"] = live.EEcState;
+                                    stateObj["rawStateValue"] = live.RawStateValue;
+                                    if (live.PortsActive.Length >= 4)
+                                    {
+                                        stateObj["bPortA"] = live.PortsActive[0];
+                                        stateObj["bPortB"] = live.PortsActive[1];
+                                        stateObj["bPortC"] = live.PortsActive[2];
+                                        stateObj["bPortD"] = live.PortsActive[3];
+                                    }
+                                }
+                                else
+                                {
+                                    slaveObj["state"] = new System.Text.Json.Nodes.JsonObject
+                                    {
+                                        ["eEcState"] = live.EEcState,
+                                        ["rawStateValue"] = live.RawStateValue
+                                    };
+                                }
+
+                                // Refrescar contadores CRC + hasErrors (errorCounters)
+                                var ec = new System.Text.Json.Nodes.JsonObject
+                                {
+                                    ["hasErrors"] = live.HasErrors,
+                                    ["crcErrorCount"] = live.CRCErrorCount,
+                                    ["crcErrorPortA"] = live.CRCErrorPortA,
+                                    ["crcErrorPortB"] = live.CRCErrorPortB,
+                                    ["crcErrorPortC"] = live.CRCErrorPortC,
+                                    ["crcErrorPortD"] = live.CRCErrorPortD
+                                };
+                                slaveObj["errorCounters"] = ec;
+                                patched++;
+                            }
+                            _logger.LogInformation("⚡ EtherCAT v2 overlay: {Patched}/{Total} esclavos con estado live",
+                                patched, slavesArr.Count);
+                        }
+
                         return Content(
-                            "{\"hasConfiguration\":true,\"schemaVersion\":2,\"savedAt\":\"" + savedRow.SavedAt.ToString("o") + "\",\"totalSlaves\":" + savedRow.TotalSlaves + ",\"rawPayload\":" + payloadEl.GetRawText() + "}",
+                            "{\"hasConfiguration\":true,\"schemaVersion\":2,\"savedAt\":\"" + savedRow.SavedAt.ToString("o") + "\",\"totalSlaves\":" + savedRow.TotalSlaves + ",\"rawPayload\":" + payloadObj.ToJsonString() + "}",
                             "application/json");
                     }
                 }
