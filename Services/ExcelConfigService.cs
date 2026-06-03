@@ -1550,7 +1550,7 @@ namespace SW.PC.API.Backend.Services
 
             // Columnas base: A-L (12 columnas)
             // Botones: M en adelante (5 botones × 3 columnas = 15 columnas)
-            // Slots: AB en adelante (30 slots × 13 columnas = 390 columnas)
+            // Slots: AB en adelante (45 slots × 13 columnas = 585 columnas, hasta col WN)
             
             // 🔍 DEBUG: Mostrar dimensiones reales de la hoja
             _logger.LogInformation("📐 Dimensiones de hoja '3D_Elements_Info_Setting': Rows={Rows}, Cols={Cols}",
@@ -1647,11 +1647,12 @@ namespace SW.PC.API.Backend.Services
                         buttonCol += 3; // 3 columnas por control (mantiene compatibilidad M-AA)
                     }
 
-                    // Cargar 30 slots (columnas AB en adelante, 13 columnas por slot)
+                    // Cargar 45 slots (columnas AB en adelante, 13 columnas por slot)
                     // AB=28: Slot_1_Type, AC=29: Slot_1_PlcVar, etc.
+                    // Slot 30 termina en col 417 (PA); Slot 45 termina en col 612 (WN)
                     int slotCol = 28; // Columna AB
                     
-                    for (int slot = 1; slot <= 30; slot++)
+                    for (int slot = 1; slot <= 45; slot++)
                     {
                         var slotTypeText = GetCellText(sheet, row, slotCol);
                         var plcVar = GetCellText(sheet, row, slotCol + 1);
