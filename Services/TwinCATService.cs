@@ -451,6 +451,31 @@ namespace SW.PC.API.Backend.Services
                 
                 try 
                 {
+                    // 🧹 Si había un AdsClient previo (p.ej. tras desconexión por timeout o port-not-found),
+                    // descartarlo limpiamente. Reseteamos también el estado de notificaciones porque los
+                    // handles ADS pertenecen a la sesión anterior y el handler de eventos quedaría
+                    // suscrito a un cliente muerto → el nuevo cliente nunca dispararía OnAdsNotification
+                    // y el reconocimiento automático de alarmas dejaría de funcionar hasta reiniciar.
+                    if (_adsClient != null)
+                    {
+                        try
+                        {
+                            if (_notificationEventAttached)
+                            {
+                                _adsClient.AdsNotification -= OnAdsNotification;
+                            }
+                            _adsClient.Dispose();
+                        }
+                        catch (Exception disposeEx)
+                        {
+                            _logger.LogDebug(disposeEx, "Ignorando error al disponer AdsClient previo durante reconexión");
+                        }
+                        _adsClient = null;
+                    }
+                    _notificationEventAttached = false;
+                    _notificationRegistrations.Clear();
+                    _lastNotifiedValues.Clear();
+
                     // ✅ API CORRECTO Beckhoff 6.x - Basado en ejemplos oficiales
                     _adsClient = new AdsClient();
                     
