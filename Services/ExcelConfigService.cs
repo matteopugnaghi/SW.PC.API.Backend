@@ -1821,8 +1821,11 @@ namespace SW.PC.API.Backend.Services
         {
             var cell = sheet.Cell(address);
             if (cell.IsEmpty()) return 0;
-            if (cell.TryGetValue<double>(out var d)) return d;
-            var text = cell.GetString()?.Replace(",", ".");
+            // Solo confiar en TryGetValue<double> si la celda es realmente numérica.
+            // En celdas de TEXTO usa la cultura del hilo y puede malinterpretar el
+            // separador decimal (ej: "5,5" o "5.5" → 55). Para texto, parsear el string.
+            if (cell.DataType == XLDataType.Number && cell.TryGetValue<double>(out var d)) return d;
+            var text = cell.GetString()?.Trim().Replace(",", ".");
             if (double.TryParse(text, 
                 System.Globalization.NumberStyles.Any, 
                 System.Globalization.CultureInfo.InvariantCulture, out var result))
@@ -1836,8 +1839,11 @@ namespace SW.PC.API.Backend.Services
         {
             var cell = sheet.Cell(address);
             if (cell.IsEmpty()) return defaultValue;
-            if (cell.TryGetValue<double>(out var d)) return d;
-            var text = cell.GetString()?.Replace(",", ".");
+            // Solo confiar en TryGetValue<double> si la celda es realmente numérica.
+            // En celdas de TEXTO usa la cultura del hilo y puede malinterpretar el
+            // separador decimal (ej: "5,5" o "5.5" → 55). Para texto, parsear el string.
+            if (cell.DataType == XLDataType.Number && cell.TryGetValue<double>(out var d)) return d;
+            var text = cell.GetString()?.Trim().Replace(",", ".");
             if (double.TryParse(text, 
                 System.Globalization.NumberStyles.Any, 
                 System.Globalization.CultureInfo.InvariantCulture, out var result))
@@ -1851,8 +1857,11 @@ namespace SW.PC.API.Backend.Services
         {
             var cell = sheet.Cell(row, col);
             if (cell.IsEmpty()) return null;
-            if (cell.TryGetValue<double>(out var d)) return d;
-            var text = cell.GetString()?.Replace(",", ".");
+            // Solo confiar en TryGetValue<double> si la celda es realmente numérica.
+            // En celdas de TEXTO usa la cultura del hilo y puede malinterpretar el
+            // separador decimal (ej: "5,5" o "5.5" → 55). Para texto, parsear el string.
+            if (cell.DataType == XLDataType.Number && cell.TryGetValue<double>(out var d)) return d;
+            var text = cell.GetString()?.Trim().Replace(",", ".");
             if (double.TryParse(text, 
                 System.Globalization.NumberStyles.Any, 
                 System.Globalization.CultureInfo.InvariantCulture, out var result))
