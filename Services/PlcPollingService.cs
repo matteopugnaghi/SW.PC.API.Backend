@@ -162,9 +162,10 @@ namespace SW.PC.API.Backend.Services
             {
                 _logger.LogInformation("🔧 Forzando lectura de {VariableName}", variableName);
                 
-                // Usar tipo genérico double ya que la mayoría de las variables son numéricas
-                // El TwinCATService convierte automáticamente al tipo correcto
-                var result = await _twinCATService.ReadVariableAsync(variableName, typeof(double));
+                // 🔠 Detectar el tipo real por nombre (misma lógica que el polling) para leer el
+                // número de bytes correcto. Antes forzaba typeof(double) y leía mal las INT (col G).
+                var dataType = TwinCATService.ResolveDataTypeFromName(variableName);
+                var result = await _twinCATService.ReadVariableAsync(variableName, dataType);
                 
                 if (result != null)
                 {
@@ -786,37 +787,8 @@ namespace SW.PC.API.Backend.Services
         private async Task PollSingleVariableAsync(string variableName, CancellationToken cancellationToken)
         {
             // 🔔 Detectar tipo de dato según el nombre de la variable
-            Type dataType = typeof(int); // Por defecto int para estados de bombas, posiciones, etc.
-            
-            // Variables de alarma son BOOL (tanto st_alarmPc como st_alarmHistPc)
-            if ((variableName.Contains("st_alarmPc[") || variableName.Contains("st_alarmHistPc[")) && 
-                (variableName.EndsWith("].Alarm") || 
-                 variableName.EndsWith("].Notification") || 
-                 variableName.EndsWith("].Info")))
-            {
-                dataType = typeof(bool);
-            }
-            // Variables LREAL (prefijo lr_) son double - buscar .lr_ en cualquier parte antes del índice
-            else if (variableName.Contains(".lr_"))
-            {
-                dataType = typeof(double);
-            }
-            // Variables REAL (prefijo r_) son float
-            else if (variableName.Contains(".r_") && !variableName.Contains(".lr_"))
-            {
-                dataType = typeof(float);
-            }
-            // Variables booleanas (prefijo b_, bo_, x_)
-            else if (variableName.Contains(".b_") || variableName.Contains(".bo_") || variableName.Contains(".x_"))
-            {
-                dataType = typeof(bool);
-            }
-            // Variables string (prefijo s_, str_) y WSTRING (prefijo ws_)
-            else if (variableName.Contains(".s_") || variableName.Contains(".str_") || variableName.Contains(".ws_"))
-            {
-                dataType = typeof(string);
-                _logger.LogDebug("🔤 Variable WSTRING/STRING detectada: {Var}", variableName);
-            }
+            // (fuente única de verdad compartida con el endpoint puntual y ForceRead)
+            Type dataType = TwinCATService.ResolveDataTypeFromName(variableName);
             
             // Leer valor actual del PLC con el tipo correcto
             var currentValue = await _twinCATService.ReadVariableAsync(variableName, dataType);

@@ -699,6 +699,43 @@ namespace SW.PC.API.Backend.Services
             return snapshot;
         }
         
+        /// <summary>
+        /// 🔠 Resuelve el tipo CLR de una variable PLC a partir de su nombre (convención de prefijos).
+        /// FUENTE ÚNICA DE VERDAD usada por el polling, el ForceRead y el endpoint de lectura puntual,
+        /// para que TODOS lean el mismo número de bytes (LREAL=8, REAL=4, INT=2, BOOL=1…). Antes el
+        /// endpoint puntual forzaba typeof(int) (2 bytes) y leía mal las LREAL de traslación: los
+        /// elementos no se posicionaban en el estado inicial tras login/reinicio.
+        /// </summary>
+        public static Type ResolveDataTypeFromName(string variableName)
+        {
+            if (string.IsNullOrEmpty(variableName))
+                return typeof(int);
+
+            // Variables de alarma son BOOL (tanto st_alarmPc como st_alarmHistPc)
+            if ((variableName.Contains("st_alarmPc[") || variableName.Contains("st_alarmHistPc[")) &&
+                (variableName.EndsWith("].Alarm") ||
+                 variableName.EndsWith("].Notification") ||
+                 variableName.EndsWith("].Info")))
+            {
+                return typeof(bool);
+            }
+            // Variables LREAL (prefijo lr_) son double
+            if (variableName.Contains(".lr_"))
+                return typeof(double);
+            // Variables REAL (prefijo r_) son float
+            if (variableName.Contains(".r_") && !variableName.Contains(".lr_"))
+                return typeof(float);
+            // Variables booleanas (prefijo b_, bo_, x_)
+            if (variableName.Contains(".b_") || variableName.Contains(".bo_") || variableName.Contains(".x_"))
+                return typeof(bool);
+            // Variables string (prefijo s_, str_) y WSTRING (prefijo ws_)
+            if (variableName.Contains(".s_") || variableName.Contains(".str_") || variableName.Contains(".ws_"))
+                return typeof(string);
+
+            // Por defecto int (estados de bombas, posiciones DINT, contadores…)
+            return typeof(int);
+        }
+
         public async Task<object?> ReadVariableAsync(string variableName, Type dataType)
         {
             if (!IsConnected)

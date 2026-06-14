@@ -250,7 +250,11 @@ namespace SW.PC.API.Backend.Controllers
                     return StatusCode(503, new { message = "PLC not connected" });
                 }
 
-                var value = await _twinCATService.ReadVariableAsync(variableName, typeof(int));
+                // 🔠 Detectar el tipo real por nombre (LREAL/REAL/BOOL/STRING/INT) para leer el
+                // número de bytes correcto. Antes forzaba typeof(int) y leía mal las LREAL de
+                // traslación → algunos elementos no se posicionaban en el estado inicial.
+                var dataType = TwinCATService.ResolveDataTypeFromName(variableName);
+                var value = await _twinCATService.ReadVariableAsync(variableName, dataType);
 
                 if (value == null)
                 {
