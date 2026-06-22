@@ -43,16 +43,26 @@ namespace SW.PC.API.Backend.Hubs
                 ?? "Anonymous";
             string ipAddress = Context.GetHttpContext()?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
             
+            // ⛔ RECHAZAR conexiones sin JWT válido (token ausente o expirado).
+            // El hub NO lleva [Authorize] a propósito (para poder registrar el motivo aquí),
+            // pero una conexión anónima NO debe contar como HMI activo: si lo hiciera,
+            //   1) incrementaría ActiveConnections → el contador de vida del PLC
+            //      (CounterCycleLive) seguiría subiendo aunque NO haya ningún usuario logueado, y
+            //   2) escribiría "Anonymous" en UserLogged del PLC.
+            // Abortamos ANTES de incrementar/registrar: solo cuentan clientes autenticados y
+            // el usuario reportado al PLC es SIEMPRE el real. Causa típica de una conexión
+            // anónima: una reconexión de SignalR con el token ya caducado.
+            if (Context.User?.Identity?.IsAuthenticated != true)
+            {
+                _logger.LogWarning("⛔ Conexión SignalR rechazada (sin JWT válido) - ConnectionId={ConnectionId}, IP={IPAddress}", 
+                    Context.ConnectionId, ipAddress);
+                Context.Abort();
+                return;
+            }
+            
             // 🔍 Debug: Ver todos los claims disponibles
-            if (Context.User?.Identity?.IsAuthenticated == true)
-            {
-                var claims = Context.User.Claims.Select(c => $"{c.Type}={c.Value}");
-                _logger.LogInformation("🔍 Claims del usuario: {Claims}", string.Join(", ", claims));
-            }
-            else
-            {
-                _logger.LogWarning("⚠️ Usuario no autenticado - Identity.IsAuthenticated = false");
-            }
+            var claims = Context.User.Claims.Select(c => $"{c.Type}={c.Value}");
+            _logger.LogInformation("🔍 Claims del usuario: {Claims}", string.Join(", ", claims));
             
             lock (ClientConnectionTrackerService.LockObj)
             {
@@ -94,29 +104,41 @@ namespace SW.PC.API.Backend.Hubs
         
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
+            bool wasCounted = false;
             bool wasLastClient = false;
             string username = "Unknown";
             
             lock (ClientConnectionTrackerService.LockObj)
             {
-                // 👤 Obtener info del cliente antes de eliminarlo
+                // Solo decrementamos si esta conexión llegó a contarse (estaba registrada).
+                // Las conexiones anónimas rechazadas en OnConnectedAsync NO se registran ni
+                // incrementan, así que NO deben decrementar aquí (evita contador negativo y
+                // reescrituras innecesarias de UserLogged en el PLC).
                 if (ClientConnectionTrackerService.ConnectedClients.TryGetValue(Context.ConnectionId, out var clientInfo))
                 {
                     username = clientInfo.Username;
                     ClientConnectionTrackerService.ConnectedClients.Remove(Context.ConnectionId);
+                    
+                    ClientConnectionTrackerService.ActiveConnections--;
+                    if (ClientConnectionTrackerService.ActiveConnections < 0) 
+                        ClientConnectionTrackerService.ActiveConnections = 0;
+                    
+                    _metricsService.SetSignalRActiveConnections(ClientConnectionTrackerService.ActiveConnections);
+                    _metricsService.SetSignalRStatus(true, ClientConnectionTrackerService.ActiveConnections > 0, 
+                        ClientConnectionTrackerService.ActiveConnections > 0 
+                            ? $"OK - {ClientConnectionTrackerService.ActiveConnections} conexiones" 
+                            : "Esperando conexiones...");
+                    
+                    wasLastClient = ClientConnectionTrackerService.ActiveConnections == 0;
+                    wasCounted = true;
                 }
-                
-                ClientConnectionTrackerService.ActiveConnections--;
-                if (ClientConnectionTrackerService.ActiveConnections < 0) 
-                    ClientConnectionTrackerService.ActiveConnections = 0;
-                
-                _metricsService.SetSignalRActiveConnections(ClientConnectionTrackerService.ActiveConnections);
-                _metricsService.SetSignalRStatus(true, ClientConnectionTrackerService.ActiveConnections > 0, 
-                    ClientConnectionTrackerService.ActiveConnections > 0 
-                        ? $"OK - {ClientConnectionTrackerService.ActiveConnections} conexiones" 
-                        : "Esperando conexiones...");
-                
-                wasLastClient = ClientConnectionTrackerService.ActiveConnections == 0;
+            }
+            
+            // Conexión no contada (anónima rechazada) → no hay nada que actualizar en el PLC.
+            if (!wasCounted)
+            {
+                await base.OnDisconnectedAsync(exception);
+                return;
             }
             
             _logger.LogInformation("👤 Client disconnected: {ConnectionId} - User: {Username} (Total: {Count})", 
@@ -245,6 +267,23 @@ namespace SW.PC.API.Backend.Hubs
                 Context.ConnectionId, variableName);
             
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"var_{variableName}");
+        }
+
+        /// <summary>
+        /// 🩺 Heartbeat ligero solicitado periódicamente por el watchdog del cliente.
+        /// No realiza ningún trabajo: su único propósito es servir de "prueba de vida" real
+        /// con dos efectos:
+        ///   1) El cliente puede detectar conexiones "zombi" (half-open): si esta invocación
+        ///      no responde, la conexión está muerta aunque el cliente la crea viva, y fuerza
+        ///      una reconexión limpia.
+        ///   2) Reinicia el ClientTimeoutInterval del servidor para esta conexión, evitando que
+        ///      el backend la descarte por inactividad y mantenga viva la cuenta de
+        ///      ActiveConnections que alimenta el contador CounterCycleLive del PLC.
+        /// Devuelve el timestamp del servidor (epoch ms).
+        /// </summary>
+        public Task<long> Heartbeat()
+        {
+            return Task.FromResult(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         }
 
         /// <summary>
