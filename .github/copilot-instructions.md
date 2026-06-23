@@ -176,6 +176,10 @@ Task<IEnumerable<Model3D>> GetAllModelsAsync();
 Task<Model3D?> GetModelByIdAsync(string id);
 ```
 
+### Protocol drivers convention
+Each industrial protocol has its **own** interface (no shared base): `ITwinCATService` (ADS, source of truth for the PLC), `IOpcUaServerService` (gated by Excel `System Config → OpcUaEnabled`, disabled = `DisabledOpcUaServerService` stub). New protocols follow the same gated + stub pattern.
+- **Modbus TCP** (planned, not yet implemented): server + client driver gated by `System Config → ModbusEnabled`, sheets `Modbus_Variables`/`Modbus_Alarms`. See the `modbus-protocol` skill in [.github/skills/modbus-protocol/SKILL.md](.github/skills/modbus-protocol/SKILL.md) before implementing.
+
 ## 🌐 CORS & API Configuration
 
 ### Multi-port CORS Setup (`Program.cs`)
