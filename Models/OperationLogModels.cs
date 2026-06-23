@@ -37,7 +37,10 @@ public enum OperationCategory
     PlcAlarmHistory = 10,
 
     /// <summary>Comunicación OPC/UA (escrituras, lecturas, cambios)</summary>
-    OpcUa = 11
+    OpcUa = 11,
+
+    /// <summary>Comunicación Modbus TCP (escrituras, cambios, fuentes externas)</summary>
+    Modbus = 12
 }
 
 /// <summary>
@@ -105,7 +108,14 @@ public enum OperationAction
     OpcUaClientDisconnect = 154,      // Cliente OPC UA desconectado
     OpcUaConfigWarning = 155,         // Error/warning de configuración OPC UA en Excel
     OpcUaSftpSync = 156,              // Sincronización SFTP de certificados OPC UA
-    
+
+    // Modbus TCP (160-169)
+    ModbusRegisterWrite = 160,        // Escritura desde cliente Modbus → ADS (rol Server)
+    ModbusValueChange = 161,          // Cambio de valor ADS → registro Modbus (rol Server)
+    ModbusAlarmChange = 162,          // Cambio de estado de alarma Modbus
+    ModbusSourceRead = 163,           // Lectura de fuente Modbus externa (rol Client)
+    ModbusSourceWrite = 164,          // Escritura a fuente Modbus externa (rol Client)
+
     // ❌ System (200+) - ELIMINADO: Los eventos de sistema (Startup, Shutdown, Error)
     //    ya se registran en L1 (Audit Log) con AuditAction.SystemStart/SystemStop
 }

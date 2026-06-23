@@ -512,6 +512,81 @@ else
     Console.WriteLine("🌐 OPC/UA Server DISABLED — service not started");
 }
 
+// 📡 Modbus TCP Server/Client — Industrial Communication Protocol (additive, gated by Excel)
+// Read ModbusEnabled flag from Excel BEFORE registering the service (mirrors OPC/UA).
+// ZERO REGRESSION: if absent/empty/FALSE → DisabledModbusService stub (no sockets, no threads).
+bool modbusEnabledInExcel = false;
+try
+{
+    var contentRoot = builder.Environment.ContentRootPath;
+    var activeProjectFile = Path.Combine(contentRoot, "active-project.json");
+    string excelPath;
+    if (File.Exists(activeProjectFile))
+    {
+        var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(activeProjectFile));
+        var activeProject = json.RootElement.TryGetProperty("activeProject", out var prop)
+            ? prop.GetString() ?? "default" : "default";
+        if (activeProject != "default")
+        {
+            var configDir = Path.Combine(contentRoot, "Projects", activeProject, "config");
+            excelPath = Directory.Exists(configDir)
+                ? (Directory.GetFiles(configDir, "*.xlsm").FirstOrDefault()
+                   ?? Directory.GetFiles(configDir, "*.xlsx").FirstOrDefault()
+                   ?? Path.Combine(configDir, "ProjectConfig.xlsm"))
+                : Path.Combine(configDir, "ProjectConfig.xlsm");
+        }
+        else
+        {
+            excelPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm");
+        }
+    }
+    else
+    {
+        excelPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm");
+    }
+
+    if (File.Exists(excelPath))
+    {
+        using var stream = new FileStream(excelPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var workbook = new XLWorkbook(stream);
+        var ws = workbook.Worksheets.FirstOrDefault(s =>
+            s.Name.Equals("System Config", StringComparison.OrdinalIgnoreCase) ||
+            s.Name.Equals("SystemConfig", StringComparison.OrdinalIgnoreCase));
+        if (ws != null)
+        {
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+            for (int row = 1; row <= lastRow; row++)
+            {
+                var keyNorm = (ws.Cell(row, 1).GetString()?.ToLowerInvariant()?.Replace(" ", "") ?? "");
+                if (keyNorm == "modbusenabled" || keyNorm == "modbus_enabled")
+                {
+                    var val = ws.Cell(row, 2).GetString()?.Trim()?.ToLowerInvariant() ?? "";
+                    modbusEnabledInExcel = val == "true" || val == "1"
+                                         || val == "si" || val == "yes" || val == "on";
+                    break;
+                }
+            }
+        }
+    }
+    Console.WriteLine($"📡 Modbus Enabled in Excel: {modbusEnabledInExcel}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"⚠️ Could not read Modbus config from Excel: {ex.Message}");
+}
+
+if (modbusEnabledInExcel)
+{
+    builder.Services.AddSingleton<IModbusService, ModbusService>();
+    builder.Services.AddHostedService(sp => (ModbusService)sp.GetRequiredService<IModbusService>());
+    Console.WriteLine("📡 Modbus TCP service REGISTERED (server + client)");
+}
+else
+{
+    builder.Services.AddSingleton<IModbusService, DisabledModbusService>();
+    Console.WriteLine("📡 Modbus DISABLED — service not started");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 💾 DATA MANAGEMENT: Sistema de Backup/Restore (EU CRA Anexo I, Parte I, 2f)
 // ═══════════════════════════════════════════════════════════════════════════════

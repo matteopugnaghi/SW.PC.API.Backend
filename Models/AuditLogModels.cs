@@ -197,7 +197,19 @@ namespace SW.PC.API.Backend.Models
         // ═══════════════════════════════════════════════════════════
         SftpSync,               // SFTP certificate sync operation
         OpcUaConfigWarning,     // Excel configuration error/warning
-        CrlDownload             // CRL HTTP download (automatic)
+        CrlDownload,            // CRL HTTP download (automatic)
+
+        // ═══════════════════════════════════════════════════════════
+        // MODBUS TCP (OT COMMUNICATION) — gated by Excel ModbusEnabled
+        // ═══════════════════════════════════════════════════════════
+        ModbusServerStart,          // Modbus TCP server started
+        ModbusServerStop,           // Modbus TCP server stopped
+        ModbusClientConnect,        // Third-party Modbus client connected to our server
+        ModbusClientDisconnect,     // Third-party Modbus client disconnected
+        ModbusSourceConnect,        // External Modbus source connected (Client role)
+        ModbusSourceDisconnect,     // External Modbus source disconnected (Client role)
+        ModbusSecurityReject,       // Connection rejected
+        ModbusConfigWarning         // Excel configuration error/warning
     }
 
     /// <summary>

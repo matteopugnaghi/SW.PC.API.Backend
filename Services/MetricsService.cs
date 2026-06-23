@@ -74,6 +74,11 @@ namespace SW.PC.API.Backend.Services
         /// Registrar estado del servidor OPC/UA
         /// </summary>
         void SetOpcUaServerStatus(bool enabled, bool running, string statusMessage, int connectedClients = 0);
+
+        /// <summary>
+        /// 📡 Registrar estado del subsistema Modbus TCP (server + client)
+        /// </summary>
+        void SetModbusServerStatus(bool enabled, bool running, string statusMessage, int connectedClients = 0, int sources = 0);
         // ===== 🌡️ TME TEMPERATURE SENSORS =====
 
         /// <summary>
@@ -225,6 +230,11 @@ namespace SW.PC.API.Backend.Services
                         OpcUaRunning = _servicesStatus.OpcUaRunning,
                         OpcUaStatus = _servicesStatus.OpcUaStatus,
                         OpcUaConnectedClients = _servicesStatus.OpcUaConnectedClients,
+                        ModbusEnabled = _servicesStatus.ModbusEnabled,
+                        ModbusRunning = _servicesStatus.ModbusRunning,
+                        ModbusStatus = _servicesStatus.ModbusStatus,
+                        ModbusConnectedClients = _servicesStatus.ModbusConnectedClients,
+                        ModbusSources = _servicesStatus.ModbusSources,
                         Tme1Enabled = _servicesStatus.Tme1Enabled,
                         Tme1Connected = _servicesStatus.Tme1Connected,
                         Tme1Status = _servicesStatus.Tme1Status,
@@ -313,6 +323,19 @@ namespace SW.PC.API.Backend.Services
                 _servicesStatus.OpcUaRunning = running;
                 _servicesStatus.OpcUaStatus = statusMessage;
                 _servicesStatus.OpcUaConnectedClients = connectedClients;
+                _servicesStatus.LastStatusUpdate = DateTime.Now;
+            }
+        }
+
+        public void SetModbusServerStatus(bool enabled, bool running, string statusMessage, int connectedClients = 0, int sources = 0)
+        {
+            lock (_lock)
+            {
+                _servicesStatus.ModbusEnabled = enabled;
+                _servicesStatus.ModbusRunning = running;
+                _servicesStatus.ModbusStatus = statusMessage;
+                _servicesStatus.ModbusConnectedClients = connectedClients;
+                _servicesStatus.ModbusSources = sources;
                 _servicesStatus.LastStatusUpdate = DateTime.Now;
             }
         }

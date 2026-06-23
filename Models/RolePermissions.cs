@@ -171,6 +171,9 @@ public class ModulePermissions
     /// <summary>Vista de OPC/UA Server</summary>
     public ViewPermission OpcUaView { get; set; } = new();
 
+    /// <summary>Vista de Modbus TCP (server/client)</summary>
+    public ViewPermission ModbusView { get; set; } = new();
+
     /// <summary>
     /// Gestor de Exportaciones (Export Manager).
     /// CanView  = ver la lista de tareas y ejecutarlas manualmente.
@@ -332,6 +335,7 @@ public static class DefaultRolePermissions
                 ManualModeView = AllPermissions(),
                 DocumentsView = AllPermissions(),
                 OpcUaView = AllPermissions(),
+                ModbusView = AllPermissions(),
                 ExportManager = AllPermissions(),
                 
                 // 🚂 Tipos de Tren - TODO habilitado
@@ -406,6 +410,7 @@ public static class DefaultRolePermissions
                 ManualModeView = AllPermissions(),
                 DocumentsView = AllPermissions(),
                 OpcUaView = AllPermissions(),
+                ModbusView = AllPermissions(),
                 ExportManager = AllPermissions(),
                 
                 // 🚂 Tipos de Tren
@@ -480,6 +485,7 @@ public static class DefaultRolePermissions
                 ManualModeView = NoPermission(),
                 DocumentsView = ReadOnlyPermission(),
                 OpcUaView = NoPermission(),
+                ModbusView = NoPermission(),
                 ExportManager = NoPermission(),
                 
                 // 🚂 Tipos de Tren - Solo ver
@@ -554,6 +560,7 @@ public static class DefaultRolePermissions
                 ManualModeView = AllPermissions(),
                 DocumentsView = AllPermissions(),
                 OpcUaView = new ViewPermission { CanView = true, CanEdit = true },
+                ModbusView = new ViewPermission { CanView = true, CanEdit = true },
                 ExportManager = AllPermissions(),
                 
                 // 🚂 Tipos de Tren - Control total
@@ -628,6 +635,7 @@ public static class DefaultRolePermissions
                 ManualModeView = NoPermission(),
                 DocumentsView = ReadOnlyPermission(),
                 OpcUaView = NoPermission(),
+                ModbusView = NoPermission(),
                 ExportManager = NoPermission(),
                 
                 // 🚂 Tipos de Tren - Sin acceso
@@ -702,6 +710,7 @@ public static class DefaultRolePermissions
                 ManualModeView = NoPermission(),
                 DocumentsView = new ViewPermission { CanView = true, CanExport = true },
                 OpcUaView = NoPermission(),
+                ModbusView = NoPermission(),
                 ExportManager = NoPermission(),
                 
                 // 🚂 Tipos de Tren - Sin acceso

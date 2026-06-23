@@ -1173,9 +1173,14 @@ namespace SW.PC.API.Backend.Models.Excel
         /// </summary>
         public bool OpcUaEnabled { get; set; } = false;
 
+        /// <summary>
+        /// 📡 Habilitar Modbus TCP (server/client). Si false/ausente, el subsistema no existe
+        /// y la vista Modbus no aparece en el menú lateral. ZERO REGRESSION por defecto.
+        /// </summary>
+        public bool ModbusEnabled { get; set; } = false;
+
         /// <summary>Puerto TCP del servidor OPC/UA (default: 4840)</summary>
         public int OpcUaPort { get; set; } = 4840;
-
         /// <summary>URI del servidor OPC/UA (e.g., "opc.tcp://localhost:4840")</summary>
         public string OpcUaServerUri { get; set; } = "opc.tcp://localhost:4840";
 
@@ -1919,6 +1924,23 @@ namespace SW.PC.API.Backend.Models.Excel
 
         /// <summary>Número de clientes OPC/UA conectados</summary>
         public int OpcUaConnectedClients { get; set; }
+
+        // ===== 📡 MODBUS TCP SERVER/CLIENT =====
+
+        /// <summary>Modbus habilitado en configuración (Excel ModbusEnabled)</summary>
+        public bool ModbusEnabled { get; set; }
+
+        /// <summary>Servidor Modbus TCP en ejecución</summary>
+        public bool ModbusRunning { get; set; }
+
+        /// <summary>Último mensaje de estado del subsistema Modbus</summary>
+        public string ModbusStatus { get; set; } = "No iniciado";
+
+        /// <summary>Número de clientes Modbus conectados al servidor</summary>
+        public int ModbusConnectedClients { get; set; }
+
+        /// <summary>Número de fuentes Modbus externas configuradas (rol Client)</summary>
+        public int ModbusSources { get; set; }
 
         // ===== 🌡️ TME TEMPERATURE SENSORS =====
 

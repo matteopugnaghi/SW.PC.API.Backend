@@ -3766,6 +3766,14 @@ namespace SW.PC.API.Backend.Services
                                 var opcuaValue = paramValue?.ToLower()?.Trim() ?? "";
                                 config.OpcUaEnabled = opcuaValue == "true" || opcuaValue == "1" || opcuaValue == "on" || opcuaValue == "si" || opcuaValue == "yes";
                                 break;
+                            // ═══════════════════════════════════════════════════════════════
+                            // 📡 MODBUS TCP - Industrial Communication Protocol (additive)
+                            // ═══════════════════════════════════════════════════════════════
+                            case "modbusenabled":
+                            case "modbus_enabled":
+                                var modbusValue = paramValue?.ToLower()?.Trim() ?? "";
+                                config.ModbusEnabled = modbusValue == "true" || modbusValue == "1" || modbusValue == "on" || modbusValue == "si" || modbusValue == "yes";
+                                break;
                             case "opcuaport":
                             case "opcua_port":
                                 if (int.TryParse(paramValue, out int opcPort) && opcPort > 0 && opcPort <= 65535)
