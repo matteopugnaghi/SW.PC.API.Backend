@@ -1208,6 +1208,10 @@ public class GitOperationsService : IGitOperationsService
             if (result.Success) 
             {
                 // ?? Actualizar informaci�n de integridad despu�s de push
+                // Sincronizar el remote-tracking ref local tras push exitoso. El push se hace contra una
+                // URL explicita con credenciales, lo que NO actualiza refs/remotes/origin/*, dejando el
+                // panel con "commits pendientes" falsos. update-ref lo corrige localmente (sin red).
+                await SyncUpstreamTrackingRefAsync(repoPath);
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after push"); }
@@ -1248,6 +1252,8 @@ public class GitOperationsService : IGitOperationsService
             if (result.Success) 
             {
                 // ?? Actualizar informaci�n de integridad despu�s de force push
+                // Sincronizar el remote-tracking ref local tras force push exitoso (ver nota en PushAsync).
+                await SyncUpstreamTrackingRefAsync(repoPath);
                 _ = Task.Run(async () => {
                     try { await _integrityService.VerifyAllIntegrityAsync(); }
                     catch (Exception ex) { _logger.LogWarning(ex, "Failed to refresh integrity info after force push"); }
@@ -1497,6 +1503,32 @@ public class GitOperationsService : IGitOperationsService
     // ═══════════════════════════════════════════════════════════════════════════
     
     /// <summary>
+    /// Sincroniza el remote-tracking ref local (refs/remotes/origin/&lt;branch&gt;) con HEAD tras un push
+    /// exitoso. El push se hace contra una URL explicita con credenciales, lo que no actualiza origin/*
+    /// automaticamente y deja el calculo de "commits ahead" desfasado. Operacion 100% local (sin red).
+    /// </summary>
+    private async Task SyncUpstreamTrackingRefAsync(string repoPath)
+    {
+        try
+        {
+            var upstream = (await RunGitCommandAsync(repoPath, "rev-parse --abbrev-ref --symbolic-full-name @{upstream}")).Output?.Trim();
+            if (!string.IsNullOrWhiteSpace(upstream) && !upstream.Contains("fatal", StringComparison.OrdinalIgnoreCase))
+            {
+                // upstream tipico: "origin/main" -> ref completo: "refs/remotes/origin/main"
+                var updateResult = await RunGitCommandAsync(repoPath, $"update-ref refs/remotes/{upstream} HEAD");
+                if (updateResult.Success)
+                    _logger.LogInformation("Synced tracking ref refs/remotes/{Upstream} -> HEAD after push in {Path}", upstream, repoPath);
+                else
+                    _logger.LogWarning("Could not sync tracking ref for {Upstream} in {Path}: {Error}", upstream, repoPath, updateResult.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sync upstream tracking ref after push in {Path}", repoPath);
+        }
+    }
+
+    /// <summary>
     /// Verifica y repara automáticamente el estado del repositorio Git:
     /// 1. Configura identidad si falta (user.email/user.name)
     /// 2. Repara reflog corrupto
@@ -1514,9 +1546,25 @@ public class GitOperationsService : IGitOperationsService
             var emailCheck = await RunGitCommandAsync(repoPath, "config user.email");
             if (!emailCheck.Success || string.IsNullOrWhiteSpace(emailCheck.Output))
             {
-                await RunGitCommandAsync(repoPath, "config user.email \"electronico@aquafrisch.com\"");
-                await RunGitCommandAsync(repoPath, "config user.name \"Aquafrisch Supervisor\"");
-                repairs.Add("Configured git identity (user.email + user.name)");
+                // Heredar identidad del ULTIMO COMMIT (el copiado desde la maquina donde se commiteo).
+                // Fallback a identidad de servicio si el repo no tuviera commits.
+                var lastName = (await RunGitCommandAsync(repoPath, "log -1 --format=%an")).Output?.Trim();
+                var lastEmail = (await RunGitCommandAsync(repoPath, "log -1 --format=%ae")).Output?.Trim();
+                if (!string.IsNullOrWhiteSpace(lastEmail) && !string.IsNullOrWhiteSpace(lastName))
+                {
+                    // Escapar comillas para evitar inyeccion de argumentos
+                    var safeName = lastName.Replace("\"", "\\\"");
+                    var safeEmail = lastEmail.Replace("\"", "\\\"");
+                    await RunGitCommandAsync(repoPath, $"config user.email \"{safeEmail}\"");
+                    await RunGitCommandAsync(repoPath, $"config user.name \"{safeName}\"");
+                    repairs.Add($"Inherited git identity from last commit ({lastName} <{lastEmail}>)");
+                }
+                else
+                {
+                    await RunGitCommandAsync(repoPath, "config user.email \"electronico@aquafrisch.com\"");
+                    await RunGitCommandAsync(repoPath, "config user.name \"Aquafrisch Supervisor\"");
+                    repairs.Add("Configured git identity (user.email + user.name)");
+                }
                 _logger.LogInformation("🔧 Auto-configured git identity in {Path}", repoPath);
             }
             else if (emailCheck.Output?.Trim().Contains("aquafrsich", StringComparison.OrdinalIgnoreCase) == true)
@@ -1782,6 +1830,14 @@ public class GitOperationsService : IGitOperationsService
             }
 
             _logger.LogInformation("Creating tag {Tag} in {Path}: {Message}", tagName, repoPath, message);
+
+            // Auto-reparacion: asegurar identidad de git antes del tag anotado (hereda del ultimo commit
+            // si falta). Necesario porque el tag -a requiere identidad igual que un commit y la cuenta
+            // del servidor (SYSTEM) puede no tenerla configurada -> evita "Committer identity unknown".
+            var tagRepairs = await EnsureRepoHealthAsync(repoPath);
+            if (tagRepairs.Count > 0)
+                _logger.LogInformation("Auto-repairs before tag creation: {Repairs}", string.Join("; ", tagRepairs));
+
             var escapedMessage = message.Replace("\"", "\\\"");
             var result = await RunGitCommandAsync(repoPath, $"tag -a {tagName} -m \"{escapedMessage}\"");
             
