@@ -97,6 +97,11 @@ namespace SW.PC.API.Backend.Services
         // RW server registers: last value we pushed to the buffer (to detect client writes)
         private readonly ConcurrentDictionary<string, double> _lastServerPushed = new();
 
+        // Client reconnection throttling — avoids log spam and cycle blocking on dead sources
+        private readonly ConcurrentDictionary<string, DateTime> _nextSourceRetry = new();
+        private readonly ConcurrentDictionary<string, bool> _sourceDownLogged = new();
+        private const int SourceRetryBackoffSec = 15;
+
         public event EventHandler<PlcNotification>? OnVariableChanged;
 
         public bool IsEnabled => _config.Enabled;
@@ -135,7 +140,7 @@ namespace SW.PC.API.Backend.Services
                 BindIp = _config.ServerBindIp,
                 Port = _config.ServerPort,
                 UnitId = _config.ServerUnitId,
-                ConnectedClients = 0, // FluentModbus server does not expose per-client count
+                ConnectedClients = _server?.ConnectionCount ?? 0, // Modbus masters connected to our server
                 PublishedVariables = _variables.Count(v => !v.IsExternalSource),
                 PublishedAlarms = _alarms.Count,
                 StartedAt = _serverStartedAt,
@@ -202,11 +207,11 @@ namespace SW.PC.API.Backend.Services
         {
             try
             {
-                int connectedSources = _sourceStatus.Values.Count(s => s.Connected);
+                int clients = _server?.ConnectionCount ?? 0;
                 _metrics.SetModbusServerStatus(
                     _config.Enabled, _serverRunning,
                     _serverRunning ? "Running" : (_config.Enabled ? "Stopped" : "Disabled"),
-                    connectedSources, _config.Sources.Count);
+                    clients, _config.Sources.Count);
             }
             catch { /* never break the loop on metrics */ }
         }
@@ -484,6 +489,14 @@ namespace SW.PC.API.Backend.Services
             try
             {
                 _server = new ModbusTcpServer(_logger) { EnableRaisingEvents = false };
+                // FluentModbus TCP server responds to unit id 0 by default. Modbus masters
+                // (e.g. Modbus Poll) only allow unit ids 1..255, so register the configured
+                // ServerUnitId as an additional active unit. All buffer access uses this unit.
+                if (_config.ServerUnitId != 0)
+                {
+                    try { _server.AddUnit(_config.ServerUnitId); }
+                    catch (Exception ux) { _logger.LogWarning("📡 Could not register Modbus unit id {Unit}: {Msg}", _config.ServerUnitId, ux.Message); }
+                }
                 var ip = ParseBindIp(_config.ServerBindIp);
                 _server.Start(new IPEndPoint(ip, _config.ServerPort));
                 _serverRunning = true;
@@ -701,7 +714,8 @@ namespace SW.PC.API.Backend.Services
                 {
                     Id = source.Id, Host = source.Host, Port = source.Port, UnitId = source.UnitId, Connected = false
                 };
-                TryConnectSource(source);
+                // Defer the first connection attempt to the poll loop (throttled).
+                _nextSourceRetry[source.Id] = DateTime.MinValue;
             }
         }
 
@@ -713,6 +727,9 @@ namespace SW.PC.API.Backend.Services
                 client.Connect(new IPEndPoint(IPAddress.Parse(source.Host), source.Port), ModbusEndianness.BigEndian);
                 _clients[source.Id] = client;
                 if (_sourceStatus.TryGetValue(source.Id, out var st)) { st.Connected = true; st.LastError = ""; }
+                _nextSourceRetry.TryRemove(source.Id, out _);
+                _sourceDownLogged[source.Id] = false;
+                _logger.LogInformation("📡 Modbus source {Id} connected ({Host}:{Port})", source.Id, source.Host, source.Port);
                 _ = _auditLogService.LogAsync(
                     Models.AuditCategory.OtCommunication, Models.AuditAction.ModbusSourceConnect, Models.AuditResult.Success,
                     $"Connected to external Modbus source {source.Id} {source.Host}:{source.Port}", userName: "System");
@@ -720,7 +737,21 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 if (_sourceStatus.TryGetValue(source.Id, out var st)) { st.Connected = false; st.LastError = ex.Message; }
-                _logger.LogWarning("📡 Modbus source {Id} ({Host}:{Port}) connect failed: {Msg}", source.Id, source.Host, source.Port, ex.Message);
+                // Backoff: don't retry (or log) every cycle while the source is unreachable.
+                _nextSourceRetry[source.Id] = DateTime.UtcNow.AddSeconds(SourceRetryBackoffSec);
+                if (!_sourceDownLogged.GetValueOrDefault(source.Id))
+                {
+                    _sourceDownLogged[source.Id] = true;
+                    _logger.LogWarning("📡 Modbus source {Id} ({Host}:{Port}) unreachable — retrying every {Sec}s: {Msg}",
+                        source.Id, source.Host, source.Port, SourceRetryBackoffSec, ex.Message);
+                    _ = _auditLogService.LogAsync(
+                        Models.AuditCategory.OtCommunication, Models.AuditAction.ModbusSourceDisconnect, Models.AuditResult.Warning,
+                        $"External Modbus source {source.Id} {source.Host}:{source.Port} unreachable: {ex.Message}", userName: "System");
+                }
+                else
+                {
+                    _logger.LogDebug("📡 Modbus source {Id} still unreachable: {Msg}", source.Id, ex.Message);
+                }
             }
         }
 
@@ -737,6 +768,9 @@ namespace SW.PC.API.Backend.Services
         {
             if (!_clients.TryGetValue(source.Id, out var client) || !client.IsConnected)
             {
+                // Throttle reconnection: don't hammer (or block on) a dead source every cycle.
+                if (_nextSourceRetry.TryGetValue(source.Id, out var next) && DateTime.UtcNow < next)
+                    return;
                 TryConnectSource(source);
                 if (!_clients.TryGetValue(source.Id, out client) || client == null || !client.IsConnected)
                     return;
@@ -766,6 +800,7 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogDebug("📡 Read failed {Id}:{Name}: {Msg}", source.Id, v.Name, ex.Message);
                     try { client.Disconnect(); } catch { }
                     _clients.TryRemove(source.Id, out _);
+                    _nextSourceRetry[source.Id] = DateTime.UtcNow.AddSeconds(SourceRetryBackoffSec);
                     break;
                 }
             }
@@ -844,8 +879,8 @@ namespace SW.PC.API.Backend.Services
             double eng = ToDouble(value);
             double raw = v.Scale != 0 ? (eng - v.Offset) / v.Scale : eng;
             var registers = v.RegisterType == ModbusRegisterType.InputRegister
-                ? _server!.GetInputRegisters()
-                : _server!.GetHoldingRegisters();
+                ? _server!.GetInputRegisters(_config.ServerUnitId)
+                : _server!.GetHoldingRegisters(_config.ServerUnitId);
 
             bool little = v.WordOrder is "CDAB" or "DCBA";
             switch (v.DataType)
@@ -863,7 +898,10 @@ namespace SW.PC.API.Backend.Services
                     else registers.SetBigEndian<uint>(v.Address, (uint)Math.Max(0, Math.Round(raw)));
                     break;
                 default: // INT16/UINT16
-                    registers[v.Address] = (short)(int)Math.Round(raw);
+                    // Modbus wire order is big-endian; the raw indexer would write native
+                    // (little-endian) bytes and appear byte-swapped to the master.
+                    if (little) registers.SetLittleEndian<short>(v.Address, (short)(int)Math.Round(raw));
+                    else registers.SetBigEndian<short>(v.Address, (short)(int)Math.Round(raw));
                     break;
             }
             return raw;
@@ -875,8 +913,8 @@ namespace SW.PC.API.Backend.Services
                 return ReadBoolFromBuffer(v.RegisterType, v.Address) ? 1 : 0;
 
             var registers = v.RegisterType == ModbusRegisterType.InputRegister
-                ? _server!.GetInputRegisters()
-                : _server!.GetHoldingRegisters();
+                ? _server!.GetInputRegisters(_config.ServerUnitId)
+                : _server!.GetHoldingRegisters(_config.ServerUnitId);
             bool little = v.WordOrder is "CDAB" or "DCBA";
             switch (v.DataType)
             {
@@ -887,15 +925,15 @@ namespace SW.PC.API.Backend.Services
                 case "UINT32" or "UDINT":
                     return little ? registers.GetLittleEndian<uint>(v.Address) : registers.GetBigEndian<uint>(v.Address);
                 case "UINT16" or "WORD":
-                    return (ushort)registers[v.Address];
+                    return (ushort)(little ? registers.GetLittleEndian<short>(v.Address) : registers.GetBigEndian<short>(v.Address));
                 default:
-                    return registers[v.Address];
+                    return little ? registers.GetLittleEndian<short>(v.Address) : registers.GetBigEndian<short>(v.Address);
             }
         }
 
         private void WriteBoolToBuffer(ModbusRegisterType type, int address, bool value)
         {
-            var buffer = type == ModbusRegisterType.DiscreteInput ? _server!.GetDiscreteInputs() : _server!.GetCoils();
+            var buffer = type == ModbusRegisterType.DiscreteInput ? _server!.GetDiscreteInputs(_config.ServerUnitId) : _server!.GetCoils(_config.ServerUnitId);
             int byteIndex = address / 8;
             int bitPos = address % 8;
             if (byteIndex < 0 || byteIndex >= buffer.Length) return;
@@ -905,7 +943,7 @@ namespace SW.PC.API.Backend.Services
 
         private bool ReadBoolFromBuffer(ModbusRegisterType type, int address)
         {
-            var buffer = type == ModbusRegisterType.DiscreteInput ? _server!.GetDiscreteInputs() : _server!.GetCoils();
+            var buffer = type == ModbusRegisterType.DiscreteInput ? _server!.GetDiscreteInputs(_config.ServerUnitId) : _server!.GetCoils(_config.ServerUnitId);
             int byteIndex = address / 8;
             int bitPos = address % 8;
             if (byteIndex < 0 || byteIndex >= buffer.Length) return false;
