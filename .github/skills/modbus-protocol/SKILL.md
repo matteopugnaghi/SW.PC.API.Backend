@@ -204,6 +204,7 @@ La configuración de **IP y puertos** se declara aquí en Excel (no en `appsetti
 | `ModbusServerBindIp` | `0.0.0.0` | IP de escucha del Modbus TCP Server (rol Server). `0.0.0.0` = todas las interfaces. |
 | `ModbusServerPort` | `502` | Puerto del Modbus TCP Server (rol Server). |
 | `ModbusServerUnitId` | `1` | Unit/Slave id del server. |
+| `ModbusServerAddressOffset` | `0` | Offset global (coils/registros) sumado a TODAS las direcciones del server (variables+alarmas). Para clientes con otra base. No afecta al rol Client. |
 | `ModbusClient1_Host` / `_Port` / `_UnitId` | `192.168.2.50` / `502` / `1` | **IP + puerto** de la fuente externa 1 (rol Client). |
 | `ModbusClient2_Host` / `_Port` / `_UnitId` | `192.168.2.51` / `502` / `1` | Fuente externa 2 (**máx 2**). |
 | `ModbusPollIntervalMs` | `1000` | Polling de fuentes externas (rol Client). |

@@ -291,6 +291,7 @@ namespace SW.PC.API.Backend.Services
             if (string.IsNullOrWhiteSpace(cfg.ServerBindIp)) cfg.ServerBindIp = "0.0.0.0";
             cfg.ServerPort = int.TryParse(kv.GetValueOrDefault("modbusserverport"), out var p) && p > 0 ? p : 502;
             cfg.ServerUnitId = byte.TryParse(kv.GetValueOrDefault("modbusserverunitid"), out var uid) ? uid : (byte)1;
+            cfg.ServerAddressOffset = int.TryParse(kv.GetValueOrDefault("modbusserveraddressoffset"), out var ao) ? ao : 0;
             cfg.PollIntervalMs = int.TryParse(kv.GetValueOrDefault("modbuspollintervalms"), out var pi) && pi > 0 ? pi : 1000;
 
             // External sources (max 2 by convention)
@@ -954,26 +955,27 @@ namespace SW.PC.API.Backend.Services
                 ? _server!.GetInputRegisters(_config.ServerUnitId)
                 : _server!.GetHoldingRegisters(_config.ServerUnitId);
 
+            int addr = v.Address + _config.ServerAddressOffset;
             bool little = v.WordOrder is "CDAB" or "DCBA";
             switch (v.DataType)
             {
                 case "FLOAT32" or "REAL":
-                    if (little) registers.SetLittleEndian<float>(v.Address, (float)(eng));
-                    else registers.SetBigEndian<float>(v.Address, (float)(eng));
+                    if (little) registers.SetLittleEndian<float>(addr, (float)(eng));
+                    else registers.SetBigEndian<float>(addr, (float)(eng));
                     break;
                 case "INT32" or "DINT":
-                    if (little) registers.SetLittleEndian<int>(v.Address, (int)Math.Round(raw));
-                    else registers.SetBigEndian<int>(v.Address, (int)Math.Round(raw));
+                    if (little) registers.SetLittleEndian<int>(addr, (int)Math.Round(raw));
+                    else registers.SetBigEndian<int>(addr, (int)Math.Round(raw));
                     break;
                 case "UINT32" or "UDINT":
-                    if (little) registers.SetLittleEndian<uint>(v.Address, (uint)Math.Max(0, Math.Round(raw)));
-                    else registers.SetBigEndian<uint>(v.Address, (uint)Math.Max(0, Math.Round(raw)));
+                    if (little) registers.SetLittleEndian<uint>(addr, (uint)Math.Max(0, Math.Round(raw)));
+                    else registers.SetBigEndian<uint>(addr, (uint)Math.Max(0, Math.Round(raw)));
                     break;
                 default: // INT16/UINT16
                     // Modbus wire order is big-endian; the raw indexer would write native
                     // (little-endian) bytes and appear byte-swapped to the master.
-                    if (little) registers.SetLittleEndian<short>(v.Address, (short)(int)Math.Round(raw));
-                    else registers.SetBigEndian<short>(v.Address, (short)(int)Math.Round(raw));
+                    if (little) registers.SetLittleEndian<short>(addr, (short)(int)Math.Round(raw));
+                    else registers.SetBigEndian<short>(addr, (short)(int)Math.Round(raw));
                     break;
             }
             return raw;
@@ -987,25 +989,27 @@ namespace SW.PC.API.Backend.Services
             var registers = v.RegisterType == ModbusRegisterType.InputRegister
                 ? _server!.GetInputRegisters(_config.ServerUnitId)
                 : _server!.GetHoldingRegisters(_config.ServerUnitId);
+            int addr = v.Address + _config.ServerAddressOffset;
             bool little = v.WordOrder is "CDAB" or "DCBA";
             switch (v.DataType)
             {
                 case "FLOAT32" or "REAL":
-                    return little ? registers.GetLittleEndian<float>(v.Address) : registers.GetBigEndian<float>(v.Address);
+                    return little ? registers.GetLittleEndian<float>(addr) : registers.GetBigEndian<float>(addr);
                 case "INT32" or "DINT":
-                    return little ? registers.GetLittleEndian<int>(v.Address) : registers.GetBigEndian<int>(v.Address);
+                    return little ? registers.GetLittleEndian<int>(addr) : registers.GetBigEndian<int>(addr);
                 case "UINT32" or "UDINT":
-                    return little ? registers.GetLittleEndian<uint>(v.Address) : registers.GetBigEndian<uint>(v.Address);
+                    return little ? registers.GetLittleEndian<uint>(addr) : registers.GetBigEndian<uint>(addr);
                 case "UINT16" or "WORD":
-                    return (ushort)(little ? registers.GetLittleEndian<short>(v.Address) : registers.GetBigEndian<short>(v.Address));
+                    return (ushort)(little ? registers.GetLittleEndian<short>(addr) : registers.GetBigEndian<short>(addr));
                 default:
-                    return little ? registers.GetLittleEndian<short>(v.Address) : registers.GetBigEndian<short>(v.Address);
+                    return little ? registers.GetLittleEndian<short>(addr) : registers.GetBigEndian<short>(addr);
             }
         }
 
         private void WriteBoolToBuffer(ModbusRegisterType type, int address, bool value)
         {
             var buffer = type == ModbusRegisterType.DiscreteInput ? _server!.GetDiscreteInputs(_config.ServerUnitId) : _server!.GetCoils(_config.ServerUnitId);
+            address += _config.ServerAddressOffset;
             int byteIndex = address / 8;
             int bitPos = address % 8;
             if (byteIndex < 0 || byteIndex >= buffer.Length) return;
@@ -1024,6 +1028,7 @@ namespace SW.PC.API.Backend.Services
             var registers = type == ModbusRegisterType.InputRegister
                 ? _server!.GetInputRegisters(_config.ServerUnitId)
                 : _server!.GetHoldingRegisters(_config.ServerUnitId);
+            address += _config.ServerAddressOffset;
             ushort cur = (ushort)registers.GetBigEndian<short>(address);
             if (value) cur |= (ushort)(1 << bit);
             else cur &= (ushort)~(1 << bit);
@@ -1033,6 +1038,7 @@ namespace SW.PC.API.Backend.Services
         private bool ReadBoolFromBuffer(ModbusRegisterType type, int address)
         {
             var buffer = type == ModbusRegisterType.DiscreteInput ? _server!.GetDiscreteInputs(_config.ServerUnitId) : _server!.GetCoils(_config.ServerUnitId);
+            address += _config.ServerAddressOffset;
             int byteIndex = address / 8;
             int bitPos = address % 8;
             if (byteIndex < 0 || byteIndex >= buffer.Length) return false;

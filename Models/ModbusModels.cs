@@ -31,6 +31,13 @@ namespace SW.PC.API.Backend.Models.Modbus
         public int ServerPort { get; set; } = 502;
         /// <summary>Server unit/slave id.</summary>
         public byte ServerUnitId { get; set; } = 1;
+        /// <summary>
+        /// Global address offset (in coils/registers) added to EVERY server-exposed address
+        /// (variables + alarms). 0 = standard. Use it when a client master expects all data
+        /// shifted by a constant base (e.g. offset 1000 → 40001 is read at 41001). Does NOT
+        /// affect the Client role (external sources keep their own addresses).
+        /// </summary>
+        public int ServerAddressOffset { get; set; } = 0;
 
         // ===== CLIENT (Master) — reads/writes up to 2 external Modbus devices =====
         /// <summary>External Modbus TCP sources (max 2 by convention).</summary>
