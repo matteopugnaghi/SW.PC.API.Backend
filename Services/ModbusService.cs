@@ -422,10 +422,21 @@ namespace SW.PC.API.Backend.Services
             {
                 try
                 {
+                    var alarmName = sheet.Cell(row, cName).GetString().Trim();
+
+                    // ── Index resolution (DECOUPLED) ──────────────────────────────
+                    // PLC state index: canonical = name suffix (e.g. "..._001" → 1),
+                    //   EXACTLY like OPC-UA's ExtractAlarmIndex. This is what reads st_alarmPc[idx].
+                    // Modbus index: the explicit AlarmIndex column (e.g. 0,1,2) used to position
+                    //   the bit (model B) / for display. Falls back to the name index.
+                    int nameIdx = ExtractAlarmIndex(alarmName, -1);
+                    bool hasExplicit = int.TryParse(sheet.Cell(row, cIndex).GetString().Trim(), out var explicitIdx);
+
                     var a = new ModbusAlarm
                     {
-                        AlarmName = sheet.Cell(row, cName).GetString().Trim(),
-                        AlarmIndex = int.TryParse(sheet.Cell(row, cIndex).GetString().Trim(), out var idx) ? idx : 0,
+                        AlarmName = alarmName,
+                        AlarmIndex = hasExplicit ? explicitIdx : (nameIdx >= 0 ? nameIdx : 0),
+                        PlcAlarmIndex = nameIdx >= 0 ? nameIdx : (hasExplicit ? explicitIdx : 0),
                         Severity = int.TryParse(sheet.Cell(row, cSeverity).GetString().Trim(), out var sev) ? sev : 0,
                         Description = sheet.Cell(row, cDesc).GetString().Trim()
                     };
@@ -644,10 +655,21 @@ namespace SW.PC.API.Backend.Services
             string suffix = a.Severity switch { 0 => "Alarm", 1 => "Notification", 2 => "Info", _ => "Alarm" };
             foreach (var kvp in alarmStates)
             {
-                if (kvp.Key.Contains($"st_alarmPc[{a.AlarmIndex}].{suffix}"))
+                // Match the canonical PLC array index (name-derived), exactly like OPC-UA.
+                if (kvp.Key.Contains($"st_alarmPc[{a.PlcAlarmIndex}].{suffix}"))
                     return kvp.Value;
             }
             return false;
+        }
+
+        /// <summary>Extract alarm index from name like "TLS_M3_MAL_Alarm_042" → 42 (mirror of OPC-UA).</summary>
+        private static int ExtractAlarmIndex(string alarmName, int fallback)
+        {
+            if (string.IsNullOrEmpty(alarmName)) return fallback;
+            var lastUnderscore = alarmName.LastIndexOf('_');
+            if (lastUnderscore >= 0 && int.TryParse(alarmName.Substring(lastUnderscore + 1), out var idx))
+                return idx;
+            return fallback;
         }
 
         private void TrackValueChange(ModbusVariable v, object? value)

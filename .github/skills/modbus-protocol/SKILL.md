@@ -165,14 +165,16 @@ Mismo patrón que `OPC_UA_Alarms`: nombre, índice (0-based, igual que `st_alarm
 
 | Columna | Uso |
 |---------|-----|
-| `AlarmName` | Nombre de la alarma. **Obligatorio** (las filas se descartan si está vacío). |
-| `AlarmIndex` | Índice **0-based** del PLC (`st_alarmPc[idx]`). El índice 0 **es válido**. Junto a `Severity` resuelve `st_alarmPc[idx].{Alarm\|Notification\|Info}`. |
+| `AlarmName` | Nombre de la alarma. **Obligatorio** (las filas se descartan si está vacío). El **sufijo numérico** (`..._001`) define el índice del array PLC. |
+| `AlarmIndex` | Índice **Modbus** (posición del bit en modelo B / orden de visualización). **NO** se usa para leer el estado del PLC. Vacío ⇒ se deriva del nombre. |
 | `ModbusRegister` | Registro destino en notación clásica `0xxxx`/`1xxxx`/`3xxxx`/`4xxxx`. El primer dígito implica el `RegisterType`. Alternativa a `RegisterType`+`Address`. |
 | `RegisterType` | `Coil`/`DiscreteInput`/`HoldingRegister`/`InputRegister`. **Decide el modelo** (ver abajo). `UINT16`/`WORD` ⇒ HoldingRegister. |
 | `Address` | Dirección 0-based del coil/registro (alternativa a `ModbusRegister`). |
 | `Bit` | *(opcional, solo modelo B)* Posición del bit (0-15) dentro del registro. Vacío ⇒ `AlarmIndex % 16`. |
 | `Severity` | `0`=Alarm · `1`=Notification · `2`=Info. Selecciona el sufijo en `st_alarmPc`. |
 | `Description` | Texto descriptivo. |
+
+> ⚠️ **Índice PLC vs índice Modbus (DESACOPLADOS).** El estado se lee de `st_alarmPc[N]` con **`N` derivado del sufijo del nombre** (`..._001` → `st_alarmPc[1]`), idéntico a OPC-UA (`ExtractAlarmIndex`). La columna `AlarmIndex` solo posiciona el bit/coil Modbus y la visualización. El modelo `ModbusAlarm` lleva dos campos: `PlcAlarmIndex` (estado, name-derived) y `AlarmIndex` (Modbus). Evita el desfase cuando nombre (`_001`) y posición Modbus (bit 0) no coinciden.
 
 **Dos modelos (el cliente elige; lo decide `RegisterType` por fila):**
 

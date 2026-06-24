@@ -120,8 +120,20 @@ namespace SW.PC.API.Backend.Models.Modbus
         /// <summary>Alarm name from Excel.</summary>
         public string AlarmName { get; set; } = string.Empty;
 
-        /// <summary>Alarm index (0-based, same as PLC/Excel st_alarmPc[idx]).</summary>
+        /// <summary>
+        /// Modbus-side index used to ORGANISE the output (default bit position in model B,
+        /// and display). Comes from the explicit <c>AlarmIndex</c> column (e.g. 0,1,2) or,
+        /// if empty, from the name suffix.
+        /// </summary>
         public int AlarmIndex { get; set; }
+
+        /// <summary>
+        /// PLC array index used to READ the alarm STATE (<c>st_alarmPc[idx].{suffix}</c>).
+        /// Canonical = derived from the alarm name suffix (e.g. "..._001" → 1), exactly like
+        /// OPC-UA (<c>ExtractAlarmIndex</c>). DECOUPLED from <see cref="AlarmIndex"/> so the
+        /// Modbus bit/coil position is independent from the PLC array index.
+        /// </summary>
+        public int PlcAlarmIndex { get; set; }
 
         /// <summary>
         /// Register type where the alarm state is published.
