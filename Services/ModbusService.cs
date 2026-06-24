@@ -96,6 +96,8 @@ namespace SW.PC.API.Backend.Services
         private readonly ConcurrentDictionary<int, bool> _previousAlarmStates = new();
         // RW server registers: last value we pushed to the buffer (to detect client writes)
         private readonly ConcurrentDictionary<string, double> _lastServerPushed = new();
+        // One-time diagnostic: warn about Modbus alarms whose PLC index is not monitored centrally
+        private bool _alarmMonitoringChecked;
 
         // Client reconnection throttling — avoids log spam and cycle blocking on dead sources
         private readonly ConcurrentDictionary<string, DateTime> _nextSourceRetry = new();
@@ -586,6 +588,10 @@ namespace SW.PC.API.Backend.Services
                 // 2) Read alarm states (shared cache — push-based, 0 extra ADS reads)
                 var alarmStates = _alarmNotificationService.GetCurrentAlarmStates();
 
+                // One-time diagnostic: warn about Modbus alarms whose PLC index is not monitored
+                // by the central Alarms sheet (otherwise they always report OK silently).
+                ValidateAlarmMonitoringOnce();
+
                 // 3) Apply to buffers + detect client writes (inside lock, NO await)
                 var writeBacks = new List<(ModbusVariable v, double raw)>();
                 lock (_server.Lock)
@@ -670,6 +676,34 @@ namespace SW.PC.API.Backend.Services
             if (lastUnderscore >= 0 && int.TryParse(alarmName.Substring(lastUnderscore + 1), out var idx))
                 return idx;
             return fallback;
+        }
+
+        /// <summary>
+        /// One-time check (after the central alarm subscription is ready): warns about any
+        /// Modbus alarm whose <c>st_alarmPc[PlcAlarmIndex].{suffix}</c> is NOT declared/monitored
+        /// in the central Alarms sheet — such alarms would silently always report OK.
+        /// </summary>
+        private void ValidateAlarmMonitoringOnce()
+        {
+            if (_alarmMonitoringChecked) return;
+            if (_alarms.Count == 0) { _alarmMonitoringChecked = true; return; }
+            // Wait until the central service has loaded its declared keys (avoids a false alarm at boot).
+            if (_alarmNotificationService.DeclaredAlarmKeyCount == 0) return;
+
+            _alarmMonitoringChecked = true;
+            foreach (var a in _alarms)
+            {
+                string suffix = a.Severity switch { 0 => "Alarm", 1 => "Notification", 2 => "Info", _ => "Alarm" };
+                if (_alarmNotificationService.IsAlarmDeclared(a.PlcAlarmIndex, suffix)) continue;
+
+                _logger.LogWarning(
+                    "📡 Modbus alarm '{Name}' → st_alarmPc[{Idx}].{Suffix} NO está monitorizado en la hoja Alarms; siempre se reportará OK.",
+                    a.AlarmName, a.PlcAlarmIndex, suffix);
+                _ = _auditLogService.LogAsync(
+                    Models.AuditCategory.OtCommunication, Models.AuditAction.ModbusConfigWarning, Models.AuditResult.Warning,
+                    $"Alarma Modbus '{a.AlarmName}' → st_alarmPc[{a.PlcAlarmIndex}].{suffix} no está monitorizada (hoja Alarms). Siempre se reportará OK.",
+                    userName: "System");
+            }
         }
 
         private void TrackValueChange(ModbusVariable v, object? value)

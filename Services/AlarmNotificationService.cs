@@ -121,6 +121,17 @@ namespace SW.PC.API.Backend.Services
         /// Número de variables de alarma monitoreadas por notificaciones
         /// </summary>
         public int MonitoredAlarmCount => _alarmVariables.Count;
+
+        /// <summary>
+        /// True si <c>st_alarmPc[plcIndex].suffix</c> está entre las alarmas DECLARADAS
+        /// (monitorizadas, hoja Alarms). Usado por otros drivers (p.ej. Modbus) para avisar
+        /// si referencian un índice que el sistema central no vigila.
+        /// </summary>
+        public bool IsAlarmDeclared(int plcIndex, string suffix) =>
+            _declaredAlarmKeys.Any(k => k.Contains($"st_alarmPc[{plcIndex}].{suffix}", StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>Número de claves de alarma declaradas (0 hasta que se carga el Excel).</summary>
+        public int DeclaredAlarmKeyCount => _declaredAlarmKeys.Count;
         
         /// <summary>
         /// Indica si las notificaciones están activas
