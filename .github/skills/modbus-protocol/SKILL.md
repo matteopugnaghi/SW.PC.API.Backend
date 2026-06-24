@@ -159,7 +159,39 @@ GVL_Modbus.TLS_M3_MAL_StartCmd    →  00001  (Coil, FC01/FC05)
 > `40001` ⇒ Holding Register, dirección interna 0. `40002` ⇒ dirección 1, etc. El parser debe convertir la notación clásica a `RegisterType` + `Address` 0-based.
 
 ### `Modbus_Alarms`
-Mismo patrón que `OPC_UA_Alarms`: nombre, registro/coil donde se publica el estado de alarma, condición, severidad, descripción. Permite re-publicar a terceros sin releer/remapear.
+Mismo patrón que `OPC_UA_Alarms`: nombre, índice (0-based, igual que `st_alarmPc[0..N]`), registro/coil donde se publica el estado, severidad, descripción. Permite re-publicar a terceros sin releer/remapear.
+
+**Columnas:**
+
+| Columna | Uso |
+|---------|-----|
+| `AlarmName` | Nombre de la alarma. **Obligatorio** (las filas se descartan si está vacío). |
+| `AlarmIndex` | Índice **0-based** del PLC (`st_alarmPc[idx]`). El índice 0 **es válido**. Junto a `Severity` resuelve `st_alarmPc[idx].{Alarm\|Notification\|Info}`. |
+| `ModbusRegister` | Registro destino en notación clásica `0xxxx`/`1xxxx`/`3xxxx`/`4xxxx`. El primer dígito implica el `RegisterType`. Alternativa a `RegisterType`+`Address`. |
+| `RegisterType` | `Coil`/`DiscreteInput`/`HoldingRegister`/`InputRegister`. **Decide el modelo** (ver abajo). `UINT16`/`WORD` ⇒ HoldingRegister. |
+| `Address` | Dirección 0-based del coil/registro (alternativa a `ModbusRegister`). |
+| `Bit` | *(opcional, solo modelo B)* Posición del bit (0-15) dentro del registro. Vacío ⇒ `AlarmIndex % 16`. |
+| `Severity` | `0`=Alarm · `1`=Notification · `2`=Info. Selecciona el sufijo en `st_alarmPc`. |
+| `Description` | Texto descriptivo. |
+
+**Dos modelos (el cliente elige; lo decide `RegisterType` por fila):**
+
+- **Modelo A — Coils / Discrete Inputs (un bit por alarma).** `RegisterType=Coil` (FC01) o `DiscreteInput` (FC02). `Address` = nº de coil 0-based, **único por alarma**. Helper `WriteBoolToBuffer`.
+  ```
+  AlarmName            AlarmIndex  RegisterType  Address  Severity
+  TLS_M3_MAL_Alarm_001 0           Coil          0        0
+  TLS_M3_MAL_Alarm_002 1           Coil          1        0
+  TLS_M3_MAL_Alarm_003 2           Coil          2        1
+  ```
+
+- **Modelo B — Holding / Input Register (bits empaquetados en una palabra).** `RegisterType=HoldingRegister`/`InputRegister` (o `ModbusRegister=40100`). Varias alarmas comparten el **mismo** registro; cada una ocupa un bit = columna `Bit` o, por defecto, `AlarmIndex % 16`. Helper `WriteAlarmBitToRegister` (read-modify-write, big-endian). Es el modelo de la foto del cliente: `40100` con bits 0/1/2.
+  ```
+  AlarmName            AlarmIndex  ModbusRegister  RegisterType  Severity   → bit (AlarmIndex%16)
+  TLS_M3_MAL_Alarm_001 0           40100           UINT16        0          → bit 0 de 40100
+  TLS_M3_MAL_Alarm_002 1           40100           UINT16        0          → bit 1 de 40100
+  TLS_M3_MAL_Alarm_003 2           40100           UINT16        1          → bit 2 de 40100
+  ```
+  > 16 bits por registro: si hay >16 alarmas en el mismo registro, `%16` colisiona ⇒ usar registros distintos (`40100`,`40101`,…) o la columna `Bit` explícita.
 
 ### `System Config` — claves nuevas (IP / puertos / conexiones)
 La configuración de **IP y puertos** se declara aquí en Excel (no en `appsettings.json`), por proyecto, igual que OPC-UA declara `Port`/`ServerUri`.
@@ -199,7 +231,7 @@ La configuración de **IP y puertos** se declara aquí en Excel (no en `appsetti
 1. Inyectar `AlarmNotificationService` (Singleton ya registrado) en `ModbusService`. **No** crear un segundo bucle de alarmas, **no** registrar notificaciones ADS propias, **no** sondear el PLC por alarmas.
 2. En el ciclo Modbus: `var alarmStates = _alarmNotificationService.GetCurrentAlarmStates();` (una sola llamada) y, para cada fila de `Modbus_Alarms`, buscar su estado en la caché (por `AlarmIndex`/`PlcVariable`) y **escribir el coil/registro** correspondiente.
 3. Change-detection con un `_previousAlarmStates` propio → log L2 `ModbusAlarmChange` solo cuando cambia (igual que OPC-UA).
-4. Modelo: `Modbus_Alarms` mapea `AlarmIndex` (1-based, mismo del PLC/Excel) → registro Modbus; reutilizar el `AlarmDefinition` central ([Models/ExcelModels.cs](Models/ExcelModels.cs)) como fuente de índices/textos, espejo de `OpcUaAlarm` ([Models/OpcUaModels.cs](Models/OpcUaModels.cs)).
+4. Modelo: `Modbus_Alarms` mapea `AlarmIndex` (**0-based**, mismo del PLC/Excel `st_alarmPc[0..N]`) → coil (modelo A) o bit dentro de un registro (modelo B); reutilizar el `AlarmDefinition` central ([Models/ExcelModels.cs](Models/ExcelModels.cs)) como fuente de índices/textos, espejo de `OpcUaAlarm` ([Models/OpcUaModels.cs](Models/OpcUaModels.cs)).
 
 **Por qué (no negociable):** ADS tiene un límite de suscripciones de notificación concurrentes; duplicar el polling de alarmas = lecturas redundantes al PLC, más CPU/red, posibles estados desincronizados entre HMI/OPC-UA/Modbus y riesgo de afectar a una máquina en producción. La única fuente de verdad es `AlarmNotificationService`.
 

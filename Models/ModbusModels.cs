@@ -120,14 +120,25 @@ namespace SW.PC.API.Backend.Models.Modbus
         /// <summary>Alarm name from Excel.</summary>
         public string AlarmName { get; set; } = string.Empty;
 
-        /// <summary>Alarm index (1-based, same as PLC/Excel st_alarmPc[idx]).</summary>
+        /// <summary>Alarm index (0-based, same as PLC/Excel st_alarmPc[idx]).</summary>
         public int AlarmIndex { get; set; }
 
-        /// <summary>Register type where the alarm state is published (Coil/DiscreteInput/HoldingRegister).</summary>
+        /// <summary>
+        /// Register type where the alarm state is published.
+        /// Coil/DiscreteInput → one bit per alarm at <see cref="Address"/> (model A).
+        /// HoldingRegister/InputRegister → bit packed inside the 16-bit register at
+        /// <see cref="Address"/>, bit position = <see cref="Bit"/> (model B).
+        /// </summary>
         public ModbusRegisterType RegisterType { get; set; } = ModbusRegisterType.Coil;
 
         /// <summary>0-based register/coil address.</summary>
         public int Address { get; set; }
+
+        /// <summary>
+        /// Bit position (0-15) inside the register for Holding/Input register model (B).
+        /// -1 = auto (defaults to AlarmIndex % 16). Ignored for Coil/DiscreteInput.
+        /// </summary>
+        public int Bit { get; set; } = -1;
 
         /// <summary>Severity (0=Alarm, 1=Notification, 2=Info) — matches AlarmType.</summary>
         public int Severity { get; set; }

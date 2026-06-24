@@ -414,6 +414,7 @@ namespace SW.PC.API.Backend.Services
             int cAddr = Col("Address", 5);
             int cSeverity = Col("Severity", 6);
             int cDesc = Col("Description", 7);
+            int cBit = header.GetValueOrDefault("Bit", header.GetValueOrDefault("BitPosition", -1));
 
             int row = 2;
             while (!string.IsNullOrEmpty(sheet.Cell(row, cName).GetString()) ||
@@ -428,6 +429,9 @@ namespace SW.PC.API.Backend.Services
                         Severity = int.TryParse(sheet.Cell(row, cSeverity).GetString().Trim(), out var sev) ? sev : 0,
                         Description = sheet.Cell(row, cDesc).GetString().Trim()
                     };
+
+                    // Optional explicit bit position (model B). -1 = auto (AlarmIndex % 16).
+                    a.Bit = cBit > 0 && int.TryParse(sheet.Cell(row, cBit).GetString().Trim(), out var bitPos) ? bitPos : -1;
 
                     var regTypeRaw = sheet.Cell(row, cRegType).GetString().Trim();
                     var addrRaw = sheet.Cell(row, cAddr).GetString().Trim();
@@ -447,7 +451,8 @@ namespace SW.PC.API.Backend.Services
                         continue;
                     }
 
-                    if (a.AlarmIndex > 0) list.Add(a);
+                    // AlarmIndex is 0-based (st_alarmPc[0..N]); gate on a real name, not index.
+                    if (!string.IsNullOrEmpty(a.AlarmName)) list.Add(a);
                 }
                 catch (Exception ex)
                 {
@@ -600,11 +605,22 @@ namespace SW.PC.API.Backend.Services
                         }
                     }
 
-                    // Alarms → registers/coils
+                    // Alarms → coils/discrete (model A: 1 bit per alarm) OR
+                    //          holding/input register (model B: bit packed in word).
                     foreach (var a in _alarms)
                     {
                         bool isActive = ResolveAlarmState(alarmStates, a);
-                        WriteBoolToBuffer(a.RegisterType, a.Address, isActive);
+                        if (a.RegisterType is ModbusRegisterType.Coil or ModbusRegisterType.DiscreteInput)
+                        {
+                            // Model A — each alarm is its own coil/discrete-input bit.
+                            WriteBoolToBuffer(a.RegisterType, a.Address, isActive);
+                        }
+                        else
+                        {
+                            // Model B — set a single bit inside the 16-bit register.
+                            int bit = a.Bit >= 0 ? a.Bit : (a.AlarmIndex % 16);
+                            WriteAlarmBitToRegister(a.RegisterType, a.Address, bit, isActive);
+                        }
                         TrackAlarmChange(a, isActive);
                     }
                 }
@@ -939,6 +955,23 @@ namespace SW.PC.API.Backend.Services
             if (byteIndex < 0 || byteIndex >= buffer.Length) return;
             if (value) buffer[byteIndex] |= (byte)(1 << bitPos);
             else buffer[byteIndex] &= (byte)~(1 << bitPos);
+        }
+
+        /// <summary>
+        /// Model B — set/clear a single bit inside a 16-bit Holding/Input register
+        /// (read-modify-write, big-endian on the wire). Several alarms can share the
+        /// same register address, each owning a different bit.
+        /// </summary>
+        private void WriteAlarmBitToRegister(ModbusRegisterType type, int address, int bit, bool value)
+        {
+            if (bit < 0 || bit > 15) return;
+            var registers = type == ModbusRegisterType.InputRegister
+                ? _server!.GetInputRegisters(_config.ServerUnitId)
+                : _server!.GetHoldingRegisters(_config.ServerUnitId);
+            ushort cur = (ushort)registers.GetBigEndian<short>(address);
+            if (value) cur |= (ushort)(1 << bit);
+            else cur &= (ushort)~(1 << bit);
+            registers.SetBigEndian<short>(address, (short)cur);
         }
 
         private bool ReadBoolFromBuffer(ModbusRegisterType type, int address)
