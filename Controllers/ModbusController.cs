@@ -45,6 +45,7 @@ namespace SW.PC.API.Backend.Controllers
                 c.ServerBindIp,
                 c.ServerPort,
                 c.ServerUnitId,
+                c.ServerAddressOffset,
                 c.PollIntervalMs,
                 Sources = c.Sources.Select(s => new { s.Id, s.Host, s.Port, s.UnitId }),
                 c.ConfigWarnings

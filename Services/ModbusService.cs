@@ -697,13 +697,19 @@ namespace SW.PC.API.Backend.Services
                 string suffix = a.Severity switch { 0 => "Alarm", 1 => "Notification", 2 => "Info", _ => "Alarm" };
                 if (_alarmNotificationService.IsAlarmDeclared(a.PlcAlarmIndex, suffix)) continue;
 
-                _logger.LogWarning(
-                    "📡 Modbus alarm '{Name}' → st_alarmPc[{Idx}].{Suffix} NO está monitorizado en la hoja Alarms; siempre se reportará OK.",
-                    a.AlarmName, a.PlcAlarmIndex, suffix);
+                // Distinguish "index not monitored at all" from "index exists but with another type".
+                var present = new[] { "Alarm", "Notification", "Info" }
+                    .Where(s => _alarmNotificationService.IsAlarmDeclared(a.PlcAlarmIndex, s))
+                    .ToList();
+
+                string msg = present.Count > 0
+                    ? $"Alarma Modbus '{a.AlarmName}' usa Severity={a.Severity} ({suffix}) pero st_alarmPc[{a.PlcAlarmIndex}] está declarada en la hoja Alarms como {string.Join("/", present)}. Ajusta Severity (0=Alarm,1=Notification,2=Info) o se reportará siempre OK."
+                    : $"Alarma Modbus '{a.AlarmName}' → st_alarmPc[{a.PlcAlarmIndex}] no está en la hoja Alarms (no monitorizada). Siempre se reportará OK.";
+
+                _logger.LogWarning("📡 {Msg}", msg);
                 _ = _auditLogService.LogAsync(
                     Models.AuditCategory.OtCommunication, Models.AuditAction.ModbusConfigWarning, Models.AuditResult.Warning,
-                    $"Alarma Modbus '{a.AlarmName}' → st_alarmPc[{a.PlcAlarmIndex}].{suffix} no está monitorizada (hoja Alarms). Siempre se reportará OK.",
-                    userName: "System");
+                    msg, userName: "System");
             }
         }
 
@@ -956,6 +962,7 @@ namespace SW.PC.API.Backend.Services
                 : _server!.GetHoldingRegisters(_config.ServerUnitId);
 
             int addr = v.Address + _config.ServerAddressOffset;
+            if (addr < 0) return raw; // negative global offset out of range → skip safely
             bool little = v.WordOrder is "CDAB" or "DCBA";
             switch (v.DataType)
             {
@@ -990,6 +997,7 @@ namespace SW.PC.API.Backend.Services
                 ? _server!.GetInputRegisters(_config.ServerUnitId)
                 : _server!.GetHoldingRegisters(_config.ServerUnitId);
             int addr = v.Address + _config.ServerAddressOffset;
+            if (addr < 0) return 0; // negative global offset out of range → skip safely
             bool little = v.WordOrder is "CDAB" or "DCBA";
             switch (v.DataType)
             {
@@ -1029,6 +1037,7 @@ namespace SW.PC.API.Backend.Services
                 ? _server!.GetInputRegisters(_config.ServerUnitId)
                 : _server!.GetHoldingRegisters(_config.ServerUnitId);
             address += _config.ServerAddressOffset;
+            if (address < 0) return; // negative global offset out of range → skip safely
             ushort cur = (ushort)registers.GetBigEndian<short>(address);
             if (value) cur |= (ushort)(1 << bit);
             else cur &= (ushort)~(1 << bit);
