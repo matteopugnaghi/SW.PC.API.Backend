@@ -865,12 +865,33 @@ namespace SW.PC.API.Backend.Services
                     double eng = Convert.ToDouble(raw) * v.Scale + v.Offset;
                     object value = ConvertEngineeringToClr(eng, v.DataType);
                     if (_sourceStatus.TryGetValue(source.Id, out var st)) { st.Connected = true; st.LastReadAt = DateTime.UtcNow; st.LastError = ""; }
+
+                    bool changed = !_previousValues.TryGetValue(v.Name, out var pv) || !Equals(pv, value);
                     TrackValueChange(v, value);
-                    if (!v.ExcludeFromLog && _previousValues.TryGetValue(v.Name, out var pv) && !Equals(pv, value))
+
+                    if (changed && !v.ExcludeFromLog)
                     {
                         _ = _operationLogService.LogAsync(
                             OperationCategory.Modbus, OperationAction.ModbusSourceRead,
                             $"{source.Id}:{v.Name} = {value}", user: "ModbusSource");
+                    }
+
+                    // Push the external reading into the PLC if an ADS symbol is mapped.
+                    if (changed && !string.IsNullOrEmpty(v.AdsSymbol))
+                    {
+                        try
+                        {
+                            var clr = MapDataTypeToClr(v.DataType);
+                            bool ok = await _twinCAT.WriteVariableAsync(v.AdsSymbol, value, clr);
+                            if (!v.ExcludeFromLog)
+                                _ = _operationLogService.LogAsync(
+                                    OperationCategory.Modbus, OperationAction.ModbusSourceWrite,
+                                    $"{source.Id}:{v.Name} → ADS {v.AdsSymbol} = {value} ({(ok ? "OK" : "FAILED")})", user: "ModbusClient");
+                        }
+                        catch (Exception wex)
+                        {
+                            _logger.LogWarning("📡 Source→ADS write failed {Name}: {Msg}", v.Name, wex.Message);
+                        }
                     }
                 }
                 catch (Exception ex)

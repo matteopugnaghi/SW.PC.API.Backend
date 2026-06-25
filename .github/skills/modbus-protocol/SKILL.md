@@ -211,6 +211,8 @@ La configuración de **IP y puertos** se declara aquí en Excel (no en `appsetti
 
 > Los ids de fuente (`MB1`/`MB2` o `ModbusClient1`/`2`) usados en la columna `Source` de `Modbus_Variables` deben corresponder con estas claves.
 
+> **Probar rol Client (impl. actual):** las fuentes generan id `ModbusClient1`/`ModbusClient2`. En `Modbus_Variables` la fila Client lleva `Source=ModbusClient1`, `AdsSymbol` vacío (salvo que se quiera empujar la lectura a una variable ADS), y la dirección es la **del dispositivo externo**. Probar con **Modbus Slave** (esclavo) en `127.0.0.1:1502`, unit 1; `ModbusServerAddressOffset` NO afecta al Client; reconexión con backoff 15 s. Ver pasos completos en [docs/configuration/Aquafrisch_Supervisor_Modbus_Service.md](../../../docs/configuration/Aquafrisch_Supervisor_Modbus_Service.md) §11.1.
+
 ## Flujo en tiempo real (encajar con lo existente)
 
 - **Server**: leer valores con `ITwinCATService` (no abrir una segunda fuente para el PLC propio) y empujarlos al Modbus TCP Server. Cuando un tercero **escribe** un holding register/coil ⇒ propagar a ADS vía `ITwinCATService.WriteVariableAsync` **solo si** `AccessMode` lo permite.
