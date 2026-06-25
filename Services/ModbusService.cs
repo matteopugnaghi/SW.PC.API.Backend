@@ -703,8 +703,8 @@ namespace SW.PC.API.Backend.Services
                     .ToList();
 
                 string msg = present.Count > 0
-                    ? $"Alarma Modbus '{a.AlarmName}' usa Severity={a.Severity} ({suffix}) pero st_alarmPc[{a.PlcAlarmIndex}] está declarada en la hoja Alarms como {string.Join("/", present)}. Ajusta Severity (0=Alarm,1=Notification,2=Info) o se reportará siempre OK."
-                    : $"Alarma Modbus '{a.AlarmName}' → st_alarmPc[{a.PlcAlarmIndex}] no está en la hoja Alarms (no monitorizada). Siempre se reportará OK.";
+                    ? $"Modbus alarm '{a.AlarmName}' uses Severity={a.Severity} ({suffix}) but st_alarmPc[{a.PlcAlarmIndex}] is declared in Alarms sheet as {string.Join("/", present)}. Adjust Severity (0=Alarm,1=Notification,2=Info) or it will always report OK."
+                    : $"Modbus alarm '{a.AlarmName}' -> st_alarmPc[{a.PlcAlarmIndex}] not declared in Alarms sheet (not monitored). Will always report OK.";
 
                 _logger.LogWarning("📡 {Msg}", msg);
                 _ = _auditLogService.LogAsync(
