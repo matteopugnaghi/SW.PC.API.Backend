@@ -1,0 +1,170 @@
+﻿{
+    "Timestamp":  "20260706_125732",
+    "Actions":  [
+                    {
+                        "Type":  "UserDisabled",
+                        "Data":  {
+                                     "Username":  "Administrator"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "AutoAdminLogon",
+                                     "PreviousValue":  "1"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "DefaultUserName",
+                                     "PreviousValue":  "aqf"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "DefaultPassword",
+                                     "PreviousValue":  null
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\LaunchKiosk.bat"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\KioskWatchdog.ps1"
+                                 }
+                    },
+                    {
+                        "Type":  "RegistrySet",
+                        "Data":  {
+                                     "Path":  "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+                                     "Name":  "Shell",
+                                     "PreviousValue":  "explorer.exe"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Supervisor HTTPS"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Supervisor HTTP local"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Block HTTP remote"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Block SSH"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Block SMB NetBIOS-NS"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Block SMB NetBIOS-DGM"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Block SMB NetBIOS-SSN"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Block SMB Direct"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Allow ADS to PLC"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Allow Secure ADS to PLC"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Allow ADS Discovery PLC"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Block ADS Discovery other"
+                                 }
+                    },
+                    {
+                        "Type":  "FirewallRuleCreated",
+                        "Data":  {
+                                     "RuleName":  "C07 Block ADS classic NIC1"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\Toggle-UsbStorage.ps1"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\Toggle-UsbStorage.bat"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\USB-Storage.bat"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\Apply-KeyboardFilter.ps1"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\Keyboard-Filter.bat"
+                                 }
+                    },
+                    {
+                        "Type":  "FileCopied",
+                        "Data":  {
+                                     "Destination":  "C:\\Aquafrisch Supervisor\\Backend\\Tools\\Kiosk\\Apply-UsbBlock.ps1"
+                                 }
+                    }
+                ],
+    "ComputerName":  "192.168.2.165"
+}

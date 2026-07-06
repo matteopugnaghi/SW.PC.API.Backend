@@ -1,5 +1,12 @@
 {
     "terminal.integrated.env.windows": {
         "Path": "C:\\Program Files\\nodejs;C:\\Program Files\\Git\\bin;${env:Path}"
-    }
+    },
+    "python-envs.pythonProjects": [
+        {
+            "path": ".",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        }
+    ]
 }
