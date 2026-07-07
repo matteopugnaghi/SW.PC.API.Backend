@@ -94,7 +94,7 @@
 param(
     [ValidateSet('All','Hostname','Accounts','Passwords','AutoLogon','Shell',
                  'KeyboardFilter','Firewall','Service','DisableServices',
-                 'Audit','AdminTools','CopyTools','Summary')]
+                 'TouchKeyboard','Audit','AdminTools','CopyTools','Summary')]
     [string[]]$Phase = @('All'),
 
     [string]$SupervisorPath = 'C:\Aquafrisch Supervisor',
@@ -1086,7 +1086,11 @@ if (Should-Run 'DisableServices') {
     $servicesToDisable = @(
         'XblAuthManager', 'XblGameSave', 'XboxGipSvc', 'XboxNetApiSvc',
         'bthserv', 'MapsBroker', 'lfsvc', 'RetailDemo',
-        'WMPNetworkSvc', 'WSearch', 'Fax', 'TabletInputService'
+        'WMPNetworkSvc', 'WSearch', 'Fax'
+        # ⚠️ TabletInputService NO se deshabilita: es el servicio de Windows que gestiona
+        # el teclado en pantalla (touch keyboard). En un IPC táctil es imprescindible para
+        # escribir en páginas EXTERNAS que no son nuestra app (ej. login.microsoftonline.com
+        # de Entra ID) — nuestra app tiene su propio teclado virtual, pero esas páginas no.
     )
 
     if ($DryRun) {
@@ -1135,6 +1139,99 @@ if (Should-Run 'DisableServices') {
                 }
             }
         }
+    }
+}
+
+# ============================================================================
+#  FASE 8b - TECLADO EN PANTALLA (touch keyboard) — IPC táctil sin teclado físico
+# ============================================================================
+# Windows solo muestra el teclado táctil automáticamente al tocar un campo de
+# texto si "EnableDesktopModeAutoInvoke" = 1 en el perfil del usuario. Sin esto,
+# nuestra propia app funciona (tiene su teclado virtual en React), pero páginas
+# EXTERNAS (ej. login.microsoftonline.com de Entra ID) no muestran ningún
+# teclado — el operador se queda sin forma de escribir. Se aplica al perfil
+# "Default" (para que cualquier usuario nuevo lo herede) y al perfil del
+# usuario kiosko si ya existe.
+# Ref: 04.2-01 §23 — Autostart y Modo Kiosco
+
+if (Should-Run 'TouchKeyboard') {
+    Write-Host "`n=== FASE: Teclado en pantalla (touch keyboard) ===" -ForegroundColor Yellow
+
+    if ($DryRun) {
+        Write-Step 'TouchKeyboard' "[DRY] Habilitaria EnableDesktopModeAutoInvoke=1 (perfil Default + $KioskUser)" 'DRY'
+    } else {
+        $tkResult = Invoke-OnTarget -ScriptBlock {
+            param($KioskUserName)
+            $results = @()
+
+            function Set-TouchKeyboardAutoInvoke {
+                param([string]$HiveRoot, [string]$Label)
+                try {
+                    $keyPath = Join-Path $HiveRoot 'Software\Microsoft\TabletTip\1.7'
+                    if (-not (Test-Path $keyPath)) {
+                        New-Item -Path $keyPath -Force | Out-Null
+                    }
+                    Set-ItemProperty -Path $keyPath -Name 'EnableDesktopModeAutoInvoke' -Value 1 -Type DWord -Force
+                    return @{ Status = 'OK'; Name = $Label; Msg = 'EnableDesktopModeAutoInvoke=1 aplicado' }
+                } catch {
+                    return @{ Status = 'FAIL'; Name = $Label; Msg = $_.Exception.Message }
+                }
+            }
+
+            # 1) Perfil "Default": lo heredará cualquier usuario nuevo (autologon, etc.)
+            $defaultHive = 'C:\Users\Default\NTUSER.DAT'
+            if (Test-Path $defaultHive) {
+                $mounted = $false
+                try {
+                    if (-not (Test-Path 'HKU:\DefaultTemp')) {
+                        & reg.exe load 'HKU\DefaultTemp' $defaultHive 2>$null | Out-Null
+                        $mounted = $true
+                    }
+                    $results += Set-TouchKeyboardAutoInvoke -HiveRoot 'Registry::HKEY_USERS\DefaultTemp' -Label 'Perfil Default'
+                } finally {
+                    if ($mounted) {
+                        [gc]::Collect(); [gc]::WaitForPendingFinalizers()
+                        & reg.exe unload 'HKU\DefaultTemp' 2>$null | Out-Null
+                    }
+                }
+            } else {
+                $results += @{ Status = 'SKIP'; Name = 'Perfil Default'; Msg = "No encontrado: $defaultHive" }
+            }
+
+            # 2) Usuario kiosko actual (si el perfil ya existe y está cargado, p.ej. sesión activa)
+            try {
+                $sid = (New-Object System.Security.Principal.NTAccount($KioskUserName)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+                if (Test-Path "Registry::HKEY_USERS\$sid") {
+                    $results += Set-TouchKeyboardAutoInvoke -HiveRoot "Registry::HKEY_USERS\$sid" -Label "Usuario $KioskUserName (sesión activa)"
+                } else {
+                    $userHive = "C:\Users\$KioskUserName\NTUSER.DAT"
+                    if (Test-Path $userHive) {
+                        $mounted = $false
+                        try {
+                            & reg.exe load "HKU\KioskTemp" $userHive 2>$null | Out-Null
+                            $mounted = $true
+                            $results += Set-TouchKeyboardAutoInvoke -HiveRoot 'Registry::HKEY_USERS\KioskTemp' -Label "Usuario $KioskUserName"
+                        } finally {
+                            if ($mounted) {
+                                [gc]::Collect(); [gc]::WaitForPendingFinalizers()
+                                & reg.exe unload 'HKU\KioskTemp' 2>$null | Out-Null
+                            }
+                        }
+                    } else {
+                        $results += @{ Status = 'SKIP'; Name = "Usuario $KioskUserName"; Msg = 'Perfil aún no creado (se aplicará vía perfil Default en el primer login)' }
+                    }
+                }
+            } catch {
+                $results += @{ Status = 'SKIP'; Name = "Usuario $KioskUserName"; Msg = $_.Exception.Message }
+            }
+
+            return $results
+        } -ArgumentList $KioskUser
+
+        foreach ($r in $tkResult) {
+            Write-Step 'TouchKeyboard' "$($r.Name): $($r.Msg)" $r.Status
+        }
+        Write-Step 'TouchKeyboard' "Recuerda: TabletInputService debe estar en Manual/Automatic (ya no se deshabilita, ver FASE 8)" 'INFO'
     }
 }
 

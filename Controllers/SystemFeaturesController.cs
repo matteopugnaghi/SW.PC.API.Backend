@@ -45,6 +45,7 @@ namespace SW.PC.API.Backend.Controllers
         {
             bool enableFileExport = false;
             bool enableEmailSending = false;
+            bool entraIdEnabled = false;
 
             try
             {
@@ -56,6 +57,7 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         enableFileExport = sysCfg.EnableFileExport;
                         enableEmailSending = sysCfg.EnableEmailSending;
+                        entraIdEnabled = sysCfg.EntraIdEnabled;
                     }
                 }
             }
@@ -67,7 +69,8 @@ namespace SW.PC.API.Backend.Controllers
             return Ok(new
             {
                 enableFileExport,
-                enableEmailSending
+                enableEmailSending,
+                entraIdEnabled
             });
         }
     }

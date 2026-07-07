@@ -209,7 +209,18 @@ namespace SW.PC.API.Backend.Models
         ModbusSourceConnect,        // External Modbus source connected (Client role)
         ModbusSourceDisconnect,     // External Modbus source disconnected (Client role)
         ModbusSecurityReject,       // Connection rejected
-        ModbusConfigWarning         // Excel configuration error/warning
+        ModbusConfigWarning,        // Excel configuration error/warning
+
+        // ═══════════════════════════════════════════════════════
+        // 🔑 MICROSOFT ENTRA ID / SSO (AUTHENTICATION) — gated by Excel EntraIdEnabled
+        // ═══════════════════════════════════════════════════════
+        EntraIdServiceStart,        // Entra ID service started (gated ON)
+        EntraIdServiceStop,         // Entra ID service stopped
+        EntraIdConnected,           // Connectivity to Entra endpoint restored
+        EntraIdDisconnected,        // Connectivity to Entra endpoint lost
+        EntraIdConfigWarning,       // Excel configuration error/warning (missing tenant/client)
+        EntraIdLogin,               // Fase 2+: login via Entra SSO
+        EntraIdLoginFailed          // Fase 2+: login via Entra SSO failed/rejected
     }
 
     /// <summary>

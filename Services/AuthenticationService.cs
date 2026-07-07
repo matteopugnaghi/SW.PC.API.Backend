@@ -28,6 +28,14 @@ public interface IAuthenticationService
     /// <summary>Autenticar usuario</summary>
     /// <param name="projectId">ID del proyecto para audit log (null = proyecto activo)</param>
     Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? userAgent, string? projectId = null);
+
+    /// <summary>
+    /// 🔑 Login vía Entra ID (SSO): el token ya fue validado por IEntraIdService.
+    /// Aprovisiona el usuario si no existe (JIT), sincroniza nombre/rol (Entra autoritativo)
+    /// y emite la MISMA sesión + JWT local que el login normal (cero cambios downstream).
+    /// Solo lo invoca EntraIdController cuando EntraIdEnabled=TRUE.
+    /// </summary>
+    Task<LoginResponse> LoginWithEntraAsync(Models.EntraId.EntraUserInfo entraUser, string? ipAddress, string? userAgent, string? projectId = null);
     
     /// <summary>Cerrar sesión</summary>
     Task<AuthOperationResponse> LogoutAsync(string token);
@@ -482,6 +490,160 @@ public class AuthenticationService : IAuthenticationService, IDisposable
         }
     }
     
+    /// <summary>
+    /// 🔑 Login vía Entra ID (SSO) — token ya validado por IEntraIdService (firma/issuer/
+    /// audience/rol). Aprovisiona JIT, sincroniza datos y emite sesión + JWT local estándar.
+    /// Reutiliza los campos IsActiveDirectoryUser/ActiveDirectoryDN (sin migración de BD):
+    /// ActiveDirectoryDN = "entra:{objectId}" identifica al usuario Entra de forma inmutable.
+    /// </summary>
+    public async Task<LoginResponse> LoginWithEntraAsync(Models.EntraId.EntraUserInfo entraUser, string? ipAddress, string? userAgent, string? projectId = null)
+    {
+        try
+        {
+            var entraKey = $"entra:{entraUser.ObjectId}";
+            _logger.LogInformation("🔑 Login Entra para {Username} (oid {Oid}) desde IP: {IP}",
+                entraUser.Username, entraUser.ObjectId, ipAddress ?? "unknown");
+
+            // Buscar por object ID inmutable (sobrevive a renames); fallback por username
+            var user = await Context.Users
+                .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.ActiveDirectoryDN == entraKey);
+
+            user ??= await Context.Users
+                .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Username.ToLower() == entraUser.Username.ToLower() && u.IsActiveDirectoryUser);
+
+            // Rol del sistema correspondiente (nunca SuperAdmin — garantizado por el mapeo)
+            var role = await Context.Roles.FirstOrDefaultAsync(r => r.SystemRole == entraUser.Role);
+            if (role == null)
+            {
+                _logger.LogError("🔑 Rol {Role} no existe en la BD del proyecto", entraUser.Role);
+                return new LoginResponse { Success = false, Message = "Rol no disponible en esta instalación" };
+            }
+
+            if (user == null)
+            {
+                // ── JIT provisioning: crear usuario Entra (sin contraseña local) ──
+                user = new User
+                {
+                    Username = entraUser.Username,
+                    PasswordHash = null,                       // sin contraseña local — auth solo vía Entra
+                    FullName = entraUser.FullName,
+                    Email = entraUser.Email,
+                    IsActiveDirectoryUser = true,              // reutilizado: usuario de directorio (Entra)
+                    ActiveDirectoryDN = entraKey,              // object ID inmutable
+                    Status = UserStatus.Active,
+                    MustChangePassword = false,                // la contraseña la gobierna Entra
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = "EntraID (JIT)",
+                    Notes = "Usuario aprovisionado automáticamente vía Microsoft Entra ID (SSO)"
+                };
+                Context.Users.Add(user);
+                await Context.SaveChangesAsync();
+
+                Context.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = role.Id, AssignedBy = "EntraID (JIT)" });
+                await Context.SaveChangesAsync();
+
+                await _auditLog.LogAsync(
+                    AuditCategory.Authentication, AuditAction.UserCreated, AuditResult.Success,
+                    $"Usuario Entra '{entraUser.Username}' aprovisionado automáticamente (JIT) con rol {role.Name}",
+                    user.Id.ToString(), entraUser.Username, ipAddress, projectId: projectId);
+
+                // Recargar con navegación
+                user = await Context.Users
+                    .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+                    .FirstAsync(u => u.Id == user.Id);
+            }
+            else
+            {
+                // Cuenta deshabilitada localmente ⇒ rechazo (control local prevalece)
+                if (user.Status == UserStatus.Disabled)
+                {
+                    await _auditLog.LogAsync(
+                        AuditCategory.Authentication, AuditAction.EntraIdLoginFailed, AuditResult.Warning,
+                        $"Login Entra rechazado — cuenta '{user.Username}' deshabilitada localmente",
+                        user.Id.ToString(), user.Username, ipAddress, projectId: projectId);
+                    return new LoginResponse { Success = false, Message = "Cuenta deshabilitada. Contacte al administrador." };
+                }
+
+                // Sincronizar datos desde Entra (autoritativo): rename, nombre, email, rol
+                user.Username = entraUser.Username;
+                user.FullName = entraUser.FullName;
+                user.Email = entraUser.Email;
+                user.ActiveDirectoryDN = entraKey;
+                user.IsActiveDirectoryUser = true;
+
+                var currentRoleIds = user.UserRoles.Select(ur => ur.RoleId).ToList();
+                if (!currentRoleIds.Contains(role.Id) || currentRoleIds.Count != 1)
+                {
+                    // El rol de Entra manda: reemplazar asignaciones locales del usuario Entra
+                    Context.UserRoles.RemoveRange(user.UserRoles);
+                    Context.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = role.Id, AssignedBy = "EntraID (sync)" });
+
+                    await _auditLog.LogAsync(
+                        AuditCategory.Authentication, AuditAction.RoleChanged, AuditResult.Success,
+                        $"Rol de '{user.Username}' sincronizado desde Entra → {role.Name}",
+                        user.Id.ToString(), user.Username, ipAddress, projectId: projectId);
+                }
+                await Context.SaveChangesAsync();
+
+                user = await Context.Users
+                    .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+                    .FirstAsync(u => u.Id == user.Id);
+            }
+
+            // Login OK — mismos pasos que el login local
+            user.FailedLoginAttempts = 0;
+            user.LastLoginAt = DateTime.Now;
+            user.LastLoginIp = ipAddress;
+
+            var tokenExpiry = DateTime.Now.AddMinutes(_config.SessionTimeoutMinutes);
+            var token = GenerateJwtToken(user, tokenExpiry);
+            var refreshToken = GenerateRefreshToken();
+
+            Context.UserSessions.Add(new UserSession
+            {
+                UserId = user.Id,
+                Token = token,
+                RefreshToken = refreshToken,
+                IpAddress = ipAddress,
+                UserAgent = userAgent,
+                CreatedAt = DateTime.Now,
+                ExpiresAt = tokenExpiry,
+                LastActivityAt = DateTime.Now
+            });
+            await Context.SaveChangesAsync();
+
+            await LogLoginAttemptAsync(user.Username, true, AuthEventType.LoginSuccess,
+                ipAddress, userAgent, null, "EntraID");
+
+            await _auditLog.LogAsync(
+                AuditCategory.Authentication, AuditAction.EntraIdLogin, AuditResult.Success,
+                $"Usuario {user.Username} inició sesión vía Entra ID (SSO) desde {ipAddress} — rol {role.Name}",
+                user.Id.ToString(), user.Username, ipAddress, projectId: projectId);
+
+            return new LoginResponse
+            {
+                Success = true,
+                Token = token,
+                RefreshToken = refreshToken,
+                ExpiresAt = tokenExpiry,
+                MustChangePassword = false,
+                User = MapToUserProfile(user),
+                Message = "Login exitoso (Entra ID)"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "🔑 Error durante login Entra para {Username}", entraUser.Username);
+            await _auditLog.LogAsync(
+                AuditCategory.Authentication, AuditAction.EntraIdLoginFailed, AuditResult.Error,
+                $"Error durante login Entra de {entraUser.Username}: {ex.Message}",
+                null, entraUser.Username, ipAddress, projectId: projectId);
+            return new LoginResponse { Success = false, Message = "Error interno durante autenticación Entra" };
+        }
+    }
+
     public async Task<AuthOperationResponse> LogoutAsync(string token)
     {
         try
@@ -489,7 +651,6 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             var session = await Context.UserSessions
                 .Include(s => s.User)
                 .FirstOrDefaultAsync(s => s.Token == token && !s.IsRevoked);
-            
             if (session == null)
             {
                 return new AuthOperationResponse { Success = true, Message = "Sesión no encontrada o ya cerrada" };
@@ -1320,8 +1481,9 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .Where(u =>
-                    (u.Status == UserStatus.Active && u.LockedUntil == null) ||
-                    (u.Status == UserStatus.Locked && u.LockedUntil != null && u.LockedUntil <= now))
+                    !u.IsActiveDirectoryUser && // 🔑 Excluir usuarios Entra (JIT, sin contraseña local) — solo entran vía SSO
+                    ((u.Status == UserStatus.Active && u.LockedUntil == null) ||
+                     (u.Status == UserStatus.Locked && u.LockedUntil != null && u.LockedUntil <= now)))
                 .OrderBy(u => u.UserRoles.Min(ur => (int)ur.Role!.SystemRole)) // Ordenar por rol (SuperAdmin primero)
                 .ThenBy(u => u.Username)
                 .Select(u => new AvailableUserInfo

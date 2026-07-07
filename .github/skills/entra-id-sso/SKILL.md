@@ -189,16 +189,61 @@ Flujo OIDC propuesto (D5): **Authorization Code Flow + PKCE** (estándar SPA + A
 
 ## 7. Plan de fases (propuesto, se ajusta tras D1–D12)
 
-- **Fase 0 — Clarificación (AHORA):** cerrar D1–D12 con RhB/usuario. Sin código.
-- **Fase 1 — Backend gated + stub:** flag `EntraIdEnabled`, `IEntraIdService` + `DisabledEntraIdService`,
-  `SystemFeaturesController` expone `entraIdEnabled`, DI condicional en `Program.cs` (patrón OPC-UA).
-- **Fase 2 — Validación de token Entra:** `AddJwtBearer` con authority RhB, `EntraAuthController`,
-  emisión de sesión interna; break-glass local intacto.
-- **Fase 3 — Frontend MSAL:** login Entra en `Login.js` (gated) — **botón «Iniciar sesión con RhB»** (A) o
-  **lista «recientes»** que se rellena tras cada login con `login_hint` (C), según D13 — + acceso local
-  discreto, Auth Code+PKCE (redirect), persistir usuarios vistos por **`object ID`**, integrar con `PermissionsContext`.
-- **Fase 4 — Mapeo de roles:** grupos/app-roles Entra → `SystemRole`; Graph mínimo si hace falta.
-- **Fase 5 — Endurecimiento CRA + docs:** audit log, SBOM, manual de instalación Entra (parámetros), Confluence.
+- **Fase 0 — Clarificación (✅ hecha en lo esencial):** documento enviado a RhB; pendientes se cierran en KW29.
+- **Fase 1 — Backend gated + stub (✅ IMPLEMENTADA 2026-07-07):** flag `EntraIdEnabled` + claves `EntraId_*`
+  (TenantId, ClientId, Authority, RedirectUris, RoleSource, RoleMap×5) en Excel `System Config`
+  (`ExcelModels.SystemConfiguration` + parser `ExcelConfigService`); `IEntraIdService` +
+  `DisabledEntraIdService` + `EntraIdService` (BackgroundService con health-check OIDC discovery cada 60 s,
+  sin credenciales) en `Services/EntraIdService.cs`; DI condicional en `Program.cs` (lee flag del Excel antes
+  del contenedor, patrón OPC-UA/Modbus; OFF ⇒ stub, cero recursos); `SystemFeaturesController` expone
+  `entraIdEnabled`; `EntraIdController` (`GET /api/entraid/status`, [Authorize]); **InfoPanel → Servicios
+  Externos**: fila «Entra ID (SSO)» (visible solo si enabled; estados: Tenant OK / No reach / Awaiting
+  config / Not configured) vía `MetricsService.SetEntraIdStatus` + `SystemServicesStatus`; **audit L1**:
+  `EntraIdServiceStart/Stop`, `EntraIdConnected/Disconnected`, `EntraIdConfigWarning` (+ `EntraIdLogin`,
+  `EntraIdLoginFailed` reservadas para Fase 2), categoría `Authentication`.
+  **Regresión verificada:** build 0 errores; con Excel sin la clave ⇒ `entraIdEnabled:false`, backend
+  idéntico al actual.
+- **Fase 2 — Validación de token Entra (✅ IMPLEMENTADA 2026-07-07):** **token exchange** (NO dual-scheme —
+  el pipeline `[Authorize]` local queda intacto): MSAL obtiene el **ID token** de Entra → `POST
+  /api/entraid/login` (rate-limit "auth") → `IEntraIdService.ValidateEntraTokenAsync` valida
+  **firma/issuer/audience/expiry** vía `ConfigurationManager<OpenIdConnectConfiguration>` (discovery OIDC
+  cacheado, librerías `Microsoft.IdentityModel` que ya trae JwtBearer — **cero NuGet nuevos**) →
+  `AuthenticationService.LoginWithEntraAsync` hace **JIT provisioning** (User con
+  `IsActiveDirectoryUser=true`, `ActiveDirectoryDN="entra:{objectId}"` — cero migración de BD, sin
+  contraseña local), sincroniza rename/rol desde Entra (autoritativo), respeta `Disabled` local, y emite la
+  **misma sesión + JWT local** de siempre. `GET /api/entraid/config` ([AllowAnonymous]) da
+  ClientId/Authority a MSAL desde el Excel.
+- **Fase 3 — Frontend MSAL (✅ IMPLEMENTADA 2026-07-07):** `@azure/msal-browser` 5.16 (npm, MS 1st-party,
+  D10); `services/entraAuth.js` (config desde backend, **flujo redirect** — kiosko/Citrix —, intercambio de
+  token, lista **opción C** en localStorage por object ID con purga si el backend rechaza); `Login.js`:
+  botón «Iniciar sesión con cuenta corporativa» + chips de usuarios recientes (`login_hint`), **visible solo
+  si `enabled && configured`**, manejo del redirect al montar, mismos pasos post-login que el login local
+  (`token`/`user`/`auth-changed`/timers).
+- **Fase 4 — Mapeo de roles (✅ IMPLEMENTADA, dentro de Fase 2):** claims `roles` (app-roles) o `groups`
+  según `EntraId_RoleSource`; match contra `EntraId_RoleMap_*`; si el mapa está vacío → default 1:1 con
+  nombres de rol (D6). **Deny-by-default** (sin match ⇒ rechazo + log) y **nunca SuperAdmin**. Prioridad al
+  rol más privilegiado si hay varios.
+- **Fase 5 — Endurecimiento CRA (✅ parcial):** audit L1 completo (start/stop/conn/config/login/loginfailed
+  + UserCreated JIT + RoleChanged sync); MSAL aparecerá en el SBOM del frontend (package.json). Pendiente:
+  manual de instalación Entra (parámetros Excel) y Confluence cuando RhB dé datos reales.
+
+**✅ PROBADO (2026-07-07):** flag OFF ⇒ `entraIdEnabled:false`, backend idéntico (regresión OK). Flag ON sin
+configurar (Excel real `C07.LANBWP`, fila `EntraIdEnabled=TRUE`) ⇒ servicio registrado, audit
+`EntraIdServiceStart` (Warning: awaiting client data) + `EntraIdConfigWarning`, health-check → **connectivity
+UP** + audit `EntraIdConnected`; `/api/entraid/config` ⇒ `{enabled:true, configured:false}` (el botón del
+login NO aparece hasta configurar — correcto); frontend build OK. ⚠️ Al terminar las pruebas, el flag del
+Excel de dev puede dejarse TRUE (muestra fila InfoPanel "Awaiting config", útil para el FAT) o revertirse con
+el backup `ProjectConfig.xlsm.bak-entra`.
+
+**Para activar en producción (solo Excel):** `EntraIdEnabled=TRUE` + `EntraId_TenantId` + `EntraId_ClientId`
+(+ opcional `EntraId_Authority`, `EntraId_RedirectUris`, `EntraId_RoleSource`, `EntraId_RoleMap_*`) →
+reiniciar servicio. Sin datos → botón oculto y solo health-check.
+
+**🎉 LOGIN E2E REAL VERIFICADO (2026-07-07) con tenant de desarrollo propio de Aquafrisch** (Azure AD free,
+Default Directory): App Registration SPA + 5 App Roles + usuario `electronico@aquafrisch.com` con rol
+`Administrator`. Flujo completo probado: botón → redirect a Microsoft → login real → vuelta a la app
+logueado. Audit log confirma `UserCreated` (JIT) + `EntraIdLogin` Success. **Prueba de concepto cerrada**:
+cuando RhB dé sus datos reales, el cambio es solo Excel (mismas claves), cero código nuevo.
 
 ## 8. Acuerdos cerrados (Fase 0)
 

@@ -214,6 +214,31 @@ function Test-BrowserRunning {
     $null -ne (Get-Process -Name $script:browserProcess -ErrorAction SilentlyContinue)
 }
 
+function Test-BrowserStuckOnExternalPage {
+    <#
+    .SYNOPSIS
+        🔑 Detecta si el navegador kiosk quedó "atrapado" en una página externa
+        (típicamente un redirect de login/logout de Microsoft Entra ID que no volvió
+        a la app, por un fallo de red u otro problema del lado de Microsoft).
+        En modo kiosk NO hay barra de direcciones ni botón atrás: si esto ocurre,
+        el operador no tiene forma de salir por sí mismo — el watchdog debe rescatarlo.
+    #>
+    $proc = Get-Process -Name $script:browserProcess -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $proc) { return $false }
+    $title = $proc.MainWindowTitle
+    if ([string]::IsNullOrWhiteSpace($title)) { return $false }
+    $suspicious = @(
+        'login.microsoftonline', 'microsoftonline.com',
+        'iniciar sesión en su cuenta', 'sign in to your account',
+        'selección de la cuenta', 'pick an account', 'select account',
+        'no se puede obtener acceso a esta página', "can't reach this page"
+    )
+    foreach ($s in $suspicious) {
+        if ($title -match [regex]::Escape($s)) { return $true }
+    }
+    return $false
+}
+
 # ============================================================================
 #  FUNCIONES — HEALTH CHECK
 # ============================================================================
@@ -541,6 +566,7 @@ $failureCount   = 0
 $zOrderCounter  = 0
 $wasRdpActive   = $false
 $healthTickCounter = 0
+$script:stuckPageCount = 0 # 🔑 cuenta verificaciones consecutivas con página externa (SSO Entra) atascada
 
 # Bucle principal — usa Application.DoEvents para procesar mensajes WinForms del overlay
 while ($true) {
@@ -598,6 +624,22 @@ while ($true) {
             Write-Log 'Navegador no detectado — relanzando...' 'WARN'
             Start-Sleep -Seconds 3
             Start-KioskBrowser
+            $script:stuckPageCount = 0
+        } elseif (Test-BrowserStuckOnExternalPage) {
+            # 🔑 Posible página externa atascada (redirect Entra SSO que no volvió).
+            # 2 verificaciones consecutivas (~1 ciclo de watchdog) antes de actuar,
+            # para no relanzar en falso durante un redirect legítimo normal (~1-2s).
+            $script:stuckPageCount++
+            Write-Log "Posible página externa atascada (SSO) — verificación $($script:stuckPageCount)" 'WARN'
+            if ($script:stuckPageCount -ge 2) {
+                Write-Log 'Página externa atascada confirmada — forzando relanzamiento a la URL del Supervisor' 'ACTION'
+                Get-Process -Name $script:browserProcess -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 3
+                Start-KioskBrowser
+                $script:stuckPageCount = 0
+            }
+        } else {
+            $script:stuckPageCount = 0
         }
     }
 

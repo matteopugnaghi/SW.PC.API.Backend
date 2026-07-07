@@ -587,6 +587,85 @@ else
     Console.WriteLine("📡 Modbus DISABLED — service not started");
 }
 
+// 🔑 Microsoft Entra ID (SSO) — gated by Excel (additive, patrón OPC-UA/Modbus)
+// Read EntraIdEnabled flag from Excel BEFORE registering the service.
+// ZERO REGRESSION: if absent/empty/FALSE → DisabledEntraIdService stub (no threads, no HTTP).
+bool entraIdEnabledInExcel = false;
+try
+{
+    var contentRoot = builder.Environment.ContentRootPath;
+    var activeProjectFile = Path.Combine(contentRoot, "active-project.json");
+    string excelPath;
+    if (File.Exists(activeProjectFile))
+    {
+        var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(activeProjectFile));
+        var activeProject = json.RootElement.TryGetProperty("activeProject", out var prop)
+            ? prop.GetString() ?? "default" : "default";
+        if (activeProject != "default")
+        {
+            var configDir = Path.Combine(contentRoot, "Projects", activeProject, "config");
+            excelPath = Directory.Exists(configDir)
+                ? (Directory.GetFiles(configDir, "*.xlsm").FirstOrDefault()
+                   ?? Directory.GetFiles(configDir, "*.xlsx").FirstOrDefault()
+                   ?? Path.Combine(configDir, "ProjectConfig.xlsm"))
+                : Path.Combine(configDir, "ProjectConfig.xlsm");
+        }
+        else
+        {
+            excelPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm");
+        }
+    }
+    else
+    {
+        excelPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm");
+    }
+
+    if (File.Exists(excelPath))
+    {
+        using var stream = new FileStream(excelPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var workbook = new XLWorkbook(stream);
+        var ws = workbook.Worksheets.FirstOrDefault(s =>
+            s.Name.Equals("System Config", StringComparison.OrdinalIgnoreCase) ||
+            s.Name.Equals("SystemConfig", StringComparison.OrdinalIgnoreCase));
+        if (ws != null)
+        {
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+            for (int row = 1; row <= lastRow; row++)
+            {
+                var keyNorm = (ws.Cell(row, 1).GetString()?.ToLowerInvariant()?.Replace(" ", "") ?? "");
+                if (keyNorm == "entraidenabled" || keyNorm == "entraid_enabled" || keyNorm == "entra_id_enabled")
+                {
+                    var val = ws.Cell(row, 2).GetString()?.Trim()?.ToLowerInvariant() ?? "";
+                    entraIdEnabledInExcel = val == "true" || val == "1"
+                                          || val == "si" || val == "yes" || val == "on";
+                    break;
+                }
+            }
+        }
+    }
+    Console.WriteLine($"🔑 Entra ID Enabled in Excel: {entraIdEnabledInExcel}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"⚠️ Could not read Entra ID config from Excel: {ex.Message}");
+}
+
+if (entraIdEnabledInExcel)
+{
+    builder.Services.AddHttpClient("EntraId", client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(10);
+    });
+    builder.Services.AddSingleton<IEntraIdService, EntraIdService>();
+    builder.Services.AddHostedService(sp => (EntraIdService)sp.GetRequiredService<IEntraIdService>());
+    Console.WriteLine("🔑 Entra ID (SSO) service REGISTERED (health-check + status)");
+}
+else
+{
+    builder.Services.AddSingleton<IEntraIdService, DisabledEntraIdService>();
+    Console.WriteLine("🔑 Entra ID (SSO) DISABLED — service not started (local auth only)");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 💾 DATA MANAGEMENT: Sistema de Backup/Restore (EU CRA Anexo I, Parte I, 2f)
 // ═══════════════════════════════════════════════════════════════════════════════

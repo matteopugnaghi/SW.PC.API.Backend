@@ -93,6 +93,11 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         void SetEmailSendingStatus(bool enabled, bool configured, string statusMessage);
 
+        /// <summary>
+        /// 🔑 Actualiza el estado del subsistema Entra ID (SSO)
+        /// </summary>
+        void SetEntraIdStatus(bool enabled, bool configured, bool connected, string statusMessage);
+
         // ===== �🔐 SOFTWARE INTEGRITY =====
 
         /// <summary>
@@ -245,7 +250,11 @@ namespace SW.PC.API.Backend.Services
                         Tme2Temperature = _servicesStatus.Tme2Temperature,
                         EmailSendingEnabled = _servicesStatus.EmailSendingEnabled,
                         EmailSendingConfigured = _servicesStatus.EmailSendingConfigured,
-                        EmailSendingStatus = _servicesStatus.EmailSendingStatus
+                        EmailSendingStatus = _servicesStatus.EmailSendingStatus,
+                        EntraIdEnabled = _servicesStatus.EntraIdEnabled,
+                        EntraIdConfigured = _servicesStatus.EntraIdConfigured,
+                        EntraIdConnected = _servicesStatus.EntraIdConnected,
+                        EntraIdStatus = _servicesStatus.EntraIdStatus
                     }
                 };
 
@@ -369,6 +378,18 @@ namespace SW.PC.API.Backend.Services
                 _servicesStatus.EmailSendingEnabled = enabled;
                 _servicesStatus.EmailSendingConfigured = configured;
                 _servicesStatus.EmailSendingStatus = statusMessage;
+                _servicesStatus.LastStatusUpdate = DateTime.Now;
+            }
+        }
+
+        public void SetEntraIdStatus(bool enabled, bool configured, bool connected, string statusMessage)
+        {
+            lock (_lock)
+            {
+                _servicesStatus.EntraIdEnabled = enabled;
+                _servicesStatus.EntraIdConfigured = configured;
+                _servicesStatus.EntraIdConnected = connected;
+                _servicesStatus.EntraIdStatus = statusMessage;
                 _servicesStatus.LastStatusUpdate = DateTime.Now;
             }
         }

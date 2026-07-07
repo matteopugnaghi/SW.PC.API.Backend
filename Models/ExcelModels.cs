@@ -1179,6 +1179,47 @@ namespace SW.PC.API.Backend.Models.Excel
         /// </summary>
         public bool ModbusEnabled { get; set; } = false;
 
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🔑 MICROSOFT ENTRA ID (SSO) — gated, patrón OPC-UA/Modbus (proyecto RhB)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 🔑 Habilitar login SSO con Microsoft Entra ID. Si false/ausente, el subsistema
+        /// no existe (stub) y la auth local funciona exactamente como siempre.
+        /// ZERO REGRESSION por defecto — los Excel antiguos sin esta clave = false.
+        /// </summary>
+        public bool EntraIdEnabled { get; set; } = false;
+
+        /// <summary>Directory (tenant) ID de la App Registration (lo provee el cliente)</summary>
+        public string EntraIdTenantId { get; set; } = "";
+
+        /// <summary>Application (client) ID de la App Registration (lo provee el cliente)</summary>
+        public string EntraIdClientId { get; set; } = "";
+
+        /// <summary>Authority OIDC explícita (opcional; default: cloud público + tenant)</summary>
+        public string EntraIdAuthority { get; set; } = "";
+
+        /// <summary>Redirect URIs autorizadas, separadas por ';' (incl. URL Citrix si aplica)</summary>
+        public string EntraIdRedirectUris { get; set; } = "";
+
+        /// <summary>Origen del rol en el token: "roles" (app-roles, preferido) o "groups"</summary>
+        public string EntraIdRoleSource { get; set; } = "roles";
+
+        /// <summary>Mapeo rol Entra → Administrador (nombre de app-role o GUID de grupo)</summary>
+        public string EntraIdRoleMapAdministrator { get; set; } = "";
+
+        /// <summary>Mapeo rol Entra → Mantenimiento</summary>
+        public string EntraIdRoleMapMaintenance { get; set; } = "";
+
+        /// <summary>Mapeo rol Entra → Operador</summary>
+        public string EntraIdRoleMapOperator { get; set; } = "";
+
+        /// <summary>Mapeo rol Entra → Visor</summary>
+        public string EntraIdRoleMapViewer { get; set; } = "";
+
+        /// <summary>Mapeo rol Entra → Auditor</summary>
+        public string EntraIdRoleMapAuditor { get; set; } = "";
+
         /// <summary>Puerto TCP del servidor OPC/UA (default: 4840)</summary>
         public int OpcUaPort { get; set; } = 4840;
         /// <summary>URI del servidor OPC/UA (e.g., "opc.tcp://localhost:4840")</summary>
@@ -1978,6 +2019,20 @@ namespace SW.PC.API.Backend.Models.Excel
 
         /// <summary>Último mensaje de estado del servicio de envío de email</summary>
         public string EmailSendingStatus { get; set; } = "No iniciado";
+
+        // ===== 🔑 MICROSOFT ENTRA ID (SSO) =====
+
+        /// <summary>Entra ID habilitado en Excel (SystemConfig.EntraIdEnabled)</summary>
+        public bool EntraIdEnabled { get; set; }
+
+        /// <summary>App Registration configurada (TenantId + ClientId presentes en Excel)</summary>
+        public bool EntraIdConfigured { get; set; }
+
+        /// <summary>Conectividad con Entra verificada (metadata OIDC accesible)</summary>
+        public bool EntraIdConnected { get; set; }
+
+        /// <summary>Último mensaje de estado del subsistema Entra ID</summary>
+        public string EntraIdStatus { get; set; } = "No iniciado";
     }
 
     #region Alarm System Models

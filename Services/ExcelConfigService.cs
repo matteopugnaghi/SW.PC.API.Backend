@@ -3774,6 +3774,63 @@ namespace SW.PC.API.Backend.Services
                                 var modbusValue = paramValue?.ToLower()?.Trim() ?? "";
                                 config.ModbusEnabled = modbusValue == "true" || modbusValue == "1" || modbusValue == "on" || modbusValue == "si" || modbusValue == "yes";
                                 break;
+                            // ═══════════════════════════════════════════════════════════════
+                            // 🔑 MICROSOFT ENTRA ID (SSO) — gated, patrón OPC-UA/Modbus (RhB)
+                            //    ZERO REGRESSION: clave ausente/vacía/false ⇒ deshabilitado.
+                            // ═══════════════════════════════════════════════════════════════
+                            case "entraidenabled":
+                            case "entraid_enabled":
+                            case "entra_id_enabled":
+                                var entraValue = paramValue?.ToLower()?.Trim() ?? "";
+                                config.EntraIdEnabled = entraValue == "true" || entraValue == "1" || entraValue == "on" || entraValue == "si" || entraValue == "yes";
+                                break;
+                            case "entraidtenantid":
+                            case "entraid_tenantid":
+                            case "entraid_tenant_id":
+                                config.EntraIdTenantId = paramValue?.Trim() ?? "";
+                                break;
+                            case "entraidclientid":
+                            case "entraid_clientid":
+                            case "entraid_client_id":
+                                config.EntraIdClientId = paramValue?.Trim() ?? "";
+                                break;
+                            case "entraidauthority":
+                            case "entraid_authority":
+                                config.EntraIdAuthority = paramValue?.Trim() ?? "";
+                                break;
+                            case "entraidredirecturis":
+                            case "entraid_redirecturis":
+                            case "entraid_redirect_uris":
+                                config.EntraIdRedirectUris = paramValue?.Trim() ?? "";
+                                break;
+                            case "entraidrolesource":
+                            case "entraid_rolesource":
+                            case "entraid_role_source":
+                                var roleSource = paramValue?.Trim()?.ToLowerInvariant() ?? "";
+                                if (roleSource == "roles" || roleSource == "groups")
+                                    config.EntraIdRoleSource = roleSource;
+                                break;
+                            case "entraidrolemapadministrator":
+                            case "entraid_rolemap_administrator":
+                            case "entraid_rolemap_admin":
+                                config.EntraIdRoleMapAdministrator = paramValue?.Trim() ?? "";
+                                break;
+                            case "entraidrolemapmaintenance":
+                            case "entraid_rolemap_maintenance":
+                                config.EntraIdRoleMapMaintenance = paramValue?.Trim() ?? "";
+                                break;
+                            case "entraidrolemapoperator":
+                            case "entraid_rolemap_operator":
+                                config.EntraIdRoleMapOperator = paramValue?.Trim() ?? "";
+                                break;
+                            case "entraidrolemapviewer":
+                            case "entraid_rolemap_viewer":
+                                config.EntraIdRoleMapViewer = paramValue?.Trim() ?? "";
+                                break;
+                            case "entraidrolemapauditor":
+                            case "entraid_rolemap_auditor":
+                                config.EntraIdRoleMapAuditor = paramValue?.Trim() ?? "";
+                                break;
                             case "opcuaport":
                             case "opcua_port":
                                 if (int.TryParse(paramValue, out int opcPort) && opcPort > 0 && opcPort <= 65535)
