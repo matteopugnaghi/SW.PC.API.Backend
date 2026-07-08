@@ -6,6 +6,8 @@
 // aislada (sin CDN externo, sin eval, sin inline scripts, SignalR same-origin).
 // ============================================================================
 
+using SW.PC.API.Backend.Services;
+
 namespace SW.PC.API.Backend.Middleware;
 
 public sealed class SecurityHeadersMiddleware
@@ -19,28 +21,37 @@ public sealed class SecurityHeadersMiddleware
     //  - img-src 'self' data: blob: (iconos SVG inline base64 + screenshots Babylon)
     //  - font-src 'self' (fuentes locales en /fonts/, sin Google Fonts)
     //  - connect-src 'self' blob: (API REST + SignalR same-origin + Babylon.js fetches
-    //    GLB/textures internamente vía blob: URLs cuando usa workers de carga).
+    //    GLB/textures vía blob: URLs). + https://login.microsoftonline.com SOLO si
+    //    EntraIdEnabled=TRUE (gated, igual que OPC-UA/Modbus) — MSAL necesita este
+    //    origen en connect-src para el intercambio de token SSO; inocuo/ausente si
+    //    el flag está OFF (mismo comportamiento exacto que antes de Entra ID).
     //  - media-src/worker-src 'self' blob: (modelos 3D y workers internos Babylon)
     //  - frame-src 'self' blob: (visor de PDF integrado usa <iframe src="blob:...">)
     //  - object-src 'none' (sin Flash/applets — PDFs van por iframe, no por <object>)
     //  - frame-ancestors 'none' (refuerza X-Frame-Options: DENY-equiv)
     //  - base-uri 'self', form-action 'self' (anti-rebase / anti-form-hijacking)
     //  - upgrade-insecure-requests (cualquier http:// del HTML se sube a https://)
-    private const string ProductionCsp =
-        "default-src 'self'; " +
-        "script-src 'self' 'wasm-unsafe-eval'; " +
-        "style-src 'self' 'unsafe-inline'; " +
-        "img-src 'self' data: blob:; " +
-        "font-src 'self'; " +
-        "connect-src 'self' blob:; " +
-        "media-src 'self' blob:; " +
-        "worker-src 'self' blob:; " +
-        "frame-src 'self' blob:; " +
-        "object-src 'none'; " +
-        "base-uri 'self'; " +
-        "form-action 'self'; " +
-        "frame-ancestors 'none'; " +
-        "upgrade-insecure-requests";
+    private const string EntraIdConnectSrc = "https://login.microsoftonline.com";
+
+    private static string BuildProductionCsp(bool entraIdEnabled)
+    {
+        var connectSrc = entraIdEnabled ? $"'self' blob: {EntraIdConnectSrc}" : "'self' blob:";
+        return
+            "default-src 'self'; " +
+            "script-src 'self' 'wasm-unsafe-eval'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: blob:; " +
+            "font-src 'self'; " +
+            $"connect-src {connectSrc}; " +
+            "media-src 'self' blob:; " +
+            "worker-src 'self' blob:; " +
+            "frame-src 'self' blob:; " +
+            "object-src 'none'; " +
+            "base-uri 'self'; " +
+            "form-action 'self'; " +
+            "frame-ancestors 'none'; " +
+            "upgrade-insecure-requests";
+    }
 
     private readonly RequestDelegate _next;
     private readonly IWebHostEnvironment _env;
@@ -51,7 +62,7 @@ public sealed class SecurityHeadersMiddleware
         _env = env;
     }
 
-    public Task InvokeAsync(HttpContext context)
+    public Task InvokeAsync(HttpContext context, IEntraIdService entraIdService)
     {
         var headers = context.Response.Headers;
 
@@ -71,7 +82,7 @@ public sealed class SecurityHeadersMiddleware
         // En Dev el frontend corre en puerto 3001 con webpack-dev-server (inline scripts
         // + eval para HMR), por lo que una CSP estricta lo rompería.
         if (_env.IsProduction() && !headers.ContainsKey("Content-Security-Policy"))
-            headers["Content-Security-Policy"] = ProductionCsp;
+            headers["Content-Security-Policy"] = BuildProductionCsp(entraIdService.IsEnabled);
 
         return _next(context);
     }

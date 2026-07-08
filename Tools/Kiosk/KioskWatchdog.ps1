@@ -33,6 +33,12 @@
 .PARAMETER IdleTimeoutMinutes
     Minutos de inactividad antes de activar screensaver. Default: 30
 
+.PARAMETER StuckPageConfirmCount
+    Verificaciones consecutivas (cada $WatchdogInterval segundos) con una página
+    externa antes de forzar el relanzamiento del navegador. Default: 4 (~2-3 min
+    con WatchdogInterval=30s) — da tiempo de sobra para completar un login externo
+    (Entra ID, MFA, etc.) sin ser interrumpido a mitad de proceso.
+
 .NOTES
     Ref: 04.2-01 §23 — Autostart y Modo Kiosco
 #>
@@ -42,7 +48,14 @@ param(
     [int]$WatchdogInterval    = 30,
     [int]$MaxFailures         = 3,
     [string]$ServiceName      = 'AquafrischSupervisor',
-    [int]$IdleTimeoutMinutes   = 30
+    [int]$IdleTimeoutMinutes   = 30,
+    # 🔑 Segundos entre sondeos del teclado en pantalla (osk.exe). Independiente
+    # de $WatchdogInterval — el operador no puede esperar 30s a que aparezca.
+    [int]$OskPollSeconds       = 2,
+    # 🔑 Verificaciones consecutivas antes de forzar el relanzamiento por "página
+    # externa atascada". Default 4 (~2-3 min) — margen amplio para completar un
+    # login externo (Entra ID/MFA) sin interrumpirlo a mitad de proceso.
+    [int]$StuckPageConfirmCount = 4
 )
 
 $ErrorActionPreference = 'Continue'
@@ -104,6 +117,12 @@ $script:browserPath    = $null
 $script:browserProcess = $null
 $script:healthCheckUrl = "$SupervisorUrl/health"
 $script:kioskArgs      = $null
+
+# 🔑 Teclado en pantalla (osk.exe) — fallback para Windows 11 IoT Enterprise LTSC,
+# que NO incluye el teclado táctil moderno (TabTip.exe/TextInputHost.exe no existen).
+# Nuestra app tiene su propio teclado virtual; solo hace falta osk.exe en paginas
+# EXTERNAS (ej. login.microsoftonline.com) que no tienen ningún teclado propio.
+$script:oskVisible = $false
 
 # ============================================================================
 #  FUNCIONES — LOG
@@ -214,29 +233,59 @@ function Test-BrowserRunning {
     $null -ne (Get-Process -Name $script:browserProcess -ErrorAction SilentlyContinue)
 }
 
+function Get-BrowserMainWindow {
+    <#
+    .SYNOPSIS
+        Devuelve el proceso del navegador que posee la ventana principal (con titulo).
+        Edge/Chrome son multi-proceso (GPU, renderer, utility, crashpad...); solo el
+        proceso dueño de la ventana visible tiene MainWindowTitle no vacio.
+    #>
+    Get-Process -Name $script:browserProcess -ErrorAction SilentlyContinue |
+        Where-Object { $_.MainWindowHandle -ne 0 -and -not [string]::IsNullOrWhiteSpace($_.MainWindowTitle) } |
+        Select-Object -First 1
+}
+
+function Test-BrowserOnOwnApp {
+    <#
+    .SYNOPSIS
+        True si el navegador esta mostrando nuestra propia app (tiene su teclado
+        virtual propio). False si esta en cualquier pagina EXTERNA (Entra ID, error
+        de red, etc.) — en ese caso no hay ningun teclado disponible para escribir.
+    #>
+    $proc = Get-BrowserMainWindow
+    if (-not $proc) { return $true } # sin ventana visible aun (arrancando) — no molestar
+    return $proc.MainWindowTitle -match [regex]::Escape('Aquafrisch Supervisor')
+}
+
+function Show-OnScreenKeyboard {
+    if ($script:oskVisible -and (Get-Process -Name 'osk' -ErrorAction SilentlyContinue)) { return }
+    try {
+        Start-Process -FilePath "$env:SystemRoot\System32\osk.exe" -ErrorAction Stop | Out-Null
+        $script:oskVisible = $true
+        Write-Log 'Teclado en pantalla (osk.exe) mostrado — pagina externa detectada' 'ACTION'
+    } catch {
+        Write-Log "No se pudo lanzar osk.exe: $($_.Exception.Message)" 'ERROR'
+    }
+}
+
+function Hide-OnScreenKeyboard {
+    if (-not $script:oskVisible) { return }
+    Get-Process -Name 'osk' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    $script:oskVisible = $false
+    Write-Log 'Teclado en pantalla (osk.exe) ocultado — de vuelta en la app' 'INFO'
+}
+
 function Test-BrowserStuckOnExternalPage {
     <#
     .SYNOPSIS
-        🔑 Detecta si el navegador kiosk quedó "atrapado" en una página externa
-        (típicamente un redirect de login/logout de Microsoft Entra ID que no volvió
-        a la app, por un fallo de red u otro problema del lado de Microsoft).
+        🔑 Detecta si el navegador kiosk quedó "atrapado" en CUALQUIER página que no
+        sea nuestra propia app — no solo login/errores conocidos de Microsoft, sino
+        cualquier enlace saliente que el operador pulse por error (política de
+        privacidad, ayuda, condiciones de uso, etc. desde la página de Entra ID).
         En modo kiosk NO hay barra de direcciones ni botón atrás: si esto ocurre,
         el operador no tiene forma de salir por sí mismo — el watchdog debe rescatarlo.
     #>
-    $proc = Get-Process -Name $script:browserProcess -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $proc) { return $false }
-    $title = $proc.MainWindowTitle
-    if ([string]::IsNullOrWhiteSpace($title)) { return $false }
-    $suspicious = @(
-        'login.microsoftonline', 'microsoftonline.com',
-        'iniciar sesión en su cuenta', 'sign in to your account',
-        'selección de la cuenta', 'pick an account', 'select account',
-        'no se puede obtener acceso a esta página', "can't reach this page"
-    )
-    foreach ($s in $suspicious) {
-        if ($title -match [regex]::Escape($s)) { return $true }
-    }
-    return $false
+    -not (Test-BrowserOnOwnApp)
 }
 
 # ============================================================================
@@ -575,7 +624,26 @@ while ($true) {
         Start-Sleep -Milliseconds 500
         $healthTickCounter++
     } else {
-        Start-Sleep -Seconds $WatchdogInterval
+        # 🔑 Sondeo rapido (cada $OskPollSeconds) SOLO para mostrar/ocultar el teclado
+        # en pantalla (osk.exe) — el operador no puede esperar 30s a que aparezca un
+        # teclado. El resto de comprobaciones (RDP, screensaver, health check, umbral
+        # de "pagina atascada") sigue con la cadencia normal de $WatchdogInterval.
+        $elapsedOskPoll = 0
+        while ($elapsedOskPoll -lt $WatchdogInterval) {
+            if (Test-BrowserRunning) {
+                if (Test-BrowserOnOwnApp) {
+                    Hide-OnScreenKeyboard
+                } else {
+                    Show-OnScreenKeyboard
+                }
+                if ($script:oskVisible) {
+                    $oskProc = Get-Process -Name 'osk' -ErrorAction SilentlyContinue | Select-Object -First 1
+                    if ($oskProc) { [Win32TopMost]::ForceTopMost($oskProc.MainWindowHandle) }
+                }
+            }
+            Start-Sleep -Seconds $OskPollSeconds
+            $elapsedOskPoll += $OskPollSeconds
+        }
         $healthTickCounter = $WatchdogInterval * 2  # forzar health check cada ciclo largo
     }
 
@@ -625,14 +693,17 @@ while ($true) {
             Start-Sleep -Seconds 3
             Start-KioskBrowser
             $script:stuckPageCount = 0
+            Hide-OnScreenKeyboard
         } elseif (Test-BrowserStuckOnExternalPage) {
-            # 🔑 Posible página externa atascada (redirect Entra SSO que no volvió).
-            # 2 verificaciones consecutivas (~1 ciclo de watchdog) antes de actuar,
-            # para no relanzar en falso durante un redirect legítimo normal (~1-2s).
+            # 🔑 Posible página externa (cualquiera, no solo Entra ID) sin volver a la app.
+            # $StuckPageConfirmCount verificaciones consecutivas (~1 ciclo de watchdog
+            # cada una) antes de actuar, para no relanzar en falso durante un redirect
+            # legítimo normal ni interrumpir un login externo aún en curso.
             $script:stuckPageCount++
-            Write-Log "Posible página externa atascada (SSO) — verificación $($script:stuckPageCount)" 'WARN'
-            if ($script:stuckPageCount -ge 2) {
+            Write-Log "Posible página externa atascada — verificación $($script:stuckPageCount)/$StuckPageConfirmCount" 'WARN'
+            if ($script:stuckPageCount -ge $StuckPageConfirmCount) {
                 Write-Log 'Página externa atascada confirmada — forzando relanzamiento a la URL del Supervisor' 'ACTION'
+                Hide-OnScreenKeyboard
                 Get-Process -Name $script:browserProcess -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
                 Start-Sleep -Seconds 3
                 Start-KioskBrowser
@@ -641,6 +712,8 @@ while ($true) {
         } else {
             $script:stuckPageCount = 0
         }
+    } elseif ($script:oskVisible) {
+        Hide-OnScreenKeyboard
     }
 
     # --- Health check del backend (SIEMPRE, incluso con screensaver) ---
