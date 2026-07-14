@@ -4506,8 +4506,10 @@ namespace SW.PC.API.Backend.Services
                 // Quitar paréntesis si existen: (Alarm_SPA) → Alarm_SPA
                 header = header.TrimStart('(').TrimEnd(')');
                 
-                // Parsear encabezado (formato: Type_LANG, ej: Alarm_SPA, Notification_ENG)
-                var parts = header.Split('_');
+                // Parsear encabezado (formato: Type_LANG, ej: Alarm_SPA, Notification_ENG).
+                // Se admite tanto separador '_' como espacio (ej: "Alarm DEU"), de modo que
+                // cualquier idioma nuevo (DEU, POR, …) se detecta igual que los existentes.
+                var parts = header.Split(new[] { '_', ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length >= 2)
                 {
                     var alarmType = parts[0]; // Alarm, Notification, Info
