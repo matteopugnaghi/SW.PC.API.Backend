@@ -1393,7 +1393,10 @@ namespace SW.PC.API.Backend.Controllers
                         lastAlarmEventAt = alarmService.LastAlarmEventAt,
                         lastBroadcastAt = alarmService.LastBroadcastAt,
                         broadcastCount = alarmService.BroadcastCount,
-                        activeAlarmCount = alarmService.ActiveAlarmCount
+                        activeAlarmCount = alarmService.ActiveAlarmCount,
+                        pushFallbackActive = alarmService.PushFallbackActive,
+                        lastFallbackScanAt = alarmService.LastFallbackScanAt,
+                        lastFallbackScanDurationMs = alarmService.LastFallbackScanDurationMs
                     },
                     signalR = new
                     {

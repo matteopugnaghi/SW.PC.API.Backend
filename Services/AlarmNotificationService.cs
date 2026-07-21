@@ -34,6 +34,18 @@ namespace SW.PC.API.Backend.Services
         // Si ITwinCATService.ConnectionSessionId difiere, los handles están muertos
         // (el AdsClient se recreó) y hay que re-registrar (ver loop de ExecuteAsync).
         private int _registeredSessionId = -1;
+
+        // 🚑 Fallback para PLCs cuyo canal push ADS no funciona (p.ej. CX7000 embebido):
+        // aceptan AddDeviceNotification (devuelven handles válidos) pero JAMÁS envían
+        // ninguna trama de notificación, ni siquiera las iniciales obligatorias de OnChange.
+        // La sonda: tras registrar, si en PushProbeTimeoutMs no llegó NINGUNA notificación
+        // ADS (contador global de TwinCATService), el push está muerto → rescan periódico.
+        private bool _pushChannelDead = false;
+        private DateTime? _pushProbeDeadline = null;
+        private int _notificationsAtRegistration = 0;
+        private bool _fallbackSeeded = false;
+        private DateTime? _lastFallbackScanAt = null;
+        private double _lastFallbackScanDurationMs = 0;
         
         // � Variable WSTRING para recibir logs/mensajes desde el PLC
         private string? _logFromTwincatVariable = null;
@@ -155,6 +167,9 @@ namespace SW.PC.API.Backend.Services
         public DateTime? LastAlarmEventAt => _lastAlarmEventAt;
         public DateTime? LastBroadcastAt => _lastBroadcastAt;
         public int ActiveAlarmCount => _alarmStates.Count(s => s.Value);
+        public bool PushFallbackActive => _pushChannelDead;
+        public DateTime? LastFallbackScanAt => _lastFallbackScanAt;
+        public double LastFallbackScanDurationMs => _lastFallbackScanDurationMs;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -228,8 +243,48 @@ namespace SW.PC.API.Backend.Services
                         // ya no están activas en el PLC quedan colgadas en el frontend.
                         await RescanAllAlarmsAsync();
                     }
+
+                    // 🚑 Evaluar la sonda del canal push (armada en RegisterAlarmNotificationsAsync)
+                    if (_pushProbeDeadline.HasValue && DateTime.Now >= _pushProbeDeadline.Value)
+                    {
+                        var received = _twinCATService.TotalNotificationsReceived - _notificationsAtRegistration;
+                        _pushProbeDeadline = null;
+
+                        if (received == 0 && _twinCATService.IsConnected)
+                        {
+                            if (!_pushChannelDead)
+                            {
+                                _pushChannelDead = true;
+                                _fallbackSeeded = false;
+                                _logger.LogWarning(
+                                    "🚑 Canal push ADS MUERTO: el PLC aceptó {Handles} registros pero no ha enviado " +
+                                    "NINGUNA notificación en {Seconds}s (ni las iniciales de OnChange). Activando " +
+                                    "fallback de rescan periódico cada {Interval}ms. Causa típica: PLC embebido " +
+                                    "(CX7000) que no entrega device notifications.",
+                                    _notificationHandles.Count, _config.PushProbeTimeoutMs / 1000, _config.FallbackRescanIntervalMs);
+                            }
+                        }
+                        else if (received > 0)
+                        {
+                            if (_pushChannelDead)
+                            {
+                                _logger.LogInformation(
+                                    "✅ Canal push ADS RECUPERADO: {Count} notificaciones recibidas - desactivando fallback de rescan",
+                                    received);
+                            }
+                            _pushChannelDead = false;
+                        }
+                    }
+
+                    // 🚑 Fallback activo: rescan periódico en lugar de push
+                    if (_pushChannelDead && _twinCATService.IsConnected)
+                    {
+                        await FallbackScanAsync();
+                    }
                     
-                    await Task.Delay(5000, stoppingToken); // Check cada 5 segundos
+                    // En modo fallback el loop corre al ritmo del rescan; en push, cada 5s
+                    var delayMs = _pushChannelDead ? Math.Max(500, _config.FallbackRescanIntervalMs) : 5000;
+                    await Task.Delay(delayMs, stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -425,6 +480,14 @@ namespace SW.PC.API.Backend.Services
             
             _notificationsRegistered = successCount > 0;
             _registeredSessionId = sessionAtRegistration;
+
+            // 🚑 Armar la sonda del canal push: ADS OnChange SIEMPRE envía notificaciones
+            // iniciales tras registrar. Si en PushProbeTimeoutMs el contador global no se
+            // mueve, el PLC no entrega notificaciones (ver campo _pushChannelDead).
+            // NO reseteamos _pushChannelDead aquí: si el fallback ya estaba activo, sigue
+            // cubriendo hasta que la sonda confirme que el push volvió a funcionar.
+            _notificationsAtRegistration = _twinCATService.TotalNotificationsReceived;
+            _pushProbeDeadline = DateTime.Now.AddMilliseconds(_config.PushProbeTimeoutMs);
             
             _logger.LogInformation("🔔 Notificaciones registradas: {Success}/{Total} en {Time}ms",
                 successCount, _alarmVariables.Count, elapsed);
@@ -677,6 +740,115 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
+        /// 🚑 Barrido de fallback cuando el canal push ADS está muerto (ver _pushChannelDead).
+        /// Lee TODAS las variables de alarma monitorizadas (incluye st_alarmHistPc y las
+        /// suscripciones watchdog) y reinyecta los cambios por la MISMA ruta que una
+        /// notificación push real (OnAlarmChanged): dedup, filtro de no-declaradas,
+        /// broadcast SignalR y Operation Log se comportan idéntico al modo push.
+        /// El primer barrido (seed) solo puebla la caché y transmite el estado de las
+        /// declaradas SIN escribir Operation Log, imitando el warm-up del modo push.
+        /// </summary>
+        private async Task FallbackScanAsync()
+        {
+            var start = DateTime.Now;
+            int changes = 0;
+            int errors = 0;
+            bool seeding = !_fallbackSeeded;
+
+            foreach (var variable in _alarmVariables)
+            {
+                try
+                {
+                    var raw = await _twinCATService.ReadVariableAsync(variable, typeof(bool));
+                    if (raw is not bool value)
+                    {
+                        errors++;
+                        continue;
+                    }
+
+                    bool cached = _alarmStates.TryGetValue(variable, out var s) && s;
+                    if (value == cached && !seeding)
+                        continue;
+
+                    if (seeding)
+                    {
+                        // Seed: poblar caché sin pasar por Operation Log (equivale al warm-up
+                        // del modo push, que ignora las notificaciones iniciales). Transmite
+                        // a clientes solo las DECLARADAS cuyo estado difiere de la caché
+                        // (activaciones nuevas y clears de alarmas colgadas).
+                        _alarmStates[variable] = value;
+                        if (value != cached && _declaredAlarmKeys.Contains(variable))
+                        {
+                            changes++;
+                            await BroadcastAlarmChangeAsync(variable, value, DateTime.Now);
+                        }
+                        continue;
+                    }
+
+                    changes++;
+                    OnAlarmChanged(this, new PlcNotification
+                    {
+                        VariableName = variable,
+                        OldValue = cached,
+                        NewValue = value,
+                        Timestamp = DateTime.Now
+                    });
+                }
+                catch (Exception ex)
+                {
+                    errors++;
+                    _logger.LogDebug(ex, "⚠️ [Fallback] Error leyendo {Var}", variable);
+                }
+            }
+
+            // 📝 LogFromTwincat (WSTRING) también queda cubierto por el fallback
+            if (!string.IsNullOrWhiteSpace(_logFromTwincatVariable))
+            {
+                try
+                {
+                    var raw = await _twinCATService.ReadVariableAsync(_logFromTwincatVariable, typeof(string));
+                    if (raw is string msg && msg != _lastLogFromTwincatValue)
+                    {
+                        if (seeding)
+                        {
+                            _lastLogFromTwincatValue = msg; // no registrar el mensaje residual inicial
+                        }
+                        else
+                        {
+                            OnAlarmChanged(this, new PlcNotification
+                            {
+                                VariableName = _logFromTwincatVariable,
+                                NewValue = msg,
+                                Timestamp = DateTime.Now
+                            });
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "⚠️ [Fallback] Error leyendo LogFromTwincat");
+                }
+            }
+
+            _lastFallbackScanAt = DateTime.Now;
+            _lastFallbackScanDurationMs = (DateTime.Now - start).TotalMilliseconds;
+
+            if (seeding)
+            {
+                _fallbackSeeded = true;
+                _logger.LogInformation(
+                    "🚑 [Fallback] Seed inicial completado en {Ms:F0}ms: {Count} variables, {Active} alarma(s) activa(s) transmitida(s), {Errors} error(es)",
+                    _lastFallbackScanDurationMs, _alarmVariables.Count, changes, errors);
+            }
+            else if (changes > 0 || errors > 0)
+            {
+                _logger.LogInformation(
+                    "🚑 [Fallback] Barrido en {Ms:F0}ms: {Changes} cambio(s), {Errors} error(es)",
+                    _lastFallbackScanDurationMs, changes, errors);
+            }
+        }
+
+        /// <summary>
         /// Tras recargar el Excel, resetea en los clientes cualquier alarma que estuviera ACTIVA
         /// y cuya variable ya no está declarada en la nueva configuración. Esto evita el caso
         /// "cambio el Excel de Alarm a Info y la Alarm activa nunca se resetea".
@@ -851,6 +1023,19 @@ namespace SW.PC.API.Backend.Services
         /// Recomendado: 2000-5000ms dependiendo del número de variables.
         /// </summary>
         public int WarmupPeriodMs { get; set; } = 3000;
+
+        /// <summary>
+        /// 🚑 Tiempo (ms) tras el registro para decidir si el canal push ADS está muerto.
+        /// ADS OnChange siempre envía notificaciones iniciales: si en este plazo no llegó
+        /// NINGUNA, el PLC no las entrega (p.ej. CX7000) y se activa el fallback de rescan.
+        /// </summary>
+        public int PushProbeTimeoutMs { get; set; } = 15000;
+
+        /// <summary>
+        /// 🚑 Intervalo (ms) entre barridos de rescan cuando el fallback está activo.
+        /// Solo aplica si el canal push está muerto; en modo push normal no hay barridos.
+        /// </summary>
+        public int FallbackRescanIntervalMs { get; set; } = 1500;
         
         /// <summary>
         /// Nombre del archivo Excel con la configuración
