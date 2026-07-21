@@ -21,6 +21,20 @@ namespace SW.PC.API.Backend.Services
         // 🔄 Estado anterior de conexión al PLC para detectar transición disconnected->connected
         // y reenviar UserLogged/ClientsIdConnected (que solo se escriben en login/logout).
         private bool _previousPlcConnected = false;
+
+        // 🔁 Reenvío periódico de UserLogged/ClientsIdConnected (autocuración): las escrituras
+        // por evento (login/logout) pueden fallar silenciosamente (handle ADS obsoleto tras
+        // reconexión, timeout transitorio) o el PLC puede resetear las variables a '' con una
+        // descarga/online-change SIN que la conexión ADS llegue a caer. Reenviando cada pocos
+        // segundos, el PLC siempre refleja el estado real en <= ResendEverySeconds aunque un
+        // intento puntual falle. Crítico: st_InfoUserLogged habilita comandos externos
+        // (selectores, botones) en la máquina.
+        private const int ResendEverySeconds = 5;
+        private int _cyclesSinceResend = 0;
+
+        // Marcado cuando una escritura de UserLogged/ClientsIdConnected falla (o el PLC no
+        // estaba conectado) para reintentar en el siguiente ciclo sin esperar al periodo.
+        public static volatile bool PendingResend = false;
         
         public ClientConnectionTrackerService(
             ILogger<ClientConnectionTrackerService> logger,
@@ -74,12 +88,29 @@ namespace SW.PC.API.Backend.Services
                     //  - PLC se desconecta (descarga de software, reinicio) y vuelve mientras
                     //    los clientes siguen conectados.
                     bool currentlyConnected = _twinCATService.IsConnected;
-                    if (currentlyConnected && !_previousPlcConnected && hasClients)
-                    {
-                        _logger.LogInformation("🔄 PLC reconectado con {Count} cliente(s) ya conectado(s) - reenviando UserLogged/ClientsIdConnected", clientsList.Count);
-                        await UpdatePlcClientsAsync(_serviceProvider, _twinCATService, _logger);
-                    }
+                    bool plcReconnected = currentlyConnected && !_previousPlcConnected && hasClients;
                     _previousPlcConnected = currentlyConnected;
+
+                    // 🔁 Reenviar UserLogged/ClientsIdConnected si:
+                    //  - el PLC acaba de reconectar con clientes ya conectados, o
+                    //  - una escritura anterior falló (PendingResend), o
+                    //  - toca el reenvío periódico (autocuración cada ResendEverySeconds).
+                    _cyclesSinceResend++;
+                    if (currentlyConnected && (plcReconnected || PendingResend || _cyclesSinceResend >= ResendEverySeconds))
+                    {
+                        if (plcReconnected)
+                        {
+                            _logger.LogInformation("🔄 PLC reconectado con {Count} cliente(s) ya conectado(s) - reenviando UserLogged/ClientsIdConnected", clientsList.Count);
+                        }
+                        else if (PendingResend)
+                        {
+                            _logger.LogInformation("🔁 Reintentando escritura de UserLogged/ClientsIdConnected tras fallo anterior");
+                        }
+
+                        bool quiet = !plcReconnected && !PendingResend; // reenvío rutinario → log Debug
+                        _cyclesSinceResend = 0;
+                        await UpdatePlcClientsAsync(_serviceProvider, _twinCATService, _logger, quiet);
+                    }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -123,12 +154,17 @@ namespace SW.PC.API.Backend.Services
         public static async Task UpdatePlcClientsAsync(
             IServiceProvider serviceProvider, 
             ITwinCATService twinCATService,
-            ILogger logger)
+            ILogger logger,
+            bool quiet = false)
         {
             try
             {
                 if (!twinCATService.IsConnected)
+                {
+                    // No se pudo escribir: reintentar en cuanto el PLC vuelva a estar conectado.
+                    PendingResend = true;
                     return;
+                }
                 
                 List<(string Username, string IPAddress)> clientsList;
                 int currentCounter;
@@ -194,17 +230,23 @@ namespace SW.PC.API.Backend.Services
 
                 if (failed.Count > 0)
                 {
+                    PendingResend = true;
                     logger.LogWarning("⚠️ PLC actualizado parcialmente: {Failed} variable(s) fallaron: {Names}. " +
-                        "Posible handle ADS obsoleto tras reconexión - se reintentará en la próxima actualización.",
+                        "Posible handle ADS obsoleto tras reconexión - se reintentará en el próximo ciclo (1s).",
                         failed.Count, string.Join(", ", failed));
                 }
                 else
                 {
-                    logger.LogInformation("✅ PLC actualizado: {Count} clientes, contador={Counter}", clientsList.Count, currentCounter);
+                    PendingResend = false;
+                    if (quiet)
+                        logger.LogDebug("✅ PLC actualizado (reenvío periódico): {Count} clientes, contador={Counter}", clientsList.Count, currentCounter);
+                    else
+                        logger.LogInformation("✅ PLC actualizado: {Count} clientes, contador={Counter}", clientsList.Count, currentCounter);
                 }
             }
             catch (Exception ex)
             {
+                PendingResend = true;
                 logger.LogWarning(ex, "⚠️ Error actualizando clientes en PLC");
             }
         }
