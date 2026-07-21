@@ -1353,12 +1353,69 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         /// <summary>
+        /// Diagnóstico de la cadena completa de notificaciones ADS → alarmas → SignalR.
+        /// Anónimo (mismo patrón que plc-debug/read) para poder interrogar producción en remoto.
+        /// </summary>
+        [HttpGet("plc-debug/notifications")]
+        public IActionResult GetNotificationDiagnostics([FromServices] AlarmNotificationService alarmService)
+        {
+            try
+            {
+                List<object> clients;
+                int activeConnections;
+                lock (ClientConnectionTrackerService.LockObj)
+                {
+                    activeConnections = ClientConnectionTrackerService.ActiveConnections;
+                    clients = ClientConnectionTrackerService.ConnectedClients
+                        .Select(c => (object)new { connectionId = c.Key, username = c.Value.Username, ip = c.Value.IPAddress })
+                        .ToList();
+                }
+
+                return Ok(new
+                {
+                    plc = new
+                    {
+                        isConnected = _twinCATService.IsConnected,
+                        isSimulated = _twinCATService.IsSimulated,
+                        connectionSessionId = _twinCATService.ConnectionSessionId,
+                        activeNotificationCount = _twinCATService.ActiveNotificationCount,
+                        totalNotificationsReceived = _twinCATService.TotalNotificationsReceived,
+                        lastNotificationReceivedAt = _twinCATService.LastNotificationReceivedAt
+                    },
+                    alarms = new
+                    {
+                        monitoredAlarmCount = alarmService.MonitoredAlarmCount,
+                        declaredAlarmKeyCount = alarmService.DeclaredAlarmKeyCount,
+                        notificationsRegistered = alarmService.NotificationsActive,
+                        registeredSessionId = alarmService.RegisteredSessionId,
+                        registeredHandleCount = alarmService.RegisteredHandleCount,
+                        isInWarmup = alarmService.IsInWarmup,
+                        lastAlarmEventAt = alarmService.LastAlarmEventAt,
+                        lastBroadcastAt = alarmService.LastBroadcastAt,
+                        broadcastCount = alarmService.BroadcastCount,
+                        activeAlarmCount = alarmService.ActiveAlarmCount
+                    },
+                    signalR = new
+                    {
+                        activeConnections,
+                        connectedClients = clients
+                    },
+                    timestamp = DateTime.Now
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ PLC Debug Notifications: Error general");
+                return StatusCode(500, new { success = false, error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Auto-detecta el tipo de dato basándose en la convención de nombres TwinCAT
         /// </summary>
         private static Type DetectTypeFromVariableName(string variableName)
         {
-            if (variableName.Contains(".lr_")) return typeof(double);  // LREAL
-            if (variableName.Contains(".r_")) return typeof(float);    // REAL
+            if (variableName.Contains(".lr_")) return typeof(double);  // LREAL            if (variableName.Contains(".r_")) return typeof(float);    // REAL
             if (variableName.Contains(".b_") || variableName.Contains(".btn_")) return typeof(bool);
             if (variableName.Contains(".n_") || variableName.Contains(".i_")) return typeof(int);
             if (variableName.Contains(".s_") || variableName.Contains(".str_")) return typeof(string);

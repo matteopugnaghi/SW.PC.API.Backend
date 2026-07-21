@@ -56,6 +56,16 @@ namespace SW.PC.API.Backend.Services
         int ActiveNotificationCount { get; }
 
         /// <summary>
+        /// Total de notificaciones ADS recibidas desde el arranque (diagnóstico).
+        /// </summary>
+        int TotalNotificationsReceived { get; }
+
+        /// <summary>
+        /// Momento de la última notificación ADS recibida, o null si nunca llegó ninguna (diagnóstico).
+        /// </summary>
+        DateTime? LastNotificationReceivedAt { get; }
+
+        /// <summary>
         /// Identificador de la sesión de conexión ADS actual. Se incrementa cada vez que
         /// el cliente ADS se recrea/descarta o se invalidan todas las notificaciones.
         /// Los servicios que registran notificaciones deben capturar este valor al
@@ -126,6 +136,11 @@ namespace SW.PC.API.Backend.Services
         /// Number of active ADS notification registrations
         /// </summary>
         public int ActiveNotificationCount => _notificationRegistrations.Count;
+
+        // 🔍 Diagnóstico de notificaciones ADS (expuesto en /api/system/plc-debug/notifications)
+        public int TotalNotificationsReceived => _totalNotificationsReceived;
+        public DateTime? LastNotificationReceivedAt => _lastNotificationReceivedAt;
+        private DateTime? _lastNotificationReceivedAt;
 
         // 🔄 Sesión de conexión ADS: se incrementa cuando el AdsClient se recrea (reconexión)
         // o cuando se invalidan todas las notificaciones. Permite a los consumidores
@@ -1428,6 +1443,7 @@ namespace SW.PC.API.Backend.Services
             try
             {
                 _totalNotificationsReceived++;
+                _lastNotificationReceivedAt = DateTime.Now;
                 
                 // 🔍 DEBUG: Log TODAS las notificaciones cada 100
                 if (_totalNotificationsReceived % 100 == 0)

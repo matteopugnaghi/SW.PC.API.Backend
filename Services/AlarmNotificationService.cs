@@ -143,6 +143,19 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         public bool NotificationsActive => _notificationsRegistered;
 
+        // 🔍 Diagnóstico (expuesto en /api/system/plc-debug/notifications)
+        private int _broadcastCount = 0;
+        private DateTime? _lastAlarmEventAt;
+        private DateTime? _lastBroadcastAt;
+
+        public int RegisteredSessionId => _registeredSessionId;
+        public int RegisteredHandleCount => _notificationHandles.Count(h => h.Value > 0);
+        public bool IsInWarmup => _isInWarmupPeriod;
+        public int BroadcastCount => _broadcastCount;
+        public DateTime? LastAlarmEventAt => _lastAlarmEventAt;
+        public DateTime? LastBroadcastAt => _lastBroadcastAt;
+        public int ActiveAlarmCount => _alarmStates.Count(s => s.Value);
+
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("🔔 AlarmNotificationService iniciando...");
@@ -478,6 +491,8 @@ namespace SW.PC.API.Backend.Services
                 return;
             }
 
+            _lastAlarmEventAt = DateTime.Now; // 🔍 diagnóstico
+
             // ⏱️ Transición pasiva del warm-up por tiempo (si no se ha disparado por
             // st_alarmHistPc o LogFromTwincat). Garantiza que el detector de misconfig
             // y el log de historial se activen aunque solo haya variables st_alarmPc.
@@ -788,6 +803,9 @@ namespace SW.PC.API.Backend.Services
                 };
                 
                 await _hubContext.Clients.All.SendAsync("PlcVariableUpdated", updateData);
+                
+                System.Threading.Interlocked.Increment(ref _broadcastCount); // 🔍 diagnóstico
+                _lastBroadcastAt = DateTime.Now;
                 
                 _logger.LogInformation("📡 Alarma broadcast enviado: {Var} = {Value}", variableName, value);
             }
