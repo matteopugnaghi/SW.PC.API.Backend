@@ -56,6 +56,14 @@ namespace SW.PC.API.Backend.Services
         int ActiveNotificationCount { get; }
 
         /// <summary>
+        /// Identificador de la sesión de conexión ADS actual. Se incrementa cada vez que
+        /// el cliente ADS se recrea/descarta o se invalidan todas las notificaciones.
+        /// Los servicios que registran notificaciones deben capturar este valor al
+        /// registrar y re-registrar si cambia: sus handles pertenecen a una sesión muerta.
+        /// </summary>
+        int ConnectionSessionId { get; }
+
+        /// <summary>
         /// Reconfigura la conexión TwinCAT con nuevos parámetros del proyecto activo.
         /// Desconecta del PLC actual, actualiza AMS Net ID/Port, y reconecta.
         /// </summary>
@@ -118,6 +126,13 @@ namespace SW.PC.API.Backend.Services
         /// Number of active ADS notification registrations
         /// </summary>
         public int ActiveNotificationCount => _notificationRegistrations.Count;
+
+        // 🔄 Sesión de conexión ADS: se incrementa cuando el AdsClient se recrea (reconexión)
+        // o cuando se invalidan todas las notificaciones. Permite a los consumidores
+        // (AlarmNotificationService, ExportPlcTriggerService...) detectar handles muertos
+        // aunque la reconexión ocurra entre dos muestras de sus loops de vigilancia.
+        private int _connectionSessionId = 0;
+        public int ConnectionSessionId => System.Threading.Volatile.Read(ref _connectionSessionId);
         
         public bool IsConnected 
         {
@@ -476,6 +491,10 @@ namespace SW.PC.API.Backend.Services
                     _notificationRegistrations.Clear();
                     _lastNotifiedValues.Clear();
 
+                    // 🔄 Nueva sesión ADS: los handles de notificación anteriores están muertos.
+                    // Los consumidores detectan el cambio de ConnectionSessionId y re-registran.
+                    System.Threading.Interlocked.Increment(ref _connectionSessionId);
+
                     // ✅ API CORRECTO Beckhoff 6.x - Basado en ejemplos oficiales
                     _adsClient = new AdsClient();
                     
@@ -597,6 +616,8 @@ namespace SW.PC.API.Backend.Services
             {
                 _adsClient.Dispose();
                 _adsClient = null;
+                // 🔄 Cliente descartado → los handles de notificación quedan inválidos
+                System.Threading.Interlocked.Increment(ref _connectionSessionId);
                 _logger.LogInformation("✅ Disconnected from REAL TwinCAT PLC");
             }
             
@@ -1281,6 +1302,18 @@ namespace SW.PC.API.Backend.Services
             
             try
             {
+                // 🔔 Asegurar que el handler de eventos está enganchado a ESTE AdsClient.
+                // Tras una reconexión el cliente se recrea y el flag se resetea; si el primer
+                // re-registro llega por esta vía (registro individual, p.ej. ExportPlcTrigger
+                // o LogFromTwincat) y no por RegisterMultipleNotificationsAsync, sin esto las
+                // notificaciones se registrarían pero nunca dispararían OnAdsNotification.
+                if (!_notificationEventAttached)
+                {
+                    _adsClient.AdsNotification += OnAdsNotification;
+                    _notificationEventAttached = true;
+                    _logger.LogInformation("🔔✅ ADS Notification event handler ATTACHED to AdsClient (single registration)");
+                }
+
                 // Get or create variable handle
                 var varHandle = GetOrCreateHandle(variableName);
                 
@@ -1603,6 +1636,10 @@ namespace SW.PC.API.Backend.Services
             
             _notificationRegistrations.Clear();
             _lastNotifiedValues.Clear();
+
+            // 🔄 Todas las notificaciones invalidadas → nueva sesión para que TODOS los
+            // consumidores (no solo el que llamó a este método) re-registren las suyas.
+            System.Threading.Interlocked.Increment(ref _connectionSessionId);
             
             _logger.LogInformation("🔔 All notifications unregistered");
         }

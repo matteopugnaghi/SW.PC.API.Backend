@@ -49,6 +49,9 @@ public class ExportPlcTriggerService : BackgroundService, IExportPlcTriggerServi
     private readonly Dictionary<string, uint> _subscribedHandles
         = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Sesión ADS a la que pertenecen los handles suscritos (ver ITwinCATService.ConnectionSessionId).</summary>
+    private int _subscribedSessionId = -1;
+
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
 
     public ExportPlcTriggerService(
@@ -97,6 +100,21 @@ public class ExportPlcTriggerService : BackgroundService, IExportPlcTriggerServi
     {
         try
         {
+            // 🩹 Si el cliente ADS se recreó (reconexión PLC) o se invalidaron todas las
+            // notificaciones, los handles suscritos pertenecen a la sesión anterior y están
+            // muertos → olvidarlos aquí para que el bucle de suscripción de más abajo los
+            // re-registre contra la sesión actual.
+            var adsSession = _twincat.ConnectionSessionId;
+            if (adsSession != _subscribedSessionId)
+            {
+                if (_subscribedHandles.Count > 0)
+                {
+                    _logger.LogInformation("📤🎯 Sesión ADS cambiada — re-suscribiendo {Count} trigger(s) PLC", _subscribedHandles.Count);
+                    _subscribedHandles.Clear();
+                }
+                _subscribedSessionId = adsSession;
+            }
+
             using var scope = _services.CreateScope();
             var dbFactory = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>();
             using var db = dbFactory.CreateDbContext();

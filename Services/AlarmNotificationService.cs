@@ -29,6 +29,11 @@ namespace SW.PC.API.Backend.Services
         private List<string> _alarmVariables = new();
         private Dictionary<string, uint> _notificationHandles = new();
         private bool _notificationsRegistered = false;
+
+        // 🔄 Sesión ADS a la que pertenecen los handles registrados.
+        // Si ITwinCATService.ConnectionSessionId difiere, los handles están muertos
+        // (el AdsClient se recreó) y hay que re-registrar (ver loop de ExecuteAsync).
+        private int _registeredSessionId = -1;
         
         // � Variable WSTRING para recibir logs/mensajes desde el PLC
         private string? _logFromTwincatVariable = null;
@@ -180,7 +185,24 @@ namespace SW.PC.API.Backend.Services
                         _logger.LogWarning("⚠️ PLC desconectado - notificaciones pueden necesitar re-registro");
                         _notificationsRegistered = false;
                     }
-                    
+
+                    // 🩹 Detectar reconexión "silenciosa": PlcPollingService puede recrear el
+                    // cliente ADS (ConnectAsync tras un timeout) ENTRE dos muestras de este
+                    // loop (5s). En ese caso IsConnected vuelve a true sin que este loop haya
+                    // visto el false, pero los handles registrados pertenecen a la sesión ADS
+                    // anterior (muerta) → las notificaciones de alarma dejan de llegar para
+                    // siempre y el frontend solo se refresca al reabrir la página de alarmas.
+                    // ConnectionSessionId cambia con cada recreación del cliente: si difiere
+                    // del capturado al registrar, forzamos re-registro + rescan.
+                    if (_twinCATService.IsConnected && _notificationsRegistered &&
+                        _twinCATService.ConnectionSessionId != _registeredSessionId)
+                    {
+                        _logger.LogWarning(
+                            "⚠️ Sesión ADS cambiada (registrada: {Old}, actual: {New}) - handles de notificación obsoletos, forzando re-registro",
+                            _registeredSessionId, _twinCATService.ConnectionSessionId);
+                        _notificationsRegistered = false;
+                    }
+
                     // Si se reconectó y no tenemos notificaciones, re-registrar
                     if (_twinCATService.IsConnected && !_notificationsRegistered)
                     {
@@ -373,6 +395,10 @@ namespace SW.PC.API.Backend.Services
                 _alarmVariables.Count, _config.CycleTimeMs);
             
             var startTime = DateTime.Now;
+
+            // 📌 Capturar la sesión ADS ANTES de registrar: si el cliente se recrea a mitad
+            // del registro, el mismatch se detectará en el siguiente ciclo del loop.
+            var sessionAtRegistration = _twinCATService.ConnectionSessionId;
             
             // Registrar todas las notificaciones en batch
             _notificationHandles = await _twinCATService.RegisterMultipleNotificationsAsync(
@@ -385,6 +411,7 @@ namespace SW.PC.API.Backend.Services
             var elapsed = (DateTime.Now - startTime).TotalMilliseconds;
             
             _notificationsRegistered = successCount > 0;
+            _registeredSessionId = sessionAtRegistration;
             
             _logger.LogInformation("🔔 Notificaciones registradas: {Success}/{Total} en {Time}ms",
                 successCount, _alarmVariables.Count, elapsed);
