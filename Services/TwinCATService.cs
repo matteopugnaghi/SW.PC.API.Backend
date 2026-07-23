@@ -56,6 +56,14 @@ namespace SW.PC.API.Backend.Services
         int ActiveNotificationCount { get; }
 
         /// <summary>
+        /// Variables actualmente registradas para notificación ADS con su tipo de dato
+        /// (deduplicadas por nombre). Usado por el fallback de rescan cuando el PLC no
+        /// entrega notificaciones (CX7000): permite barrer TODO lo registrado, sea de
+        /// quien sea (alarmas, triggers de exportación, servicios futuros).
+        /// </summary>
+        IReadOnlyList<(string VariableName, Type DataType)> GetRegisteredNotificationVariables();
+
+        /// <summary>
         /// Total de notificaciones ADS recibidas desde el arranque (diagnóstico).
         /// </summary>
         int TotalNotificationsReceived { get; }
@@ -108,6 +116,17 @@ namespace SW.PC.API.Backend.Services
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, object?> _lastNotifiedValues = new();
         
         public event EventHandler<PlcNotification>? OnVariableChanged;
+
+        /// <summary>
+        /// Variables registradas para notificación ADS (deduplicadas por nombre).
+        /// </summary>
+        public IReadOnlyList<(string VariableName, Type DataType)> GetRegisteredNotificationVariables()
+        {
+            return _notificationRegistrations.Values
+                .GroupBy(r => r.VariableName, StringComparer.OrdinalIgnoreCase)
+                .Select(g => (g.Key, g.First().DataType))
+                .ToList();
+        }
 
         /// <summary>
         /// Dispara manualmente el evento OnVariableChanged (usado por PlcPollingService

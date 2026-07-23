@@ -46,6 +46,12 @@ namespace SW.PC.API.Backend.Services
         private bool _fallbackSeeded = false;
         private DateTime? _lastFallbackScanAt = null;
         private double _lastFallbackScanDurationMs = 0;
+
+        // 🧩 Último valor leído por el fallback para variables registradas NO-alarma
+        // (p.ej. triggers PLC del Gestor de Exportaciones). Seed silencioso por variable:
+        // la primera lectura solo puebla la caché, sin disparar evento.
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, object?> _fallbackGenericValues =
+            new(StringComparer.OrdinalIgnoreCase);
         
         // � Variable WSTRING para recibir logs/mensajes desde el PLC
         private string? _logFromTwincatVariable = null;
@@ -250,7 +256,7 @@ namespace SW.PC.API.Backend.Services
                         var received = _twinCATService.TotalNotificationsReceived - _notificationsAtRegistration;
                         _pushProbeDeadline = null;
 
-                        if (received == 0 && _twinCATService.IsConnected)
+                        if (received == 0 && _twinCATService.IsConnected && !_twinCATService.IsSimulated)
                         {
                             if (!_pushChannelDead)
                             {
@@ -742,9 +748,12 @@ namespace SW.PC.API.Backend.Services
         /// <summary>
         /// 🚑 Barrido de fallback cuando el canal push ADS está muerto (ver _pushChannelDead).
         /// Lee TODAS las variables de alarma monitorizadas (incluye st_alarmHistPc y las
-        /// suscripciones watchdog) y reinyecta los cambios por la MISMA ruta que una
-        /// notificación push real (OnAlarmChanged): dedup, filtro de no-declaradas,
-        /// broadcast SignalR y Operation Log se comportan idéntico al modo push.
+        /// suscripciones watchdog) y reinyecta los cambios por el evento GLOBAL
+        /// ITwinCATService.OnVariableChanged (vía RaiseVariableChanged), exactamente igual
+        /// que una notificación push real. Así los reciben TODOS los suscriptores:
+        /// este servicio (dedup, broadcast SignalR, Operation Log), SmmPlcEdgeWatcher
+        /// (alarmas por ciclo en Estadísticas), ExportPlcTriggerService y
+        /// PlcNotificationService — no solo la página de alarmas.
         /// El primer barrido (seed) solo puebla la caché y transmite el estado de las
         /// declaradas SIN escribir Operation Log, imitando el warm-up del modo push.
         /// </summary>
@@ -786,13 +795,9 @@ namespace SW.PC.API.Backend.Services
                     }
 
                     changes++;
-                    OnAlarmChanged(this, new PlcNotification
-                    {
-                        VariableName = variable,
-                        OldValue = cached,
-                        NewValue = value,
-                        Timestamp = DateTime.Now
-                    });
+                    // 📣 Evento GLOBAL: lo reciben todos los suscriptores de OnVariableChanged
+                    // (incluido nuestro OnAlarmChanged), igual que una notificación ADS real.
+                    _twinCATService.RaiseVariableChanged(variable, cached, value);
                 }
                 catch (Exception ex)
                 {
@@ -815,12 +820,7 @@ namespace SW.PC.API.Backend.Services
                         }
                         else
                         {
-                            OnAlarmChanged(this, new PlcNotification
-                            {
-                                VariableName = _logFromTwincatVariable,
-                                NewValue = msg,
-                                Timestamp = DateTime.Now
-                            });
+                            _twinCATService.RaiseVariableChanged(_logFromTwincatVariable, _lastLogFromTwincatValue, msg);
                         }
                     }
                 }
@@ -828,6 +828,60 @@ namespace SW.PC.API.Backend.Services
                 {
                     _logger.LogDebug(ex, "⚠️ [Fallback] Error leyendo LogFromTwincat");
                 }
+            }
+
+            // 🧩 Variables registradas para notificación ADS que NO son de alarma (p.ej.
+            // triggers PLC del Gestor de Exportaciones, servicios futuros): también quedan
+            // cubiertas por el fallback. Se leen con su tipo registrado y los cambios se
+            // reinyectan por el evento global, idéntico a una notificación real. Seed
+            // silencioso POR VARIABLE: cubre tanto la activación del fallback como los
+            // registros que aparezcan más tarde (p.ej. tarea de exportación recién creada).
+            var registered = _twinCATService.GetRegisteredNotificationVariables();
+            var registeredNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (extraVar, extraType) in registered)
+            {
+                registeredNames.Add(extraVar);
+
+                if (IsAlarmVariable(extraVar))
+                    continue; // ya cubiertas por el barrido de alarmas
+                if (!string.IsNullOrWhiteSpace(_logFromTwincatVariable) &&
+                    string.Equals(extraVar, _logFromTwincatVariable, StringComparison.OrdinalIgnoreCase))
+                    continue; // cubierta arriba
+
+                try
+                {
+                    var raw = await _twinCATService.ReadVariableAsync(extraVar, extraType);
+                    if (raw == null)
+                    {
+                        errors++;
+                        continue;
+                    }
+
+                    if (!_fallbackGenericValues.TryGetValue(extraVar, out var prev))
+                    {
+                        _fallbackGenericValues[extraVar] = raw; // seed silencioso
+                        continue;
+                    }
+
+                    if (!Equals(raw, prev))
+                    {
+                        _fallbackGenericValues[extraVar] = raw;
+                        changes++;
+                        _twinCATService.RaiseVariableChanged(extraVar, prev, raw);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors++;
+                    _logger.LogDebug(ex, "⚠️ [Fallback] Error leyendo variable registrada {Var}", extraVar);
+                }
+            }
+
+            // Purgar de la caché genérica variables ya no registradas (p.ej. tarea eliminada)
+            foreach (var key in _fallbackGenericValues.Keys)
+            {
+                if (!registeredNames.Contains(key))
+                    _fallbackGenericValues.TryRemove(key, out _);
             }
 
             _lastFallbackScanAt = DateTime.Now;
