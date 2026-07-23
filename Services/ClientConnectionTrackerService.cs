@@ -15,7 +15,7 @@ namespace SW.PC.API.Backend.Services
         // Referencias estáticas compartidas con ScadaHub
         public static int ActiveConnections { get; set; } = 0;
         public static int CycleCounter { get; set; } = 0;
-        public static Dictionary<string, (string Username, string IPAddress)> ConnectedClients { get; } = new();
+        public static Dictionary<string, (string Username, string IPAddress, string CurrentScreen)> ConnectedClients { get; } = new();
         public static readonly object LockObj = new object();
 
         // 🔄 Estado anterior de conexión al PLC para detectar transición disconnected->connected
@@ -58,7 +58,7 @@ namespace SW.PC.API.Backend.Services
                     
                     int currentCounter = 0;
                     bool hasClients = false;
-                    List<(string Username, string IPAddress)> clientsList;
+                    List<(string Username, string IPAddress, string CurrentScreen)> clientsList;
                     
                     lock (LockObj)
                     {
@@ -72,7 +72,7 @@ namespace SW.PC.API.Backend.Services
                         else
                         {
                             CycleCounter = 0;
-                            clientsList = new List<(string, string)>();
+                            clientsList = new List<(string, string, string)>();
                         }
                     }
                     
@@ -121,7 +121,7 @@ namespace SW.PC.API.Backend.Services
             _logger.LogInformation("⏱️ ClientConnectionTrackerService detenido");
         }
         
-        private async Task UpdatePlcCounterAsync(int counter, List<(string Username, string IPAddress)> clients)
+        private async Task UpdatePlcCounterAsync(int counter, List<(string Username, string IPAddress, string CurrentScreen)> clients)
         {
             try
             {
@@ -166,7 +166,7 @@ namespace SW.PC.API.Backend.Services
                     return;
                 }
                 
-                List<(string Username, string IPAddress)> clientsList;
+                List<(string Username, string IPAddress, string CurrentScreen)> clientsList;
                 int currentCounter;
                 
                 lock (LockObj)
@@ -219,6 +219,19 @@ namespace SW.PC.API.Backend.Services
                     }
                 }
                 
+                // 📺 Escribir CurrentScreenPlcVariable[0..5] - pantalla activa de CADA usuario
+                // Array paralelo a UserLogged/ClientsIdConnected: mismo índice = mismo usuario.
+                if (!string.IsNullOrEmpty(systemConfig.CurrentScreenPlcVariable))
+                {
+                    for (int i = 0; i < 6; i++)
+                    {
+                        string screen = i < clientsList.Count ? clientsList[i].CurrentScreen : "";
+                        string arrayVarName = $"{systemConfig.CurrentScreenPlcVariable}[{i}]";
+                        writeTasks.Add(twinCATService.WriteVariableAsync(arrayVarName, screen, typeof(string)));
+                        writeNames.Add(arrayVarName);
+                    }
+                }
+                
                 var results = await Task.WhenAll(writeTasks);
 
                 // 🔍 Detectar fallos silenciosos (WriteVariableAsync devuelve false sin lanzar excepción)
@@ -248,6 +261,60 @@ namespace SW.PC.API.Backend.Services
             {
                 PendingResend = true;
                 logger.LogWarning(ex, "⚠️ Error actualizando clientes en PLC");
+            }
+        }
+
+        /// <summary>
+        /// 📺 Actualiza la pantalla activa de UNA conexión concreta.
+        /// La escritura al PLC la hace luego UpdatePlcClientsAsync (array CurrentScreenPlcVariable[0..5]).
+        /// Devuelve true si la conexión estaba registrada.
+        /// </summary>
+        public static bool SetClientScreen(string connectionId, string screenName)
+        {
+            lock (LockObj)
+            {
+                if (ConnectedClients.TryGetValue(connectionId, out var info))
+                {
+                    ConnectedClients[connectionId] = (info.Username, info.IPAddress, screenName ?? "");
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 📺 Limpia el array de pantallas en el PLC (CurrentScreenPlcVariable[0..5] = "").
+        /// Usado en el shutdown del backend para indicar que el HMI está offline.
+        /// </summary>
+        public static async Task ClearPlcScreensAsync(
+            IServiceProvider serviceProvider,
+            ITwinCATService twinCATService,
+            ILogger logger)
+        {
+            try
+            {
+                if (!twinCATService.IsConnected) return;
+                
+                using var scope = serviceProvider.CreateScope();
+                var excelConfigService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
+                var projectContext = scope.ServiceProvider.GetRequiredService<IProjectContextService>();
+                
+                var systemConfig = await excelConfigService.LoadSystemConfigurationAsync(projectContext.ExcelConfigPath);
+                if (string.IsNullOrEmpty(systemConfig?.CurrentScreenPlcVariable)) return;
+                
+                var writeTasks = new List<Task<bool>>();
+                for (int i = 0; i < 6; i++)
+                {
+                    writeTasks.Add(twinCATService.WriteVariableAsync(
+                        $"{systemConfig.CurrentScreenPlcVariable}[{i}]", "", typeof(string)));
+                }
+                
+                await Task.WhenAll(writeTasks);
+                logger.LogInformation("📺 ✅ Pantallas de clientes limpiadas en el PLC ({Var}[0..5] = '')", systemConfig.CurrentScreenPlcVariable);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "⚠️ No se pudieron limpiar las pantallas en el PLC");
             }
         }
     }

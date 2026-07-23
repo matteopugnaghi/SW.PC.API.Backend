@@ -342,10 +342,12 @@ namespace SW.PC.API.Backend.Models.Excel
         public int PlcAdsPort { get; set; } = 851;
         
         /// <summary>
-        /// Variable PLC (STRING/WSTRING) donde escribir la pantalla activa del HMI.
-        /// Si vacío, no se notifica al PLC del cambio de pantalla.
-        /// Ejemplo: "GVL.sHmiCurrentScreen" o "MAIN.fbHmi.sCurrentPage"
-        /// Valores posibles: "principal", "alarmas", "estadisticas", "manual", etc.
+        /// Variable PLC (ARRAY[0..5] OF WSTRING) donde escribir la pantalla activa de CADA cliente conectado.
+        /// Array paralelo a UserLogged/ClientsIdConnected - mismo índice relaciona usuario con su pantalla.
+        /// El backend escribe el nombre base + [i] (ej: "...ws_CurrentScreenPlcVariable[0]").
+        /// Si vacío, no se notifica al PLC.
+        /// Ejemplo: "MAIN.fbMachine.st_InfoUserLogged.ws_CurrentScreenPlcVariable"
+        /// Valores por slot: "principal", "alarmas", "estadisticas", "manual", etc. ("" = slot libre)
         /// </summary>
         public string CurrentScreenPlcVariable { get; set; } = "";
 

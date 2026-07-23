@@ -70,8 +70,8 @@ namespace SW.PC.API.Backend.Hubs
                 _metricsService.SetSignalRActiveConnections(ClientConnectionTrackerService.ActiveConnections);
                 _metricsService.SetSignalRStatus(true, true, $"OK - {ClientConnectionTrackerService.ActiveConnections} conexiones");
                 
-                // 👤 Registrar cliente conectado
-                ClientConnectionTrackerService.ConnectedClients[Context.ConnectionId] = (username, ipAddress);
+                // 👤 Registrar cliente conectado (pantalla vacía hasta que invoque SetActiveView)
+                ClientConnectionTrackerService.ConnectedClients[Context.ConnectionId] = (username, ipAddress, "");
             }
             
             _logger.LogInformation("👤 Client connected: {ConnectionId} - User: {Username}, IP: {IPAddress} (Total: {Count})", 
@@ -105,7 +105,6 @@ namespace SW.PC.API.Backend.Hubs
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             bool wasCounted = false;
-            bool wasLastClient = false;
             string username = "Unknown";
             
             lock (ClientConnectionTrackerService.LockObj)
@@ -129,7 +128,6 @@ namespace SW.PC.API.Backend.Hubs
                             ? $"OK - {ClientConnectionTrackerService.ActiveConnections} conexiones" 
                             : "Esperando conexiones...");
                     
-                    wasLastClient = ClientConnectionTrackerService.ActiveConnections == 0;
                     wasCounted = true;
                 }
             }
@@ -144,14 +142,10 @@ namespace SW.PC.API.Backend.Hubs
             _logger.LogInformation("👤 Client disconnected: {ConnectionId} - User: {Username} (Total: {Count})", 
                 Context.ConnectionId, username, ClientConnectionTrackerService.ActiveConnections);
             
-            // 📺 Si era el último cliente, notificar al PLC que no hay pantalla activa
-            if (wasLastClient)
-            {
-                _logger.LogInformation("📺 Último cliente desconectado - notificando al PLC que HMI está offline");
-                _plcPollingService.SetActiveView("");  // Vista vacía = HMI offline
-            }
+            // 📺 Quitar la vista de esta conexión (recalcula la unión de vistas para el polling)
+            _plcPollingService.RemoveClientView(Context.ConnectionId);
             
-            // 📤 Actualizar PLC con usuarios e IPs
+            // 📤 Actualizar PLC con usuarios, IPs y pantallas (el slot de este cliente queda vacío)
             await ClientConnectionTrackerService.UpdatePlcClientsAsync(_serviceProvider, _twinCATService, _logger);
             
             await base.OnDisconnectedAsync(exception);
@@ -288,7 +282,8 @@ namespace SW.PC.API.Backend.Hubs
 
         /// <summary>
         /// El cliente notifica que cambió de vista (página).
-        /// Esto optimiza qué variables se leen del PLC.
+        /// Esto optimiza qué variables se leen del PLC y actualiza el array por usuario
+        /// CurrentScreenPlcVariable[0..5] en el PLC (paralelo a UserLogged).
         /// </summary>
         /// <param name="viewName">Nombre de la vista: principal, alarmas, estadisticas, tiposTren, etc.</param>
         public async Task SetActiveView(string viewName)
@@ -296,8 +291,14 @@ namespace SW.PC.API.Backend.Hubs
             _logger.LogInformation("🎯 Client {ConnectionId} cambió a vista: {View}", 
                 Context.ConnectionId, viewName);
             
-            // Notificar al PlcPollingService del cambio de vista
-            _plcPollingService.SetActiveView(viewName);
+            // 📺 Registrar la pantalla de ESTA conexión (array por usuario en el PLC)
+            ClientConnectionTrackerService.SetClientScreen(Context.ConnectionId, viewName);
+            
+            // Notificar al PlcPollingService (el polling usa la UNIÓN de vistas de todos los clientes)
+            _plcPollingService.SetClientView(Context.ConnectionId, viewName);
+            
+            // 📤 Reflejar la pantalla en el PLC (CurrentScreenPlcVariable[0..5])
+            await ClientConnectionTrackerService.UpdatePlcClientsAsync(_serviceProvider, _twinCATService, _logger, quiet: true);
             
             // Confirmar al cliente
             await Clients.Caller.SendAsync("ViewChanged", new 

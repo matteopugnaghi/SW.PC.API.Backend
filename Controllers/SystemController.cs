@@ -1168,17 +1168,15 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
-                _logger.LogInformation("📺 API NotifyScreen: '{Screen}' (vacío = offline)", screenName);
-                
-                // Usar SetActiveView que internamente llama a NotifyPlcCurrentScreenAsync
-                // String vacío es válido y significa HMI offline
-                _plcPollingService.SetActiveView(screenName);
+                // ⚠️ DEPRECADO: la pantalla activa ahora es POR USUARIO (array
+                // CurrentScreenPlcVariable[0..5], paralelo a UserLogged) y se gestiona vía
+                // SignalR (ScadaHub.SetActiveView / desconexión del cliente). Este endpoint se
+                // mantiene solo por compatibilidad con frontends antiguos y NO escribe al PLC.
+                _logger.LogInformation("📺 API NotifyScreen (deprecado, sin efecto): '{Screen}'", screenName);
                 
                 return Ok(new { 
                     success = true, 
-                    message = string.IsNullOrEmpty(screenName) 
-                        ? "HMI offline notificado al PLC" 
-                        : $"Pantalla '{screenName}' notificada al PLC",
+                    message = "Deprecado: la pantalla activa se gestiona por usuario vía SignalR",
                     timestamp = DateTime.Now
                 });
             }

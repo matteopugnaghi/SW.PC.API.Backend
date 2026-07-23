@@ -33,7 +33,12 @@ namespace SW.PC.API.Backend.Services
 
         // 🎯 Sistema de filtrado por vistas
         private List<VariableViewMapping> _variableViewMappings = new();
-        private string _currentView = "principal";  // Vista activa del frontend
+        // 📺 Vista activa POR CONEXIÓN (connectionId → vista). El polling usa la UNIÓN de
+        // todas las vistas: con varios usuarios en pantallas distintas se leen las variables
+        // de todas ellas. La pantalla de cada usuario se escribe al PLC en el array
+        // CurrentScreenPlcVariable[0..5] (paralelo a UserLogged) vía ClientConnectionTrackerService.
+        private readonly Dictionary<string, string> _clientViews = new();
+        private const string DefaultBootView = "principal"; // Vista para el cálculo inicial (aún sin clientes)
         private readonly object _viewLock = new();  // Lock para cambios de vista thread-safe
         private bool _viewFilteringEnabled = false; // Se habilita si hay hoja Variable_Views
         
@@ -45,11 +50,22 @@ namespace SW.PC.API.Backend.Services
         private HashSet<string> _additionalViews = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
-        /// Vista activa actual del frontend
+        /// Vistas activas actuales del frontend (unión de las vistas de todos los clientes conectados)
         /// </summary>
         public string CurrentView
         {
-            get { lock (_viewLock) return _currentView; }
+            get { lock (_viewLock) return GetActiveClientViewsString(); }
+        }
+
+        /// <summary>
+        /// Unión de vistas de clientes como string legible (ej: "principal,alarmas").
+        /// DEBE llamarse con _viewLock adquirido (o vía la propiedad CurrentView).
+        /// </summary>
+        private string GetActiveClientViewsString()
+        {
+            return string.Join(",", _clientViews.Values
+                .Where(v => !string.IsNullOrEmpty(v))
+                .Distinct(StringComparer.OrdinalIgnoreCase));
         }
 
         /// <summary>
@@ -289,45 +305,60 @@ namespace SW.PC.API.Backend.Services
         }
 
         /// <summary>
-        /// Cambia la vista activa del frontend. Recalcula qué variables se leen.
-        /// Llamado desde ScadaHub cuando el cliente cambia de página.
-        /// También notifica al PLC si CurrentScreenPlcVariable está configurado.
+        /// 📺 Registra/actualiza la vista activa de UNA conexión y recalcula la unión de
+        /// vistas usada por el polling. Llamado desde ScadaHub cuando un cliente cambia de página.
+        /// La escritura al PLC (array CurrentScreenPlcVariable[0..5]) la hace
+        /// ClientConnectionTrackerService.UpdatePlcClientsAsync, NO este servicio.
         /// </summary>
-        public void SetActiveView(string viewName)
+        public void SetClientView(string connectionId, string viewName)
         {
-            string newView;
-            bool shouldNotifyPlc = false;
+            if (string.IsNullOrEmpty(connectionId)) return;
             
             lock (_viewLock)
             {
-                // Permitir string vacío para indicar HMI offline
-                var normalizedView = string.IsNullOrEmpty(viewName) ? "" : viewName;
+                var normalizedView = viewName ?? "";
                 
-                if (_currentView == normalizedView) return;
+                if (_clientViews.TryGetValue(connectionId, out var existing) && existing == normalizedView) return;
                 
-                var oldView = _currentView;
-                _currentView = normalizedView;
-                newView = _currentView;
-                shouldNotifyPlc = true;
-                
-                // Recalcular variables activas si el filtrado está habilitado (solo si hay vista activa)
-                if (_viewFilteringEnabled && _monitoredVariables.Count > 0 && !string.IsNullOrEmpty(newView))
-                {
-                    RecalculateActiveVariables();
-                    _logger.LogInformation("🔄 Vista cambiada: {OldView} → {NewView}. Variables activas: {Active}/{Total}", 
-                        oldView, _currentView, _activeVariables.Count, _monitoredVariables.Count);
-                }
-                else if (string.IsNullOrEmpty(newView))
-                {
-                    _logger.LogInformation("🔄 Vista cambiada: {OldView} → (vacío/offline)", oldView);
-                }
+                _clientViews[connectionId] = normalizedView;
+                RecalculateAfterClientViewsChanged($"cliente {connectionId} → '{normalizedView}'");
+            }
+        }
+        
+        /// <summary>
+        /// 📺 Elimina la vista de una conexión (cliente desconectado) y recalcula la unión.
+        /// </summary>
+        public void RemoveClientView(string connectionId)
+        {
+            if (string.IsNullOrEmpty(connectionId)) return;
+            
+            lock (_viewLock)
+            {
+                if (!_clientViews.Remove(connectionId)) return;
+                RecalculateAfterClientViewsChanged($"cliente {connectionId} desconectado");
+            }
+        }
+        
+        /// <summary>
+        /// Recalcula variables activas tras un cambio en las vistas por cliente.
+        /// DEBE llamarse con _viewLock adquirido.
+        /// Si no queda ninguna vista activa se mantienen las variables actuales
+        /// (mismo comportamiento que el antiguo estado "vacío/offline").
+        /// </summary>
+        private void RecalculateAfterClientViewsChanged(string reason)
+        {
+            if (!_viewFilteringEnabled || _monitoredVariables.Count == 0) return;
+            
+            var hasAnyView = _clientViews.Values.Any(v => !string.IsNullOrEmpty(v)) || _additionalViews.Count > 0;
+            if (!hasAnyView)
+            {
+                _logger.LogInformation("🔄 Sin vistas activas ({Reason}) - se mantienen las variables activas actuales", reason);
+                return;
             }
             
-            // 📺 Notificar al PLC del cambio de pantalla (FUERA del lock para evitar deadlocks)
-            if (shouldNotifyPlc)
-            {
-                _ = Task.Run(async () => await NotifyPlcCurrentScreenAsync(newView));
-            }
+            RecalculateActiveVariables();
+            _logger.LogInformation("🔄 Vistas activas: [{Views}] ({Reason}). Variables activas: {Active}/{Total}", 
+                GetActiveClientViewsString(), reason, _activeVariables.Count, _monitoredVariables.Count);
         }
         
         /// <summary>
@@ -351,8 +382,8 @@ namespace SW.PC.API.Backend.Services
                     if (_viewFilteringEnabled && _monitoredVariables.Count > 0)
                     {
                         RecalculateActiveVariables();
-                        _logger.LogInformation("📊 Variables actualizadas: {Active}/{Total} (vista principal: {Main}, adicionales: [{Additional}])", 
-                            _activeVariables.Count, _monitoredVariables.Count, _currentView, string.Join(", ", _additionalViews));
+                        _logger.LogInformation("📊 Variables actualizadas: {Active}/{Total} (vistas clientes: [{Main}], adicionales: [{Additional}])", 
+                            _activeVariables.Count, _monitoredVariables.Count, GetActiveClientViewsString(), string.Join(", ", _additionalViews));
                     }
                     
                     return true;
@@ -384,8 +415,8 @@ namespace SW.PC.API.Backend.Services
                     if (_viewFilteringEnabled && _monitoredVariables.Count > 0)
                     {
                         RecalculateActiveVariables();
-                        _logger.LogInformation("📊 Variables actualizadas: {Active}/{Total} (vista principal: {Main}, adicionales: [{Additional}])", 
-                            _activeVariables.Count, _monitoredVariables.Count, _currentView, 
+                        _logger.LogInformation("📊 Variables actualizadas: {Active}/{Total} (vistas clientes: [{Main}], adicionales: [{Additional}])", 
+                            _activeVariables.Count, _monitoredVariables.Count, GetActiveClientViewsString(), 
                             _additionalViews.Count > 0 ? string.Join(", ", _additionalViews) : "(ninguna)");
                     }
                     
@@ -398,76 +429,18 @@ namespace SW.PC.API.Backend.Services
         }
         
         /// <summary>
-        /// Fuerza la notificación al PLC de la pantalla actual, sin importar si cambió o no.
-        /// Útil para shutdown del backend.
-        /// </summary>
-        public async Task ForceNotifyPlcScreenAsync(string screenName)
-        {
-            _logger.LogInformation("📺 ForceNotifyPlcScreenAsync: '{Screen}'", screenName);
-            await NotifyPlcCurrentScreenAsync(screenName);
-        }
-        
-        /// <summary>
-        /// Notifica al PLC la pantalla/vista activa actual del HMI.
-        /// Solo escribe si CurrentScreenPlcVariable está configurado en SystemConfig.
-        /// </summary>
-        private async Task NotifyPlcCurrentScreenAsync(string screenName)
-        {
-            try
-            {
-                _logger.LogInformation("📺 NotifyPlcCurrentScreenAsync llamado con screenName: '{Screen}'", screenName);;
-                
-                using var scope = _serviceProvider.CreateScope();
-                var excelConfigService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
-                
-                var excelPath = excelConfigService.GetExcelConfigPath();
-                _logger.LogDebug("📺 Cargando SystemConfig desde: {Path}", excelPath);
-                
-                var systemConfig = await excelConfigService.LoadSystemConfigurationAsync(excelPath);
-                
-                if (string.IsNullOrWhiteSpace(systemConfig?.CurrentScreenPlcVariable))
-                {
-                    _logger.LogDebug("📺 CurrentScreenPlcVariable NO está configurado en SystemConfig - saltando notificación");
-                    return;
-                }
-                
-                var plcVariable = systemConfig.CurrentScreenPlcVariable;
-                _logger.LogInformation("📺 Escribiendo al PLC: {Variable} = \"{Screen}\"", plcVariable, screenName);
-                
-                // Escribir la pantalla actual al PLC (variable STRING/WSTRING)
-                var success = await _twinCATService.WriteVariableAsync(plcVariable, screenName, typeof(string));
-                
-                if (success)
-                {
-                    _logger.LogInformation("📺 ✅ PLC notificado exitosamente: {Variable} = \"{Screen}\"", plcVariable, screenName);
-                }
-                else
-                {
-                    _logger.LogWarning("📺 ❌ No se pudo notificar al PLC la pantalla actual: {Variable}", plcVariable);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "📺 ❌ Error notificando pantalla al PLC: {Message}", ex.Message);
-            }
-        }
-
-        /// <summary>
-        /// Recalcula qué variables deben leerse según la vista activa y vistas adicionales
+        /// Recalcula qué variables deben leerse según las vistas de los clientes y vistas adicionales
         /// </summary>
         private void RecalculateActiveVariables()
         {
             using var scope = _serviceProvider.CreateScope();
             var excelConfigService = scope.ServiceProvider.GetRequiredService<IExcelConfigService>();
             
-            // 🎯 Combinar vista principal + vistas adicionales
-            var allActiveViews = new List<string>();
-            
-            // Vista principal
-            if (!string.IsNullOrEmpty(_currentView))
-            {
-                allActiveViews.Add(_currentView);
-            }
+            // 🎯 Combinar las vistas de TODOS los clientes conectados + vistas adicionales
+            var allActiveViews = _clientViews.Values
+                .Where(v => !string.IsNullOrEmpty(v))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             
             // Vistas adicionales (MODEL_DETAIL, SCREEN_PANEL, etc.)
             allActiveViews.AddRange(_additionalViews);
@@ -517,7 +490,7 @@ namespace SW.PC.API.Backend.Services
                             
                             // Calcular variables activas para la vista inicial CON ADVERTENCIAS
                             var filterResult = excelConfigService.FilterVariablesForViewWithWarnings(
-                                _monitoredVariables, _currentView, _variableViewMappings);
+                                _monitoredVariables, DefaultBootView, _variableViewMappings);
                             
                             _activeVariables = filterResult.ActiveVariables;
                             
@@ -525,7 +498,7 @@ namespace SW.PC.API.Backend.Services
                             _lastFilterResult = filterResult.HasWarnings ? filterResult : null;
                             
                             _logger.LogInformation("📊 Vista inicial '{View}': {Active}/{Total} variables activas", 
-                                _currentView, _activeVariables.Count, _monitoredVariables.Count);
+                                DefaultBootView, _activeVariables.Count, _monitoredVariables.Count);
                             
                             //  Enviar advertencias al frontend vía SignalR (si hay)
                             if (filterResult.HasWarnings)
@@ -658,7 +631,7 @@ namespace SW.PC.API.Backend.Services
                     // ✅ Solo marcar OK si el PLC está realmente conectado
                     if (_twinCATService.IsConnected)
                     {
-                        var viewInfo = _viewFilteringEnabled ? $" (vista: {_currentView})" : "";
+                        var viewInfo = _viewFilteringEnabled ? $" (vistas: {CurrentView})" : "";
                         _metricsService.SetPlcPollingStatus(true, true, $"OK - {_activeVariables.Count}/{_monitoredVariables.Count} variables{viewInfo}");
                     }
                     else
@@ -780,8 +753,8 @@ namespace SW.PC.API.Backend.Services
             stopwatch.Stop();
             _metricsService.RecordPlcPollingScanTime(stopwatch.Elapsed.TotalMilliseconds);
             
-            _logger.LogDebug("⏱️ Polling cycle completed in {Time}ms for {Count}/{Total} variables (view: {View})", 
-                stopwatch.Elapsed.TotalMilliseconds, variablesToPoll.Count, _monitoredVariables.Count, _currentView);
+            _logger.LogDebug("⏱️ Polling cycle completed in {Time}ms for {Count}/{Total} variables (views: {View})", 
+                stopwatch.Elapsed.TotalMilliseconds, variablesToPoll.Count, _monitoredVariables.Count, CurrentView);
         }
 
         private async Task PollSingleVariableAsync(string variableName, CancellationToken cancellationToken)
@@ -1043,14 +1016,14 @@ namespace SW.PC.API.Backend.Services
         {
             _logger.LogInformation("🛑 Deteniendo PlcPollingService...");
             
-            // 📺 Notificar al PLC que el HMI se está cerrando (pantalla vacía)
+            // 📺 Notificar al PLC que el HMI se está cerrando (limpiar array de pantallas por usuario)
             try
             {
-                _logger.LogInformation("📺 Backend cerrándose - notificando al PLC que HMI está offline");
+                _logger.LogInformation("📺 Backend cerrándose - limpiando pantallas de clientes en el PLC");
                 
                 // Usar timeout para asegurar que no bloqueamos el shutdown indefinidamente
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                var notifyTask = ForceNotifyPlcScreenAsync("");
+                var notifyTask = ClientConnectionTrackerService.ClearPlcScreensAsync(_serviceProvider, _twinCATService, _logger);
                 
                 if (await Task.WhenAny(notifyTask, Task.Delay(3000, cts.Token)) == notifyTask)
                 {
