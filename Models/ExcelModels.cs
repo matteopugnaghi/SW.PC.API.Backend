@@ -377,6 +377,16 @@ namespace SW.PC.API.Backend.Models.Excel
         public string ClientsIdConnected { get; set; } = "";
 
         /// <summary>
+        /// Variable PLC (ARRAY[0..5] OF WSTRING) donde escribir el NOMBRE DE EQUIPO de cada cliente conectado.
+        /// Array paralelo a UserLogged/ClientsIdConnected/CurrentScreenPlcVariable - mismo índice = mismo usuario.
+        /// Origen del nombre: CN del certificado cliente mTLS (identidad verificada, solo con MtlsEnabled=TRUE
+        /// y equipo registrado) o el nombre de la propia máquina si el cliente es el kiosco local (127.0.0.1).
+        /// Sin certificado ni loopback → slot "" (desconocido). Si vacío, no se escribe al PLC.
+        /// Ejemplo: "MAIN.fbMachine.st_InfoUserLogged.ws_ClientsHostName"
+        /// </summary>
+        public string ClientsHostName { get; set; } = "";
+
+        /// <summary>
         /// Variable PLC (WSTRING) donde el PLC escribe mensajes/logs para registrar en Operation Log.
         /// Se usa ADS Notification para detectar cambios (eficiente, solo cuando hay nuevo mensaje).
         /// El PLC debe concatenar un ID/timestamp para asegurar que siempre sea diferente.

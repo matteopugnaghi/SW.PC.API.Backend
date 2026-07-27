@@ -18,7 +18,9 @@ public static class PermissionsJsonOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
-        WriteIndented = false
+        WriteIndented = false,
+        // No persistir nulls (p.ej. allowedOrigins sin restricción) → JSON compacto
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 }
 
@@ -328,6 +330,22 @@ public class RolePermissionsService : IRolePermissionsService
             _logger.LogError(ex, "Error verificando permiso {Action} en módulo {Module} para rol {RoleName}", 
                 action, module, roleName);
             return false;
+        }
+    }
+
+    public async Task<ViewPermission?> GetModulePermissionAsync(string roleName, string module)
+    {
+        try
+        {
+            var permissions = await GetRolePermissionsAsync(roleName);
+            var moduleProperty = typeof(ModulePermissions).GetProperty(module);
+            if (moduleProperty == null) return null;
+            return moduleProperty.GetValue(permissions.Modules) as ViewPermission;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo ViewPermission del módulo {Module} para rol {RoleName}", module, roleName);
+            return null;
         }
     }
 

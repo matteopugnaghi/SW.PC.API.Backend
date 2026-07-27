@@ -2913,6 +2913,14 @@ namespace SW.PC.API.Backend.Services
                                     config.ClientsIdConnected = paramValue;
                                 break;
                             
+                            case "clientshostname":
+                            case "clients_host_name":
+                            case "clientshostnamevariable":
+                            case "clients_host_name_variable":
+                                if (!string.IsNullOrWhiteSpace(paramValue))
+                                    config.ClientsHostName = paramValue;
+                                break;
+                            
                             // 📋 LOG FROM TWINCAT (PLC → Operation Log)
                             case "logfromtwincat":
                             case "log_from_twincat":

@@ -43,6 +43,21 @@ namespace SW.PC.API.Backend.Hubs
                 ?? "Anonymous";
             string ipAddress = Context.GetHttpContext()?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
             
+            // 🖥️ Nombre de equipo del cliente (identidad VERIFICADA, nunca adivinada):
+            //  - CN del certificado cliente mTLS (solo MtlsEnabled=TRUE + equipo registrado), o
+            //  - Environment.MachineName si la conexión es loopback (kiosco local = esta máquina).
+            //  - En cualquier otro caso queda "" (HTTP :5000 o equipo sin registrar).
+            string hostName = "";
+            var httpCtx = Context.GetHttpContext();
+            if (httpCtx != null)
+            {
+                var origin = OriginContext.FromHttpContext(httpCtx);
+                if (!string.IsNullOrEmpty(origin.MachineName))
+                    hostName = origin.MachineName;
+                else if (origin.RemoteIp == "127.0.0.1")
+                    hostName = Environment.MachineName;
+            }
+            
             // ⛔ RECHAZAR conexiones sin JWT válido (token ausente o expirado).
             // El hub NO lleva [Authorize] a propósito (para poder registrar el motivo aquí),
             // pero una conexión anónima NO debe contar como HMI activo: si lo hiciera,
@@ -71,7 +86,7 @@ namespace SW.PC.API.Backend.Hubs
                 _metricsService.SetSignalRStatus(true, true, $"OK - {ClientConnectionTrackerService.ActiveConnections} conexiones");
                 
                 // 👤 Registrar cliente conectado (pantalla vacía hasta que invoque SetActiveView)
-                ClientConnectionTrackerService.ConnectedClients[Context.ConnectionId] = (username, ipAddress, "");
+                ClientConnectionTrackerService.ConnectedClients[Context.ConnectionId] = (username, ipAddress, "", hostName);
             }
             
             _logger.LogInformation("👤 Client connected: {ConnectionId} - User: {Username}, IP: {IPAddress} (Total: {Count})", 

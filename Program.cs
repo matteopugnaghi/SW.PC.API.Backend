@@ -63,6 +63,21 @@ builder.WebHost.ConfigureKestrel(options =>
         httpsOptions.SslProtocols =
             System.Security.Authentication.SslProtocols.Tls12 |
             System.Security.Authentication.SslProtocols.Tls13;
+
+        // 🔐 mTLS (identidad de máquina) — gated por Excel `System Config → MtlsEnabled`.
+        // AllowCertificate (NO Require): los clientes SIN certificado siguen conectando
+        // (solo pierden las filas de permisos restringidas por nombre de equipo).
+        // La validación comprueba que el cert fue emitido por nuestra Machine CA;
+        // un cert inválido/ajeno se rechaza en el handshake.
+        // NOTA: este callback se ejecuta al arrancar el servidor, DESPUÉS de que
+        // el bloque de lectura Excel (más abajo) haya fijado MtlsState.Enabled.
+        if (SW.PC.API.Backend.Services.MtlsState.Enabled)
+        {
+            httpsOptions.ClientCertificateMode =
+                Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.AllowCertificate;
+            httpsOptions.ClientCertificateValidation = (cert, chain, errors) =>
+                SW.PC.API.Backend.Services.MtlsState.ValidateClientCertificate(cert);
+        }
     });
 });
 
@@ -585,6 +600,89 @@ else
 {
     builder.Services.AddSingleton<IModbusService, DisabledModbusService>();
     Console.WriteLine("📡 Modbus DISABLED — service not started");
+}
+
+// 🔐 mTLS — Identidad de máquina por certificado cliente (additive, gated by Excel)
+// Read MtlsEnabled flag from Excel BEFORE the server starts (mirrors OPC-UA/Modbus).
+// ZERO REGRESSION: absent/empty/FALSE → Kestrel no pide certificado cliente y las
+// entradas nombre-de-equipo de AllowedOrigins simplemente se ignoran.
+bool mtlsEnabledInExcel = false;
+try
+{
+    var contentRoot = builder.Environment.ContentRootPath;
+    var activeProjectFile = Path.Combine(contentRoot, "active-project.json");
+    string excelPath;
+    if (File.Exists(activeProjectFile))
+    {
+        var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(activeProjectFile));
+        var activeProject = json.RootElement.TryGetProperty("activeProject", out var prop)
+            ? prop.GetString() ?? "default" : "default";
+        if (activeProject != "default")
+        {
+            var configDir = Path.Combine(contentRoot, "Projects", activeProject, "config");
+            excelPath = Directory.Exists(configDir)
+                ? (Directory.GetFiles(configDir, "*.xlsm").FirstOrDefault()
+                   ?? Directory.GetFiles(configDir, "*.xlsx").FirstOrDefault()
+                   ?? Path.Combine(configDir, "ProjectConfig.xlsm"))
+                : Path.Combine(configDir, "ProjectConfig.xlsm");
+        }
+        else
+        {
+            excelPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm");
+        }
+    }
+    else
+    {
+        excelPath = Path.Combine(contentRoot, "ExcelConfigs", "ProjectConfig.xlsm");
+    }
+
+    if (File.Exists(excelPath))
+    {
+        using var stream = new FileStream(excelPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var workbook = new XLWorkbook(stream);
+        var ws = workbook.Worksheets.FirstOrDefault(s =>
+            s.Name.Equals("System Config", StringComparison.OrdinalIgnoreCase) ||
+            s.Name.Equals("SystemConfig", StringComparison.OrdinalIgnoreCase));
+        if (ws != null)
+        {
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+            for (int row = 1; row <= lastRow; row++)
+            {
+                var keyNorm = (ws.Cell(row, 1).GetString()?.ToLowerInvariant()?.Replace(" ", "") ?? "");
+                if (keyNorm == "mtlsenabled" || keyNorm == "mtls_enabled")
+                {
+                    var val = ws.Cell(row, 2).GetString()?.Trim()?.ToLowerInvariant() ?? "";
+                    mtlsEnabledInExcel = val == "true" || val == "1"
+                                       || val == "si" || val == "yes" || val == "on";
+                    break;
+                }
+            }
+        }
+    }
+    Console.WriteLine($"🔐 mTLS Enabled in Excel: {mtlsEnabledInExcel}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"⚠️ Could not read mTLS config from Excel: {ex.Message}");
+}
+
+SW.PC.API.Backend.Services.MtlsState.Enabled = mtlsEnabledInExcel;
+if (mtlsEnabledInExcel)
+{
+    try
+    {
+        // Cargar/crear la Machine CA ahora para que el handshake TLS pueda validar
+        // certificados cliente desde el primer request.
+        SW.PC.API.Backend.Services.MtlsState.MachineCa =
+            SW.PC.API.Backend.Services.MachineCaService.LoadOrCreateCa(builder.Environment.ContentRootPath);
+        Console.WriteLine($"🔐 mTLS ENABLED — Machine CA: {SW.PC.API.Backend.Services.MtlsState.MachineCa.Subject} " +
+                          $"(thumbprint {SW.PC.API.Backend.Services.MtlsState.MachineCa.Thumbprint})");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"⚠️ mTLS: no se pudo cargar/crear la Machine CA: {ex.Message}");
+        Console.WriteLine("⚠️ mTLS: los certificados cliente serán RECHAZADOS hasta resolverlo.");
+    }
 }
 
 // 🔑 Microsoft Entra ID (SSO) — gated by Excel (additive, patrón OPC-UA/Modbus)

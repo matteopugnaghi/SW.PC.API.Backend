@@ -255,6 +255,19 @@ public class ViewPermission
     
     /// <summary>Puede ejecutar acciones críticas (ej: comandos PLC)</summary>
     public bool CanExecute { get; set; } = false;
+
+    /// <summary>
+    /// 🔒 Restricción por origen: lista de IPs (ej. "127.0.0.1", "192.168.2.50")
+    /// o nombres de equipo (identidad mTLS, CN del certificado cliente).
+    /// null o vacía = SIN restricción (cualquier origen).
+    /// Semántica de evaluación (ver OriginPermissionEvaluator):
+    ///   - Entradas loopback (::1 / 127.0.0.1 / localhost): se evalúan SIEMPRE.
+    ///   - Entradas IP remotas: solo se evalúan cuando MtlsEnabled=FALSE.
+    ///   - Entradas nombre-de-equipo: solo cuando MtlsEnabled=TRUE (vs CN del cert).
+    ///   - Entradas no verificables en el modo actual: se IGNORAN.
+    /// La restricción aplica a la fila COMPLETA (todas las acciones del módulo).
+    /// </summary>
+    public List<string>? AllowedOrigins { get; set; }
 }
 
 #endregion

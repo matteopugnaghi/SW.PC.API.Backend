@@ -13,6 +13,12 @@ title Aquafrisch Supervisor - Instalar Certificado SSL (Offline)
 
 set "LOGFILE=%TEMP%\aquafrisch-cert-install.log"
 set "CERT_FILE=%TEMP%\aquafrisch-supervisor.cer"
+set "MTLS_INFO=%TEMP%\aqf_mtls.json"
+set "MACHINECA_FILE=%TEMP%\aquafrisch-machine-ca.cer"
+set "INF_FILE=%TEMP%\aqf_machine.inf"
+set "CSR_FILE=%TEMP%\aqf_machine.csr"
+set "JSON_FILE=%TEMP%\aqf_enroll.json"
+set "MACHINE_CER=%TEMP%\aqf_machine.cer"
 set "EXITCODE=0"
 
 :: Reiniciar log
@@ -167,11 +173,124 @@ if not "!CU_RC!"=="0" (
 echo  [OK] Certificado instalado en el almacen Root de la maquina.
 
 :: -----------------------------------------------------------------
+:: mTLS  Registro de equipo (solo si el servidor tiene MtlsEnabled)
+:: -----------------------------------------------------------------
+echo.
+echo  [mTLS] Consultando si el servidor requiere identidad de equipo...
+curl.exe -k -s --max-time 15 -o "%MTLS_INFO%" "!SERVER_URL!/api/certificate/mtls-info" >>"%LOGFILE%" 2>&1
+findstr /C:"\"mtlsEnabled\":true" "%MTLS_INFO%" >nul 2>&1
+if errorlevel 1 (
+    echo  [INFO] mTLS desactivado en el servidor. No se requiere registro de equipo.
+    >>"%LOGFILE%" echo mTLS disabled or mtls-info not reachable - skipping enrollment
+    goto :mtls_done
+)
+
+echo  [INFO] El servidor tiene mTLS ACTIVO ^(identidad de equipo por certificado^).
+echo.
+echo  Para registrar este equipo ^(%COMPUTERNAME%^) necesitas un CODIGO DE
+echo  REGISTRO de un solo uso, generado por un Administrador en la pantalla
+echo  Usuarios -^> Equipos del Supervisor. Caduca a las 24h.
+echo.
+echo  Deja el codigo VACIO y pulsa Enter para omitir el registro.
+echo.
+set "REG_CODE="
+set /p "REG_CODE=  Codigo de registro (XXXX-XXXX-XXXX): "
+if "!REG_CODE!"=="" (
+    echo  [INFO] Registro omitido. Este equipo funcionara sin identidad de maquina.
+    >>"%LOGFILE%" echo mTLS enrollment skipped by user
+    goto :mtls_done
+)
+>>"%LOGFILE%" echo mTLS enrollment started for %COMPUTERNAME%
+
+echo.
+echo  [mTLS 1/4] Instalando la CA de maquinas ^(Aquafrisch Machine CA^)...
+curl.exe -k -S -f --max-time 15 -o "%MACHINECA_FILE%" "!SERVER_URL!/api/certificate/machine-ca" >>"%LOGFILE%" 2>&1
+if errorlevel 1 (
+    echo  [ERROR] No se pudo descargar la Machine CA. Revisa el log.
+    >>"%LOGFILE%" echo [ERROR] machine-ca download failed
+    set "EXITCODE=7"
+    goto :end
+)
+certutil -addstore "Root" "%MACHINECA_FILE%" >>"%LOGFILE%" 2>&1
+if errorlevel 1 (
+    echo  [ERROR] No se pudo instalar la Machine CA en el almacen Root.
+    set "EXITCODE=7"
+    goto :end
+)
+echo  [OK] Machine CA instalada.
+
+echo  [mTLS 2/4] Generando clave y solicitud de certificado ^(CSR^)...
+:: Clave NO exportable en el almacen de MAQUINA. La clave privada nunca sale de este PC.
+(
+    echo [Version]
+    echo Signature="$Windows NT$"
+    echo [NewRequest]
+    echo Subject = "CN=%COMPUTERNAME%"
+    echo KeyLength = 2048
+    echo Exportable = FALSE
+    echo MachineKeySet = TRUE
+    echo KeySpec = 1
+    echo KeyUsage = 0x80
+    echo ProviderName = "Microsoft RSA SChannel Cryptographic Provider"
+    echo RequestType = PKCS10
+    echo [EnhancedKeyUsageExtension]
+    echo OID=1.3.6.1.5.5.7.3.2
+) > "%INF_FILE%"
+if exist "%CSR_FILE%" del "%CSR_FILE%" >nul 2>&1
+certreq -new -f -q "%INF_FILE%" "%CSR_FILE%" >>"%LOGFILE%" 2>&1
+if errorlevel 1 (
+    echo  [ERROR] certreq no pudo generar el CSR. Revisa el log.
+    >>"%LOGFILE%" echo [ERROR] certreq -new failed
+    set "EXITCODE=8"
+    goto :end
+)
+echo  [OK] CSR generado ^(CN=%COMPUTERNAME%^).
+
+echo  [mTLS 3/4] Enviando CSR al servidor con el codigo de registro...
+powershell -NoProfile -Command "$csr = Get-Content -Raw '%CSR_FILE%'; @{ code = '!REG_CODE!'; csr = $csr } | ConvertTo-Json | Set-Content -Encoding UTF8 '%JSON_FILE%'" >>"%LOGFILE%" 2>&1
+if not exist "%JSON_FILE%" (
+    echo  [ERROR] No se pudo preparar la peticion de registro.
+    set "EXITCODE=9"
+    goto :end
+)
+if exist "%MACHINE_CER%" del "%MACHINE_CER%" >nul 2>&1
+curl.exe -k -S -f --max-time 30 -H "Content-Type: application/json" --data-binary "@%JSON_FILE%" -o "%MACHINE_CER%" "!SERVER_URL!/api/certificate/enroll" >>"%LOGFILE%" 2>&1
+set "ENROLL_RC=!errorlevel!"
+>>"%LOGFILE%" echo enroll curl exit code = !ENROLL_RC!
+if not "!ENROLL_RC!"=="0" (
+    echo  [ERROR] El servidor rechazo el registro ^(curl !ENROLL_RC!^).
+    echo          Causa tipica: codigo invalido, ya usado o caducado.
+    echo          Pide un codigo nuevo al Administrador y reejecuta el script.
+    set "EXITCODE=9"
+    goto :end
+)
+echo  [OK] Certificado de maquina emitido por el servidor.
+
+echo  [mTLS 4/4] Instalando certificado de maquina y configurando navegadores...
+certreq -accept -machine "%MACHINE_CER%" >>"%LOGFILE%" 2>&1
+if errorlevel 1 (
+    echo  [ERROR] certreq -accept fallo. Revisa el log.
+    >>"%LOGFILE%" echo [ERROR] certreq -accept failed
+    set "EXITCODE=10"
+    goto :end
+)
+:: Politica AutoSelectCertificateForUrls: Edge y Chrome presentan el certificado
+:: automaticamente al conectar al Supervisor (sin popup de seleccion).
+set "AUTOSEL={\"pattern\":\"https://!SERVER_HOST!:!SERVER_PORT!\",\"filter\":{\"ISSUER\":{\"CN\":\"Aquafrisch Machine CA\"}}}"
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge\AutoSelectCertificateForUrls" /v 1 /t REG_SZ /d "!AUTOSEL!" /f >>"%LOGFILE%" 2>&1
+reg add "HKLM\SOFTWARE\Policies\Google\Chrome\AutoSelectCertificateForUrls" /v 1 /t REG_SZ /d "!AUTOSEL!" /f >>"%LOGFILE%" 2>&1
+echo  [OK] Equipo %COMPUTERNAME% registrado. Cierra y reabre el navegador.
+>>"%LOGFILE%" echo mTLS enrollment completed for %COMPUTERNAME%
+
+:mtls_done
+
+:: -----------------------------------------------------------------
 :: 5/5  Limpieza
 :: -----------------------------------------------------------------
 echo.
 echo  [5/5] Limpiando ficheros temporales...
 del "!CERT_FILE!" >nul 2>&1
+del "%MTLS_INFO%" "%MACHINECA_FILE%" "%INF_FILE%" "%CSR_FILE%" "%JSON_FILE%" "%MACHINE_CER%" >nul 2>&1
 echo  [OK] Limpieza completada.
 
 echo.

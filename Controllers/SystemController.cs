@@ -1365,7 +1365,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     activeConnections = ClientConnectionTrackerService.ActiveConnections;
                     clients = ClientConnectionTrackerService.ConnectedClients
-                        .Select(c => (object)new { connectionId = c.Key, username = c.Value.Username, ip = c.Value.IPAddress })
+                        .Select(c => (object)new { connectionId = c.Key, username = c.Value.Username, ip = c.Value.IPAddress, hostName = c.Value.HostName })
                         .ToList();
                 }
 

@@ -407,6 +407,26 @@ public class UsersController : ControllerBase
             var permissionsService = HttpContext.RequestServices.GetRequiredService<IRolePermissionsService>();
             var permissions = await permissionsService.GetRolePermissionsAsync(userRole);
 
+            // 🔒 Restricción por origen: filtrar filas cuyo AllowedOrigins no incluya
+            // el origen actual (IP normalizada / CN del cert mTLS). El frontend así
+            // oculta la UI correspondiente. SuperAdmin: sin filtrar (bypass total).
+            // Los endpoints de EDICIÓN (roles/{r}/permissions) devuelven las listas RAW.
+            if (!IsSuperAdmin())
+            {
+                var origin = OriginContext.FromHttpContext(HttpContext);
+                var vpProps = typeof(ModulePermissions).GetProperties()
+                    .Where(p => p.PropertyType == typeof(ViewPermission));
+                foreach (var prop in vpProps)
+                {
+                    if (prop.GetValue(permissions.Modules) is not ViewPermission vp) continue;
+                    if (vp.AllowedOrigins == null || vp.AllowedOrigins.Count == 0) continue;
+                    if (OriginPermissionEvaluator.IsAllowed(vp.AllowedOrigins, origin)) continue;
+
+                    // Origen no permitido → anular la fila completa (todas las acciones)
+                    prop.SetValue(permissions.Modules, new ViewPermission());
+                }
+            }
+
             return Ok(permissions);
         }
         catch (Exception ex)

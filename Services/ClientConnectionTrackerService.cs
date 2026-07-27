@@ -15,7 +15,7 @@ namespace SW.PC.API.Backend.Services
         // Referencias estáticas compartidas con ScadaHub
         public static int ActiveConnections { get; set; } = 0;
         public static int CycleCounter { get; set; } = 0;
-        public static Dictionary<string, (string Username, string IPAddress, string CurrentScreen)> ConnectedClients { get; } = new();
+        public static Dictionary<string, (string Username, string IPAddress, string CurrentScreen, string HostName)> ConnectedClients { get; } = new();
         public static readonly object LockObj = new object();
 
         // 🔄 Estado anterior de conexión al PLC para detectar transición disconnected->connected
@@ -58,7 +58,7 @@ namespace SW.PC.API.Backend.Services
                     
                     int currentCounter = 0;
                     bool hasClients = false;
-                    List<(string Username, string IPAddress, string CurrentScreen)> clientsList;
+                    List<(string Username, string IPAddress, string CurrentScreen, string HostName)> clientsList;
                     
                     lock (LockObj)
                     {
@@ -72,7 +72,7 @@ namespace SW.PC.API.Backend.Services
                         else
                         {
                             CycleCounter = 0;
-                            clientsList = new List<(string, string, string)>();
+                            clientsList = new List<(string, string, string, string)>();
                         }
                     }
                     
@@ -121,7 +121,7 @@ namespace SW.PC.API.Backend.Services
             _logger.LogInformation("⏱️ ClientConnectionTrackerService detenido");
         }
         
-        private async Task UpdatePlcCounterAsync(int counter, List<(string Username, string IPAddress, string CurrentScreen)> clients)
+        private async Task UpdatePlcCounterAsync(int counter, List<(string Username, string IPAddress, string CurrentScreen, string HostName)> clients)
         {
             try
             {
@@ -166,7 +166,7 @@ namespace SW.PC.API.Backend.Services
                     return;
                 }
                 
-                List<(string Username, string IPAddress, string CurrentScreen)> clientsList;
+                List<(string Username, string IPAddress, string CurrentScreen, string HostName)> clientsList;
                 int currentCounter;
                 
                 lock (LockObj)
@@ -232,6 +232,21 @@ namespace SW.PC.API.Backend.Services
                     }
                 }
                 
+                // 🖥️ Escribir ClientsHostName[0..5] - nombre de equipo de CADA usuario
+                // Array paralelo (mismo índice = mismo usuario). Origen: CN del certificado
+                // cliente mTLS (verificado) o Environment.MachineName si es el kiosco local.
+                // Sin identidad verificable → "" (nunca se adivina por DNS inverso).
+                if (!string.IsNullOrEmpty(systemConfig.ClientsHostName))
+                {
+                    for (int i = 0; i < 6; i++)
+                    {
+                        string hostName = i < clientsList.Count ? clientsList[i].HostName : "";
+                        string arrayVarName = $"{systemConfig.ClientsHostName}[{i}]";
+                        writeTasks.Add(twinCATService.WriteVariableAsync(arrayVarName, hostName, typeof(string)));
+                        writeNames.Add(arrayVarName);
+                    }
+                }
+                
                 var results = await Task.WhenAll(writeTasks);
 
                 // 🔍 Detectar fallos silenciosos (WriteVariableAsync devuelve false sin lanzar excepción)
@@ -275,7 +290,7 @@ namespace SW.PC.API.Backend.Services
             {
                 if (ConnectedClients.TryGetValue(connectionId, out var info))
                 {
-                    ConnectedClients[connectionId] = (info.Username, info.IPAddress, screenName ?? "");
+                    ConnectedClients[connectionId] = (info.Username, info.IPAddress, screenName ?? "", info.HostName);
                     return true;
                 }
                 return false;

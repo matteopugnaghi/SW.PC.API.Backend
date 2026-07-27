@@ -43,6 +43,13 @@ public interface IRolePermissionsService
     Task<bool> HasPermissionAsync(string roleName, string module, string action);
     
     /// <summary>
+    /// Obtiene la ViewPermission completa de un módulo para un rol
+    /// (incluye AllowedOrigins para evaluación de restricción por origen).
+    /// null si el módulo no existe.
+    /// </summary>
+    Task<ViewPermission?> GetModulePermissionAsync(string roleName, string module);
+    
+    /// <summary>
     /// Restaura los permisos por defecto de un rol
     /// </summary>
     Task<PermissionsOperationResponse> ResetToDefaultPermissionsAsync(string roleName, string updatedBy);

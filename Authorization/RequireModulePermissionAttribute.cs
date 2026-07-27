@@ -7,8 +7,10 @@
 //
 // Reglas:
 //   - El usuario debe estar autenticado (si no, 401).
-//   - SuperAdmin: bypass automático.
-//   - El resto pasa por IRolePermissionsService.HasPermissionAsync.
+//   - SuperAdmin: bypass automático (incluye restricciones por origen).
+//   - El resto pasa por IRolePermissionsService.GetModulePermissionAsync
+//     + evaluación de AllowedOrigins (restricción por IP/equipo, ver
+//     OriginPermissionEvaluator). Denegación por origen → audit log (EU CRA).
 //
 // Uso:
 //   [RequireModulePermission("ExportManager", "view")]
@@ -19,6 +21,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
+using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Services;
 
 namespace SW.PC.API.Backend.Authorization;
@@ -63,10 +66,44 @@ public sealed class RequireModulePermissionAttribute : Attribute, IAsyncAuthoriz
             return;
         }
 
+        var origin = OriginContext.FromHttpContext(context.HttpContext);
+        bool grantedButBlockedByOrigin = false;
+
         foreach (var role in roles)
         {
-            if (await svc.HasPermissionAsync(role, _module, _action))
-                return;
+            var vp = await svc.GetModulePermissionAsync(role, _module);
+            if (vp == null) continue;
+            if (!OriginPermissionEvaluator.GrantsAction(vp, _action)) continue;
+
+            // El rol concede la acción → evaluar restricción por origen de la fila
+            if (OriginPermissionEvaluator.IsAllowed(vp.AllowedOrigins, origin))
+                return; // ✅ permitido
+
+            grantedButBlockedByOrigin = true;
+        }
+
+        // 🔒 EU CRA — Auditar denegación por restricción de origen (el rol tenía el
+        // permiso, pero la fila está limitada a otros equipos/IPs).
+        if (grantedButBlockedByOrigin)
+        {
+            try
+            {
+                var audit = context.HttpContext.RequestServices.GetService<IAuditLogService>();
+                if (audit != null)
+                {
+                    var username = user.Identity?.Name ?? "unknown";
+                    await audit.LogAsync(
+                        AuditCategory.Security,
+                        AuditAction.PermissionDenied,
+                        AuditResult.Warning,
+                        details: $"Permiso '{_module}.{_action}' denegado por restricción de origen. " +
+                                 $"IP={origin.RemoteIp ?? "?"}, Equipo={origin.MachineName ?? "(sin cert)"}, " +
+                                 $"Roles={string.Join(",", roles)}",
+                        userName: username,
+                        ipAddress: origin.RemoteIp);
+                }
+            }
+            catch { /* la auditoría nunca debe romper la respuesta */ }
         }
 
         context.Result = new ForbidResult();

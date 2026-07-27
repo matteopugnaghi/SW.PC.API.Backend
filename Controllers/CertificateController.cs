@@ -9,8 +9,14 @@
 // The PFX file (with private key) is NEVER exposed via API.
 // ============================================================================
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using SW.PC.API.Backend.Data;
+using SW.PC.API.Backend.Models;
+using SW.PC.API.Backend.Services;
 
 namespace SW.PC.API.Backend.Controllers;
 
@@ -21,15 +27,21 @@ public class CertificateController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<CertificateController> _logger;
+    private readonly IDbContextFactory<AquafrischDbContext> _dbFactory;
+    private readonly IAuditLogService _auditLog;
 
     public CertificateController(
         IConfiguration configuration,
         IWebHostEnvironment env,
-        ILogger<CertificateController> logger)
+        ILogger<CertificateController> logger,
+        IDbContextFactory<AquafrischDbContext> dbFactory,
+        IAuditLogService auditLog)
     {
         _configuration = configuration;
         _env = env;
         _logger = logger;
+        _dbFactory = dbFactory;
+        _auditLog = auditLog;
     }
 
     /// <summary>
@@ -267,6 +279,220 @@ pause
             System.Text.Encoding.UTF8.GetBytes(script),
             "application/x-bat",
             $"instalar-certificado-aquafrisch.bat");
+    }
+
+    // ========================================================================
+    // 🔐 mTLS — Identidad de máquina por certificado cliente
+    // ========================================================================
+
+    /// <summary>
+    /// Estado mTLS del servidor + identidad de la conexión actual.
+    /// Anónimo: lo usa el ClientSetup (para saber si debe hacer enrollment)
+    /// y el frontend (banner "equipo no registrado").
+    /// </summary>
+    [HttpGet("mtls-info")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult GetMtlsInfo()
+    {
+        var clientCert = HttpContext.Connection.ClientCertificate;
+        var machineName = clientCert?.GetNameInfo(X509NameType.SimpleName, forIssuer: false);
+        var remoteIp = OriginPermissionEvaluator.NormalizeIp(
+            HttpContext.Connection.RemoteIpAddress?.ToString());
+
+        return Ok(new
+        {
+            mtlsEnabled = MtlsState.Enabled,
+            hasClientCertificate = clientCert != null,
+            machineName,
+            remoteIp
+        });
+    }
+
+    /// <summary>
+    /// Descarga el certificado público de la Machine CA (DER).
+    /// El ClientSetup lo instala en el equipo para que la cadena del certificado
+    /// de máquina emitido se construya correctamente (Schannel).
+    /// </summary>
+    [HttpGet("machine-ca")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult DownloadMachineCa()
+    {
+        try
+        {
+            var ca = MachineCaService.LoadOrCreateCa(_env.ContentRootPath);
+            return File(ca.Export(X509ContentType.Cert), "application/x-x509-ca-cert", "aquafrisch-machine-ca.cer");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error exportando Machine CA");
+            return StatusCode(503, new { error = "Could not export Machine CA." });
+        }
+    }
+
+    /// <summary>
+    /// Enrollment de equipo: valida un código de registro de un solo uso y firma
+    /// el CSR (CN=nombre del equipo) con la Machine CA. Devuelve el certificado
+    /// emitido (DER) para `certreq -accept`. La clave privada NUNCA viaja.
+    /// </summary>
+    [HttpPost("enroll")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> EnrollMachine([FromBody] MachineEnrollRequest request)
+    {
+        var remoteIp = OriginPermissionEvaluator.NormalizeIp(
+            HttpContext.Connection.RemoteIpAddress?.ToString());
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Csr))
+                return BadRequest(new { error = "Código y CSR son obligatorios." });
+
+            var codeHash = HashRegistrationCode(request.Code);
+
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            var regCode = await db.MachineRegistrationCodes
+                .FirstOrDefaultAsync(c => c.CodeHash == codeHash);
+
+            if (regCode == null || regCode.UsedAt != null || regCode.ExpiresAt < DateTime.Now)
+            {
+                await _auditLog.LogAsync(AuditCategory.Security, AuditAction.PermissionDenied, AuditResult.Warning,
+                    details: $"Enrollment mTLS RECHAZADO: código inválido/usado/caducado. IP={remoteIp}",
+                    ipAddress: remoteIp);
+                return BadRequest(new { error = "Código de registro inválido, usado o caducado." });
+            }
+
+            var ca = MachineCaService.LoadOrCreateCa(_env.ContentRootPath);
+            var (certDer, machineName, notAfter) = MachineCaService.SignCsr(request.Csr, ca);
+
+            // Quemar el código (un solo uso)
+            regCode.UsedAt = DateTime.Now;
+            regCode.MachineName = machineName;
+            await db.SaveChangesAsync();
+
+            await _auditLog.LogAsync(AuditCategory.Security, AuditAction.CertificateGenerate, AuditResult.Success,
+                details: $"Equipo '{machineName}' registrado (mTLS). Cert válido hasta {notAfter:yyyy-MM-dd}. " +
+                         $"Código generado por {regCode.CreatedBy}. IP={remoteIp}",
+                userName: regCode.CreatedBy, ipAddress: remoteIp);
+
+            _logger.LogInformation("🔐 mTLS: equipo '{Machine}' registrado desde {Ip}", machineName, remoteIp);
+            return File(certDer, "application/x-x509-user-cert", $"{machineName}.cer");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error en enrollment mTLS");
+            return StatusCode(500, new { error = "Error firmando el certificado de máquina." });
+        }
+    }
+
+    /// <summary>
+    /// Genera un código de registro de equipo (un solo uso, caduca en 24h).
+    /// El código en claro solo se devuelve UNA vez; en BD queda su hash.
+    /// </summary>
+    [HttpPost("registration-codes")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> CreateRegistrationCode()
+    {
+        var createdBy = User.Identity?.Name ?? "unknown";
+        var code = GenerateRegistrationCode();
+        var expiresAt = DateTime.Now.AddHours(24);
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        db.MachineRegistrationCodes.Add(new MachineRegistrationCode
+        {
+            CodeHash = HashRegistrationCode(code),
+            CreatedBy = createdBy,
+            CreatedAt = DateTime.Now,
+            ExpiresAt = expiresAt
+        });
+        await db.SaveChangesAsync();
+
+        await _auditLog.LogAsync(AuditCategory.Security, AuditAction.CertificateGenerate, AuditResult.Success,
+            details: $"Código de registro de equipo generado (mTLS), caduca {expiresAt:yyyy-MM-dd HH:mm}",
+            userName: createdBy,
+            ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+
+        return Ok(new { code, expiresAt });
+    }
+
+    /// <summary>
+    /// Lista los códigos de registro (nunca el código en claro) + equipos registrados.
+    /// </summary>
+    [HttpGet("registration-codes")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListRegistrationCodes()
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var now = DateTime.Now;
+        var codes = await db.MachineRegistrationCodes
+            .OrderByDescending(c => c.CreatedAt)
+            .Select(c => new
+            {
+                c.Id,
+                c.CreatedBy,
+                c.CreatedAt,
+                c.ExpiresAt,
+                c.UsedAt,
+                c.MachineName,
+                status = c.UsedAt != null ? "used" : (c.ExpiresAt < now ? "expired" : "pending")
+            })
+            .ToListAsync();
+
+        return Ok(new { mtlsEnabled = MtlsState.Enabled, codes });
+    }
+
+    /// <summary>
+    /// Elimina un código de registro PENDIENTE (no usado). Los usados se conservan
+    /// como registro del equipo enrolado.
+    /// </summary>
+    [HttpDelete("registration-codes/{id:int}")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteRegistrationCode(int id)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var code = await db.MachineRegistrationCodes.FindAsync(id);
+        if (code == null) return NotFound();
+        if (code.UsedAt != null)
+            return BadRequest(new { error = "No se puede eliminar un código ya usado (registro de equipo)." });
+
+        db.MachineRegistrationCodes.Remove(code);
+        await db.SaveChangesAsync();
+
+        await _auditLog.LogAsync(AuditCategory.Security, AuditAction.CertificateGenerate, AuditResult.Warning,
+            details: $"Código de registro de equipo #{id} eliminado (sin usar)",
+            userName: User.Identity?.Name,
+            ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+
+        return Ok(new { deleted = true });
+    }
+
+    /// <summary>Alfabeto sin caracteres ambiguos (sin 0/O/1/I/L).</summary>
+    private const string CodeAlphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+
+    private static string GenerateRegistrationCode()
+    {
+        var chars = new char[12];
+        for (int i = 0; i < chars.Length; i++)
+            chars[i] = CodeAlphabet[RandomNumberGenerator.GetInt32(CodeAlphabet.Length)];
+        return $"{new string(chars, 0, 4)}-{new string(chars, 4, 4)}-{new string(chars, 8, 4)}";
+    }
+
+    /// <summary>Normaliza (mayúsculas, sin guiones/espacios) y hashea SHA256 hex.</summary>
+    private static string HashRegistrationCode(string code)
+    {
+        var normalized = new string(code.ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
+        var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(normalized));
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     /// <summary>

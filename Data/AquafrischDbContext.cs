@@ -110,6 +110,10 @@ public class AquafrischDbContext : DbContext
     /// <summary>Perfiles SMTP (configurables desde UI, password cifrada DPAPI).</summary>
     public DbSet<Models.Export.ExportEmailProfile> ExportEmailProfiles { get; set; } = null!;
 
+    // ─── mTLS — Registro de equipos (identidad de máquina) ───
+    /// <summary>Códigos de registro de equipo de un solo uso (mTLS enrollment).</summary>
+    public DbSet<MachineRegistrationCode> MachineRegistrationCodes { get; set; } = null!;
+
     #endregion
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -460,6 +464,15 @@ public class AquafrischDbContext : DbContext
         });
 
         // ============================================
+        // Configuración de MachineRegistrationCode (mTLS enrollment)
+        // ============================================
+        modelBuilder.Entity<MachineRegistrationCode>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.CodeHash).IsUnique();
+        });
+
+        // ============================================
         // Seed Data - Roles del Sistema
         // ============================================
         SeedRoles(modelBuilder);
@@ -646,6 +659,7 @@ public static class AquafrischDbContextFactory
         await RunStepAsync(nameof(EnsureSmmTablesAsync), () => EnsureSmmTablesAsync(context));
         await RunStepAsync(nameof(EnsureExportTasksTableAsync), () => EnsureExportTasksTableAsync(context));
         await RunStepAsync(nameof(EnsureExportProfileTablesAsync), () => EnsureExportProfileTablesAsync(context));
+        await RunStepAsync(nameof(EnsureMachineRegistrationCodesTableAsync), () => EnsureMachineRegistrationCodesTableAsync(context));
 
         static async Task RunStepAsync(string step, Func<Task> action)
         {
@@ -1658,6 +1672,32 @@ public static class AquafrischDbContextFactory
         catch (Exception ex)
         {
             Console.WriteLine($"[Export] EnsureExportProfileTablesAsync error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Crear tabla MachineRegistrationCodes si no existe (mTLS enrollment).
+    /// Bases de datos existentes: EnsureCreatedAsync no añade tablas nuevas.
+    /// </summary>
+    public static async Task EnsureMachineRegistrationCodesTableAsync(AquafrischDbContext context)
+    {
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS MachineRegistrationCodes (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    CodeHash TEXT NOT NULL,
+                    CreatedBy TEXT NOT NULL DEFAULT '',
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    ExpiresAt TEXT NOT NULL,
+                    UsedAt TEXT,
+                    MachineName TEXT
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_MachineRegistrationCodes_CodeHash ON MachineRegistrationCodes(CodeHash)");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[mTLS] EnsureMachineRegistrationCodesTableAsync error: {ex.Message}");
         }
     }
 }
