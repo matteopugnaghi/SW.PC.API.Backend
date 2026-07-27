@@ -55,6 +55,7 @@ public class AuthController : ControllerBase
     [EnableRateLimiting("auth")] // 🔒 EU CRA — brute-force protection (10/min sliding por IP)
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
         var ipAddress = GetClientIpAddress();
@@ -66,6 +67,32 @@ public class AuthController : ControllerBase
         if (!response.Success)
         {
             return Unauthorized(response);
+        }
+
+        // 🔐 mTLS ESTRICTO (MtlsRequireRegisteredMachine): rechazar login desde equipos
+        // remotos sin certificado de máquina válido. Loopback (kiosco) y SuperAdmin exentos.
+        // Se evalúa tras credenciales OK para poder eximir a SuperAdmin (break-glass).
+        if (MtlsState.ShouldBlockLogin(HttpContext, response.User?.Roles))
+        {
+            if (!string.IsNullOrEmpty(response.Token))
+            {
+                try { await _authService.LogoutAsync(response.Token); } catch { /* best-effort */ }
+            }
+            await _auditLog.LogAsync(
+                AuditCategory.Security,
+                AuditAction.PermissionDenied,
+                AuditResult.Warning,
+                $"Login de '{request.Username}' RECHAZADO: equipo no registrado (mTLS estricto) desde {ipAddress}",
+                userName: request.Username,
+                ipAddress: ipAddress,
+                projectId: _projectContext.ProjectId);
+            _logger.LogWarning("🔐 Login de {User} rechazado: equipo no registrado (mTLS estricto) desde {Ip}",
+                request.Username, ipAddress);
+            return StatusCode(StatusCodes.Status403Forbidden, new LoginResponse
+            {
+                Success = false,
+                Message = "Este equipo no está registrado en el sistema. Solicite al administrador un código de registro de equipo o use el puesto local."
+            });
         }
         
         return Ok(response);

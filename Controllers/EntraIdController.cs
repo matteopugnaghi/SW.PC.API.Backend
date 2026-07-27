@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.EntraId;
 using SW.PC.API.Backend.Services;
 
@@ -19,17 +20,20 @@ namespace SW.PC.API.Backend.Controllers
     {
         private readonly IEntraIdService _entraIdService;
         private readonly IAuthenticationService _authService;
+        private readonly IAuditLogService _auditLog;
         private readonly IRequestProjectContext _projectContext;
         private readonly ILogger<EntraIdController> _logger;
 
         public EntraIdController(
             IEntraIdService entraIdService,
             IAuthenticationService authService,
+            IAuditLogService auditLog,
             IRequestProjectContext projectContext,
             ILogger<EntraIdController> logger)
         {
             _entraIdService = entraIdService;
             _authService = authService;
+            _auditLog = auditLog;
             _projectContext = projectContext;
             _logger = logger;
         }
@@ -91,6 +95,31 @@ namespace SW.PC.API.Backend.Controllers
             var response = await _authService.LoginWithEntraAsync(entraUser, ipAddress, userAgent, _projectContext.ProjectId);
             if (!response.Success)
                 return Unauthorized(response);
+
+            // 🔐 mTLS ESTRICTO (MtlsRequireRegisteredMachine): misma política que el login local.
+            // Equipos remotos sin certificado de máquina no pueden iniciar sesión (ni por SSO).
+            if (MtlsState.ShouldBlockLogin(HttpContext, response.User?.Roles))
+            {
+                if (!string.IsNullOrEmpty(response.Token))
+                {
+                    try { await _authService.LogoutAsync(response.Token); } catch { /* best-effort */ }
+                }
+                await _auditLog.LogAsync(
+                    AuditCategory.Security,
+                    AuditAction.PermissionDenied,
+                    AuditResult.Warning,
+                    $"Login Entra de '{entraUser.Username}' RECHAZADO: equipo no registrado (mTLS estricto) desde {ipAddress}",
+                    userName: entraUser.Username,
+                    ipAddress: ipAddress,
+                    projectId: _projectContext.ProjectId);
+                _logger.LogWarning("🔐 Login Entra de {User} rechazado: equipo no registrado (mTLS estricto) desde {Ip}",
+                    entraUser.Username, ipAddress);
+                return StatusCode(StatusCodes.Status403Forbidden, new Models.LoginResponse
+                {
+                    Success = false,
+                    Message = "Este equipo no está registrado en el sistema. Solicite al administrador un código de registro de equipo o use el puesto local."
+                });
+            }
 
             return Ok(response);
         }

@@ -36,6 +36,14 @@ public static class MtlsState
     public static bool Enabled { get; set; } = false;
 
     /// <summary>
+    /// Flag Excel MtlsRequireRegisteredMachine (modo ESTRICTO, opt-in).
+    /// TRUE → el login se RECHAZA (403) para conexiones remotas sin certificado
+    /// de máquina válido. Exenciones: loopback/kiosco local (siempre permitido)
+    /// y SuperAdmin (break-glass). Solo tiene efecto con MtlsEnabled=TRUE.
+    /// </summary>
+    public static bool RequireRegisteredMachine { get; set; } = false;
+
+    /// <summary>
     /// CA raíz de máquinas (Aquafrisch Machine CA) usada para firmar y
     /// validar certificados cliente. null si mTLS deshabilitado o CA no cargada.
     /// </summary>
@@ -72,6 +80,23 @@ public static class MtlsState
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Modo estricto (MtlsRequireRegisteredMachine): ¿debe RECHAZARSE el login de
+    /// esta petición? true = conexión remota SIN certificado de máquina válido y
+    /// el usuario NO es SuperAdmin. Loopback/kiosco local siempre permitido.
+    /// Se evalúa DESPUÉS de credenciales válidas (para poder eximir a SuperAdmin
+    /// sin revelar al atacante si las credenciales eran correctas: misma respuesta 403).
+    /// </summary>
+    public static bool ShouldBlockLogin(HttpContext http, IEnumerable<string>? userRoles)
+    {
+        if (!Enabled || !RequireRegisteredMachine) return false;
+        var origin = OriginContext.FromHttpContext(http);
+        if (origin.RemoteIp == "127.0.0.1") return false;            // kiosco/local: siempre permitido
+        if (!string.IsNullOrEmpty(origin.MachineName)) return false; // equipo registrado (cert válido)
+        if (userRoles?.Contains("SuperAdmin") == true) return false; // break-glass
+        return true;
     }
 }
 

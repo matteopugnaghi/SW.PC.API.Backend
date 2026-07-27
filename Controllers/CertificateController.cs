@@ -303,6 +303,7 @@ pause
         return Ok(new
         {
             mtlsEnabled = MtlsState.Enabled,
+            requireRegisteredMachine = MtlsState.RequireRegisteredMachine,
             hasClientCertificate = clientCert != null,
             machineName,
             remoteIp

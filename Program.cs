@@ -607,6 +607,7 @@ else
 // ZERO REGRESSION: absent/empty/FALSE → Kestrel no pide certificado cliente y las
 // entradas nombre-de-equipo de AllowedOrigins simplemente se ignoran.
 bool mtlsEnabledInExcel = false;
+bool mtlsRequireRegisteredInExcel = false;
 try
 {
     var contentRoot = builder.Environment.ContentRootPath;
@@ -654,12 +655,19 @@ try
                     var val = ws.Cell(row, 2).GetString()?.Trim()?.ToLowerInvariant() ?? "";
                     mtlsEnabledInExcel = val == "true" || val == "1"
                                        || val == "si" || val == "yes" || val == "on";
-                    break;
+                }
+                else if (keyNorm == "mtlsrequireregisteredmachine" || keyNorm == "mtls_require_registered_machine")
+                {
+                    var val = ws.Cell(row, 2).GetString()?.Trim()?.ToLowerInvariant() ?? "";
+                    mtlsRequireRegisteredInExcel = val == "true" || val == "1"
+                                                 || val == "si" || val == "yes" || val == "on";
                 }
             }
         }
     }
     Console.WriteLine($"🔐 mTLS Enabled in Excel: {mtlsEnabledInExcel}");
+    if (mtlsRequireRegisteredInExcel && !mtlsEnabledInExcel)
+        Console.WriteLine("⚠️ MtlsRequireRegisteredMachine=TRUE pero MtlsEnabled=FALSE → modo estricto IGNORADO");
 }
 catch (Exception ex)
 {
@@ -667,6 +675,9 @@ catch (Exception ex)
 }
 
 SW.PC.API.Backend.Services.MtlsState.Enabled = mtlsEnabledInExcel;
+SW.PC.API.Backend.Services.MtlsState.RequireRegisteredMachine = mtlsEnabledInExcel && mtlsRequireRegisteredInExcel;
+if (SW.PC.API.Backend.Services.MtlsState.RequireRegisteredMachine)
+    Console.WriteLine("🔐 mTLS STRICT MODE — login rechazado para equipos remotos NO registrados (loopback y SuperAdmin exentos)");
 if (mtlsEnabledInExcel)
 {
     try
