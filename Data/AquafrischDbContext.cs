@@ -1691,9 +1691,12 @@ public static class AquafrischDbContextFactory
                     CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
                     ExpiresAt TEXT NOT NULL,
                     UsedAt TEXT,
+                    CertExpiresAt TEXT,
                     MachineName TEXT
                 )");
             await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_MachineRegistrationCodes_CodeHash ON MachineRegistrationCodes(CodeHash)");
+            // Columna añadida en v2: CertExpiresAt (fecha caducidad certificado emitido)
+            try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE MachineRegistrationCodes ADD COLUMN CertExpiresAt TEXT"); } catch { /* ya existe */ }
         }
         catch (Exception ex)
         {

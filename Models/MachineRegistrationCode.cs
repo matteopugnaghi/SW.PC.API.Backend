@@ -31,6 +31,9 @@ public class MachineRegistrationCode
     /// <summary>Momento de uso (null = pendiente). Un código usado no es reutilizable.</summary>
     public DateTime? UsedAt { get; set; }
 
+    /// <summary>Fecha de caducidad del certificado emitido (por defecto +5 años desde el enrolamiento).</summary>
+    public DateTime? CertExpiresAt { get; set; }
+
     /// <summary>Nombre del equipo registrado (CN del CSR), rellenado al usarse.</summary>
     [MaxLength(100)]
     public string? MachineName { get; set; }

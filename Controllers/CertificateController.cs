@@ -371,8 +371,7 @@ pause
 
             // Quemar el cÃ³digo (un solo uso)
             regCode.UsedAt = DateTime.Now;
-            regCode.MachineName = machineName;
-            await db.SaveChangesAsync();
+            regCode.MachineName = machineName;            regCode.CertExpiresAt = notAfter.LocalDateTime;            await db.SaveChangesAsync();
 
             await _auditLog.LogAsync(AuditCategory.Security, AuditAction.CertificateGenerate, AuditResult.Success,
                 details: $"Equipo '{machineName}' registrado (mTLS). Cert vÃ¡lido hasta {notAfter:yyyy-MM-dd}. " +
@@ -444,6 +443,8 @@ pause
                 c.ExpiresAt,
                 c.UsedAt,
                 c.MachineName,
+                c.CertExpiresAt,
+                certExpired = c.CertExpiresAt != null && c.CertExpiresAt < now,
                 status = c.UsedAt != null ? "used" : (c.ExpiresAt < now ? "expired" : "pending")
             })
             .ToListAsync();
