@@ -9,6 +9,8 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
+using SW.PC.API.Backend.Data;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Services;
 
@@ -30,17 +32,22 @@ public class AuthController : ControllerBase
     private readonly IAuditLogService _auditLog;
     private readonly IRequestProjectContext _projectContext;
     private readonly ILogger<AuthController> _logger;
+    // 📁 BD POR PROYECTO: misma factory que CertificateController — los registros
+    // de equipos mTLS viven en Projects/{id}/data/project.db
+    private readonly IProjectDbContextFactory _dbFactory;
 
     public AuthController(
         IAuthenticationService authService,
         IAuditLogService auditLog,
         IRequestProjectContext projectContext,
-        ILogger<AuthController> logger)
+        ILogger<AuthController> logger,
+        IProjectDbContextFactory dbFactory)
     {
         _authService = authService;
         _auditLog = auditLog;
         _projectContext = projectContext;
         _logger = logger;
+        _dbFactory = dbFactory;
     }
 
     #region Autenticación
@@ -93,6 +100,34 @@ public class AuthController : ControllerBase
                 Success = false,
                 Message = "Este equipo no está registrado en el sistema. Solicite al administrador un código de registro de equipo o use el puesto local."
             });
+        }
+
+        // 🔐 mTLS REVOCACIÓN: si RequireRegisteredMachine está activo y el equipo tiene
+        // cert válido pero su registro fue revocado en la BD, bloquear el login.
+        if (MtlsState.Enabled && MtlsState.RequireRegisteredMachine
+            && response.User?.Roles?.Contains("SuperAdmin") != true)
+        {
+            var origin = SW.PC.API.Backend.Services.OriginContext.FromHttpContext(HttpContext);
+            if (!string.IsNullOrEmpty(origin.MachineName) && origin.RemoteIp != "127.0.0.1")
+            {
+                await using var db = _dbFactory.CreateDbContext();
+                var isRegistered = await db.MachineRegistrationCodes
+                    .AnyAsync(c => c.MachineName == origin.MachineName && c.UsedAt != null);
+                if (!isRegistered)
+                {
+                    if (!string.IsNullOrEmpty(response.Token))
+                        try { await _authService.LogoutAsync(response.Token); } catch { }
+                    await _auditLog.LogAsync(AuditCategory.Security, AuditAction.PermissionDenied, AuditResult.Warning,
+                        $"Login de '{request.Username}' RECHAZADO: equipo '{origin.MachineName}' revocado desde {ipAddress}",
+                        userName: request.Username, ipAddress: ipAddress, projectId: _projectContext.ProjectId);
+                    _logger.LogWarning("🔐 Login de {User} rechazado: equipo '{Machine}' revocado", request.Username, origin.MachineName);
+                    return StatusCode(StatusCodes.Status403Forbidden, new LoginResponse
+                    {
+                        Success = false,
+                        Message = "Este equipo no está registrado en el sistema. Solicite al administrador un código de registro de equipo o use el puesto local."
+                    });
+                }
+            }
         }
         
         return Ok(response);

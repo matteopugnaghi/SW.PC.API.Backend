@@ -53,3 +53,12 @@ Para Firefox, importar manualmente el `.cer` desde:
 
 Este `.bat` queda trazado en git como artefacto de distribución de PKI del
 producto. Cualquier cambio en la lógica de instalación debe reflejarse aquí.
+
+
+
+Flush socket
+
+Limpia el cache de socket
+
+chrome://net-internals/#sockets
+

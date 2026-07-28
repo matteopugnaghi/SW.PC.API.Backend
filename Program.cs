@@ -688,6 +688,31 @@ if (mtlsEnabledInExcel)
             SW.PC.API.Backend.Services.MachineCaService.LoadOrCreateCa(builder.Environment.ContentRootPath);
         Console.WriteLine($"🔐 mTLS ENABLED — Machine CA: {SW.PC.API.Backend.Services.MtlsState.MachineCa.Subject} " +
                           $"(thumbprint {SW.PC.API.Backend.Services.MtlsState.MachineCa.Thumbprint})");
+
+        // Registrar la Machine CA en LocalMachine\Root del servidor para que
+        // X509Chain.Build() funcione correctamente en Windows (SChannel lo requiere
+        // para construir la cadena de confianza en la validación de cert cliente).
+        try
+        {
+            using var rootStore = new System.Security.Cryptography.X509Certificates.X509Store(
+                System.Security.Cryptography.X509Certificates.StoreName.Root,
+                System.Security.Cryptography.X509Certificates.StoreLocation.LocalMachine);
+            rootStore.Open(System.Security.Cryptography.X509Certificates.OpenFlags.ReadWrite);
+            var ca = SW.PC.API.Backend.Services.MtlsState.MachineCa;
+            var already = rootStore.Certificates.Find(
+                System.Security.Cryptography.X509Certificates.X509FindType.FindByThumbprint,
+                ca.Thumbprint, false);
+            if (already.Count == 0)
+            {
+                rootStore.Add(ca);
+                Console.WriteLine("🔐 mTLS: Machine CA añadida a LocalMachine\\Root (necesario para chain.Build en Windows)");
+            }
+            rootStore.Close();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ mTLS: no se pudo añadir Machine CA a LocalMachine\\Root: {ex.Message} — la validación puede fallar");
+        }
     }
     catch (Exception ex)
     {

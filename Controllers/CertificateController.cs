@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // CertificateController.cs - HTTPS Certificate Management API
 // ============================================================================
 // Provides endpoints for certificate distribution to client machines.
@@ -27,14 +27,15 @@ public class CertificateController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<CertificateController> _logger;
-    private readonly IDbContextFactory<AquafrischDbContext> _dbFactory;
+    // 📁 BD POR PROYECTO: los registros de equipos mTLS viven en Projects/{id}/data/project.db
+    private readonly IProjectDbContextFactory _dbFactory;
     private readonly IAuditLogService _auditLog;
 
     public CertificateController(
         IConfiguration configuration,
         IWebHostEnvironment env,
         ILogger<CertificateController> logger,
-        IDbContextFactory<AquafrischDbContext> dbFactory,
+        IProjectDbContextFactory dbFactory,
         IAuditLogService auditLog)
     {
         _configuration = configuration;
@@ -46,7 +47,7 @@ public class CertificateController : ControllerBase
 
     /// <summary>
     /// Download the public certificate (CER format) for trust installation.
-    /// This contains ONLY the public key — safe to distribute to clients.
+    /// This contains ONLY the public key â€” safe to distribute to clients.
     /// Clients install this in their OS/browser Trusted Root CA store.
     /// </summary>
     [HttpGet("public")]
@@ -158,11 +159,11 @@ public class CertificateController : ControllerBase
             {
                 automatic = new
                 {
-                    title = "Instalación automática (recomendado)",
+                    title = "InstalaciÃ³n automÃ¡tica (recomendado)",
                     steps = new[]
                     {
                         $"1. Descargar script: {installScriptUrl}",
-                        "2. Ejecutar como Administrador (click derecho → Ejecutar como administrador)",
+                        "2. Ejecutar como Administrador (click derecho â†’ Ejecutar como administrador)",
                         "3. Reiniciar el navegador"
                     }
                 },
@@ -174,10 +175,10 @@ public class CertificateController : ControllerBase
                         $"1. Descargar: {downloadUrl}",
                         "2. Doble click en el archivo .cer",
                         "3. Click 'Instalar certificado...'",
-                        "4. Seleccionar 'Equipo local' → Siguiente",
-                        "5. Seleccionar 'Colocar todos los certificados en el siguiente almacén'",
-                        "6. Click 'Examinar...' → seleccionar 'Entidades de certificación raíz de confianza'",
-                        "7. Click Siguiente → Finalizar",
+                        "4. Seleccionar 'Equipo local' â†’ Siguiente",
+                        "5. Seleccionar 'Colocar todos los certificados en el siguiente almacÃ©n'",
+                        "6. Click 'Examinar...' â†’ seleccionar 'Entidades de certificaciÃ³n raÃ­z de confianza'",
+                        "7. Click Siguiente â†’ Finalizar",
                         "8. Reiniciar el navegador"
                     }
                 },
@@ -196,9 +197,9 @@ public class CertificateController : ControllerBase
                     title = "Firefox (uses its own certificate store)",
                     steps = new[]
                     {
-                        $"1. Open Firefox → navigate to https://{hostname}:5001",
-                        "2. Click 'Advanced' → 'Accept the Risk and Continue'",
-                        "3. Or: Settings → Privacy & Security → Certificates → View Certificates",
+                        $"1. Open Firefox â†’ navigate to https://{hostname}:5001",
+                        "2. Click 'Advanced' â†’ 'Accept the Risk and Continue'",
+                        "3. Or: Settings â†’ Privacy & Security â†’ Certificates â†’ View Certificates",
                         "4. Import the .cer file into 'Authorities' tab"
                     }
                 }
@@ -233,7 +234,7 @@ echo.
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo  [ERROR] Este script requiere permisos de Administrador.
-    echo  Click derecho → Ejecutar como administrador
+    echo  Click derecho â†’ Ejecutar como administrador
     echo.
     pause
     exit /b 1
@@ -282,12 +283,12 @@ pause
     }
 
     // ========================================================================
-    // 🔐 mTLS — Identidad de máquina por certificado cliente
+    // ðŸ” mTLS â€” Identidad de mÃ¡quina por certificado cliente
     // ========================================================================
 
     /// <summary>
-    /// Estado mTLS del servidor + identidad de la conexión actual.
-    /// Anónimo: lo usa el ClientSetup (para saber si debe hacer enrollment)
+    /// Estado mTLS del servidor + identidad de la conexiÃ³n actual.
+    /// AnÃ³nimo: lo usa el ClientSetup (para saber si debe hacer enrollment)
     /// y el frontend (banner "equipo no registrado").
     /// </summary>
     [HttpGet("mtls-info")]
@@ -311,9 +312,9 @@ pause
     }
 
     /// <summary>
-    /// Descarga el certificado público de la Machine CA (DER).
+    /// Descarga el certificado pÃºblico de la Machine CA (DER).
     /// El ClientSetup lo instala en el equipo para que la cadena del certificado
-    /// de máquina emitido se construya correctamente (Schannel).
+    /// de mÃ¡quina emitido se construya correctamente (Schannel).
     /// </summary>
     [HttpGet("machine-ca")]
     [AllowAnonymous]
@@ -333,7 +334,7 @@ pause
     }
 
     /// <summary>
-    /// Enrollment de equipo: valida un código de registro de un solo uso y firma
+    /// Enrollment de equipo: valida un cÃ³digo de registro de un solo uso y firma
     /// el CSR (CN=nombre del equipo) con la Machine CA. Devuelve el certificado
     /// emitido (DER) para `certreq -accept`. La clave privada NUNCA viaja.
     /// </summary>
@@ -349,36 +350,36 @@ pause
         try
         {
             if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Csr))
-                return BadRequest(new { error = "Código y CSR son obligatorios." });
+                return BadRequest(new { error = "CÃ³digo y CSR son obligatorios." });
 
             var codeHash = HashRegistrationCode(request.Code);
 
-            await using var db = await _dbFactory.CreateDbContextAsync();
+            await using var db = _dbFactory.CreateDbContext();
             var regCode = await db.MachineRegistrationCodes
                 .FirstOrDefaultAsync(c => c.CodeHash == codeHash);
 
             if (regCode == null || regCode.UsedAt != null || regCode.ExpiresAt < DateTime.Now)
             {
                 await _auditLog.LogAsync(AuditCategory.Security, AuditAction.PermissionDenied, AuditResult.Warning,
-                    details: $"Enrollment mTLS RECHAZADO: código inválido/usado/caducado. IP={remoteIp}",
+                    details: $"Enrollment mTLS RECHAZADO: cÃ³digo invÃ¡lido/usado/caducado. IP={remoteIp}",
                     ipAddress: remoteIp);
-                return BadRequest(new { error = "Código de registro inválido, usado o caducado." });
+                return BadRequest(new { error = "CÃ³digo de registro invÃ¡lido, usado o caducado." });
             }
 
             var ca = MachineCaService.LoadOrCreateCa(_env.ContentRootPath);
             var (certDer, machineName, notAfter) = MachineCaService.SignCsr(request.Csr, ca);
 
-            // Quemar el código (un solo uso)
+            // Quemar el cÃ³digo (un solo uso)
             regCode.UsedAt = DateTime.Now;
             regCode.MachineName = machineName;
             await db.SaveChangesAsync();
 
             await _auditLog.LogAsync(AuditCategory.Security, AuditAction.CertificateGenerate, AuditResult.Success,
-                details: $"Equipo '{machineName}' registrado (mTLS). Cert válido hasta {notAfter:yyyy-MM-dd}. " +
-                         $"Código generado por {regCode.CreatedBy}. IP={remoteIp}",
+                details: $"Equipo '{machineName}' registrado (mTLS). Cert vÃ¡lido hasta {notAfter:yyyy-MM-dd}. " +
+                         $"CÃ³digo generado por {regCode.CreatedBy}. IP={remoteIp}",
                 userName: regCode.CreatedBy, ipAddress: remoteIp);
 
-            _logger.LogInformation("🔐 mTLS: equipo '{Machine}' registrado desde {Ip}", machineName, remoteIp);
+            _logger.LogInformation("ðŸ” mTLS: equipo '{Machine}' registrado desde {Ip}", machineName, remoteIp);
             return File(certDer, "application/x-x509-user-cert", $"{machineName}.cer");
         }
         catch (InvalidOperationException ex)
@@ -388,13 +389,13 @@ pause
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error en enrollment mTLS");
-            return StatusCode(500, new { error = "Error firmando el certificado de máquina." });
+            return StatusCode(500, new { error = "Error firmando el certificado de mÃ¡quina." });
         }
     }
 
     /// <summary>
-    /// Genera un código de registro de equipo (un solo uso, caduca en 24h).
-    /// El código en claro solo se devuelve UNA vez; en BD queda su hash.
+    /// Genera un cÃ³digo de registro de equipo (un solo uso, caduca en 24h).
+    /// El cÃ³digo en claro solo se devuelve UNA vez; en BD queda su hash.
     /// </summary>
     [HttpPost("registration-codes")]
     [Authorize(Roles = "SuperAdmin,Administrator")]
@@ -405,7 +406,7 @@ pause
         var code = GenerateRegistrationCode();
         var expiresAt = DateTime.Now.AddHours(24);
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = _dbFactory.CreateDbContext();
         db.MachineRegistrationCodes.Add(new MachineRegistrationCode
         {
             CodeHash = HashRegistrationCode(code),
@@ -416,7 +417,7 @@ pause
         await db.SaveChangesAsync();
 
         await _auditLog.LogAsync(AuditCategory.Security, AuditAction.CertificateGenerate, AuditResult.Success,
-            details: $"Código de registro de equipo generado (mTLS), caduca {expiresAt:yyyy-MM-dd HH:mm}",
+            details: $"CÃ³digo de registro de equipo generado (mTLS), caduca {expiresAt:yyyy-MM-dd HH:mm}",
             userName: createdBy,
             ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
 
@@ -424,14 +425,14 @@ pause
     }
 
     /// <summary>
-    /// Lista los códigos de registro (nunca el código en claro) + equipos registrados.
+    /// Lista los cÃ³digos de registro (nunca el cÃ³digo en claro) + equipos registrados.
     /// </summary>
     [HttpGet("registration-codes")]
     [Authorize(Roles = "SuperAdmin,Administrator")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> ListRegistrationCodes()
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = _dbFactory.CreateDbContext();
         var now = DateTime.Now;
         var codes = await db.MachineRegistrationCodes
             .OrderByDescending(c => c.CreatedAt)
@@ -451,7 +452,7 @@ pause
     }
 
     /// <summary>
-    /// Elimina un código de registro PENDIENTE (no usado). Los usados se conservan
+    /// Elimina un cÃ³digo de registro PENDIENTE (no usado). Los usados se conservan
     /// como registro del equipo enrolado.
     /// </summary>
     [HttpDelete("registration-codes/{id:int}")]
@@ -460,21 +461,46 @@ pause
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteRegistrationCode(int id)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = _dbFactory.CreateDbContext();
         var code = await db.MachineRegistrationCodes.FindAsync(id);
         if (code == null) return NotFound();
         if (code.UsedAt != null)
-            return BadRequest(new { error = "No se puede eliminar un código ya usado (registro de equipo)." });
+            return BadRequest(new { error = "No se puede eliminar un cÃ³digo ya usado (registro de equipo)." });
 
         db.MachineRegistrationCodes.Remove(code);
         await db.SaveChangesAsync();
 
         await _auditLog.LogAsync(AuditCategory.Security, AuditAction.CertificateGenerate, AuditResult.Warning,
-            details: $"Código de registro de equipo #{id} eliminado (sin usar)",
+            details: $"CÃ³digo de registro de equipo #{id} eliminado (sin usar)",
             userName: User.Identity?.Name,
             ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
 
         return Ok(new { deleted = true });
+    }
+
+    /// <summary>
+    /// Revoca el registro de una mÃ¡quina (elimina el MachineRegistrationCode usado).
+    /// </summary>
+    [HttpPost("registration-codes/{id:int}/revoke")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RevokeRegistration(int id)
+    {
+        await using var db = _dbFactory.CreateDbContext();
+        var code = await db.MachineRegistrationCodes.FindAsync(id);
+        if (code == null) return NotFound();
+
+        var machineName = code.MachineName ?? $"ID#{id}";
+        db.MachineRegistrationCodes.Remove(code);
+        await db.SaveChangesAsync();
+
+        await _auditLog.LogAsync(AuditCategory.Security, AuditAction.CertificateGenerate, AuditResult.Warning,
+            details: $"Registro de equipo '{machineName}' (#{id}) REVOCADO por administrador",
+            userName: User.Identity?.Name,
+            ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+
+        return Ok(new { revoked = true, machineName });
     }
 
     /// <summary>Alfabeto sin caracteres ambiguos (sin 0/O/1/I/L).</summary>
@@ -488,7 +514,7 @@ pause
         return $"{new string(chars, 0, 4)}-{new string(chars, 4, 4)}-{new string(chars, 8, 4)}";
     }
 
-    /// <summary>Normaliza (mayúsculas, sin guiones/espacios) y hashea SHA256 hex.</summary>
+    /// <summary>Normaliza (mayÃºsculas, sin guiones/espacios) y hashea SHA256 hex.</summary>
     private static string HashRegistrationCode(string code)
     {
         var normalized = new string(code.ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());

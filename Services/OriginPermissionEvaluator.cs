@@ -66,13 +66,16 @@ public static class MtlsState
 
         try
         {
+            // La Machine CA está registrada en LocalMachine\Root al arrancar (Program.cs),
+            // así chain.Build() funciona con el store del sistema en Windows.
             using var chain = new X509Chain();
-            chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-            chain.ChainPolicy.CustomTrustStore.Add(ca);
             chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+            chain.ChainPolicy.VerificationFlags =
+                X509VerificationFlags.IgnoreEndRevocationUnknown |
+                X509VerificationFlags.IgnoreCertificateAuthorityRevocationUnknown;
             if (!chain.Build(clientCert)) return false;
 
-            // Defensa en profundidad: la raíz de la cadena debe ser EXACTAMENTE nuestra CA
+            // La raíz de la cadena debe ser EXACTAMENTE nuestra CA
             var root = chain.ChainElements[^1].Certificate;
             return root.Thumbprint.Equals(ca.Thumbprint, StringComparison.OrdinalIgnoreCase);
         }
@@ -114,6 +117,8 @@ public sealed record OriginContext(string? RemoteIp, string? MachineName)
         if (MtlsState.Enabled)
         {
             // Kestrel solo expone ClientCertificate si pasó ClientCertificateValidation
+            // Kestrel ya validó el cert con ValidateClientCertificate durante el handshake TLS.
+            // Solo leemos el CN — no revalidamos (evita doble chain.Build innecesario).
             var cert = http.Connection.ClientCertificate;
             if (cert != null)
                 machine = cert.GetNameInfo(X509NameType.SimpleName, forIssuer: false);
@@ -152,10 +157,14 @@ public static class OriginPermissionEvaluator
     /// <summary>true si la entrada de la lista es una IP (vs nombre de equipo).</summary>
     public static bool LooksLikeIp(string entry) => IPAddress.TryParse(entry, out _);
 
-    /// <summary>true si la entrada representa loopback (::1, 127.x, "localhost").</summary>
+    /// <summary>true si la entrada representa loopback (::1, 127.x, "localhost"
+    /// o el nombre del propio host local, p.ej. "C07").</summary>
     public static bool IsLoopbackEntry(string entry)
     {
         if (entry.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return true;
+        // Nombre del host local (kiosco): equivale a loopback para uniformidad
+        // con los nombres de equipo mTLS en AllowedOrigins.
+        if (entry.Equals(Environment.MachineName, StringComparison.OrdinalIgnoreCase)) return true;
         return IPAddress.TryParse(entry, out var ip) && IPAddress.IsLoopback(ip);
     }
 

@@ -219,8 +219,14 @@ if errorlevel 1 (
 )
 echo  [OK] Machine CA instalada.
 
-echo  [mTLS 2/4] Generando clave y solicitud de certificado ^(CSR^)...
-:: Clave NO exportable en el almacen de MAQUINA. La clave privada nunca sale de este PC.
+echo  [mTLS 2/4] Limpiando certificados de maquina anteriores...
+powershell -NoProfile -Command "Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq 'CN=%COMPUTERNAME%' -and $_.Issuer -like '*Aquafrisch*' } | ForEach-Object { Remove-Item $_.PSPath -Force; Write-Host '  Eliminado de CurrentUser\My:' $_.Thumbprint }" >>"%LOGFILE%" 2>&1
+powershell -NoProfile -Command "Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.Subject -eq 'CN=%COMPUTERNAME%' -and $_.Issuer -like '*Aquafrisch*' } | ForEach-Object { Remove-Item $_.PSPath -Force; Write-Host '  Eliminado de LocalMachine\My:' $_.Thumbprint }" >>"%LOGFILE%" 2>&1
+echo  [OK] Certificados anteriores limpiados.
+
+echo  [mTLS 3/4] Generando clave y solicitud de certificado ^(CSR^)...
+:: Clave en el almacen del USUARIO actual (CurrentUser\My) para que Chrome/Edge puedan usarla.
+:: MachineKeySet=FALSE + Exportable=FALSE: la clave no sale del PC pero es accesible por el usuario.
 (
     echo [Version]
     echo Signature="$Windows NT$"
@@ -228,7 +234,7 @@ echo  [mTLS 2/4] Generando clave y solicitud de certificado ^(CSR^)...
     echo Subject = "CN=%COMPUTERNAME%"
     echo KeyLength = 2048
     echo Exportable = FALSE
-    echo MachineKeySet = TRUE
+    echo MachineKeySet = FALSE
     echo KeySpec = 1
     echo KeyUsage = 0x80
     echo ProviderName = "Microsoft RSA SChannel Cryptographic Provider"
@@ -247,7 +253,7 @@ if errorlevel 1 (
 echo  [OK] CSR generado ^(CN=%COMPUTERNAME%^).
 
 echo  [mTLS 3/4] Enviando CSR al servidor con el codigo de registro...
-powershell -NoProfile -Command "$csr = Get-Content -Raw '%CSR_FILE%'; @{ code = '!REG_CODE!'; csr = $csr } | ConvertTo-Json | Set-Content -Encoding UTF8 '%JSON_FILE%'" >>"%LOGFILE%" 2>&1
+powershell -NoProfile -Command "$csr = [string](Get-Content -Raw '%CSR_FILE%'); $json = @{ code = '!REG_CODE!'; csr = $csr } | ConvertTo-Json; $utf8NoBom = New-Object System.Text.UTF8Encoding $false; [System.IO.File]::WriteAllText('%JSON_FILE%', $json, $utf8NoBom)" >>"%LOGFILE%" 2>&1
 if not exist "%JSON_FILE%" (
     echo  [ERROR] No se pudo preparar la peticion de registro.
     set "EXITCODE=9"
@@ -267,7 +273,7 @@ if not "!ENROLL_RC!"=="0" (
 echo  [OK] Certificado de maquina emitido por el servidor.
 
 echo  [mTLS 4/4] Instalando certificado de maquina y configurando navegadores...
-certreq -accept -machine "%MACHINE_CER%" >>"%LOGFILE%" 2>&1
+certreq -accept "%MACHINE_CER%" >>"%LOGFILE%" 2>&1
 if errorlevel 1 (
     echo  [ERROR] certreq -accept fallo. Revisa el log.
     >>"%LOGFILE%" echo [ERROR] certreq -accept failed
@@ -279,7 +285,17 @@ if errorlevel 1 (
 set "AUTOSEL={\"pattern\":\"https://!SERVER_HOST!:!SERVER_PORT!\",\"filter\":{\"ISSUER\":{\"CN\":\"Aquafrisch Machine CA\"}}}"
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge\AutoSelectCertificateForUrls" /v 1 /t REG_SZ /d "!AUTOSEL!" /f >>"%LOGFILE%" 2>&1
 reg add "HKLM\SOFTWARE\Policies\Google\Chrome\AutoSelectCertificateForUrls" /v 1 /t REG_SZ /d "!AUTOSEL!" /f >>"%LOGFILE%" 2>&1
-echo  [OK] Equipo %COMPUTERNAME% registrado. Cierra y reabre el navegador.
+
+:: Cerrar todos los navegadores para forzar nuevo handshake TLS con el certificado nuevo
+echo  [OK] Cerrando navegadores para aplicar el nuevo certificado...
+taskkill /F /IM chrome.exe /T >nul 2>&1
+taskkill /F /IM msedge.exe /T >nul 2>&1
+taskkill /F /IM firefox.exe /T >nul 2>&1
+taskkill /F /IM brave.exe /T >nul 2>&1
+taskkill /F /IM opera.exe /T >nul 2>&1
+taskkill /F /IM vivaldi.exe /T >nul 2>&1
+timeout /t 2 /nobreak >nul
+echo  [OK] Equipo %COMPUTERNAME% registrado. Reabre el navegador.
 >>"%LOGFILE%" echo mTLS enrollment completed for %COMPUTERNAME%
 
 :mtls_done

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
+using SW.PC.API.Backend.Data;
 using SW.PC.API.Backend.Models;
 using SW.PC.API.Backend.Models.EntraId;
 using SW.PC.API.Backend.Services;
@@ -23,19 +25,23 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IAuditLogService _auditLog;
         private readonly IRequestProjectContext _projectContext;
         private readonly ILogger<EntraIdController> _logger;
+        // 📁 BD POR PROYECTO: misma factory que Auth/CertificateController (registros mTLS)
+        private readonly IProjectDbContextFactory _dbFactory;
 
         public EntraIdController(
             IEntraIdService entraIdService,
             IAuthenticationService authService,
             IAuditLogService auditLog,
             IRequestProjectContext projectContext,
-            ILogger<EntraIdController> logger)
+            ILogger<EntraIdController> logger,
+            IProjectDbContextFactory dbFactory)
         {
             _entraIdService = entraIdService;
             _authService = authService;
             _auditLog = auditLog;
             _projectContext = projectContext;
             _logger = logger;
+            _dbFactory = dbFactory;
         }
 
         /// <summary>Entra ID runtime status (configured / connectivity / health-check).</summary>
@@ -119,6 +125,34 @@ namespace SW.PC.API.Backend.Controllers
                     Success = false,
                     Message = "Este equipo no está registrado en el sistema. Solicite al administrador un código de registro de equipo o use el puesto local."
                 });
+            }
+
+            // 🔐 mTLS REVOCACIÓN: mismo check que el login local — si el equipo tiene cert
+            // válido pero su registro fue revocado en la BD, bloquear el login (también SSO).
+            if (MtlsState.Enabled && MtlsState.RequireRegisteredMachine
+                && response.User?.Roles?.Contains("SuperAdmin") != true)
+            {
+                var origin = OriginContext.FromHttpContext(HttpContext);
+                if (!string.IsNullOrEmpty(origin.MachineName) && origin.RemoteIp != "127.0.0.1")
+                {
+                    await using var db = _dbFactory.CreateDbContext();
+                    var isRegistered = await db.MachineRegistrationCodes
+                        .AnyAsync(c => c.MachineName == origin.MachineName && c.UsedAt != null);
+                    if (!isRegistered)
+                    {
+                        if (!string.IsNullOrEmpty(response.Token))
+                            try { await _authService.LogoutAsync(response.Token); } catch { }
+                        await _auditLog.LogAsync(AuditCategory.Security, AuditAction.PermissionDenied, AuditResult.Warning,
+                            $"Login Entra de '{entraUser.Username}' RECHAZADO: equipo '{origin.MachineName}' revocado desde {ipAddress}",
+                            userName: entraUser.Username, ipAddress: ipAddress, projectId: _projectContext.ProjectId);
+                        _logger.LogWarning("🔐 Login Entra de {User} rechazado: equipo '{Machine}' revocado", entraUser.Username, origin.MachineName);
+                        return StatusCode(StatusCodes.Status403Forbidden, new Models.LoginResponse
+                        {
+                            Success = false,
+                            Message = "Este equipo no está registrado en el sistema. Solicite al administrador un código de registro de equipo o use el puesto local."
+                        });
+                    }
+                }
             }
 
             return Ok(response);
