@@ -1545,7 +1545,12 @@ namespace SW.PC.API.Backend.Services
                         || System.Text.RegularExpressions.Regex.IsMatch(
                             nmUpper, @"^(EK|EL|ES|EP|EPP|EJ|AX|CX|BK|FB|EQ|ER)\d{3,4}");
 
-                    if (isKnownBeckhoff)
+                    // Slave con todos los identificadores vacíos: nodo fantasma/junction de TwinCAT, solo Debug
+                    bool isEmptySlave = slave.VendorId == 0 && slave.ProductCode == 0
+                        && string.IsNullOrWhiteSpace(slave.DeviceType)
+                        && string.IsNullOrWhiteSpace(slave.ESIFileName);
+
+                    if (isKnownBeckhoff || isEmptySlave)
                     {
                         _logger.LogDebug("  ℹ️ Sin ESI directo para módulo Beckhoff '{Name}' (type:{Type}) - se usará fallback por tipo",
                             slave.Name, slave.DeviceType ?? "null");
@@ -1594,7 +1599,10 @@ namespace SW.PC.API.Backend.Services
                     }
                     else
                     {
-                        _logger.LogWarning("      → DeviceCategory=unknown, frontend usará fallback");
+                        if (isEmptySlave)
+                            _logger.LogDebug("      → DeviceCategory=unknown para slave vacío/fantasma, frontend usará fallback");
+                        else
+                            _logger.LogWarning("      → DeviceCategory=unknown, frontend usará fallback");
                     }
                 }
             }
