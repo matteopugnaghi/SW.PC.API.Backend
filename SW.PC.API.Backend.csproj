@@ -45,7 +45,7 @@
          y causaba FileNotFoundException en publish self-contained net8. Sustituido
          por Services/Smm/FormulaEvaluator.cs (DataTable.Compute, sin deps externas). -->
     <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Server" Version="1.5.374.126" />
-    <PackageReference Include="SSH.NET" Version="2025.1.0" />
+    <PackageReference Include="SSH.NET" Version="2026.0.0" />
 
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.0" />
