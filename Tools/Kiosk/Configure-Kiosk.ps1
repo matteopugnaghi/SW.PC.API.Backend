@@ -797,13 +797,18 @@ if (Should-Run 'Shell') {
             $profilePath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$userSID" -ErrorAction SilentlyContinue).ProfileImagePath
             $hiveLoaded = $false
 
-            if ($profilePath) {
-                $ntUserDat = Join-Path $profilePath 'NTUSER.DAT'
-                if (-not (Test-Path "Registry::HKEY_USERS\$userSID") -and (Test-Path $ntUserDat)) {
-                    reg load "HKU\$userSID" $ntUserDat 2>$null | Out-Null
-                    $hiveLoaded = $true
-                }
+            # Si el perfil no existe aún (usuario recién creado, nunca logueado), usar ruta por defecto
+            if (-not $profilePath) {
+                $profilePath = "C:\Users\$KioskUser"
+            }
 
+            $ntUserDat = Join-Path $profilePath 'NTUSER.DAT'
+            if (-not (Test-Path "Registry::HKEY_USERS\$userSID") -and (Test-Path $ntUserDat)) {
+                reg load "HKU\$userSID" $ntUserDat 2>$null | Out-Null
+                $hiveLoaded = $true
+            }
+
+            if (Test-Path "Registry::HKEY_USERS\$userSID") {
                 $userRegPath = "Registry::HKEY_USERS\$userSID\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
                 if (-not (Test-Path $userRegPath)) {
                     New-Item -Path $userRegPath -Force | Out-Null
@@ -815,6 +820,16 @@ if (Should-Run 'Shell') {
                     Start-Sleep -Milliseconds 500
                     reg unload "HKU\$userSID" 2>$null | Out-Null
                 }
+            } else {
+                # El hive no está accesible (perfil aún no creado): usar RunOnce para configurar el shell en el primer login
+                $runOncePath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce'
+                $runOnceCmd  = "powershell -WindowStyle Hidden -Command `"" +
+                    "if (-not (Test-Path 'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon')) {" +
+                    " New-Item -Path 'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Force | Out-Null };" +
+                    " Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name Shell -Value '$ShellValue'`""
+                # Nota: RunOnce bajo HKLM se ejecuta por cualquier usuario en el próximo arranque
+                Set-ItemProperty -Path $runOncePath -Name "AqfSetKioskShell_$KioskUser" -Value $runOnceCmd
+                return [PSCustomObject]@{ Status = 'OK'; Msg = "Perfil de '$KioskUser' aun no existe — shell configurado via RunOnce para primer login"; PrevShell = $prevShell }
             }
 
             return [PSCustomObject]@{ Status = 'OK'; Msg = "Custom shell → $ShellValue"; PrevShell = $prevShell }
