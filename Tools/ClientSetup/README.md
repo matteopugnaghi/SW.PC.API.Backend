@@ -37,15 +37,18 @@ del usuario que lo ejecuta.
 ## Flujo de instalación en un PC con varios usuarios
 
 ```
-1. aqf-admin ejecuta Install-AquafrischCert.bat (doble-click normal)
+1. aqf-admin ejecuta Install-AquafrischCert.bat (doble-click normal, sin admin)
    → CA raíz instalada a nivel de máquina (todos los usuarios)
-   → Certificado mTLS instalado en perfil de aqf-admin ✓
+   → Certificado mTLS instalado en perfil de aqf-admin
 
-2. aqf ejecuta Install-AquafrischCert.bat (doble-click normal)
-   → CA raíz ya está (no la reinstala)
-   → Certificado mTLS instalado en perfil de aqf ✓
-   → Necesita un código de registro nuevo (generado en el Supervisor)
+2. Todos los demás usuarios del PC (aqf, etc.) ya pueden acceder al Supervisor
+   sin necesidad de enrollment adicional.
+   El servidor valida por hostname del equipo (CN=A89-PC-CLIENT), no por usuario.
 ```
+
+> **Nota**: el control de usuario (quién puede hacer qué) se gestiona desde
+> el panel de administración del Supervisor, no desde el certificado mTLS.
+> mTLS = identidad del equipo. Login = identidad del usuario.
 
 ## Cuándo usar este `.bat`
 
