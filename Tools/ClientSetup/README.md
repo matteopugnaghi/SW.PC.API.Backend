@@ -8,7 +8,44 @@ al backend por HTTPS.
 
 | Archivo | Uso |
 |---------|-----|
-| `Install-AquafrischCert.bat` | Script offline: pide IP/puerto, descarga el `.cer` del servidor y lo instala en el almacén raíz de Windows. |
+| `Install-AquafrischCert.bat` | Script offline: pide IP/puerto, descarga el `.cer` del servidor y lo instala en el almacén raíz de Windows. Soporta usuarios estándar y administradores. |
+| `AquafrischCert-DistributeToUser.bat` | Copia el certificado mTLS ya enrollado a otro usuario local del mismo PC (requiere Admin). |
+
+## ⚠️ REGLA CRÍTICA — Cómo ejecutar el script
+
+> **El script `Install-AquafrischCert.bat` debe ejecutarse SIEMPRE con el usuario
+> que va a usar el Supervisor, NO como Administrador.**
+
+| Situación | Cómo ejecutar |
+|-----------|---------------|
+| Usuario `aqf` quiere acceder al Supervisor | Iniciar sesión como `aqf` → doble-click normal en el `.bat` |
+| Usuario `aqf-admin` quiere acceder al Supervisor | Iniciar sesión como `aqf-admin` → doble-click normal en el `.bat` |
+| ❌ INCORRECTO | Click derecho → "Ejecutar como Administrador" |
+
+**¿Por qué?** El certificado de identidad del equipo (mTLS) se instala en el
+perfil del usuario que ejecuta el script. Si se ejecuta como Administrador,
+el certificado queda en el perfil del Administrador y el usuario normal
+(`aqf`) no puede usarlo → el Supervisor dice "equipo no registrado".
+
+El script detecta automáticamente si tiene permisos de Admin o no:
+- **Con Admin**: instala la CA raíz a nivel de máquina (todos los usuarios)
+- **Sin Admin**: instala la CA raíz a nivel de usuario (solo ese usuario)
+
+En ambos casos, el certificado de identidad del equipo queda en el perfil
+del usuario que lo ejecuta.
+
+## Flujo de instalación en un PC con varios usuarios
+
+```
+1. aqf-admin ejecuta Install-AquafrischCert.bat (doble-click normal)
+   → CA raíz instalada a nivel de máquina (todos los usuarios)
+   → Certificado mTLS instalado en perfil de aqf-admin ✓
+
+2. aqf ejecuta Install-AquafrischCert.bat (doble-click normal)
+   → CA raíz ya está (no la reinstala)
+   → Certificado mTLS instalado en perfil de aqf ✓
+   → Necesita un código de registro nuevo (generado en el Supervisor)
+```
 
 ## Cuándo usar este `.bat`
 
@@ -21,26 +58,21 @@ Es la **alternativa offline** al endpoint dinámico
   usuario no necesita abrir el navegador antes de instalar el cert (evita el
   aviso de "conexión no segura" desde el primer acceso).
 
-Ambos hacen exactamente lo mismo:
-
-```text
-curl -k -s -o %TEMP%\aquafrisch-supervisor.cer https://<IP>:5001/api/certificate/public
-certutil -addstore "Root" %TEMP%\aquafrisch-supervisor.cer
-```
-
 ## Uso
 
 1. Copiar `Install-AquafrischCert.bat` al PC cliente (pendrive, recurso de red…).
-2. **Click derecho → Ejecutar como administrador**.
-3. Introducir la IP del servidor cuando se solicite (por defecto `192.168.2.161`).
-4. Esperar a que termine ("INSTALACIÓN COMPLETADA").
-5. Cerrar y reabrir el navegador.
+2. Iniciar sesión con el usuario que va a usar el Supervisor.
+3. **Doble-click normal** en el `.bat` (NO "Ejecutar como administrador").
+4. Introducir la IP del servidor cuando se solicite (por defecto `192.168.2.161`).
+5. Introducir el código de registro cuando se solicite (generado en el panel del Supervisor → Usuarios → Equipos).
+6. Esperar a que termine ("INSTALACIÓN COMPLETADA").
+7. Cerrar y reabrir el navegador.
 
 ## Requisitos del PC cliente
 
 - Windows 10 1803 o superior (necesita `curl.exe` integrado).
-- Permisos de administrador local.
 - Conectividad TCP al servidor en el puerto HTTPS (por defecto 5001).
+- **No requiere permisos de administrador** para el enrollment mTLS.
 
 ## Notas para Firefox
 

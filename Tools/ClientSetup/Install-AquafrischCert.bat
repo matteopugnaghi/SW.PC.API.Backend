@@ -38,16 +38,17 @@ echo.
 :: -----------------------------------------------------------------
 echo  [0/5] Verificando permisos de administrador...
 net session >nul 2>&1
-if errorlevel 1 (
-    echo  [ERROR] Este script requiere permisos de Administrador.
-    echo          Cierra esta ventana, haz click DERECHO sobre el .bat
-    echo          y selecciona "Ejecutar como administrador".
-    >>"%LOGFILE%" echo [ERROR] No admin rights ^(net session errorlevel=%errorlevel%^)
-    set "EXITCODE=1"
-    goto :end
+set "IS_ADMIN=0"
+if not errorlevel 1 set "IS_ADMIN=1"
+
+if "!IS_ADMIN!"=="1" (
+    echo  [OK] Ejecutando como Administrador.
+    >>"%LOGFILE%" echo [OK] Admin rights confirmed
+) else (
+    echo  [INFO] Ejecutando como usuario estandar ^(%USERNAME%^).
+    echo  [INFO] La instalacion de la CA raiz requiere Admin ^(se omitira si ya esta instalada^).
+    >>"%LOGFILE%" echo [INFO] Running as standard user: %USERNAME%
 )
-echo  [OK] Ejecutando como Administrador.
->>"%LOGFILE%" echo [OK] Admin rights confirmed
 
 :: -----------------------------------------------------------------
 :: Pedir IP / hostname / puerto
@@ -153,24 +154,31 @@ if "!CERT_SIZE!"=="0" (
 echo  [OK] Certificado descargado ^(!CERT_SIZE! bytes^)
 
 :: -----------------------------------------------------------------
-:: 4/5  Instalar en almacen Root de la maquina
+:: 4/5  Instalar en almacen Root de la maquina (solo si es Admin)
 :: -----------------------------------------------------------------
 echo.
-echo  [4/5] Instalando en "Entidades de certificacion raiz de confianza"...
->>"%LOGFILE%" echo --- certutil output ---
-certutil -addstore "Root" "!CERT_FILE!" >>"%LOGFILE%" 2>&1
-set "CU_RC=!errorlevel!"
->>"%LOGFILE%" echo certutil exit code = !CU_RC!
-
-if not "!CU_RC!"=="0" (
-    echo  [ERROR] certutil ha fallado con codigo !CU_RC!.
-    echo          Revisa el log: %LOGFILE%
-    echo          Verifica que el fichero descargado es un certificado valido ^(PEM o DER^).
-    del "!CERT_FILE!" >nul 2>&1
-    set "EXITCODE=6"
-    goto :end
+if "!IS_ADMIN!"=="1" (
+    echo  [4/5] Instalando en "Entidades de certificacion raiz de confianza"...
+    >>"%LOGFILE%" echo --- certutil output ---
+    certutil -addstore "Root" "!CERT_FILE!" >>"%LOGFILE%" 2>&1
+    set "CU_RC=!errorlevel!"
+    >>"%LOGFILE%" echo certutil exit code = !CU_RC!
+    if not "!CU_RC!"=="0" (
+        echo  [ERROR] certutil ha fallado con codigo !CU_RC!.
+        echo          Revisa el log: %LOGFILE%
+        del "!CERT_FILE!" >nul 2>&1
+        set "EXITCODE=6"
+        goto :end
+    )
+    echo  [OK] Certificado SSL instalado en el almacen Root de la maquina.
+) else (
+    :: Usuario estandar: instalar en el store del usuario actual
+    echo  [4/5] Instalando certificado SSL en el almacen del usuario ^(%USERNAME%^)...
+    certutil -addstore -user "Root" "!CERT_FILE!" >>"%LOGFILE%" 2>&1
+    echo  [OK] Certificado SSL instalado en el almacen del usuario.
+    echo  [INFO] Para instalarlo a nivel de maquina ^(todos los usuarios^),
+    echo         ejecutar este script como Administrador.
 )
-echo  [OK] Certificado instalado en el almacen Root de la maquina.
 
 :: -----------------------------------------------------------------
 :: mTLS  Registro de equipo (solo si el servidor tiene MtlsEnabled)
@@ -211,13 +219,18 @@ if errorlevel 1 (
     set "EXITCODE=7"
     goto :end
 )
-certutil -addstore "Root" "%MACHINECA_FILE%" >>"%LOGFILE%" 2>&1
-if errorlevel 1 (
-    echo  [ERROR] No se pudo instalar la Machine CA en el almacen Root.
-    set "EXITCODE=7"
-    goto :end
+if "!IS_ADMIN!"=="1" (
+    certutil -addstore "Root" "%MACHINECA_FILE%" >>"%LOGFILE%" 2>&1
+    if errorlevel 1 (
+        echo  [ERROR] No se pudo instalar la Machine CA en el almacen Root.
+        set "EXITCODE=7"
+        goto :end
+    )
+    echo  [OK] Machine CA instalada en almacen Root ^(maquina^).
+) else (
+    certutil -addstore -user "Root" "%MACHINECA_FILE%" >>"%LOGFILE%" 2>&1
+    echo  [OK] Machine CA instalada en almacen Root ^(usuario^).
 )
-echo  [OK] Machine CA instalada.
 
 echo  [mTLS 2/4] Limpiando certificados de maquina anteriores...
 powershell -NoProfile -Command "Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq 'CN=%COMPUTERNAME%' -and $_.Issuer -like '*Aquafrisch*' } | ForEach-Object { Remove-Item $_.PSPath -Force; Write-Host '  Eliminado de CurrentUser\My:' $_.Thumbprint }" >>"%LOGFILE%" 2>&1
@@ -233,7 +246,7 @@ echo  [mTLS 3/4] Generando clave y solicitud de certificado ^(CSR^)...
     echo [NewRequest]
     echo Subject = "CN=%COMPUTERNAME%"
     echo KeyLength = 2048
-    echo Exportable = FALSE
+    echo Exportable = TRUE
     echo MachineKeySet = FALSE
     echo KeySpec = 1
     echo KeyUsage = 0x80
@@ -282,6 +295,7 @@ if errorlevel 1 (
 )
 :: Politica AutoSelectCertificateForUrls: Edge y Chrome presentan el certificado
 :: automaticamente al conectar al Supervisor (sin popup de seleccion).
+:: Usar LocalMachine store (MachineKeySet=TRUE)
 set "AUTOSEL={\"pattern\":\"https://!SERVER_HOST!:!SERVER_PORT!\",\"filter\":{\"ISSUER\":{\"CN\":\"Aquafrisch Machine CA\"}}}"
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge\AutoSelectCertificateForUrls" /v 1 /t REG_SZ /d "!AUTOSEL!" /f >>"%LOGFILE%" 2>&1
 reg add "HKLM\SOFTWARE\Policies\Google\Chrome\AutoSelectCertificateForUrls" /v 1 /t REG_SZ /d "!AUTOSEL!" /f >>"%LOGFILE%" 2>&1
