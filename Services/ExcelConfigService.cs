@@ -3574,6 +3574,17 @@ namespace SW.PC.API.Backend.Services
                                 break;
 
                             // ═══════════════════════════════════════════════════════════════
+                            // 🥽 WEB XR - Modo inmersivo VR (Meta Quest)
+                            // ═══════════════════════════════════════════════════════════════
+                            case "webxrenabled":
+                            case "webxr_enabled":
+                            case "web_xr_enabled":
+                                var webXrValue = paramValue?.ToLower()?.Trim() ?? "";
+                                config.WebXREnabled = webXrValue == "true" || webXrValue == "1" || webXrValue == "on" || webXrValue == "si" || webXrValue == "yes";
+                                _logger.LogDebug("🥽 WebXREnabled raw value: '{RawValue}' -> {Parsed}", paramValue, config.WebXREnabled);
+                                break;
+
+                            // ═══════════════════════════════════════════════════════════════
                             // 🌐 ETHERCAT TOPOLOGY - Diagnóstico de Red Industrial
                             // ═══════════════════════════════════════════════════════════════
                             case "enableethercattopology":

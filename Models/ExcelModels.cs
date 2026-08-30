@@ -1011,6 +1011,17 @@ namespace SW.PC.API.Backend.Models.Excel
         public bool FastConfigurationEnabled { get; set; } = false;
 
         // ═══════════════════════════════════════════════════════════════════════════
+        // 🥽 WEB XR - Modo inmersivo VR (Meta Quest)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Habilitar modo inmersivo WebXR (visores VR tipo Meta Quest).
+        /// Si false o ausente (default), el botón no aparece en la TopBar y el
+        /// comportamiento del software es exactamente el actual.
+        /// </summary>
+        public bool WebXREnabled { get; set; } = false;
+
+        // ═══════════════════════════════════════════════════════════════════════════
         // 📷 3D SCENE / CAMERA - Configuración de escena 3D Babylon.js
         // ═══════════════════════════════════════════════════════════════════════════
 
