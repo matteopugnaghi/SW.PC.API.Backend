@@ -1,0 +1,88 @@
+==============================================================
+ DEMO FERIA AQUAFRISCH SUPERVISOR + META QUEST 3  -  GUIA RAPIDA
+==============================================================
+
+DATOS FIJOS (iguales en todos los portatiles)
+  WiFi demo:        AQF-DEMO
+  Contrasena WiFi:  Aquafrisch2026!
+  URL demo local:   https://192.168.137.1:5001   (opcion C)
+  URL servidor:     https://192.168.2.199:5001   (opcion B, via VPN)
+
+
+--------------------------------------------------------------
+ 1. EN LA OFICINA - PREPARAR EL PAQUETE (PC desarrollo)
+--------------------------------------------------------------
+  a) Si hubo cambios de frontend:  cd my-3d-app && npm run build
+  b) Doble clic:  Tools\DemoFeria\Preparar-DemoFeria.bat
+     - Pide la lista de proyectos (Enter = A72.TOUTWP)
+     - Genera C:\AquafrischDemo\  (paquete completo portable)
+  c) Abrir el Excel de CADA proyecto del paquete:
+     C:\AquafrischDemo\Backend\Projects\{X}\config\ProjectConfig.xlsm
+       - System Config -> Simulated PLC = TRUE   (obligatorio)
+       - System Config -> WebXREnabled = TRUE    (boton VR)
+     El fichero DEBE llamarse ProjectConfig.xlsm
+  d) Copiar la carpeta C:\AquafrischDemo\ a un USB
+
+
+--------------------------------------------------------------
+ 2. PREPARAR CADA PORTATIL DE FERIA (una vez, ~15 min)
+--------------------------------------------------------------
+  a) Copiar C:\AquafrischDemo\ del USB al disco
+  b) Solo si se usara la opcion B (servidor en vivo):
+     instalar FortiClient + perfil VPN de empresa
+  c) PRUEBA DE HUMO completa (pasos 3 y 4 de esta guia)
+
+
+--------------------------------------------------------------
+ 3. DIA DE FERIA - OPCION C: DEMO LOCAL (la fiable, sin internet)
+--------------------------------------------------------------
+  1) C:\AquafrischDemo\Iniciar-Hotspot-Demo.bat   (aceptar UAC)
+     -> crea el WiFi AQF-DEMO
+  2) C:\AquafrischDemo\Backend\Iniciar-Demo.bat
+     (la 1a vez en cada portatil: clic derecho -> como Administrador)
+     -> elegir proyecto en el menu
+  3) Quest: WiFi AQF-DEMO -> navegador -> https://192.168.137.1:5001
+     -> aceptar aviso certificado -> login -> boton VR
+  * Cerrar la ventana del backend detiene la demo.
+  * Cambiar de proyecto = cerrar ventana y repetir paso 2.
+
+
+--------------------------------------------------------------
+ 4. DIA DE FERIA - OPCION B: SERVIDOR EN VIVO (necesita internet)
+--------------------------------------------------------------
+  0) El portatil necesita internet (WiFi feria o hotspot del movil)
+  1) FortiClient -> conectar VPN de empresa
+  2) C:\AquafrischDemo\Iniciar-Puente-VPN.bat   (aceptar UAC)
+  3) Quest: WiFi AQF-DEMO -> https://192.168.2.199:5001
+  * Si FortiClient se reconecta -> relanzar Iniciar-Puente-VPN.bat
+  * Para volver a la opcion C: Iniciar-Hotspot-Demo.bat y cambiar
+    la URL en la Quest. La Quest NO cambia de WiFi.
+
+
+--------------------------------------------------------------
+ 5. EN LA QUEST (primera vez)
+--------------------------------------------------------------
+  - Conectar al WiFi AQF-DEMO (guarda la red para siempre)
+  - Navegador -> URL -> "Avanzado" -> "Continuar" (certificado)
+  - Guardar las 2 URLs como favoritos
+  - Boton VR en la barra superior -> aceptar inmersion
+  - Mandos: stick IZQUIERDO mover, stick DERECHO girar
+  - Salir de VR: boton Meta del mando derecho
+
+
+--------------------------------------------------------------
+ 6. SI ALGO FALLA
+--------------------------------------------------------------
+  - Quest no carga la pagina:
+      comprobar que esta en el WiFi AQF-DEMO (no en otro)
+      comprobar que la ventana del backend sigue abierta
+      probar desde el navegador del portatil: https://localhost:5001
+  - Hotspot no arranca:
+      Configuracion Windows -> Red -> Punto de acceso movil (manual)
+  - Boton VR no aparece:
+      WebXREnabled=TRUE en el Excel del proyecto + recargar pagina
+  - Boton VR atenuado en el portatil: NORMAL (el PC no es un visor)
+  - Todo lento / maquinas no se mueven:
+      Simulated PLC=TRUE en el Excel del proyecto
+  - Detener el WiFi demo: Detener-Puente-VPN.bat
+==============================================================
