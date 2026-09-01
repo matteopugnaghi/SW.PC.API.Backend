@@ -837,6 +837,9 @@ builder.Services.AddHostedService<BackupSchedulerService>(); // 💾 Backup auto
 builder.Services.AddHostedService<WashRecipeAutoLoadService>(); // 🚿 Auto-carga de recetas de lavado desde PLC
 builder.Services.AddHostedService<TrainRecipeAutoLoadService>(); // 🚆 Auto-carga de tipos de tren desde PLC
 builder.Services.AddHostedService<ClientConnectionTrackerService>(); // ⏱️ Tracker de clientes conectados + contador al PLC
+builder.Services.AddSingleton<SimulationDriverService>(); // 🎮 Simulador de elementos 3D para demos (solo UseSimulatedPlc=TRUE)
+builder.Services.AddSingleton<ISimulationDriverService>(sp => sp.GetRequiredService<SimulationDriverService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SimulationDriverService>());
 builder.Services.AddHostedService<TmeSensorService>(); // 🌡️ Sondas de temperatura Papouch TME (HTTP → ADS)
 builder.Services.AddHostedService<ExcelConfigWatcherService>(); // 📋 EU CRA: auto-reload + diff-audit al detectar cambios en ProjectConfig.xlsm
 
