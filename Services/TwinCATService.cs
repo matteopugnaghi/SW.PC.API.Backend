@@ -976,10 +976,27 @@ namespace SW.PC.API.Backend.Services
                 }
             }
             
-            // ❌ NO hay modo simulado para lectura de variables críticas
-            // Si llegamos aquí, el PLC no está conectado y no hay datos reales
-            _logger.LogError("❌ No se puede leer '{Var}' - PLC no conectado y no hay modo simulado", variableName);
-            throw new InvalidOperationException($"No se puede leer '{variableName}': El PLC no está conectado. No se generan datos simulados.");
+            // 🎮 MODO SIMULADO: devolver el valor del diccionario simulado (lo escribe el
+            // SimulationDriverService o los writes de la app). Antes se lanzaba excepción,
+            // lo que generaba cientos de stack traces por segundo desde el polling
+            // (582 vars × 1/s) → cola de logs sin límite → 1.5GB RAM → backend congelado.
+            if (_isSimulatedMode)
+            {
+                if (_simulatedVariables.TryGetValue(variableName, out var simValue))
+                {
+                    return simValue;
+                }
+                // Sin valor escrito aún: valor de reposo tipado (0/false/"") — sin logs (ruta caliente)
+                if (dataType == typeof(bool)) return false;
+                if (dataType == typeof(string)) return string.Empty;
+                if (dataType == typeof(double)) return 0.0;
+                if (dataType == typeof(float)) return 0.0f;
+                return 0;
+            }
+
+            // ❌ PLC real no conectado: error legítimo
+            _logger.LogError("❌ No se puede leer '{Var}' - PLC no conectado", variableName);
+            throw new InvalidOperationException($"No se puede leer '{variableName}': El PLC no está conectado.");
         }
         
         /// <summary>

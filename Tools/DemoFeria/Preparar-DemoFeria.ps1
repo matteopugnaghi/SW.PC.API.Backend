@@ -89,6 +89,21 @@ echo  ============================================
 echo   DEMO AQUAFRISCH SUPERVISOR - FERIA
 echo  ============================================
 echo.
+REM Guardia: si otro backend ya ocupa el puerto, avisar claro y abortar
+netstat -ano | findstr /R /C:":5001 .*LISTENING" >nul 2>&1
+if not errorlevel 1 (
+  echo  [ERROR] El puerto 5001 YA ESTA OCUPADO por otro programa.
+  echo  Causa tipica: otro backend Aquafrisch corriendo ^(p.ej. el de
+  echo  desarrollo de VS Code, que arranca solo al abrir la carpeta^).
+  echo.
+  echo  Procesos SW.PC.API.Backend activos:
+  tasklist /FI "IMAGENAME eq SW.PC.API.Backend.exe"
+  echo.
+  echo  Cierralo ^(o ejecuta: taskkill /IM SW.PC.API.Backend.exe /F^)
+  echo  y vuelve a lanzar este script.
+  pause
+  exit /b 1
+)
 echo Proyectos disponibles:
 set i=0
 for /D %%P in ("Projects\*") do (
@@ -108,8 +123,11 @@ for /f "tokens=2 delims=:" %%A in ('ipconfig ^| findstr /C:"IPv4"') do echo   %%
 echo.
 echo Proyecto activo: !SUPERVISOR_PROJECT!
 echo Arrancando backend... (cerrar esta ventana detiene la demo)
+echo NO hacer clic DENTRO de esta ventana (pausa el programa; si pasa, pulsar Esc)
 echo.
 SW.PC.API.Backend.exe
+echo.
+echo [AVISO] El backend ha terminado. Revisa los mensajes de arriba.
 pause
 '@
 Set-Content (Join-Path $backendDst 'Iniciar-Demo.bat') -Value $bat -Encoding ASCII
