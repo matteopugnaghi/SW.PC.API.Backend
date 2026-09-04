@@ -9,6 +9,10 @@
     <RuntimeFrameworkVersion>8.0.0</RuntimeFrameworkVersion>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
+    <!-- Carpetas de artefactos: el SDK Web incluye **/*.json como Content por defecto,
+         lo que causaba copias recursivas publish\publish\... y rutas >260 chars.
+         Projects\** crece en runtime (logs/backups/data) y el deploy lo copia aparte. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish\**;LocalDeploys\**;backups\**;pptx_gen\**;.venv\**;Installers\**;Projects\**;temp_*.json</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
