@@ -1029,6 +1029,7 @@ namespace SW.PC.API.Backend.Controllers
             {
                 kioskModeEnabled = config.KioskModeEnabled,
                 installationId = config.InstallationId,
+                serverHostName = Environment.MachineName,
                 allowedRoles = config.AllowedSystemToolsRoles.Split(',').Select(r => r.Trim()),
                 tools = new
                 {
