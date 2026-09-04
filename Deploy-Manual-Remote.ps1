@@ -2507,7 +2507,8 @@ if (Test-Path $certRemoteDest) {
         $existingPfx.Dispose()
         
         # Verificar que tiene SAN tipo "IP Address" (no solo "DNS Name" para la IP)
-        if ($sanText -match "IP.*(Address|Direcci)" -or $sanText -match "IPAddress") {
+        # Locale-proof: en Windows ES el formato es "Dirección IP=", en EN "IP Address="
+        if ($sanText -match 'IP\s*Address|IPAddress|Direcci\S*\s*IP') {
             Write-Info "Certificado SSL existente tiene IP SAN correcto - NO se sobreescribe"
             Write-Info "Para regenerar, elimina manualmente: $InstallPath\Backend\certificate.pfx"
             
