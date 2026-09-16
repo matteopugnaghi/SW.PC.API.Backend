@@ -1480,7 +1480,7 @@ $cleanupItems = @(
     "$RemotePath\ExcelConfig",                            # Legacy folder sin 's' (ya no se usa)
     "$RemotePath\Backend\ExcelConfigs",                   # Legacy folder dentro de Backend
     "$RemotePath\Backend\ExcelConfig",                    # Legacy folder sin 's' dentro de Backend
-    "$RemotePath\Backend\Data",                           # Legacy folder (Aquafrisch.db ya no se usa)
+    "$RemotePath\Backend\Data\Aquafrisch.db",             # Legacy DB (⚠️ NO borrar Backend\Data entera: Data\mtls\machine-ca.pfx es la Machine CA — borrarla invalida TODOS los certs de cliente mTLS)
     "$RemotePath\Backend\backups",                        # Legacy backups folder (ahora en Projects/{id}/backups)
     "$RemotePath\Backend\n",                              # Carpeta errónea
     "$RemotePath\Backend\wwwroot\robots.txt",             # SEO file (no necesario)
