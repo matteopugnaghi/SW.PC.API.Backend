@@ -114,6 +114,9 @@ public class AquafrischDbContext : DbContext
     /// <summary>Códigos de registro de equipo de un solo uso (mTLS enrollment).</summary>
     public DbSet<MachineRegistrationCode> MachineRegistrationCodes { get; set; } = null!;
 
+    /// <summary>Dispositivos identificados por token de URL (sin soporte de certificados: paneles HMI, tablets).</summary>
+    public DbSet<TokenDevice> TokenDevices { get; set; } = null!;
+
     #endregion
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -473,6 +476,15 @@ public class AquafrischDbContext : DbContext
         });
 
         // ============================================
+        // Configuración de TokenDevice (identidad por token de URL)
+        // ============================================
+        modelBuilder.Entity<TokenDevice>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.TokenHash).IsUnique();
+        });
+
+        // ============================================
         // Seed Data - Roles del Sistema
         // ============================================
         SeedRoles(modelBuilder);
@@ -660,6 +672,7 @@ public static class AquafrischDbContextFactory
         await RunStepAsync(nameof(EnsureExportTasksTableAsync), () => EnsureExportTasksTableAsync(context));
         await RunStepAsync(nameof(EnsureExportProfileTablesAsync), () => EnsureExportProfileTablesAsync(context));
         await RunStepAsync(nameof(EnsureMachineRegistrationCodesTableAsync), () => EnsureMachineRegistrationCodesTableAsync(context));
+        await RunStepAsync(nameof(EnsureTokenDevicesTableAsync), () => EnsureTokenDevicesTableAsync(context));
 
         static async Task RunStepAsync(string step, Func<Task> action)
         {
@@ -1701,6 +1714,32 @@ public static class AquafrischDbContextFactory
         catch (Exception ex)
         {
             Console.WriteLine($"[mTLS] EnsureMachineRegistrationCodesTableAsync error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Crear tabla TokenDevices si no existe (identidad de dispositivo por token de URL).
+    /// Bases de datos existentes: EnsureCreatedAsync no añade tablas nuevas.
+    /// </summary>
+    public static async Task EnsureTokenDevicesTableAsync(AquafrischDbContext context)
+    {
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS TokenDevices (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    TokenHash TEXT NOT NULL,
+                    Name TEXT NOT NULL,
+                    CreatedBy TEXT NOT NULL DEFAULT '',
+                    CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                    LastUsedAt TEXT,
+                    Revoked INTEGER NOT NULL DEFAULT 0
+                )");
+            await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_TokenDevices_TokenHash ON TokenDevices(TokenHash)");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[TokenDevices] EnsureTokenDevicesTableAsync error: {ex.Message}");
         }
     }
 }

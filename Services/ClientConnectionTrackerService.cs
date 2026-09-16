@@ -234,7 +234,8 @@ namespace SW.PC.API.Backend.Services
                 
                 // 🖥️ Escribir ClientsHostName[0..5] - nombre de equipo de CADA usuario
                 // Array paralelo (mismo índice = mismo usuario). Origen: CN del certificado
-                // cliente mTLS (verificado) o Environment.MachineName si es el kiosco local.
+                // cliente mTLS o nombre de dispositivo por token (ambos verificados), o
+                // Environment.MachineName si es el kiosco local.
                 // Sin identidad verificable → "" (nunca se adivina por DNS inverso).
                 if (!string.IsNullOrEmpty(systemConfig.ClientsHostName))
                 {

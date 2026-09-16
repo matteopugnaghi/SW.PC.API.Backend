@@ -122,6 +122,20 @@ public sealed record OriginContext(string? RemoteIp, string? MachineName)
             var cert = http.Connection.ClientCertificate;
             if (cert != null)
                 machine = cert.GetNameInfo(X509NameType.SimpleName, forIssuer: false);
+
+            // Sin cert: dispositivos por TOKEN de URL (paneles HMI sin almacén de certificados).
+            // El nombre registrado equivale al CN — misma semántica en AllowedOrigins,
+            // ShouldBlockLogin y hostname hacia el PLC.
+            if (machine == null)
+            {
+                var deviceKey = http.Request.Headers["X-Device-Key"].FirstOrDefault();
+                // WebSockets del navegador no admiten headers: SignalR lo pasa por query
+                // string SOLO en /hubs/* (mismo patrón que el access_token JWT).
+                if (string.IsNullOrEmpty(deviceKey) && http.Request.Path.StartsWithSegments("/hubs"))
+                    deviceKey = http.Request.Query["deviceKey"].FirstOrDefault();
+                if (!string.IsNullOrEmpty(deviceKey))
+                    machine = TokenDeviceRegistry.Resolve(deviceKey);
+            }
         }
         return new OriginContext(ip, machine);
     }

@@ -44,7 +44,8 @@ namespace SW.PC.API.Backend.Hubs
             string ipAddress = Context.GetHttpContext()?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
             
             // 🖥️ Nombre de equipo del cliente (identidad VERIFICADA, nunca adivinada):
-            //  - CN del certificado cliente mTLS (solo MtlsEnabled=TRUE + equipo registrado), o
+            //  - CN del certificado cliente mTLS, o nombre del dispositivo por token
+            //    (?deviceKey= en la URL del hub) — ambos solo con MtlsEnabled=TRUE —, o
             //  - Environment.MachineName si la conexión es loopback (kiosco local = esta máquina).
             //  - En cualquier otro caso queda "" (HTTP :5000 o equipo sin registrar).
             string hostName = "";

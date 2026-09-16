@@ -297,17 +297,17 @@ pause
     public IActionResult GetMtlsInfo()
     {
         var clientCert = HttpContext.Connection.ClientCertificate;
-        var machineName = clientCert?.GetNameInfo(X509NameType.SimpleName, forIssuer: false);
-        var remoteIp = OriginPermissionEvaluator.NormalizeIp(
-            HttpContext.Connection.RemoteIpAddress?.ToString());
+        // OriginContext resuelve cert CN y, en su defecto, token de dispositivo (X-Device-Key)
+        var origin = OriginContext.FromHttpContext(HttpContext);
 
         return Ok(new
         {
             mtlsEnabled = MtlsState.Enabled,
             requireRegisteredMachine = MtlsState.RequireRegisteredMachine,
             hasClientCertificate = clientCert != null,
-            machineName,
-            remoteIp
+            machineName = origin.MachineName,
+            identitySource = clientCert != null ? "certificate" : (origin.MachineName != null ? "token" : null),
+            remoteIp = origin.RemoteIp
         });
     }
 
@@ -502,6 +502,107 @@ pause
             ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
 
         return Ok(new { revoked = true, machineName });
+    }
+
+    // ========================================================================
+    // 🔑 Token devices — identidad por token de URL (dispositivos sin certificados)
+    // ========================================================================
+
+    /// <summary>
+    /// Registra un dispositivo por token (paneles HMI, tablets — sin almacén de
+    /// certificados). El token en claro solo se devuelve UNA vez; en BD queda su hash.
+    /// </summary>
+    [HttpPost("token-devices")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> CreateTokenDevice([FromBody] TokenDeviceCreateRequest request)
+    {
+        var name = request?.Name?.Trim();
+        if (string.IsNullOrEmpty(name) || name.Length > 100)
+            return BadRequest(new { error = "Nombre de dispositivo inválido (1-100 caracteres)." });
+
+        var createdBy = User.Identity?.Name ?? "unknown";
+        var token = TokenDeviceRegistry.GenerateToken();
+
+        await using var db = _dbFactory.CreateDbContext();
+        db.TokenDevices.Add(new TokenDevice
+        {
+            TokenHash = TokenDeviceRegistry.HashToken(token),
+            Name = name,
+            CreatedBy = createdBy,
+            CreatedAt = DateTime.Now
+        });
+        await db.SaveChangesAsync();
+        await TokenDeviceRegistry.ReloadAsync();
+
+        await _auditLog.LogAsync(AuditCategory.Security, AuditAction.CertificateGenerate, AuditResult.Success,
+            details: $"Dispositivo por token '{name}' registrado (identidad sin certificado)",
+            userName: createdBy,
+            ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+
+        return Ok(new { token, name });
+    }
+
+    /// <summary>Lista los dispositivos por token (nunca el token en claro).</summary>
+    [HttpGet("token-devices")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListTokenDevices()
+    {
+        await using var db = _dbFactory.CreateDbContext();
+        var devices = await db.TokenDevices
+            .OrderByDescending(d => d.CreatedAt)
+            .Select(d => new { d.Id, d.Name, d.CreatedBy, d.CreatedAt, d.LastUsedAt, d.Revoked })
+            .ToListAsync();
+
+        return Ok(new { mtlsEnabled = MtlsState.Enabled, devices });
+    }
+
+    /// <summary>Revoca un dispositivo por token (efectivo al instante; conserva el histórico).</summary>
+    [HttpPost("token-devices/{id:int}/revoke")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RevokeTokenDevice(int id)
+    {
+        await using var db = _dbFactory.CreateDbContext();
+        var device = await db.TokenDevices.FindAsync(id);
+        if (device == null) return NotFound();
+
+        device.Revoked = true;
+        await db.SaveChangesAsync();
+        await TokenDeviceRegistry.ReloadAsync();
+
+        await _auditLog.LogAsync(AuditCategory.Security, AuditAction.CertificateGenerate, AuditResult.Warning,
+            details: $"Dispositivo por token '{device.Name}' (#{id}) REVOCADO por administrador",
+            userName: User.Identity?.Name,
+            ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+
+        return Ok(new { revoked = true, name = device.Name });
+    }
+
+    /// <summary>Elimina definitivamente un dispositivo por token.</summary>
+    [HttpDelete("token-devices/{id:int}")]
+    [Authorize(Roles = "SuperAdmin,Administrator")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteTokenDevice(int id)
+    {
+        await using var db = _dbFactory.CreateDbContext();
+        var device = await db.TokenDevices.FindAsync(id);
+        if (device == null) return NotFound();
+
+        var name = device.Name;
+        db.TokenDevices.Remove(device);
+        await db.SaveChangesAsync();
+        await TokenDeviceRegistry.ReloadAsync();
+
+        await _auditLog.LogAsync(AuditCategory.Security, AuditAction.CertificateGenerate, AuditResult.Warning,
+            details: $"Dispositivo por token '{name}' (#{id}) ELIMINADO por administrador",
+            userName: User.Identity?.Name,
+            ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString());
+
+        return Ok(new { deleted = true, name });
     }
 
     /// <summary>Alfabeto sin caracteres ambiguos (sin 0/O/1/I/L).</summary>
