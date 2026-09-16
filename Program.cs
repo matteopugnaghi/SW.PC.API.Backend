@@ -897,8 +897,8 @@ loggerFactory.AddProvider(new SystemLogBufferProvider(systemLogService));
     };
 
     // 🔑 Token devices: cache de tokens de dispositivo (BD por proyecto → recargar al cambiar)
-    var tokenDbFactory = app.Services.GetRequiredService<SW.PC.API.Backend.Data.IProjectDbContextFactory>();
-    SW.PC.API.Backend.Services.TokenDeviceRegistry.Initialize(tokenDbFactory);
+    SW.PC.API.Backend.Services.TokenDeviceRegistry.Initialize(
+        app.Services.GetRequiredService<IServiceScopeFactory>());
     await SW.PC.API.Backend.Services.TokenDeviceRegistry.ReloadAsync();
     app.Logger.LogInformation("🔑 TokenDeviceRegistry: {Count} dispositivos por token activos",
         SW.PC.API.Backend.Services.TokenDeviceRegistry.ActiveCount);

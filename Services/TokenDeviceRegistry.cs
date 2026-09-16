@@ -22,21 +22,25 @@ public static class TokenDeviceRegistry
 {
     private static readonly ConcurrentDictionary<string, (int Id, string Name)> _byHash = new();
     private static readonly ConcurrentDictionary<int, DateTime> _lastTouch = new();
-    private static IProjectDbContextFactory? _dbFactory;
+    // IServiceScopeFactory (singleton) en vez de IProjectDbContextFactory (scoped):
+    // resolver un scoped desde el provider raíz crashea en Development (ValidateScopes).
+    private static IServiceScopeFactory? _scopeFactory;
     private static readonly TimeSpan TouchThrottle = TimeSpan.FromMinutes(10);
 
     /// <summary>Número de dispositivos activos cacheados (diagnóstico).</summary>
     public static int ActiveCount => _byHash.Count;
 
-    public static void Initialize(IProjectDbContextFactory dbFactory) => _dbFactory = dbFactory;
+    public static void Initialize(IServiceScopeFactory scopeFactory) => _scopeFactory = scopeFactory;
 
     /// <summary>Recarga el cache desde la BD del proyecto activo (solo no revocados).</summary>
     public static async Task ReloadAsync()
     {
-        var factory = _dbFactory;
-        if (factory == null) return;
+        var scopeFactory = _scopeFactory;
+        if (scopeFactory == null) return;
         try
         {
+            using var scope = scopeFactory.CreateScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>();
             await using var db = factory.CreateDbContext();
             // Idempotente: garantiza la tabla aunque la init general aún no haya corrido
             await AquafrischDbContextFactory.EnsureTokenDevicesTableAsync(db);
@@ -81,8 +85,8 @@ public static class TokenDeviceRegistry
 
     private static void TouchLastUsed(int id)
     {
-        var factory = _dbFactory;
-        if (factory == null) return;
+        var scopeFactory = _scopeFactory;
+        if (scopeFactory == null) return;
         var now = DateTime.Now;
         if (_lastTouch.TryGetValue(id, out var last) && now - last < TouchThrottle) return;
         _lastTouch[id] = now;
@@ -91,11 +95,17 @@ public static class TokenDeviceRegistry
         {
             try
             {
+                using var scope = scopeFactory.CreateScope();
+                var factory = scope.ServiceProvider.GetRequiredService<IProjectDbContextFactory>();
                 await using var db = factory.CreateDbContext();
                 await db.Database.ExecuteSqlRawAsync(
                     "UPDATE TokenDevices SET LastUsedAt = {0} WHERE Id = {1}", now, id);
             }
-            catch { /* best-effort: no afecta al request */ }
+            catch (Exception ex)
+            {
+                // Visible en logs pero sin afectar al request; se reintenta en el próximo throttle
+                Console.WriteLine($"[TokenDevices] LastUsedAt update error (Id={id}): {ex.Message}");
+            }
         });
     }
 }
