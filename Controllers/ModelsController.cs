@@ -165,6 +165,11 @@ namespace SW.PC.API.Backend.Controllers
                 "gltf" => "model/gltf+json",
                 "obj" => "model/obj",
                 "stl" => "model/stl",
+                // Imágenes: usadas por el modo 3D estático (main-static.png en <img>)
+                "png" => "image/png",
+                "jpg" => "image/jpeg",
+                "jpeg" => "image/jpeg",
+                "webp" => "image/webp",
                 _ => "application/octet-stream"
             };
         }
