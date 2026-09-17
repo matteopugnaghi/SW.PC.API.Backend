@@ -104,7 +104,11 @@ public class AuthController : ControllerBase
 
         // 🔐 mTLS REVOCACIÓN: si RequireRegisteredMachine está activo y el equipo tiene
         // cert válido pero su registro fue revocado en la BD, bloquear el login.
+        // Solo aplica a identidad por CERTIFICADO (el cert sigue siendo válido a nivel TLS
+        // tras revocarlo en BD). La identidad por TOKEN ya se valida contra el registry vivo:
+        // token revocado → Resolve devuelve null → lo bloquea ShouldBlockLogin arriba.
         if (MtlsState.Enabled && MtlsState.RequireRegisteredMachine
+            && HttpContext.Connection.ClientCertificate != null
             && response.User?.Roles?.Contains("SuperAdmin") != true)
         {
             var origin = SW.PC.API.Backend.Services.OriginContext.FromHttpContext(HttpContext);
