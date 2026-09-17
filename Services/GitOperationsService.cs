@@ -1365,6 +1365,8 @@ public class GitOperationsService : IGitOperationsService
             process.BeginErrorReadLine();
             var completed = await Task.Run(() => process.WaitForExit(timeoutMs));
             if (!completed) { process.Kill(); return (false, null, $"Command timed out after {timeoutMs/1000}s"); }
+            // Drenar los lectores async: sin esto la salida larga (ej. git tag con 100+ tags) llega truncada
+            process.WaitForExit();
             return (process.ExitCode == 0, outputBuilder.ToString(), errorBuilder.ToString());
         }
         catch (Exception ex) { _logger.LogError(ex, "Error running git command: {Args}", SanitizeGitArgs(arguments)); return (false, null, ex.Message); }
