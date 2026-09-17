@@ -433,7 +433,7 @@ function Get-GitVersionInfo {
         $signatureCode = (git log -1 --format=%G? 2>$null) -replace "`n|`r", ""
         $signatureSigner = (git log -1 --format=%GS 2>$null) -replace "`n|`r", ""
         $signatureKey = (git log -1 --format=%GK 2>$null) -replace "`n|`r", ""
-        $latestTag = (git tag --sort=-version:refname -l "20*" | Select-Object -First 1) -replace "`n|`r", ""
+        $latestTag = (git tag -l "20*" "v20*" | Sort-Object { $_.TrimStart('v') } -Descending | Select-Object -First 1) -replace "`n|`r", ""
         
         # Mapear código de firma a estado legible
         $signatureStatus = switch ($signatureCode) {

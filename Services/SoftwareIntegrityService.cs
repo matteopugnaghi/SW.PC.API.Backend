@@ -814,8 +814,8 @@ namespace SW.PC.API.Backend.Services
                 var signatureCodeTask = RunGitCommandAsync(repoPath, "log -1 --format=%G?");
                 var signatureSignerTask = RunGitCommandAsync(repoPath, "log -1 --format=%GS");
                 var signatureKeyTask = RunGitCommandAsync(repoPath, "log -1 --format=%GK");
-                // Obtener último tag CalVer con fecha
-                var latestTagTask = RunGitCommandAsync(repoPath, "tag --sort=-version:refname --format=%(refname:short)|%(creatordate:short) -l \"20*\"");
+                // Obtener último tag CalVer con fecha (acepta "2026.09.01" y "v2026.09.01")
+                var latestTagTask = RunGitCommandAsync(repoPath, "tag --sort=-version:refname --format=%(refname:short)|%(creatordate:short) -l \"20*\" \"v20*\"");
 
                 await Task.WhenAll(shaTask, shaShortTask, branchTask, describeTask, statusTask, dateTask, authorTask, authorEmailTask, messageTask, signatureCodeTask, signatureSignerTask, signatureKeyTask, latestTagTask);
 
@@ -1128,13 +1128,14 @@ namespace SW.PC.API.Backend.Services
                 // Leer datos del commit directamente del objeto git (sin git.exe)
                 await TryReadCommitObjectAsync(component, gitDir, commitSha);
 
-                // Buscar tags CalVer (20*) para versión
+                // Buscar tags CalVer (20* / v20*) para versión
                 var tagsDir = Path.Combine(gitDir, "refs", "tags");
                 if (Directory.Exists(tagsDir))
                 {
                     var tags = Directory.GetFiles(tagsDir, "20*")
+                        .Concat(Directory.GetFiles(tagsDir, "v20*"))
                         .Select(f => new { Name = Path.GetFileName(f), Sha = File.ReadAllText(f).Trim() })
-                        .OrderByDescending(t => t.Name)
+                        .OrderByDescending(t => t.Name.TrimStart('v'))
                         .ToList();
 
                     if (tags.Count > 0)
