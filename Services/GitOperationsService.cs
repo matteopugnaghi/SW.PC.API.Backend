@@ -1779,10 +1779,11 @@ public class GitOperationsService : IGitOperationsService
         try
         {
             var tags = await GetTagsAsync(repoPath);
+            // Normalizar prefijo 'v' (acepta "2026.09.01" y "v2026.09.01")
             var currentMonthTags = tags
-                .Where(t => t.Name.StartsWith(yearMonth))
-                .Select(t => t.Name)
-                .OrderByDescending(t => t)
+                .Select(t => t.Name.TrimStart('v', 'V'))
+                .Where(n => n.StartsWith(yearMonth))
+                .OrderByDescending(n => n)
                 .ToList();
 
             if (currentMonthTags.Count == 0)
