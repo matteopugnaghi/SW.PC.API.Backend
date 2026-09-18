@@ -1290,6 +1290,14 @@ app.UseStaticFiles(new StaticFileOptions
         ctx.Context.Response.Headers["Access-Control-Allow-Origin"] = "*";
         ctx.Context.Response.Headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS";
         ctx.Context.Response.Headers["Access-Control-Allow-Headers"] = "*";
+
+        // 🔄 .html siempre revalidado (no-cache = 304 si no cambió): los paneles kiosco
+        // (Weintek) cacheaban el index.html viejo tras cada deploy y seguían cargando
+        // bundles antiguos. Los assets hasheados static/* no lo necesitan.
+        if (ctx.File.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers["Cache-Control"] = "no-cache";
+        }
     }
 });
 
@@ -1314,7 +1322,11 @@ app.MapHub<ScadaHub>("/hubs/scada").DisableRateLimiting();
 // ═══════════════════════════════════════════════════════════════════════════════
 // For React SPA: any route not matching API or static files falls back to index.html
 // This allows React Router to handle client-side routing
-app.MapFallbackToFile("index.html");
+// 🔄 no-cache: mismo motivo que en UseStaticFiles (paneles kiosco con index viejo)
+app.MapFallbackToFile("index.html", new StaticFileOptions
+{
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers["Cache-Control"] = "no-cache"
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 📋 AUDIT LOG: System Startup & Shutdown Events (EU CRA / CADRA Compliance)
