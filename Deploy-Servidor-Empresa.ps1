@@ -840,10 +840,16 @@ if (Test-Path $certRemoteDest) {
             [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
         $sanExt = $existingPfx.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.17" }
         $sanText = if ($sanExt) { $sanExt.Format($false) } else { "" }
+        # BasicConstraints CA=true (Android exige que sea CA para instalarlo como cert de confianza)
+        $bcExt = $existingPfx.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.19" }
+        $isCaCert = $false
+        if ($bcExt) { $isCaCert = ([System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]$bcExt).CertificateAuthority }
         $existingPfx.Dispose()
         
         # Verificar que tiene SAN tipo "IP Address" (no solo "DNS Name" para la IP)
-        if ($sanText -match "IP.*(Address|Direcci)" -or $sanText -match "IPAddress") {
+        # Locale-proof: en Windows ES el formato es "Direccion IP=", en EN "IP Address="
+        $hasIpSan = ($sanText -match 'IP\s*Address|IPAddress|Direcci\S*\s*IP')
+        if ($hasIpSan -and $isCaCert) {
             Write-Info "Certificado SSL existente tiene IP SAN correcto - NO se sobreescribe"
             Write-Info "Para regenerar, elimina manualmente: $InstallPath\Backend\certificate.pfx"
             
@@ -858,6 +864,12 @@ if (Test-Path $certRemoteDest) {
                 $existingPfx2.Dispose()
                 Write-Success "Certificado publico exportado: certificate.cer"
             }
+        } elseif ($hasIpSan -and -not $isCaCert) {
+            Write-Warning "Certificado existente NO tiene BasicConstraints CA=true"
+            Write-Warning "Android lo rechaza como certificado de CA (tablets)"
+            Write-Step "Regenerando certificado con CA=true..."
+            Write-Warning "IMPORTANTE: los clientes Windows deberan reinstalar el certificado (Install-AquafrischCert.bat)"
+            $needsRegeneration = $true
         } else {
             Write-Warning "Certificado existente NO tiene IP SAN correcto (solo DNS Name)"
             Write-Warning "Chrome/Edge requieren SAN tipo 'IP Address' para acceso por IP"
@@ -903,8 +915,8 @@ if ($needsRegeneration) {
             -KeyLength 2048 `
             -KeyAlgorithm RSA `
             -HashAlgorithm SHA256 `
-            -KeyUsage DigitalSignature, KeyEncipherment `
-            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.1", $sanBuilder)
+            -KeyUsage DigitalSignature, KeyEncipherment, CertSign `
+            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.1", "2.5.29.19={critical}{text}ca=true&pathlength=0", $sanBuilder)
         
         # Exportar PFX (clave privada + publica — solo para Kestrel)
         $securePassword = ConvertTo-SecureString -String $certPassword -Force -AsPlainText
