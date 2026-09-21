@@ -64,9 +64,9 @@ namespace SW.PC.API.Backend.Models.Excel
 
         #endregion
 
-        #region Slots de Lectura PLC (Columnas AA en adelante)
+        #region Slots de Lectura PLC (Columnas AB en adelante)
 
-        /// <summary>Slots de datos para lectura del PLC (máximo 10)</summary>
+        /// <summary>Slots de datos para lectura del PLC (sin límite fijo: se leen todos los definidos en la hoja Excel, 13 columnas por slot)</summary>
         public List<InfoSettingSlot> Slots { get; set; } = new();
 
         #endregion
@@ -282,7 +282,7 @@ namespace SW.PC.API.Backend.Models.Excel
     /// </summary>
     public class InfoSettingSlot
     {
-        /// <summary>Índice del slot (1-10)</summary>
+        /// <summary>Índice del slot (1-N, según columnas definidas en la hoja Excel)</summary>
         public int Index { get; set; }
 
         /// <summary>Tipo de visualización del slot</summary>

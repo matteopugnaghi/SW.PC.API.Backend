@@ -1550,11 +1550,17 @@ namespace SW.PC.API.Backend.Services
 
             // Columnas base: A-L (12 columnas)
             // Botones: M en adelante (5 botones × 3 columnas = 15 columnas)
-            // Slots: AB en adelante (45 slots × 13 columnas = 585 columnas, hasta col WN)
+            // Slots: AB (col 28) en adelante, 13 columnas por slot. El número de slots
+            // se deduce dinámicamente de la última columna usada de la hoja.
             
             // 🔍 DEBUG: Mostrar dimensiones reales de la hoja
+            int lastUsedCol = sheet.LastColumnUsed()?.ColumnNumber() ?? 0;
             _logger.LogInformation("📐 Dimensiones de hoja '3D_Elements_Info_Setting': Rows={Rows}, Cols={Cols}",
-                sheet.LastRowUsed()?.RowNumber() ?? 0, sheet.LastColumnUsed()?.ColumnNumber() ?? 0);
+                sheet.LastRowUsed()?.RowNumber() ?? 0, lastUsedCol);
+
+            // Slots disponibles según columnas de la hoja (redondeo hacia arriba por si el último slot está incompleto)
+            int maxSlots = Math.Max(1, (lastUsedCol - 27 + 12) / 13);
+            _logger.LogInformation("🎰 Capacidad de slots detectada: {MaxSlots} slots (última columna usada: {LastCol})", maxSlots, lastUsedCol);
             
             // 🔍 DEBUG: Leer directamente la celda AC2 para verificar
             var directAC2 = sheet.Cell("AC2").GetString();
@@ -1647,12 +1653,12 @@ namespace SW.PC.API.Backend.Services
                         buttonCol += 3; // 3 columnas por control (mantiene compatibilidad M-AA)
                     }
 
-                    // Cargar 45 slots (columnas AB en adelante, 13 columnas por slot)
+                    // Cargar slots dinámicamente (columnas AB en adelante, 13 columnas por slot)
                     // AB=28: Slot_1_Type, AC=29: Slot_1_PlcVar, etc.
-                    // Slot 30 termina en col 417 (PA); Slot 45 termina en col 612 (WN)
+                    // maxSlots se calcula arriba según la última columna usada de la hoja
                     int slotCol = 28; // Columna AB
                     
-                    for (int slot = 1; slot <= 45; slot++)
+                    for (int slot = 1; slot <= maxSlots; slot++)
                     {
                         var slotTypeText = GetCellText(sheet, row, slotCol);
                         var plcVar = GetCellText(sheet, row, slotCol + 1);
@@ -1662,6 +1668,13 @@ namespace SW.PC.API.Backend.Services
                         {
                             _logger.LogInformation("   🔍 Row {Row}, Slot {Slot}: Type='{Type}' (col {TypeCol}), PlcVar='{PlcVar}' (col {VarCol})", 
                                 row, slot, slotTypeText, slotCol, plcVar, slotCol + 1);
+                        }
+                        
+                        // Slot sin variable PLC nunca es configurable: saltar sin leer las 11 columnas restantes
+                        if (string.IsNullOrWhiteSpace(plcVar))
+                        {
+                            slotCol += 13;
+                            continue;
                         }
                         
                         var slotConfig = new InfoSettingSlot
