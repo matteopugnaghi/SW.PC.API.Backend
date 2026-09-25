@@ -25,6 +25,11 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IRequestProjectContext _projectContext;
         private readonly IOperationLogService _operationLog;
         
+        // Cache de la variable PLC del nombre de tren por fichero Excel:
+        // evita parsear el .xlsm en cada poll de 3s de la vista (endpoint active-name)
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime Ts, string? NameVar)> _activeNameVarCache = new();
+        private static readonly TimeSpan _activeNameCacheTtl = TimeSpan.FromMinutes(5);
+        
         public TrainRecipeController(
             ILogger<TrainRecipeController> logger,
             IExcelConfigService excelService,
@@ -113,6 +118,59 @@ namespace SW.PC.API.Backend.Controllers
             {
                 _logger.LogError(ex, "🚂 Error loading train recipe configuration");
                 return StatusCode(500, new { error = "Error loading train recipe configuration", details = ex.Message });
+            }
+        }
+        
+        /// <summary>
+        /// Lee SOLO el nombre de tren activo del PLC (1 lectura ADS).
+        /// Pensado para el polling de la vista: el read-from-plc completo lee TODOS
+        /// los parámetros de la receta y parsea el Excel en cada llamada.
+        /// GET /api/train-recipe/active-name
+        /// </summary>
+        [HttpGet("active-name")]
+        public async Task<ActionResult<TrainRecipePlcOperationResult>> ReadActiveName()
+        {
+            try
+            {
+                var excelPath = _excelService.GetExcelConfigPath();
+                var cacheKey = excelPath.ToLowerInvariant();
+                
+                if (!_activeNameVarCache.TryGetValue(cacheKey, out var cached) ||
+                    (DateTime.Now - cached.Ts) > _activeNameCacheTtl)
+                {
+                    var config = await _excelService.LoadTrainRecipeConfigAsync(excelPath);
+                    cached = (DateTime.Now, config.TrainNamePlcVariable);
+                    _activeNameVarCache[cacheKey] = cached;
+                }
+                
+                var trainNameValue = string.Empty;
+                if (!string.IsNullOrEmpty(cached.NameVar))
+                {
+                    var result = await _twinCatService.ReadVariableAsync(cached.NameVar, typeof(string));
+                    trainNameValue = result?.ToString() ?? string.Empty;
+                }
+                
+                return Ok(new TrainRecipePlcOperationResult
+                {
+                    Success = true,
+                    Message = "OK",
+                    ParametersProcessed = 1,
+                    Data = new TrainRecipeConfigResponse
+                    {
+                        TrainNamePlcVariable = cached.NameVar,
+                        TrainNameValue = trainNameValue,
+                        LoadedAt = DateTime.Now
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🚂 Error reading active train name from PLC");
+                return StatusCode(500, new TrainRecipePlcOperationResult
+                {
+                    Success = false,
+                    Message = $"Error reading active train name: {ex.Message}"
+                });
             }
         }
         
@@ -717,6 +775,7 @@ namespace SW.PC.API.Backend.Controllers
             try
             {
                 _excelService.InvalidateCache();
+                _activeNameVarCache.Clear();
                 _logger.LogInformation("🚂 Train recipe configuration cache invalidated");
                 return Ok(new { success = true, message = "Configuration cache cleared" });
             }

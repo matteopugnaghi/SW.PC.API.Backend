@@ -171,84 +171,85 @@ namespace SW.PC.API.Backend.Controllers
                     Timestamp = DateTime.UtcNow
                 };
 
-                // Leer parámetros Bool
-                for (int i = 0; i < excelConfig.BoolSettings.Count; i++)
+                // Lecturas en PARALELO (secuencial = 1 espera ADS por parámetro → segundos al abrir Configuración)
+                var boolResults = await Task.WhenAll(excelConfig.BoolSettings.Select(async (setting, i) =>
                 {
-                    var setting = excelConfig.BoolSettings[i];
                     var id = $"bool_{SanitizeId(setting.Name)}_{i}";
                     try
                     {
                         var value = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(bool));
-                        if (value != null)
-                        {
-                            response.BoolValues[id] = (bool)value;
-                        }
+                        return (id, value: value != null ? (bool?)(bool)value : null, error: false);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogWarning("⚠️ Could not read bool {Name} from PLC: {Error}", setting.Name, ex.Message);
-                        response.BoolValues[id] = false; // Valor por defecto
+                        return (id, value: (bool?)null, error: true);
                     }
+                }));
+                foreach (var r in boolResults)
+                {
+                    if (r.value.HasValue) response.BoolValues[r.id] = r.value.Value;
+                    else if (r.error) response.BoolValues[r.id] = false; // Valor por defecto
                 }
 
-                // Leer parámetros Int
-                for (int i = 0; i < excelConfig.IntSettings.Count; i++)
+                var intResults = await Task.WhenAll(excelConfig.IntSettings.Select(async (setting, i) =>
                 {
-                    var setting = excelConfig.IntSettings[i];
                     var id = $"int_{SanitizeId(setting.Name)}_{i}";
                     try
                     {
                         var value = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(int));
-                        if (value != null)
-                        {
-                            response.IntValues[id] = Convert.ToInt32(value);
-                        }
+                        return (id, value: value != null ? (int?)Convert.ToInt32(value) : null, error: false);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogWarning("⚠️ Could not read int {Name} from PLC: {Error}", setting.Name, ex.Message);
-                        response.IntValues[id] = 0;
+                        return (id, value: (int?)null, error: true);
                     }
+                }));
+                foreach (var r in intResults)
+                {
+                    if (r.value.HasValue) response.IntValues[r.id] = r.value.Value;
+                    else if (r.error) response.IntValues[r.id] = 0;
                 }
 
-                // Leer parámetros LongReal
-                for (int i = 0; i < excelConfig.LongRealSettings.Count; i++)
+                var lrealResults = await Task.WhenAll(excelConfig.LongRealSettings.Select(async (setting, i) =>
                 {
-                    var setting = excelConfig.LongRealSettings[i];
                     var id = $"lreal_{SanitizeId(setting.Name)}_{i}";
                     try
                     {
                         var value = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(double));
-                        if (value != null)
-                        {
-                            response.LongRealValues[id] = Convert.ToDouble(value);
-                        }
+                        return (id, value: value != null ? (double?)Convert.ToDouble(value) : null, error: false);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogWarning("⚠️ Could not read longreal {Name} from PLC: {Error}", setting.Name, ex.Message);
-                        response.LongRealValues[id] = 0.0;
+                        return (id, value: (double?)null, error: true);
                     }
+                }));
+                foreach (var r in lrealResults)
+                {
+                    if (r.value.HasValue) response.LongRealValues[r.id] = r.value.Value;
+                    else if (r.error) response.LongRealValues[r.id] = 0.0;
                 }
 
-                // Leer parámetros LongReal2 (segunda sección)
-                for (int i = 0; i < excelConfig.LongReal2Settings.Count; i++)
+                var lreal2Results = await Task.WhenAll(excelConfig.LongReal2Settings.Select(async (setting, i) =>
                 {
-                    var setting = excelConfig.LongReal2Settings[i];
                     var id = $"lreal2_{SanitizeId(setting.Name)}_{i}";
                     try
                     {
                         var value = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(double));
-                        if (value != null)
-                        {
-                            response.LongReal2Values[id] = Convert.ToDouble(value);
-                        }
+                        return (id, value: value != null ? (double?)Convert.ToDouble(value) : null, error: false);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogWarning("⚠️ Could not read longreal2 {Name} from PLC: {Error}", setting.Name, ex.Message);
-                        response.LongReal2Values[id] = 0.0;
+                        return (id, value: (double?)null, error: true);
                     }
+                }));
+                foreach (var r in lreal2Results)
+                {
+                    if (r.value.HasValue) response.LongReal2Values[r.id] = r.value.Value;
+                    else if (r.error) response.LongReal2Values[r.id] = 0.0;
                 }
 
                 _logger.LogInformation("⚙️ Read {Count} values from PLC", 

@@ -24,6 +24,11 @@ namespace SW.PC.API.Backend.Controllers
         private readonly IRequestProjectContext _projectContext;
         private readonly IOperationLogService _operationLog;
         
+        // Cache de config mínima (variable de nombre + alternate) por fichero Excel:
+        // evita parsear el .xlsm en cada poll de 3s de la vista (endpoint active-name)
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime Ts, string? NameVar, bool AltEnabled, string? AltPrefix)> _activeNameVarCache = new();
+        private static readonly TimeSpan _activeNameCacheTtl = TimeSpan.FromMinutes(5);
+        
         public WashRecipeController(
             ILogger<WashRecipeController> logger,
             IExcelConfigService excelService,
@@ -101,6 +106,77 @@ namespace SW.PC.API.Backend.Controllers
             {
                 _logger.LogError(ex, "🚿 Error loading wash recipe configuration");
                 return StatusCode(500, new { error = "Error loading wash recipe configuration", details = ex.Message });
+            }
+        }
+        
+        /// <summary>
+        /// Lee SOLO el nombre de receta activa del PLC (1-2 lecturas ADS).
+        /// Pensado para el polling de la vista: el read-from-plc completo lee TODOS
+        /// los parámetros de todas las estaciones y parsea el Excel en cada llamada.
+        /// GET /api/wash-recipe/active-name
+        /// </summary>
+        [HttpGet("active-name")]
+        public async Task<ActionResult<WashRecipePlcOperationResult>> ReadActiveName()
+        {
+            try
+            {
+                var excelPath = _excelService.GetExcelConfigPath();
+                var cacheKey = excelPath.ToLowerInvariant();
+                
+                if (!_activeNameVarCache.TryGetValue(cacheKey, out var cached) ||
+                    (DateTime.Now - cached.Ts) > _activeNameCacheTtl)
+                {
+                    var config = await _excelService.LoadWashRecipeConfigAsync(excelPath);
+                    cached = (DateTime.Now, config.RecipeNamePlcVariable, config.AlternateWriteEnabled, config.AlternateWritePlcPrefix);
+                    _activeNameVarCache[cacheKey] = cached;
+                }
+                
+                var recipeNameValue = string.Empty;
+                if (!string.IsNullOrEmpty(cached.NameVar))
+                {
+                    var result = await _twinCatService.ReadVariableAsync(cached.NameVar, typeof(string));
+                    recipeNameValue = result?.ToString() ?? string.Empty;
+                }
+                
+                var alternateRecipeNameValue = string.Empty;
+                if (cached.AltEnabled && !string.IsNullOrEmpty(cached.AltPrefix) && !string.IsNullOrEmpty(cached.NameVar))
+                {
+                    try
+                    {
+                        var alternateVariable = cached.NameVar.Replace("st_WashRecipe", cached.AltPrefix);
+                        var result = await _twinCatService.ReadVariableAsync(alternateVariable, typeof(string));
+                        alternateRecipeNameValue = result?.ToString() ?? string.Empty;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("🚿 Could not read alternate recipe name: {Error}", ex.Message);
+                    }
+                }
+                
+                return Ok(new WashRecipePlcOperationResult
+                {
+                    Success = true,
+                    Message = "OK",
+                    ParametersProcessed = 1,
+                    Data = new WashRecipeConfigResponse
+                    {
+                        RecipeNamePlcVariable = cached.NameVar,
+                        RecipeNameValue = recipeNameValue,
+                        AlternateWriteEnabled = cached.AltEnabled,
+                        AlternateWritePlcPrefix = cached.AltPrefix,
+                        AlternateRecipeNameValue = alternateRecipeNameValue,
+                        LoadedAt = DateTime.Now
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🚿 Error reading active recipe name from PLC");
+                return StatusCode(500, new WashRecipePlcOperationResult
+                {
+                    Success = false,
+                    Message = $"Error reading active recipe name: {ex.Message}"
+                });
             }
         }
         
@@ -500,6 +576,7 @@ namespace SW.PC.API.Backend.Controllers
             try
             {
                 _excelService.InvalidateCache();
+                _activeNameVarCache.Clear();
                 _logger.LogInformation("🚿 Wash recipe configuration cache invalidated");
                 return Ok(new { success = true, message = "Configuration cache cleared" });
             }

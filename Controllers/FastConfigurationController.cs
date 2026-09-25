@@ -146,64 +146,65 @@ namespace SW.PC.API.Backend.Controllers
                     Timestamp = DateTime.UtcNow
                 };
 
-                // Leer parámetros Bool
-                for (int i = 0; i < excelConfig.BoolSettings.Count; i++)
+                // Lecturas en PARALELO (secuencial = 1 espera ADS por parámetro → segundos al abrir el panel)
+                var boolResults = await Task.WhenAll(excelConfig.BoolSettings.Select(async (setting, i) =>
                 {
-                    var setting = excelConfig.BoolSettings[i];
                     var id = $"fcbool_{SanitizeId(setting.Description)}_{i}";
                     try
                     {
                         var value = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(bool));
-                        if (value != null)
-                        {
-                            response.BoolValues[id] = (bool)value;
-                        }
+                        return (id, value: value != null ? (bool?)(bool)value : null, error: false);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogWarning("⚠️ Could not read fast config bool {Desc} from PLC: {Error}", setting.Description, ex.Message);
-                        response.BoolValues[id] = false;
+                        return (id, value: (bool?)null, error: true);
                     }
+                }));
+                foreach (var r in boolResults)
+                {
+                    if (r.value.HasValue) response.BoolValues[r.id] = r.value.Value;
+                    else if (r.error) response.BoolValues[r.id] = false;
                 }
 
-                // Leer parámetros Int
-                for (int i = 0; i < excelConfig.IntSettings.Count; i++)
+                var intResults = await Task.WhenAll(excelConfig.IntSettings.Select(async (setting, i) =>
                 {
-                    var setting = excelConfig.IntSettings[i];
                     var id = $"fcint_{SanitizeId(setting.Description)}_{i}";
                     try
                     {
                         var value = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(int));
-                        if (value != null)
-                        {
-                            response.IntValues[id] = Convert.ToInt32(value);
-                        }
+                        return (id, value: value != null ? (int?)Convert.ToInt32(value) : null, error: false);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogWarning("⚠️ Could not read fast config int {Desc} from PLC: {Error}", setting.Description, ex.Message);
-                        response.IntValues[id] = 0;
+                        return (id, value: (int?)null, error: true);
                     }
+                }));
+                foreach (var r in intResults)
+                {
+                    if (r.value.HasValue) response.IntValues[r.id] = r.value.Value;
+                    else if (r.error) response.IntValues[r.id] = 0;
                 }
 
-                // Leer parámetros LReal
-                for (int i = 0; i < excelConfig.LRealSettings.Count; i++)
+                var lrealResults = await Task.WhenAll(excelConfig.LRealSettings.Select(async (setting, i) =>
                 {
-                    var setting = excelConfig.LRealSettings[i];
                     var id = $"fclreal_{SanitizeId(setting.Description)}_{i}";
                     try
                     {
                         var value = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(double));
-                        if (value != null)
-                        {
-                            response.LRealValues[id] = Convert.ToDouble(value);
-                        }
+                        return (id, value: value != null ? (double?)Convert.ToDouble(value) : null, error: false);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogWarning("⚠️ Could not read fast config lreal {Desc} from PLC: {Error}", setting.Description, ex.Message);
-                        response.LRealValues[id] = 0.0;
+                        return (id, value: (double?)null, error: true);
                     }
+                }));
+                foreach (var r in lrealResults)
+                {
+                    if (r.value.HasValue) response.LRealValues[r.id] = r.value.Value;
+                    else if (r.error) response.LRealValues[r.id] = 0.0;
                 }
 
                 _logger.LogInformation("⚡ Read {Count} fast config values from PLC", 
