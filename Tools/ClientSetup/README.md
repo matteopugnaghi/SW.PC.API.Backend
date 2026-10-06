@@ -34,6 +34,21 @@ El script detecta automáticamente si tiene permisos de Admin o no:
 En ambos casos, el certificado de identidad del equipo queda en el perfil
 del usuario que lo ejecuta.
 
+> **Aviso UAC**: en el último paso (`mTLS 4/4`) el script pide elevación **una
+> sola vez** para escribir la política `AutoSelectCertificateForUrls` de
+> Edge/Chrome en `HKLM`. Es obligatorio en HKLM: `Software\Policies` es de solo
+> lectura para usuarios estándar incluso en `HKCU`. Si se cancela el UAC, el
+> certificado queda igualmente instalado, pero el navegador mostrará un selector
+> de certificado al entrar al Supervisor: hay que elegir el del equipo y **no
+> cancelarlo** (el navegador recuerda "sin certificado" hasta cerrarlo del todo).
+
+### Re-ejecutar sin código (reparar solo el navegador)
+
+Si el equipo ya tiene un certificado de equipo válido (p. ej. una ejecución
+anterior falló al escribir la política), el script lo detecta y permite dejar
+el código **vacío**: conserva el certificado y solo reconfigura la política del
+navegador. No consume un código nuevo.
+
 ## Flujo de instalación en un PC con varios usuarios
 
 ```
@@ -75,7 +90,8 @@ Es la **alternativa offline** al endpoint dinámico
 
 - Windows 10 1803 o superior (necesita `curl.exe` integrado).
 - Conectividad TCP al servidor en el puerto HTTPS (por defecto 5001).
-- **No requiere permisos de administrador** para el enrollment mTLS.
+- **No requiere permisos de administrador** para el enrollment mTLS (solo un
+  aviso UAC al final para la política del navegador).
 
 ## Notas para Firefox
 

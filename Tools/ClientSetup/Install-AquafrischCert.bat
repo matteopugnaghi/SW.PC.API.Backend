@@ -19,6 +19,7 @@ set "INF_FILE=%TEMP%\aqf_machine.inf"
 set "CSR_FILE=%TEMP%\aqf_machine.csr"
 set "JSON_FILE=%TEMP%\aqf_enroll.json"
 set "MACHINE_CER=%TEMP%\aqf_machine.cer"
+set "POLICY_PS1=%TEMP%\aqf_autoselect.ps1"
 set "EXITCODE=0"
 
 :: Reiniciar log
@@ -199,11 +200,30 @@ echo  Para registrar este equipo ^(%COMPUTERNAME%^) necesitas un CODIGO DE
 echo  REGISTRO de un solo uso, generado por un Administrador en la pantalla
 echo  Usuarios -^> Equipos del Supervisor. Caduca a las 24h.
 echo.
-echo  Deja el codigo VACIO y pulsa Enter para omitir el registro.
+:: Si este usuario ya tiene un certificado de equipo valido, permitir saltar el
+:: enrollment (no quema otro codigo) y solo reconfigurar el navegador.
+set "EXISTING_CERT="
+for /f "delims=" %%T in ('powershell -NoProfile -Command "Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq 'CN=%COMPUTERNAME%' -and $_.Issuer -like '*Aquafrisch Machine CA*' -and $_.HasPrivateKey -and $_.NotAfter -gt (Get-Date) } | Select-Object -First 1 -ExpandProperty Thumbprint" 2^>nul') do set "EXISTING_CERT=%%T"
+if defined EXISTING_CERT (
+    >>"%LOGFILE%" echo existing machine cert found: !EXISTING_CERT!
+    echo  [INFO] Este equipo YA tiene un certificado de equipo valido ^(huella !EXISTING_CERT!^).
+    echo         Deja el codigo VACIO y pulsa Enter para CONSERVARLO y solo
+    echo         configurar el navegador ^(no hace falta un codigo nuevo^).
+) else (
+    echo  Deja el codigo VACIO y pulsa Enter para omitir el registro.
+)
+echo.
+echo  [INFO] El certificado de equipo se instala en el perfil del usuario %USERNAME%.
+echo         El navegador debe abrirse con ESTE mismo usuario de Windows.
 echo.
 set "REG_CODE="
 set /p "REG_CODE=  Codigo de registro (XXXX-XXXX-XXXX): "
 if "!REG_CODE!"=="" (
+    if defined EXISTING_CERT (
+        echo  [INFO] Se conserva el certificado existente. Configurando navegador...
+        >>"%LOGFILE%" echo mTLS enrollment skipped - existing cert kept, applying browser policy
+        goto :mtls_policy
+    )
     echo  [INFO] Registro omitido. Este equipo funcionara sin identidad de maquina.
     >>"%LOGFILE%" echo mTLS enrollment skipped by user
     goto :mtls_done
@@ -232,12 +252,10 @@ if "!IS_ADMIN!"=="1" (
     echo  [OK] Machine CA instalada en almacen Root ^(usuario^).
 )
 
-echo  [mTLS 2/4] Limpiando certificados de maquina anteriores...
-powershell -NoProfile -Command "Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq 'CN=%COMPUTERNAME%' -and $_.Issuer -like '*Aquafrisch*' } | ForEach-Object { Remove-Item $_.PSPath -Force; Write-Host '  Eliminado de CurrentUser\My:' $_.Thumbprint }" >>"%LOGFILE%" 2>&1
-powershell -NoProfile -Command "Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.Subject -eq 'CN=%COMPUTERNAME%' -and $_.Issuer -like '*Aquafrisch*' } | ForEach-Object { Remove-Item $_.PSPath -Force; Write-Host '  Eliminado de LocalMachine\My:' $_.Thumbprint }" >>"%LOGFILE%" 2>&1
-echo  [OK] Certificados anteriores limpiados.
-
-echo  [mTLS 3/4] Generando clave y solicitud de certificado ^(CSR^)...
+echo  [mTLS 2/4] Generando clave y solicitud de certificado ^(CSR^)...
+:: NOTA: los certificados de equipo anteriores NO se borran aqui. Se limpian
+:: SOLO despues de que el nuevo este instalado (paso 4/4): si el enrollment
+:: falla (codigo usado/caducado), el equipo conserva su certificado actual.
 :: Clave en el almacen del USUARIO actual (CurrentUser\My) para que Chrome/Edge puedan usarla.
 :: MachineKeySet=FALSE + Exportable=FALSE: la clave no sale del PC pero es accesible por el usuario.
 (
@@ -285,7 +303,7 @@ if not "!ENROLL_RC!"=="0" (
 )
 echo  [OK] Certificado de maquina emitido por el servidor.
 
-echo  [mTLS 4/4] Instalando certificado de maquina y configurando navegadores...
+echo  [mTLS 4/4] Instalando certificado de maquina...
 certreq -accept "%MACHINE_CER%" >>"%LOGFILE%" 2>&1
 if errorlevel 1 (
     echo  [ERROR] certreq -accept fallo. Revisa el log.
@@ -293,12 +311,93 @@ if errorlevel 1 (
     set "EXITCODE=10"
     goto :end
 )
+echo  [OK] Certificado de maquina instalado en el perfil de %USERNAME%.
+
+:: Ahora que el nuevo certificado existe, retirar los anteriores (se conserva
+:: el mas reciente). Los de LocalMachine\My son restos de versiones antiguas
+:: del script (MachineKeySet=TRUE); solo se pueden borrar con Admin.
+echo  [mTLS 4/4] Retirando certificados de equipo anteriores...
+powershell -NoProfile -Command "Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq 'CN=%COMPUTERNAME%' -and $_.Issuer -like '*Aquafrisch*' } | Sort-Object NotBefore -Descending | Select-Object -Skip 1 | ForEach-Object { Remove-Item $_.PSPath -Force; Write-Host '  Eliminado de CurrentUser\My:' $_.Thumbprint }" >>"%LOGFILE%" 2>&1
+if "!IS_ADMIN!"=="1" powershell -NoProfile -Command "Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.Subject -eq 'CN=%COMPUTERNAME%' -and $_.Issuer -like '*Aquafrisch*' } | ForEach-Object { Remove-Item $_.PSPath -Force; Write-Host '  Eliminado de LocalMachine\My:' $_.Thumbprint }" >>"%LOGFILE%" 2>&1
+
+:mtls_policy
+echo  [mTLS 4/4] Configurando navegadores ^(autoseleccion del certificado^)...
 :: Politica AutoSelectCertificateForUrls: Edge y Chrome presentan el certificado
 :: automaticamente al conectar al Supervisor (sin popup de seleccion).
-:: Usar LocalMachine store (MachineKeySet=TRUE)
-set "AUTOSEL={\"pattern\":\"https://!SERVER_HOST!:!SERVER_PORT!\",\"filter\":{\"ISSUER\":{\"CN\":\"Aquafrisch Machine CA\"}}}"
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge\AutoSelectCertificateForUrls" /v 1 /t REG_SZ /d "!AUTOSEL!" /f >>"%LOGFILE%" 2>&1
-reg add "HKLM\SOFTWARE\Policies\Google\Chrome\AutoSelectCertificateForUrls" /v 1 /t REG_SZ /d "!AUTOSEL!" /f >>"%LOGFILE%" 2>&1
+:: Requiere HKLM (Software\Policies es de solo lectura para usuarios incluso en
+:: HKCU), asi que este paso se autoeleva con UAC si el script no es Admin. El
+:: certificado ya esta en el perfil del usuario, la politica es generica (por
+:: emisor), asi que escribirla a nivel de maquina es correcto.
+:: Se reutiliza la entrada existente del mismo servidor o se crea un indice nuevo,
+:: para NO pisar politicas de otros servidores ya registrados.
+if exist "%POLICY_PS1%" del "%POLICY_PS1%" >nul 2>&1
+>>"%POLICY_PS1%" echo $Url = '!SERVER_URL!'
+>>"%POLICY_PS1%" echo $Log = '%LOGFILE%'
+>>"%POLICY_PS1%" echo $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+>>"%POLICY_PS1%" echo $isAdmin = (New-Object Security.Principal.WindowsPrincipal $id).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+>>"%POLICY_PS1%" echo if (-not $isAdmin) {
+>>"%POLICY_PS1%" echo   try {
+>>"%POLICY_PS1%" echo     $p = Start-Process powershell -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"')
+>>"%POLICY_PS1%" echo     if ($null -eq $p.ExitCode) { exit 1 } else { exit $p.ExitCode }
+>>"%POLICY_PS1%" echo   } catch { Add-Content $Log ('  Politica FAIL: UAC cancelado o sin permisos - ' + $_.Exception.Message); exit 1 }
+>>"%POLICY_PS1%" echo }
+>>"%POLICY_PS1%" echo $value = '{"pattern":"' + $Url + '","filter":{"ISSUER":{"CN":"Aquafrisch Machine CA"}}}'
+>>"%POLICY_PS1%" echo $rc = 0
+>>"%POLICY_PS1%" echo foreach ($rel in 'SOFTWARE\Policies\Microsoft\Edge\AutoSelectCertificateForUrls','SOFTWARE\Policies\Google\Chrome\AutoSelectCertificateForUrls') {
+>>"%POLICY_PS1%" echo   $key = 'HKLM:\' + $rel
+>>"%POLICY_PS1%" echo   try {
+>>"%POLICY_PS1%" echo     if (-not (Test-Path $key)) { New-Item -Path $key -Force -ErrorAction Stop ^| Out-Null }
+>>"%POLICY_PS1%" echo     $item = Get-Item $key
+>>"%POLICY_PS1%" echo     $name = $null; $max = 0; $n = 0
+>>"%POLICY_PS1%" echo     foreach ($vn in $item.GetValueNames()) {
+>>"%POLICY_PS1%" echo       if ([string]$item.GetValue($vn) -like ('*"pattern":"' + $Url + '"*')) { $name = $vn }
+>>"%POLICY_PS1%" echo       if ([int]::TryParse($vn, [ref]$n) -and $n -gt $max) { $max = $n }
+>>"%POLICY_PS1%" echo     }
+>>"%POLICY_PS1%" echo     if (-not $name) { $name = [string]($max + 1) }
+>>"%POLICY_PS1%" echo     New-ItemProperty -Path $key -Name $name -Value $value -PropertyType String -Force -ErrorAction Stop ^| Out-Null
+>>"%POLICY_PS1%" echo     Add-Content $Log ('  Politica OK  : ' + $key + '\' + $name + ' = ' + $value)
+>>"%POLICY_PS1%" echo   } catch { Add-Content $Log ('  Politica FAIL: ' + $key + ' - ' + $_.Exception.Message); $rc = 1 }
+>>"%POLICY_PS1%" echo }
+>>"%POLICY_PS1%" echo exit $rc
+if not "!IS_ADMIN!"=="1" (
+    echo  [INFO] Se pedira permiso de Administrador ^(UAC^) SOLO para este paso.
+    echo         El certificado ya esta instalado para %USERNAME%; acepta el aviso.
+)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%POLICY_PS1%" >>"%LOGFILE%" 2>&1
+set "POL_RC=!errorlevel!"
+>>"%LOGFILE%" echo autoselect policy exit code = !POL_RC!
+if "!POL_RC!"=="0" (
+    echo  [OK] Politica de autoseleccion escrita en HKLM para !SERVER_URL!.
+) else (
+    echo  [AVISO] No se pudo escribir la politica AutoSelectCertificateForUrls ^(ver log^).
+    echo          Sin ella, al abrir !SERVER_URL! el navegador mostrara un selector
+    echo          de certificado: elige "%COMPUTERNAME%" ^(NO lo canceles^).
+)
+
+:: Verificacion end-to-end: presentar el cert al servidor y comprobar que lo
+:: reconoce como este equipo (misma prueba que hara el navegador).
+echo  [mTLS check] Verificando que el servidor reconoce este equipo...
+set "MACHINE_THUMB="
+for /f "delims=" %%T in ('powershell -NoProfile -Command "Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq 'CN=%COMPUTERNAME%' -and $_.Issuer -like '*Aquafrisch Machine CA*' -and $_.HasPrivateKey -and $_.NotAfter -gt (Get-Date) } | Sort-Object NotAfter -Descending | Select-Object -First 1 -ExpandProperty Thumbprint" 2^>nul') do set "MACHINE_THUMB=%%T"
+if not defined MACHINE_THUMB (
+    echo  [ERROR] No se encuentra el certificado de equipo en el perfil de %USERNAME%.
+    >>"%LOGFILE%" echo [ERROR] machine cert not found in CurrentUser\My after enrollment
+    set "EXITCODE=11"
+    goto :end
+)
+>>"%LOGFILE%" echo mtls-info self-check with cert !MACHINE_THUMB!
+curl.exe -k -s --max-time 15 --cert "CurrentUser\MY\!MACHINE_THUMB!" -o "%MTLS_INFO%" "!SERVER_URL!/api/certificate/mtls-info" >>"%LOGFILE%" 2>&1
+type "%MTLS_INFO%" >>"%LOGFILE%" 2>&1
+findstr /C:"\"machineName\":\"%COMPUTERNAME%\"" "%MTLS_INFO%" >nul 2>&1
+if errorlevel 1 (
+    echo  [ERROR] El servidor NO reconoce el certificado de este equipo.
+    echo          Posibles causas: la Machine CA del servidor cambio ^(redeploy^) o el
+    echo          registro fue revocado. Pide un codigo nuevo y vuelve a registrar.
+    >>"%LOGFILE%" echo [ERROR] mtls-info self-check failed
+    set "EXITCODE=12"
+    goto :end
+)
+echo  [OK] VERIFICADO: el servidor reconoce este equipo como %COMPUTERNAME%.
 
 :: Cerrar todos los navegadores para forzar nuevo handshake TLS con el certificado nuevo
 echo  [OK] Cerrando navegadores para aplicar el nuevo certificado...
@@ -320,7 +419,7 @@ echo  [OK] Equipo %COMPUTERNAME% registrado. Reabre el navegador.
 echo.
 echo  [5/5] Limpiando ficheros temporales...
 del "!CERT_FILE!" >nul 2>&1
-del "%MTLS_INFO%" "%MACHINECA_FILE%" "%INF_FILE%" "%CSR_FILE%" "%JSON_FILE%" "%MACHINE_CER%" >nul 2>&1
+del "%MTLS_INFO%" "%MACHINECA_FILE%" "%INF_FILE%" "%CSR_FILE%" "%JSON_FILE%" "%MACHINE_CER%" "%POLICY_PS1%" >nul 2>&1
 echo  [OK] Limpieza completada.
 
 echo.
