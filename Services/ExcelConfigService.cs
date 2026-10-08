@@ -4896,6 +4896,7 @@ namespace SW.PC.API.Backend.Services
                     _stateColorsCache.Clear();
                     _variableViewsCache.Clear();
                     _elementsInfoSettingCache.Clear();
+                    _manualPageCache.Clear();
                     _logger.LogInformation("🔄 Todo el caché invalidado - se recargará en la próxima petición");
                 }
                 else
@@ -4908,6 +4909,7 @@ namespace SW.PC.API.Backend.Services
                     _stateColorsCache.Remove(cacheKey);
                     _variableViewsCache.Remove(cacheKey);
                     _elementsInfoSettingCache.Remove(cacheKey);
+                    _manualPageCache.Remove(cacheKey);
                     _logger.LogInformation("🔄 Caché invalidado para {Path} - se recargará en la próxima petición", Path.GetFileName(fullPath));
                 }
             }
@@ -5547,6 +5549,14 @@ namespace SW.PC.API.Backend.Services
         /// </summary>
         /// <param name="filePath">Ruta al archivo Excel</param>
         /// <returns>Configuración del modo manual con elementos controlables</returns>
+        /// <summary>
+        /// Caché de la hoja "Manual" por archivo Excel. El panel de modo manual consulta
+        /// /api/manual-mode/states cada 500 ms y sin caché cada petición volvía a abrir y
+        /// parsear el .xlsm completo (~1 MB). Se invalida por expiración, por InvalidateCache()
+        /// o si cambia la fecha de modificación del archivo.
+        /// </summary>
+        private readonly Dictionary<string, (ManualPageExcelConfiguration Config, DateTime Timestamp, DateTime FileWriteTimeUtc)> _manualPageCache = new();
+
         public async Task<ManualPageExcelConfiguration> LoadManualPageAsync(string filePath)
         {
             var config = new ManualPageExcelConfiguration();
@@ -5559,6 +5569,20 @@ namespace SW.PC.API.Backend.Services
                 {
                     _logger.LogWarning("🔧 Excel file not found for manual page: {Path}", fullPath);
                     return config;
+                }
+
+                var cacheKey = fullPath.ToLowerInvariant();
+                var fileWriteTimeUtc = File.GetLastWriteTimeUtc(fullPath);
+
+                lock (_cacheLock)
+                {
+                    if (_manualPageCache.TryGetValue(cacheKey, out var cached)
+                        && DateTime.Now - cached.Timestamp < _cacheExpiration
+                        && cached.FileWriteTimeUtc == fileWriteTimeUtc)
+                    {
+                        _logger.LogDebug("📦 Usando hoja Manual desde CACHÉ ({Count} elementos)", cached.Config.Elements.Count);
+                        return cached.Config;
+                    }
                 }
                 
                 _logger.LogInformation("🔧 Loading manual mode config from Excel: {Path}", fullPath);
@@ -5623,6 +5647,11 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogInformation("🔧 Manual mode config loaded: {Title} with {Count} elements", 
                         config.ViewTitle, config.Elements.Count);
                 });
+
+                lock (_cacheLock)
+                {
+                    _manualPageCache[cacheKey] = (config, DateTime.Now, fileWriteTimeUtc);
+                }
                 
                 return config;
             }

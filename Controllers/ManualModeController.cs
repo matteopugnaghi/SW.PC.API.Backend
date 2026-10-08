@@ -5,6 +5,7 @@
 // - GET  /api/manual-mode/config  : Obtener configuración desde Excel hoja "Manual"
 // - GET  /api/manual-mode/states  : Leer estados actuales desde PLC
 // - POST /api/manual-mode/toggle  : Activar/desactivar un elemento
+// - POST /api/manual-mode/deactivate-all : Desactivar todos los elementos activos (salida/logout)
 // 
 // ⚠️ IMPORTANTE: Las variables usadas deben estar habilitadas en Variable_Views
 //    para la vista "MANUAL", de lo contrario no se podrán leer/escribir.
@@ -279,6 +280,95 @@ namespace SW.PC.API.Backend.Controllers
             {
                 _logger.LogError(ex, "Error toggling manual element {Id}", request.ElementId);
                 return StatusCode(500, new { error = "Error toggling element", details = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Desactivar TODOS los elementos manuales que estén activos en el PLC (seguridad).
+        /// Lo invoca el frontend al salir del modo manual por cualquier vía: cierre del panel,
+        /// logout manual, cierre por inactividad o token caducado. Lee el estado real de cada
+        /// variable y solo escribe FALSE en las que estén a TRUE.
+        /// </summary>
+        [HttpPost("deactivate-all")]
+        [Authorize]
+        [ProducesResponseType(typeof(object), 200)]
+        [ProducesResponseType(500)]
+        public async Task<ActionResult> DeactivateAll([FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] ManualModeDeactivateAllRequest? request = null)
+        {
+            var reason = string.IsNullOrWhiteSpace(request?.Reason) ? "unspecified" : request!.Reason!;
+            var userName = User.Identity?.Name ?? "Unknown";
+            var deactivated = new List<string>();
+            var failed = new List<string>();
+
+            try
+            {
+                var excelPath = _excelConfigService.GetExcelConfigPath();
+                var excelConfig = await _excelConfigService.LoadManualPageAsync(excelPath);
+
+                _logger.LogInformation("🔧 Deactivate-all manual elements requested by {User} (reason: {Reason}, {Count} elements)",
+                    userName, reason, excelConfig.Elements.Count);
+
+                if (!_twinCATService.IsConnected)
+                {
+                    _logger.LogWarning("🔧 Deactivate-all: PLC not connected, nothing written");
+                    return StatusCode(503, new { error = "PLC not connected", reason });
+                }
+
+                int index = 0;
+                foreach (var element in excelConfig.Elements)
+                {
+                    var elementId = $"manual_{SanitizeId(element.Description)}_{index}";
+                    index++;
+
+                    if (string.IsNullOrEmpty(element.PlcVariable)) continue;
+                    if (!await IsVariableAllowedForManualViewAsync(element.PlcVariable)) continue;
+
+                    try
+                    {
+                        var current = await _twinCATService.ReadVariableAsync(element.PlcVariable, typeof(bool));
+                        if (current is not bool isOn || !isOn) continue;
+
+                        var ok = await _twinCATService.WriteVariableAsync(element.PlcVariable, false, typeof(bool));
+                        if (ok)
+                        {
+                            deactivated.Add(elementId);
+                            await _operationLog.LogAsync(
+                                category: OperationCategory.Process,
+                                action: OperationAction.ManualModeToggle,
+                                description: element.Description,
+                                user: userName,
+                                details: new Dictionary<string, object>
+                                {
+                                    ["PlcVariable"] = element.PlcVariable,
+                                    ["ElementId"] = elementId,
+                                    ["Value"] = false,
+                                    ["Reason"] = reason
+                                });
+                        }
+                        else
+                        {
+                            failed.Add(elementId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        failed.Add(elementId);
+                        _logger.LogWarning(ex, "🔧 Deactivate-all: could not process {Var} ({Id})", element.PlcVariable, elementId);
+                    }
+                }
+
+                if (deactivated.Count > 0 || failed.Count > 0)
+                {
+                    _logger.LogInformation("🔧 Deactivate-all by {User} (reason: {Reason}): {Off} deactivated, {Failed} failed",
+                        userName, reason, deactivated.Count, failed.Count);
+                }
+
+                return Ok(new { success = failed.Count == 0, reason, deactivated, failed });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deactivating all manual elements (reason: {Reason})", reason);
+                return StatusCode(500, new { error = "Error deactivating manual elements", details = ex.Message, deactivated, failed });
             }
         }
 

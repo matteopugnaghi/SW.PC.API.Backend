@@ -86,8 +86,12 @@ namespace SW.PC.API.Backend.Hubs
                 _metricsService.SetSignalRActiveConnections(ClientConnectionTrackerService.ActiveConnections);
                 _metricsService.SetSignalRStatus(true, true, $"OK - {ClientConnectionTrackerService.ActiveConnections} conexiones");
                 
-                // 👤 Registrar cliente conectado (pantalla vacía hasta que invoque SetActiveView)
-                ClientConnectionTrackerService.ConnectedClients[Context.ConnectionId] = (username, ipAddress, "", hostName);
+                // 👤 Registrar cliente conectado. La pantalla se hereda de una desconexión
+                // reciente del mismo usuario@IP (reconexión SignalR) para que el PLC no vea el
+                // slot CurrentScreen vacío antes de que el cliente reenvíe SetActiveView;
+                // si no hay herencia queda vacía hasta que invoque SetActiveView.
+                var inheritedScreen = ClientConnectionTrackerService.TakeInheritedScreen(username, ipAddress);
+                ClientConnectionTrackerService.ConnectedClients[Context.ConnectionId] = (username, ipAddress, inheritedScreen, hostName);
             }
             
             _logger.LogInformation("👤 Client connected: {ConnectionId} - User: {Username}, IP: {IPAddress} (Total: {Count})", 
@@ -133,6 +137,8 @@ namespace SW.PC.API.Backend.Hubs
                 {
                     username = clientInfo.Username;
                     ClientConnectionTrackerService.ConnectedClients.Remove(Context.ConnectionId);
+                    // 🕐 Conservar el slot en los arrays del PLC durante la gracia de reconexión
+                    ClientConnectionTrackerService.RememberDisconnectedClient(clientInfo);
                     
                     ClientConnectionTrackerService.ActiveConnections--;
                     if (ClientConnectionTrackerService.ActiveConnections < 0) 
@@ -161,7 +167,8 @@ namespace SW.PC.API.Backend.Hubs
             // 📺 Quitar la vista de esta conexión (recalcula la unión de vistas para el polling)
             _plcPollingService.RemoveClientView(Context.ConnectionId);
             
-            // 📤 Actualizar PLC con usuarios, IPs y pantallas (el slot de este cliente queda vacío)
+            // 📤 Actualizar PLC con usuarios, IPs y pantallas (el slot de este cliente se conserva
+            // durante la gracia de reconexión y se vacía después si no reconecta)
             await ClientConnectionTrackerService.UpdatePlcClientsAsync(_serviceProvider, _twinCATService, _logger);
             
             await base.OnDisconnectedAsync(exception);

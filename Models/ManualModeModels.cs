@@ -142,6 +142,18 @@ namespace SW.PC.API.Backend.Models
     }
 
     /// <summary>
+    /// Request para desactivar TODOS los elementos manuales activos (seguridad al salir:
+    /// cierre del panel, logout, inactividad, token caducado).
+    /// </summary>
+    public class ManualModeDeactivateAllRequest
+    {
+        /// <summary>
+        /// Motivo para el log de operaciones: "panel-close", "logout", "inactivity", "token-expired"...
+        /// </summary>
+        public string? Reason { get; set; }
+    }
+
+    /// <summary>
     /// Request para activar/desactivar un elemento en modo semiautomático
     /// </summary>
     public class SemiautomaticToggleRequest
