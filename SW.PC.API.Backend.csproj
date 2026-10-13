@@ -9,6 +9,12 @@
     <RuntimeFrameworkVersion>8.0.0</RuntimeFrameworkVersion>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
+    <!-- GC: Workstation + Concurrent. El SDK Web activa Server GC por defecto (1 heap + 1 hilo GC
+         por core, ~2 GB de working set, pausas Gen2 stop-the-world en todos los cores). En el PC
+         HMI el backend comparte CPU/RAM con Edge+Babylon (iGPU) y con el runtime TwinCAT en cores
+         compartidos; Workstation GC mantiene ~300-500 MB y pausas de ms en un solo hilo. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <!-- Carpetas de artefactos: el SDK Web incluye **/*.json como Content por defecto,
          lo que causaba copias recursivas publish\publish\... y rutas >260 chars.
          Projects\** crece en runtime (logs/backups/data) y el deploy lo copia aparte. -->
