@@ -562,7 +562,7 @@ namespace SW.PC.API.Backend.Controllers
         public int DisplayOrder { get; set; }
         public double? MinValue { get; set; }
         public double? MaxValue { get; set; }
-        public int DecimalPlaces { get; set; } = 2;
+        public int DecimalPlaces { get; set; } = 0;
         public string? Unit { get; set; }
         public double Value { get; set; }
     }

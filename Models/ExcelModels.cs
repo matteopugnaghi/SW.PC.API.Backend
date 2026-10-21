@@ -1612,8 +1612,8 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Valor máximo (columna R, opcional)</summary>
         public double? MaxValue { get; set; }
 
-        /// <summary>Decimales a mostrar (columna S, opcional)</summary>
-        public int DecimalPlaces { get; set; } = 2;
+        /// <summary>Decimales a mostrar (columna S); vacío = 0.</summary>
+        public int DecimalPlaces { get; set; } = 0;
 
         /// <summary>Unidad de medida (columna T, opcional)</summary>
         public string? Unit { get; set; }

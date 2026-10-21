@@ -144,7 +144,7 @@ namespace SW.PC.API.Backend.Models
         /// <summary>
         /// Número de decimales a mostrar
         /// </summary>
-        public int DecimalPlaces { get; set; } = 2;
+        public int DecimalPlaces { get; set; } = 0;
 
         /// <summary>
         /// Unidad de medida (opcional, ej: "mm", "m/s", etc.)
@@ -408,8 +408,8 @@ namespace SW.PC.API.Backend.Models.Excel
         /// <summary>Valor máximo (columna P, opcional)</summary>
         public double? MaxValue { get; set; }
 
-        /// <summary>Decimales a mostrar (columna Q, opcional)</summary>
-        public int DecimalPlaces { get; set; } = 2;
+        /// <summary>Decimales a mostrar (R / Z); vacío = 0.</summary>
+        public int DecimalPlaces { get; set; } = 0;
 
         /// <summary>Unidad de medida (columna R, opcional)</summary>
         public string? Unit { get; set; }

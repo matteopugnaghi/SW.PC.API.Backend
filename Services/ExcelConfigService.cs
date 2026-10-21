@@ -1830,6 +1830,27 @@ namespace SW.PC.API.Backend.Services
             return string.IsNullOrWhiteSpace(text) ? null : text;
         }
 
+        private int GetDecimalPlaces(IXLCell cell)
+        {
+            var text = cell.GetString().Trim();
+            if (string.IsNullOrEmpty(text) || text.Equals("null", StringComparison.OrdinalIgnoreCase))
+                return 0;
+
+            if (text == "#0")
+            {
+                _logger.LogWarning("Legacy decimal format #0 in {Sheet}!{Cell}: using 0 decimal places. Replace the cell content with the number 0.",
+                    cell.Worksheet.Name, cell.Address);
+                return 0;
+            }
+
+            if (int.TryParse(text, out var places) && places >= 0 && places <= 100)
+                return places;
+
+            _logger.LogError("Invalid decimal count in {Sheet}!{Cell}: {Value}. Expected an integer from 0 to 100.",
+                cell.Worksheet.Name, cell.Address, text);
+            throw new FormatException($"Invalid decimal count in {cell.Worksheet.Name}!{cell.Address}: '{text}'. Expected 0-100.");
+        }
+
         private double GetCellDouble(IXLWorksheet sheet, string address)
         {
             var cell = sheet.Cell(address);
@@ -4797,7 +4818,6 @@ namespace SW.PC.API.Backend.Services
                             // Leer min/max/decimals/unit desde columnas P, Q, R, S
                             var lrealMin = sheet.Cell($"P{row}").GetString()?.Trim();
                             var lrealMax = sheet.Cell($"Q{row}").GetString()?.Trim();
-                            var lrealDecimals = sheet.Cell($"R{row}").GetString()?.Trim();
                             var lrealUnit = sheet.Cell($"S{row}").GetString()?.Trim();
                             
                             if (double.TryParse(lrealMin, System.Globalization.NumberStyles.Any, 
@@ -4806,8 +4826,7 @@ namespace SW.PC.API.Backend.Services
                             if (double.TryParse(lrealMax, System.Globalization.NumberStyles.Any, 
                                 System.Globalization.CultureInfo.InvariantCulture, out var maxDbl))
                                 lrealSetting.MaxValue = maxDbl;
-                            if (int.TryParse(lrealDecimals, out var dec))
-                                lrealSetting.DecimalPlaces = dec;
+                            lrealSetting.DecimalPlaces = GetDecimalPlaces(sheet.Cell($"R{row}"));
                             lrealSetting.Unit = string.IsNullOrEmpty(lrealUnit) ? null : lrealUnit;
                             
                             config.LongRealSettings.Add(lrealSetting);
@@ -4834,7 +4853,6 @@ namespace SW.PC.API.Backend.Services
                             // Leer min/max/decimals/unit desde columnas X, Y, Z, AA
                             var lreal2Min = sheet.Cell($"X{row}").GetString()?.Trim();
                             var lreal2Max = sheet.Cell($"Y{row}").GetString()?.Trim();
-                            var lreal2Decimals = sheet.Cell($"Z{row}").GetString()?.Trim();
                             var lreal2Unit = sheet.Cell($"AA{row}").GetString()?.Trim();
                             
                             if (double.TryParse(lreal2Min, System.Globalization.NumberStyles.Any, 
@@ -4843,8 +4861,7 @@ namespace SW.PC.API.Backend.Services
                             if (double.TryParse(lreal2Max, System.Globalization.NumberStyles.Any, 
                                 System.Globalization.CultureInfo.InvariantCulture, out var max2Dbl))
                                 lreal2Setting.MaxValue = max2Dbl;
-                            if (int.TryParse(lreal2Decimals, out var dec2))
-                                lreal2Setting.DecimalPlaces = dec2;
+                            lreal2Setting.DecimalPlaces = GetDecimalPlaces(sheet.Cell($"Z{row}"));
                             lreal2Setting.Unit = string.IsNullOrEmpty(lreal2Unit) ? null : lreal2Unit;
                             
                             config.LongReal2Settings.Add(lreal2Setting);
@@ -4869,6 +4886,10 @@ namespace SW.PC.API.Backend.Services
                 
                 _logger.LogInformation("⚙️ Settings page loaded: {BoolCount} bool, {IntCount} int, {LRealCount} longreal, {LReal2Count} longreal2 parameters",
                     config.BoolSettings.Count, config.IntSettings.Count, config.LongRealSettings.Count, config.LongReal2Settings.Count);
+            }
+            catch (FormatException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -5375,7 +5396,6 @@ namespace SW.PC.API.Backend.Services
                         var decPlcVar = sheet.Cell(row, 9).GetString()?.Trim();     // I = columna 9
                         var decMin = sheet.Cell(row, 10).GetString()?.Trim();       // J = columna 10
                         var decMax = sheet.Cell(row, 11).GetString()?.Trim();       // K = columna 11
-                        var decDecimals = sheet.Cell(row, 12).GetString()?.Trim();  // L = columna 12
                         var decUnit = sheet.Cell(row, 13).GetString()?.Trim();      // M = columna 13
                         
                         bool hasData = false;
@@ -5424,10 +5444,7 @@ namespace SW.PC.API.Backend.Services
                             }
                             
                             // Parsear Decimales (precisión)
-                            if (!string.IsNullOrEmpty(decDecimals) && int.TryParse(decDecimals, out var decimals))
-                            {
-                                param.Decimals = decimals;
-                            }
+                            param.Decimals = GetDecimalPlaces(sheet.Cell(row, 12));
                             
                             // Unidad
                             if (!string.IsNullOrEmpty(decUnit))
@@ -5450,7 +5467,6 @@ namespace SW.PC.API.Backend.Services
                         var gantryPlcVar = sheet.Cell(row, 17).GetString()?.Trim();    // Q = columna 17
                         var gantryMin = sheet.Cell(row, 18).GetString()?.Trim();       // R = columna 18
                         var gantryMax = sheet.Cell(row, 19).GetString()?.Trim();       // S = columna 19
-                        var gantryDecimals = sheet.Cell(row, 20).GetString()?.Trim();  // T = columna 20
                         var gantryUnit = sheet.Cell(row, 21).GetString()?.Trim();      // U = columna 21
                         var gantryVisibility = sheet.Cell(row, 22).GetString()?.Trim(); // V = columna 22
                         
@@ -5484,10 +5500,7 @@ namespace SW.PC.API.Backend.Services
                             }
                             
                             // Parsear Decimales
-                            if (!string.IsNullOrEmpty(gantryDecimals) && int.TryParse(gantryDecimals, out var gDec))
-                            {
-                                gantryParam.Decimals = gDec;
-                            }
+                            gantryParam.Decimals = GetDecimalPlaces(sheet.Cell(row, 20));
                             
                             // Unidad
                             if (!string.IsNullOrEmpty(gantryUnit))
@@ -5531,6 +5544,7 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "🚆 Error loading train recipe configuration from {FilePath}", filePath);
+                if (ex is FormatException) throw;
                 return config;
             }
         }
@@ -5821,9 +5835,7 @@ namespace SW.PC.API.Backend.Services
                                 lrealSetting.MaxValue = maxDbl;
                             
                             // Leer Decimales (columna S)
-                            var lrealDecimals = sheet.Cell($"S{row}").GetString()?.Trim();
-                            if (int.TryParse(lrealDecimals, out var dec))
-                                lrealSetting.DecimalPlaces = dec;
+                            lrealSetting.DecimalPlaces = GetDecimalPlaces(sheet.Cell($"S{row}"));
                             
                             // Leer Unidad (columna T)
                             var lrealUnit = sheet.Cell($"T{row}").GetString()?.Trim();
@@ -5855,6 +5867,7 @@ namespace SW.PC.API.Backend.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "⚡ Error loading fast configuration from Excel: {Path}", filePath);
+                if (ex is FormatException) throw;
             }
             
             return await Task.FromResult(config);

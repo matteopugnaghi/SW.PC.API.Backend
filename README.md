@@ -329,6 +329,54 @@ const connection = new signalR.HubConnectionBuilder()
 
 ---
 
+## Decimales configurados en Excel
+
+Todas las columnas de **cantidad de decimales** usan el mismo criterio:
+
+| Celda Excel | Valor 12 en pantalla |
+|---|---|
+| `0`, vacía o `null` | `12` |
+| `1` | `12.0` |
+| `2` | `12.00` |
+| `3` | `12.000` |
+
+Se aplica a `setting page` **R y Z**, `TrainRecipe` **L y T** y
+`Fast_Configuration` **S**. Se lee el contenido de la celda, no su formato
+visual en Excel: un 2 mostrado como `2.000` sigue indicando dos decimales.
+
+Estas pantallas comparten teclado numérico y formateador:
+
+- Se conservan los ceros finales, también al abrir el teclado.
+- Durante la edición se puede introducir mayor precisión; al confirmar se
+  redondea a la cantidad configurada. Con cero decimales no hay tecla de punto.
+- El teclado físico acepta punto o coma decimal; Enter confirma y Escape cancela.
+- Se mantienen los límites mínimo/máximo. Si el redondeo deja el valor fuera
+  del rango, se muestra un error y no se confirma.
+- Cancelar o visualizar un valor no modifica el PLC. Se redondean las
+  ediciones confirmadas; los ceros finales son presentación, no almacenamiento.
+
+La cantidad debe ser un entero entre 0 y 100 (límite del formateador JavaScript).
+Los valores inválidos producen un error de carga con hoja y celda en el log,
+sin sustituirlos silenciosamente por otra precisión.
+
+**Compatibilidad:** el contenido antiguo `#0`, presente en algunos proyectos,
+se interpreta como cero decimales y genera un aviso con hoja y celda. No se
+modifica el libro Excel; para configuraciones nuevas se debe escribir el número `0`.
+
+Las máscaras `Format` de los indicadores 3D (por ejemplo `0.00`) son una
+configuración distinta y no cambian. Los campos sin columna de cantidad de
+decimales no adquieren una configuración Excel nueva.
+
+**Publicación:** actualizar backend y frontend juntos. El backend anterior
+asignaba dos decimales a las celdas vacías de Settings y Fast Configuration.
+No es necesario modificar los libros Excel.
+
+Pruebas de regresión: [ExcelDecimalPrecisionTests](Tests/ExcelDecimalPrecisionTests.cs)
+en el backend; `decimalPrecision.test.js`, `TouchKeyboard.test.js` y
+`ExcelDecimalViews.test.js` en el frontend.
+
+---
+
 ## 📝 Notas de Desarrollo
 
 - **TwinCAT Simulation**: Por defecto está activada la simulación PLC
