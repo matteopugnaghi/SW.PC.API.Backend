@@ -211,6 +211,18 @@ policy.WithOrigins("http://localhost:3001", "http://localhost:3000", "http://loc
 - **Login page**: `my-3d-app/src/components/Login.js` (includes ProjectSelector, sends auth headers)
 - **3D scene**: `my-3d-app/src/BabylonScene.js` (Babylon.js integration)
 
+## 🏷️ Git Conventions (Backend AND Frontend)
+
+**Commits**: prefix `[Autor: Matteo] ` + descriptive message in Spanish (problem, cause, fix). Commits and tags are SSH-signed (`commit.gpgsign=true`, `tag.gpgsign=true` in both repos).
+
+**Tags (releases) — CalVer `YYYY.MM.increment`, digits only**:
+- Format is **exactly three segments**: `2026.10.21`. The third segment is a **monthly incremental counter**, NOT the day. It is zero-padded to 2 digits (`.01`, `.02` …) as implemented in `GitOperationsService.GetNextCalVerTagAsync`.
+- Next tag = highest third segment among tags of the current `YYYY.MM` **+ 1**; if the month has no tags, start at `.01`. Example: frontend had `2026.10.07`, `2026.10.08`, `2026.10.21` → next is `2026.10.22`.
+- **Never** a `v` prefix (`v2026.10.21` ❌). **Never** a 4th segment (`2026.10.21.1` ❌). Both repos follow the same rule.
+- Tags are **annotated** (`git tag -a`) with a Spanish message; when backend and frontend must be deployed together, state the required counterpart tag in the message.
+- Legacy tags with `v` prefix or 4 segments exist in history (frontend, May–Sep 2026): leave them as they are, do not rename.
+- Backend (`master`) and frontend (`main`) are separate repos with independent counters; always commit, tag and push both when a change spans both.
+
 ## 🚀 Production Deployment
 
 ### Deploy Command
