@@ -5526,12 +5526,30 @@ namespace SW.PC.API.Backend.Services
                         row++;
                     }
                     
-                    // Leer prefijo alternativo para PLC2 desde A14 (igual que WashRecipe)
+                    // PLC alternativo / receta 2 (igual que WashRecipe):
+                    //   A13 = ON/OFF habilita, A14 = prefijo (sustituye "st_TrainRecipe"),
+                    //   A15 = OFF excluye las tablas Gantry del PLC2 (por defecto se incluyen)
+                    var alternateEnabled = sheet.Cell("A13").GetString()?.Trim()?.ToUpperInvariant();
                     var alternatePlcPrefix = sheet.Cell("A14").GetString()?.Trim();
-                    if (!string.IsNullOrEmpty(alternatePlcPrefix))
+                    var alternateGantry = sheet.Cell("A15").GetString()?.Trim()?.ToUpperInvariant();
+
+                    config.AlternateWriteEnabled = alternateEnabled == "ON";
+                    config.AlternatePlcPrefix = string.IsNullOrEmpty(alternatePlcPrefix) ? null : alternatePlcPrefix;
+                    config.AlternateIncludeGantryTables = alternateGantry != "OFF";
+
+                    if (config.AlternateWriteEnabled && string.IsNullOrEmpty(config.AlternatePlcPrefix))
                     {
-                        config.AlternatePlcPrefix = alternatePlcPrefix;
-                        _logger.LogDebug("🚆 Alternate PLC prefix from A14: {Prefix}", alternatePlcPrefix);
+                        _logger.LogWarning("🚆 TrainRecipe A13=ON pero A14 (prefijo PLC2) está vacío: la escritura al PLC2 quedará deshabilitada");
+                        config.AlternateWriteEnabled = false;
+                    }
+                    else if (!config.AlternateWriteEnabled && !string.IsNullOrEmpty(config.AlternatePlcPrefix))
+                    {
+                        _logger.LogWarning("🚆 TrainRecipe A14 tiene prefijo '{Prefix}' pero A13 no es ON: PLC2 deshabilitado", config.AlternatePlcPrefix);
+                    }
+                    else if (config.AlternateWriteEnabled)
+                    {
+                        _logger.LogDebug("🚆 PLC2 habilitado: prefijo '{Prefix}', tablas Gantry {Gantry}",
+                            config.AlternatePlcPrefix, config.AlternateIncludeGantryTables ? "incluidas" : "excluidas (A15=OFF)");
                     }
                     
                     _logger.LogInformation("🚆 Loaded TrainRecipe config: {BoolCount} bool params, {DecimalCount} decimal params, {GantryCount} gantry config params, {TableCount} interpolation tables ({TableConfigured} configured)", 

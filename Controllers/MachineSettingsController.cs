@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // MachineSettingsController.cs - API para Parámetros de Configuración de Máquina
 // ============================================================================
 // Endpoints para:
@@ -31,6 +31,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly AquafrischDbContext _dbContext;
         private readonly IRequestProjectContext _projectContext;
         private readonly IOperationLogService _operationLog;
+        private readonly IPlcWriteVerificationService _verifier;
         private readonly ILogger<MachineSettingsController> _logger;
 
         public MachineSettingsController(
@@ -39,6 +40,7 @@ namespace SW.PC.API.Backend.Controllers
             AquafrischDbContext dbContext,
             IRequestProjectContext projectContext,
             IOperationLogService operationLog,
+            IPlcWriteVerificationService verifier,
             ILogger<MachineSettingsController> logger)
         {
             _excelConfigService = excelConfigService;
@@ -46,6 +48,7 @@ namespace SW.PC.API.Backend.Controllers
             _dbContext = dbContext;
             _projectContext = projectContext;
             _operationLog = operationLog;
+            _verifier = verifier;
             _logger = logger;
         }
 
@@ -284,175 +287,86 @@ namespace SW.PC.API.Backend.Controllers
                 int successCount = 0;
                 int errorCount = 0;
                 var errors = new List<string>();
+                var warnings = new List<string>();
                 var changes = new List<Dictionary<string, string>>();
+                const string context = "Configuración de máquina (Settings) → PLC";
+                var batch = _verifier.CreateBatch(context);
 
-                // Escribir parámetros Bool (con detección de cambios)
-                foreach (var kvp in request.BoolValues)
+                // Escribe un grupo (bool/int/lreal/lreal2) validando que cada clave del frontend
+                // coincide con la definición ACTUAL del Excel. Antes, una clave no coincidente se
+                // ignoraba en silencio (valor nunca escrito, sin error ni log).
+                async Task WriteGroupAsync<TValue, TSetting>(
+                    string errorLabel, string changeType, string keyPrefix,
+                    Dictionary<string, TValue> values, List<TSetting> settings,
+                    Func<TSetting, string> nameOf, Func<TSetting, string> varOf,
+                    Type plcType, Func<object?, string> fmt) where TSetting : class where TValue : notnull
                 {
-                    var idx = ExtractIndexFromId(kvp.Key);
-                    var setting = idx >= 0 && idx < excelConfig.BoolSettings.Count ? excelConfig.BoolSettings[idx] : null;
-                    if (setting != null && kvp.Key == $"bool_{SanitizeId(setting.Name)}_{idx}")
+                    foreach (var kvp in values)
                     {
+                        var idx = ExtractIndexFromId(kvp.Key);
+                        var setting = idx >= 0 && idx < settings.Count ? settings[idx] : null;
+                        if (setting == null || kvp.Key != $"{keyPrefix}_{SanitizeId(nameOf(setting))}_{idx}")
+                        {
+                            errorCount++;
+                            var msg = $"{errorLabel} '{kvp.Key}': no coincide con la definición actual del Excel (fila movida/renombrada). Valor NO escrito — recargar la página.";
+                            errors.Add(msg);
+                            warnings.Add(msg);
+                            continue;
+                        }
+
+                        var plcVar = varOf(setting);
+                        if (string.IsNullOrWhiteSpace(plcVar))
+                        {
+                            errorCount++;
+                            errors.Add($"{errorLabel} '{nameOf(setting)}': sin variable PLC en el Excel");
+                            continue;
+                        }
+
                         try
                         {
-                            // Leer valor actual del PLC
-                            var currentValue = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(bool));
-                            var oldValueStr = currentValue?.ToString()?.ToLower() ?? "?";
-                            var newValueStr = kvp.Value.ToString().ToLower();
-                            
-                            var success = await _twinCATService.WriteVariableAsync(setting.PlcVariable, kvp.Value, typeof(bool));
-                            if (success)
+                            var currentValue = await _twinCATService.ReadVariableAsync(plcVar, plcType);
+                            var oldValueStr = fmt(currentValue);
+                            var newValueStr = fmt(kvp.Value);
+
+                            await batch.WriteAsync(plcVar, kvp.Value, plcType);
+                            successCount++;
+
+                            if (oldValueStr != newValueStr)
                             {
-                                successCount++;
-                                if (oldValueStr != newValueStr)
-                                {
-                                    changes.Add(new Dictionary<string, string> { 
-                                        {"name", setting.Name}, 
-                                        {"type", "bool"},
-                                        {"old", oldValueStr}, 
-                                        {"new", newValueStr} 
-                                    });
-                                }
-                            }
-                            else
-                            {
-                                errorCount++;
-                                errors.Add($"Bool '{kvp.Key}': write failed");
+                                changes.Add(new Dictionary<string, string> {
+                                    {"name", nameOf(setting)},
+                                    {"type", changeType},
+                                    {"old", oldValueStr},
+                                    {"new", newValueStr}
+                                });
                             }
                         }
                         catch (Exception ex)
                         {
                             errorCount++;
-                            errors.Add($"Bool '{kvp.Key}': {ex.Message}");
+                            errors.Add($"{errorLabel} '{kvp.Key}': {ex.Message}");
                         }
                     }
                 }
 
-                // Escribir parámetros Int (con detección de cambios)
-                foreach (var kvp in request.IntValues)
-                {
-                    var idx = ExtractIndexFromId(kvp.Key);
-                    var setting = idx >= 0 && idx < excelConfig.IntSettings.Count ? excelConfig.IntSettings[idx] : null;
-                    if (setting != null && kvp.Key == $"int_{SanitizeId(setting.Name)}_{idx}")
-                    {
-                        try
-                        {
-                            // Leer valor actual del PLC
-                            var currentValue = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(int));
-                            var oldValueStr = currentValue?.ToString() ?? "?";
-                            var newValueStr = kvp.Value.ToString();
-                            
-                            var success = await _twinCATService.WriteVariableAsync(setting.PlcVariable, kvp.Value, typeof(int));
-                            if (success)
-                            {
-                                successCount++;
-                                if (oldValueStr != newValueStr)
-                                {
-                                    changes.Add(new Dictionary<string, string> { 
-                                        {"name", setting.Name}, 
-                                        {"type", "int"},
-                                        {"old", oldValueStr}, 
-                                        {"new", newValueStr} 
-                                    });
-                                }
-                            }
-                            else
-                            {
-                                errorCount++;
-                                errors.Add($"Int '{kvp.Key}': write failed");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            errorCount++;
-                            errors.Add($"Int '{kvp.Key}': {ex.Message}");
-                        }
-                    }
-                }
+                string FmtBool(object? v) => v?.ToString()?.ToLower() ?? "?";
+                string FmtInt(object? v) => v?.ToString() ?? "?";
+                string FmtDouble(object? v) => v != null ? Convert.ToDouble(v, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture) : "?";
 
-                // Escribir parámetros LongReal (con detección de cambios)
-                foreach (var kvp in request.LongRealValues)
-                {
-                    var idx = ExtractIndexFromId(kvp.Key);
-                    var setting = idx >= 0 && idx < excelConfig.LongRealSettings.Count ? excelConfig.LongRealSettings[idx] : null;
-                    if (setting != null && kvp.Key == $"lreal_{SanitizeId(setting.Name)}_{idx}")
-                    {
-                        try
-                        {
-                            // Leer valor actual del PLC
-                            var currentValue = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(double));
-                            var oldValueStr = currentValue != null ? Convert.ToDouble(currentValue).ToString(CultureInfo.InvariantCulture) : "?";
-                            var newValueStr = kvp.Value.ToString(CultureInfo.InvariantCulture);
-                            
-                            var success = await _twinCATService.WriteVariableAsync(setting.PlcVariable, kvp.Value, typeof(double));
-                            if (success)
-                            {
-                                successCount++;
-                                if (oldValueStr != newValueStr)
-                                {
-                                    changes.Add(new Dictionary<string, string> { 
-                                        {"name", setting.Name}, 
-                                        {"type", "lreal"},
-                                        {"old", oldValueStr}, 
-                                        {"new", newValueStr} 
-                                    });
-                                }
-                            }
-                            else
-                            {
-                                errorCount++;
-                                errors.Add($"LongReal '{kvp.Key}': write failed");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            errorCount++;
-                            errors.Add($"LongReal '{kvp.Key}': {ex.Message}");
-                        }
-                    }
-                }
+                await WriteGroupAsync("Bool", "bool", "bool", request.BoolValues, excelConfig.BoolSettings, s => s.Name, s => s.PlcVariable, typeof(bool), FmtBool);
+                await WriteGroupAsync("Int", "int", "int", request.IntValues, excelConfig.IntSettings, s => s.Name, s => s.PlcVariable, typeof(int), FmtInt);
+                await WriteGroupAsync("LongReal", "lreal", "lreal", request.LongRealValues, excelConfig.LongRealSettings, s => s.Name, s => s.PlcVariable, typeof(double), FmtDouble);
+                await WriteGroupAsync("LongReal2", "lreal2", "lreal2", request.LongReal2Values, excelConfig.LongReal2Settings, s => s.Name, s => s.PlcVariable, typeof(double), FmtDouble);
 
-                // Escribir parámetros LongReal2 (segunda sección, con detección de cambios)
-                foreach (var kvp in request.LongReal2Values)
+                // Verificación por relectura (L3 + L2 retentivo si hay discrepancias)
+                var verification = await _verifier.VerifyAsync(batch, OperationCategory.Configuration, user);
+                if (!verification.Success)
                 {
-                    var idx = ExtractIndexFromId(kvp.Key);
-                    var setting = idx >= 0 && idx < excelConfig.LongReal2Settings.Count ? excelConfig.LongReal2Settings[idx] : null;
-                    if (setting != null && kvp.Key == $"lreal2_{SanitizeId(setting.Name)}_{idx}")
-                    {
-                        try
-                        {
-                            // Leer valor actual del PLC
-                            var currentValue = await _twinCATService.ReadVariableAsync(setting.PlcVariable, typeof(double));
-                            var oldValueStr = currentValue != null ? Convert.ToDouble(currentValue).ToString(CultureInfo.InvariantCulture) : "?";
-                            var newValueStr = kvp.Value.ToString(CultureInfo.InvariantCulture);
-                            
-                            var success = await _twinCATService.WriteVariableAsync(setting.PlcVariable, kvp.Value, typeof(double));
-                            if (success)
-                            {
-                                successCount++;
-                                if (oldValueStr != newValueStr)
-                                {
-                                    changes.Add(new Dictionary<string, string> { 
-                                        {"name", setting.Name}, 
-                                        {"type", "lreal2"},
-                                        {"old", oldValueStr}, 
-                                        {"new", newValueStr} 
-                                    });
-                                }
-                            }
-                            else
-                            {
-                                errorCount++;
-                                errors.Add($"LongReal2 '{kvp.Key}': write failed");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            errorCount++;
-                            errors.Add($"LongReal2 '{kvp.Key}': {ex.Message}");
-                        }
-                    }
+                    var verifyErrors = verification.ToErrorStrings();
+                    errors.AddRange(verifyErrors);
+                    errorCount += verifyErrors.Count;
                 }
+                await _verifier.LogIntegrityWarningsAsync(OperationCategory.Configuration, context, warnings, user);
 
                 // Crear descripción con los primeros cambios
                 string description;
@@ -477,21 +391,31 @@ namespace SW.PC.API.Backend.Controllers
                 }
 
                 // Operation log (L2) - Configuración con detalles
+                var details = new Dictionary<string, object>();
+                if (changes.Count > 0) details["changes"] = changes;
+                if (errors.Count > 0) details["errors"] = errors.Take(50).ToList();
+
                 await _operationLog.LogAsync(
                     OperationCategory.Configuration,
                     errorCount == 0 ? OperationAction.ConfigWritePlc : OperationAction.ConfigChange,
                     description,
                     user,
-                    changes.Count > 0 ? new Dictionary<string, object> { { "changes", changes } } : null);
+                    details.Count > 0 ? details : null);
 
-                _logger.LogInformation("⚙️ Wrote {Success} values to PLC ({Changes} changes, {Errors} errors)", successCount, changes.Count, errorCount);
+                _logger.Log(errorCount == 0 ? Microsoft.Extensions.Logging.LogLevel.Information : Microsoft.Extensions.Logging.LogLevel.Error,
+                    "⚙️ Settings → PLC: {Success} escritos, {Changes} cambios, {Errors} errores. {Verification}",
+                    successCount, changes.Count, errorCount, verification.Summary);
 
-                if (errorCount > 0)
+                return Ok(new
                 {
-                    return Ok(new { success = true, successCount, errorCount, changesCount = changes.Count, errors });
-                }
-
-                return Ok(new { success = true, successCount, errorCount = 0, changesCount = changes.Count });
+                    success = errorCount == 0,
+                    successCount,
+                    errorCount,
+                    changesCount = changes.Count,
+                    errors = errorCount > 0 ? errors : null,
+                    warnings = warnings.Count > 0 ? warnings : null,
+                    verification = verification.Summary
+                });
             }
             catch (Exception ex)
             {

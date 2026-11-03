@@ -116,6 +116,10 @@ public enum OperationAction
     ModbusSourceRead = 163,           // Lectura de fuente Modbus externa (rol Client)
     ModbusSourceWrite = 164,          // Escritura a fuente Modbus externa (rol Client)
 
+    // Integridad de escrituras / coherencia DB↔Excel↔PLC (170-179) — retentivo (L2)
+    PlcWriteVerifyFailed = 170,       // Relectura tras escritura al PLC no coincide o escritura rechazada
+    IntegrityWarning = 171,           // Incoherencia detectada entre DB, Excel y/o PLC (parámetros faltantes, huérfanos, lectura incompleta)
+
     // ❌ System (200+) - ELIMINADO: Los eventos de sistema (Startup, Shutdown, Error)
     //    ya se registran en L1 (Audit Log) con AuditAction.SystemStart/SystemStop
 }
@@ -289,6 +293,8 @@ public class OperationLog
             OperationAction.PlcNotificationDeactivated => OperationSeverity.Info,
             OperationAction.PlcInfoActivated => OperationSeverity.Info,
             OperationAction.PlcInfoDeactivated => OperationSeverity.Info,
+            OperationAction.PlcWriteVerifyFailed => OperationSeverity.Error,
+            OperationAction.IntegrityWarning => OperationSeverity.Warning,
             _ => OperationSeverity.Info
         };
     }

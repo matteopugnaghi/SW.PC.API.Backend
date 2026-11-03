@@ -776,6 +776,8 @@ public class OperationLogsController : ControllerBase
         OperationAction.PlcNotificationDeactivated => "Notificación PLC desactivada",
         OperationAction.PlcInfoActivated => "Info PLC activada",
         OperationAction.PlcInfoDeactivated => "Info PLC desactivada",
+        OperationAction.PlcWriteVerifyFailed => "Verificación escritura PLC FALLIDA",
+        OperationAction.IntegrityWarning => "Aviso de integridad DB/Excel/PLC",
         _ => action.ToString()
     };
 
@@ -796,7 +798,9 @@ public class OperationLogsController : ControllerBase
             OperationAction.TrainTypeWritePlc,
             OperationAction.TrainTypeSaveFromPlc,
             OperationAction.TrainTypeInterpolationWrite,
-            OperationAction.TrainTypeWritePlcFromEditor
+            OperationAction.TrainTypeWritePlcFromEditor,
+            OperationAction.PlcWriteVerifyFailed,
+            OperationAction.IntegrityWarning
         },
         OperationCategory.Process => new[] {
             OperationAction.SemiautomaticToggle,
@@ -820,7 +824,9 @@ public class OperationLogsController : ControllerBase
             OperationAction.ConfigChange,
             OperationAction.ConfigWritePlc,
             OperationAction.FastConfigWritePlc,
-            OperationAction.FastConfigChange
+            OperationAction.FastConfigChange,
+            OperationAction.PlcWriteVerifyFailed,
+            OperationAction.IntegrityWarning
         },
         OperationCategory.OpcUa => new[] {
             OperationAction.OpcUaNodeWrite,

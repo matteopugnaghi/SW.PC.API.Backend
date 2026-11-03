@@ -166,7 +166,7 @@ public class OperationLogService : IOperationLogService
             _ = _nxLogFileService.WriteOperationEventAsync(new NxLogOperationEntry
             {
                 Timestamp = entry.Timestamp,
-                Level = entry.Severity == OperationSeverity.Critical ? "ERROR" :
+                Level = entry.Severity >= OperationSeverity.Error ? "ERROR" :
                         entry.Severity == OperationSeverity.Warning ? "WARNING" : "INFO",
                 Category = category.ToString(),
                 Action = action.ToString(),

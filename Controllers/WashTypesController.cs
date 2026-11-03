@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // WashTypesController.cs - API para Tipos de Lavados
 // ============================================================================
 // Endpoints para:
@@ -31,6 +31,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly ITwinCATService _twinCATService;
         private readonly IExcelConfigService _excelService;
         private readonly IOperationLogService _operationLog;
+        private readonly IPlcWriteVerificationService _verifier;
         private readonly ILogger<WashTypesController> _logger;
 
         public WashTypesController(
@@ -38,12 +39,14 @@ namespace SW.PC.API.Backend.Controllers
             ITwinCATService twinCATService,
             IExcelConfigService excelService,
             IOperationLogService operationLog,
+            IPlcWriteVerificationService verifier,
             ILogger<WashTypesController> logger)
         {
             _dbContext = dbContext;
             _twinCATService = twinCATService;
             _excelService = excelService;
             _operationLog = operationLog;
+            _verifier = verifier;
             _logger = logger;
         }
 
@@ -669,31 +672,18 @@ namespace SW.PC.API.Backend.Controllers
                     existingWashType.UpdatedAt = DateTime.UtcNow;
                     existingWashType.UpdatedBy = username;
 
-                    // Actualizar parámetros
-                    foreach (var param in plcValues.Parameters)
+                    // Sincronizar por variable PLC (no por código estación/índice): actualiza
+                    // metadatos+valor, añade nuevos y elimina huérfanos que ya no están en el Excel.
+                    var sync = WashTypeParameterSynchronizer.Sync(existingWashType.Parameters, plcValues.Parameters);
+                    if (sync.Removed.Count > 0)
                     {
-                        var existingParam = existingWashType.Parameters
-                            .FirstOrDefault(p => p.ParameterCode == param.Code);
-                        if (existingParam != null)
-                        {
-                            existingParam.Value = param.Value;
-                        }
-                        else
-                        {
-                            existingWashType.Parameters.Add(new WashTypeParameter
-                            {
-                                ParameterCode = param.Code,
-                                Name = param.Name,
-                                DataType = param.DataType,
-                                Value = param.Value,
-                                MinValue = param.MinValue,
-                                MaxValue = param.MaxValue,
-                                Unit = param.Unit,
-                                PlcVariable = param.PlcVariable,
-                                DisplayOrder = param.DisplayOrder
-                            });
-                        }
+                        _dbContext.Set<WashTypeParameter>().RemoveRange(sync.Removed);
+                        await _verifier.LogIntegrityWarningsAsync(OperationCategory.Recipe, $"Guardar slot lavado {dto.SlotNumber} desde PLC",
+                            new[] { $"Eliminados {sync.Removed.Count} parámetros huérfanos (ya no están en el Excel): {string.Join(", ", sync.Removed.Select(p => p.PlcVariable))}" },
+                            username);
                     }
+                    _logger.LogInformation("🚿 Slot {Slot}: parámetros sincronizados → {Updated} actualizados, {Added} nuevos, {Removed} eliminados",
+                        dto.SlotNumber, sync.Updated, sync.Added, sync.Removed.Count);
                 }
                 else
                 {
@@ -710,18 +700,10 @@ namespace SW.PC.API.Backend.Controllers
                         DisplayOrder = dto.SlotNumber,
                         CreatedAt = DateTime.UtcNow,
                         CreatedBy = username,
-                        Parameters = plcValues.Parameters.Select(p => new WashTypeParameter
-                        {
-                            ParameterCode = p.Code,
-                            Name = p.Name,
-                            DataType = p.DataType,
-                            Value = p.Value,
-                            MinValue = p.MinValue,
-                            MaxValue = p.MaxValue,
-                            Unit = p.Unit,
-                            PlcVariable = p.PlcVariable,
-                            DisplayOrder = p.DisplayOrder
-                        }).ToList()
+                        Parameters = plcValues.Parameters
+                            .Where(p => !string.IsNullOrWhiteSpace(p.PlcVariable))
+                            .Select(WashTypeParameterSynchronizer.ToEntity)
+                            .ToList()
                     };
 
                     _dbContext.WashTypes.Add(existingWashType);
@@ -1006,336 +988,140 @@ namespace SW.PC.API.Backend.Controllers
             };
         }
 
+        /// <summary>
+        /// Escribir el tipo de lavado activo al PLC principal (verificado por relectura).
+        /// </summary>
         private async Task<WriteToPlcResponseDto> WriteWashTypeToPlcInternal(
             WashType washType, 
             ActiveWashType active, 
             string username)
         {
-            var errors = new List<string>();
-            int parametersWritten = 0;
-
-            // Cargar configuración del Excel para obtener variable del nombre de receta
-            var excelPath = _excelService.GetExcelConfigPath();
-            var excelConfig = await _excelService.LoadWashRecipeConfigAsync(excelPath);
-
-            // Escribir nombre de receta al PLC (variable de A3 del Excel)
-            if (!string.IsNullOrEmpty(excelConfig.RecipeNamePlcVariable))
-            {
-                try
-                {
-                    await _twinCATService.WriteVariableAsync(
-                        excelConfig.RecipeNamePlcVariable, 
-                        washType.Name, 
-                        typeof(string));
-                    parametersWritten++;
-                    _logger.LogInformation("✅ Nombre de receta escrito al PLC: {Var} = {Value}", 
-                        excelConfig.RecipeNamePlcVariable, washType.Name);
-                }
-                catch (Exception ex)
-                {
-                    var error = $"Nombre de receta: {ex.Message}";
-                    errors.Add(error);
-                    _logger.LogWarning("⚠️ Error escribiendo nombre de receta: {Error}", ex.Message);
-                }
-            }
-            else
-            {
-                _logger.LogWarning("⚠️ No hay variable PLC configurada para nombre de receta en A3 del Excel");
-            }
-
-            // Escribir línea/número de receta al PLC (variable de A4 del Excel)
-            if (!string.IsNullOrEmpty(excelConfig.RecipeLineNumberPlcVariable))
-            {
-                try
-                {
-                    // Usar DisplayOrder como número de línea de receta (o Id si DisplayOrder es 0)
-                    var lineNumber = washType.DisplayOrder > 0 ? washType.DisplayOrder : washType.Id;
-                    await _twinCATService.WriteVariableAsync(
-                        excelConfig.RecipeLineNumberPlcVariable, 
-                        lineNumber, 
-                        typeof(int));
-                    parametersWritten++;
-                    _logger.LogInformation("✅ Línea de receta escrita al PLC: {Var} = {Value}", 
-                        excelConfig.RecipeLineNumberPlcVariable, lineNumber);
-                }
-                catch (Exception ex)
-                {
-                    var error = $"Línea de receta: {ex.Message}";
-                    errors.Add(error);
-                    _logger.LogWarning("⚠️ Error escribiendo línea de receta: {Error}", ex.Message);
-                }
-            }
-            else
-            {
-                _logger.LogDebug("ℹ️ No hay variable PLC configurada para línea de receta en A4 del Excel");
-            }
-
-            // Escribir parámetros individuales
-            foreach (var param in washType.Parameters.Where(p => !string.IsNullOrEmpty(p.PlcVariable)))
-            {
-                try
-                {
-                    object? valueToWrite = param.DataType.ToUpper() switch
-                    {
-                        "BOOL" => bool.TryParse(param.Value, out var b) ? b : false,
-                        "INT" => int.TryParse(param.Value, out var i) ? i : 0,
-                        "LREAL" or "REAL" or "DOUBLE" => double.TryParse(param.Value, 
-                            System.Globalization.NumberStyles.Any, 
-                            System.Globalization.CultureInfo.InvariantCulture, 
-                            out var d) ? d : 0.0,
-                        _ => param.Value
-                    };
-
-                    Type dataType = param.DataType.ToUpper() switch
-                    {
-                        "BOOL" => typeof(bool),
-                        "INT" => typeof(int),
-                        "LREAL" or "REAL" or "DOUBLE" => typeof(double),
-                        _ => typeof(string)
-                    };
-
-                    await _twinCATService.WriteVariableAsync(param.PlcVariable!, valueToWrite!, dataType);
-                    parametersWritten++;
-                    _logger.LogDebug("✅ Written {Variable} = {Value}", param.PlcVariable, valueToWrite);
-                }
-                catch (Exception ex)
-                {
-                    var error = $"{param.Name}: {ex.Message}";
-                    errors.Add(error);
-                    _logger.LogWarning("⚠️ Failed to write {Variable}: {Error}", param.PlcVariable, ex.Message);
-                }
-            }
+            var result = await WriteWashTypeCoreAsync(washType, alternatePlcPrefix: null, username);
 
             // Actualizar estado de escritura
-            active.WrittenToPlc = errors.Count == 0;
+            active.WrittenToPlc = result.Success;
             active.WrittenToPlcAt = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
 
-            // Operation log (L2) - Recetas
             await _operationLog.LogAsync(
                 OperationCategory.Recipe,
                 OperationAction.WashTypeWritePlc,
-                washType.Name,
-                username);
+                result.Success ? washType.Name : $"{washType.Name} ({result.Errors?.Count ?? 0} errores)",
+                username,
+                result.Success ? null : new Dictionary<string, object> { ["errors"] = (result.Errors ?? new()).Take(50).ToList() });
 
-            return new WriteToPlcResponseDto
-            {
-                Success = errors.Count == 0,
-                Message = errors.Count == 0 
-                    ? $"Tipo de lavado '{washType.Name}' escrito al PLC correctamente" 
-                    : $"Escritura parcial: {parametersWritten} parámetros escritos, {errors.Count} errores",
-                ParametersWritten = parametersWritten,
-                Errors = errors.Count > 0 ? errors : null,
-                WrittenAt = DateTime.UtcNow
-            };
+            return result;
         }
 
         /// <summary>
-        /// Escribir tipo de lavado al PLC usando prefijo alternativo (de A14)
-        /// Reemplaza "st_WashRecipe" por el prefijo especificado en las variables PLC
+        /// Escribir tipo de lavado al PLC alternativo usando el prefijo de A14 (sustituye "st_WashRecipe").
         /// </summary>
         private async Task<WriteToPlcResponseDto> WriteWashTypeToPlcAlternateInternal(
             WashType washType, 
             string alternatePlcPrefix,
             string username)
         {
-            var errors = new List<string>();
-            int parametersWritten = 0;
-
             _logger.LogInformation("🚿 Escribiendo tipo de lavado al PLC con prefijo alternativo: {Prefix}", alternatePlcPrefix);
 
-            // Cargar configuración del Excel para obtener variable del nombre de receta y todas las variables PLC
-            var excelPath = _excelService.GetExcelConfigPath();
-            var excelConfig = await _excelService.LoadWashRecipeConfigAsync(excelPath);
+            var result = await WriteWashTypeCoreAsync(washType, alternatePlcPrefix, username);
 
-            // Escribir nombre de receta al PLC (modificando la variable con el prefijo alternativo)
-            if (!string.IsNullOrEmpty(excelConfig.RecipeNamePlcVariable))
-            {
-                try
-                {
-                    // Reemplazar st_WashRecipe por el prefijo alternativo
-                    var alternateVar = excelConfig.RecipeNamePlcVariable.Replace("st_WashRecipe", alternatePlcPrefix);
-                    
-                    var writeSuccess = await _twinCATService.WriteVariableAsync(
-                        alternateVar, 
-                        washType.Name, 
-                        typeof(string));
-                    
-                    if (writeSuccess)
-                    {
-                        parametersWritten++;
-                        _logger.LogInformation("✅ Nombre de receta escrito al PLC (alternativo): {Var} = {Value}", 
-                            alternateVar, washType.Name);
-                    }
-                    else
-                    {
-                        var error = $"Nombre de receta (alternativo): Error al escribir {alternateVar}";
-                        errors.Add(error);
-                        _logger.LogWarning("⚠️ Error escribiendo nombre de receta (alternativo): WriteVariableAsync returned false");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    var error = $"Nombre de receta (alternativo): {ex.Message}";
-                    errors.Add(error);
-                    _logger.LogWarning("⚠️ Error escribiendo nombre de receta (alternativo): {Error}", ex.Message);
-                }
-            }
-
-            // Escribir línea/número de receta al PLC alternativo (variable de A4 del Excel con prefijo alternativo)
-            if (!string.IsNullOrEmpty(excelConfig.RecipeLineNumberPlcVariable))
-            {
-                try
-                {
-                    // Reemplazar st_WashRecipe por el prefijo alternativo
-                    var alternateLineVar = excelConfig.RecipeLineNumberPlcVariable.Replace("st_WashRecipe", alternatePlcPrefix);
-                    
-                    // Usar DisplayOrder como número de línea de receta (o Id si DisplayOrder es 0)
-                    var lineNumber = washType.DisplayOrder > 0 ? washType.DisplayOrder : washType.Id;
-                    
-                    var writeSuccess = await _twinCATService.WriteVariableAsync(
-                        alternateLineVar, 
-                        lineNumber, 
-                        typeof(int));
-                    
-                    if (writeSuccess)
-                    {
-                        parametersWritten++;
-                        _logger.LogInformation("✅ Línea de receta escrita al PLC (alternativo): {Var} = {Value}", 
-                            alternateLineVar, lineNumber);
-                    }
-                    else
-                    {
-                        var error = $"Línea de receta (alternativo): Error al escribir {alternateLineVar}";
-                        errors.Add(error);
-                        _logger.LogWarning("⚠️ Error escribiendo línea de receta (alternativo): WriteVariableAsync returned false");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    var error = $"Línea de receta (alternativo): {ex.Message}";
-                    errors.Add(error);
-                    _logger.LogWarning("⚠️ Error escribiendo línea de receta (alternativo): {Error}", ex.Message);
-                }
-            }
-
-            // Escribir parámetros usando las variables del Excel (mapeando por código de parámetro)
-            // Obtener todas las variables PLC definidas en el Excel
-            var allExcelParams = new List<(string PlcVariable, string DataType, string Code)>();
-            
-            foreach (var station in excelConfig.Stations)
-            {
-                foreach (var boolParam in station.BoolParameters.Where(p => p.IsConfigured && !string.IsNullOrEmpty(p.PlcVariable)))
-                {
-                    allExcelParams.Add((boolParam.PlcVariable, "BOOL", $"S{station.Index}_B{boolParam.Index}"));
-                }
-                foreach (var intParam in station.IntParameters.Where(p => p.IsConfigured && !string.IsNullOrEmpty(p.PlcVariable)))
-                {
-                    allExcelParams.Add((intParam.PlcVariable, "INT", $"S{station.Index}_I{intParam.Index}"));
-                }
-            }
-
-            _logger.LogInformation("📋 Excel tiene {Count} parámetros PLC configurados, WashType tiene {WtCount} parámetros", 
-                allExcelParams.Count, washType.Parameters.Count);
-            
-            // Log de códigos de Excel para debug
-            foreach (var ep in allExcelParams.Take(5))
-            {
-                _logger.LogDebug("📋 Excel param: Code={Code}, PlcVar={Var}", ep.Code, ep.PlcVariable);
-            }
-            
-            // Log de códigos de WashType para debug
-            foreach (var wp in washType.Parameters.Take(5))
-            {
-                _logger.LogDebug("📋 WashType param: Code={Code}, PlcVar={Var}", wp.ParameterCode, wp.PlcVariable);
-            }
-
-            // Para cada parámetro del WashType, buscar la variable PLC en el Excel por código
-            foreach (var param in washType.Parameters)
-            {
-                // Buscar en el Excel por código de parámetro
-                var excelParam = allExcelParams.FirstOrDefault(e => e.Code == param.ParameterCode);
-                
-                string? plcVariable = null;
-                string dataType = param.DataType;
-                
-                if (!string.IsNullOrEmpty(excelParam.PlcVariable))
-                {
-                    plcVariable = excelParam.PlcVariable;
-                    dataType = excelParam.DataType;
-                }
-                else if (!string.IsNullOrEmpty(param.PlcVariable))
-                {
-                    // Fallback: usar PlcVariable de la BD si existe
-                    plcVariable = param.PlcVariable;
-                }
-                
-                if (string.IsNullOrEmpty(plcVariable))
-                {
-                    _logger.LogDebug("⏭️ Parámetro {Code} sin variable PLC, saltando", param.ParameterCode);
-                    continue;
-                }
-
-                try
-                {
-                    // Reemplazar st_WashRecipe por el prefijo alternativo
-                    var alternateVar = plcVariable.Replace("st_WashRecipe", alternatePlcPrefix);
-                    
-                    object? valueToWrite = dataType.ToUpper() switch
-                    {
-                        "BOOL" => bool.TryParse(param.Value, out var b) ? b : false,
-                        "INT" => int.TryParse(param.Value, out var i) ? i : 0,
-                        "LREAL" or "REAL" or "DOUBLE" => double.TryParse(param.Value, 
-                            System.Globalization.NumberStyles.Any, 
-                            System.Globalization.CultureInfo.InvariantCulture, 
-                            out var d) ? d : 0.0,
-                        _ => param.Value
-                    };
-
-                    Type netDataType = dataType.ToUpper() switch
-                    {
-                        "BOOL" => typeof(bool),
-                        "INT" => typeof(int),
-                        "LREAL" or "REAL" or "DOUBLE" => typeof(double),
-                        _ => typeof(string)
-                    };
-
-                    var writeSuccess = await _twinCATService.WriteVariableAsync(alternateVar, valueToWrite!, netDataType);
-                    if (writeSuccess)
-                    {
-                        parametersWritten++;
-                        _logger.LogDebug("✅ Written (alternate) {Variable} = {Value}", alternateVar, valueToWrite);
-                    }
-                    else
-                    {
-                        var error = $"{param.Name}: Error al escribir {alternateVar}";
-                        errors.Add(error);
-                        _logger.LogWarning("⚠️ Failed to write (alternate) {Variable}: WriteVariableAsync returned false", alternateVar);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    var error = $"{param.Name}: {ex.Message}";
-                    errors.Add(error);
-                    _logger.LogWarning("⚠️ Failed to write (alternate) {Variable}: {Error}", plcVariable, ex.Message);
-                }
-            }
-
-            // Operation log (L2) - Recetas
             await _operationLog.LogAsync(
                 OperationCategory.Recipe,
                 OperationAction.WashTypeWritePlc,
-                $"{washType.Name} (PLC ALT)",
-                username);
+                result.Success ? $"{washType.Name} (PLC ALT)" : $"{washType.Name} (PLC ALT, {result.Errors?.Count ?? 0} errores)",
+                username,
+                result.Success ? null : new Dictionary<string, object> { ["errors"] = (result.Errors ?? new()).Take(50).ToList() });
+
+            return result;
+        }
+
+        /// <summary>
+        /// Implementación única DB → PLC de un tipo de lavado:
+        ///   1. Nombre de receta (A3) y línea (A4)
+        ///   2. Parámetros del slot (sólo variables definidas en el Excel actual; aviso de las que faltan)
+        ///   3. Verificación por relectura → L3 + L2 (retentivo) si hay discrepancias
+        /// Cada escritura comprueba el resultado del driver ADS (false = error, no éxito).
+        /// </summary>
+        private async Task<WriteToPlcResponseDto> WriteWashTypeCoreAsync(WashType washType, string? alternatePlcPrefix, string username)
+        {
+            var errors = new List<string>();
+            var warnings = new List<string>();
+            int parametersWritten = 0;
+            string Map(string v) => WashTypeParameterSynchronizer.ApplyAlternatePrefix(v, alternatePlcPrefix);
+            var label = alternatePlcPrefix == null ? "PLC" : $"PLC ALT ({alternatePlcPrefix})";
+            var context = $"Tipo de lavado '{washType.Name}' ({washType.Code}) → {label}";
+            var batch = _verifier.CreateBatch(context);
+
+            var excelPath = _excelService.GetExcelConfigPath();
+            var excelConfig = await _excelService.LoadWashRecipeConfigAsync(excelPath);
+
+            async Task TryWriteAsync(string what, string? variable, object value, Type type)
+            {
+                if (string.IsNullOrWhiteSpace(variable))
+                {
+                    return;
+                }
+                var target = Map(variable.Trim());
+                try
+                {
+                    await batch.WriteAsync(target, value, type);
+                    parametersWritten++;
+                    _logger.LogDebug("✅ {What} escrito: {Var} = {Value}", what, target, value);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"{what} ({target}): {ex.Message}");
+                    _logger.LogWarning("⚠️ Error escribiendo {What} ({Var}): {Error}", what, target, ex.Message);
+                }
+            }
+
+            // 1. Cabecera
+            if (string.IsNullOrEmpty(excelConfig.RecipeNamePlcVariable))
+            {
+                warnings.Add("No hay variable PLC configurada para el nombre de receta (Excel WashRecipe A3)");
+            }
+            await TryWriteAsync("Nombre de receta", excelConfig.RecipeNamePlcVariable, washType.Name, typeof(string));
+
+            var lineNumber = washType.DisplayOrder > 0 ? washType.DisplayOrder : washType.Id;
+            await TryWriteAsync("Línea de receta", excelConfig.RecipeLineNumberPlcVariable, lineNumber, typeof(int));
+
+            // 2. Parámetros
+            var writable = WashTypeParameterSynchronizer.GetWritableParameters(washType.Parameters, excelConfig, out var paramWarnings);
+            warnings.AddRange(paramWarnings);
+
+            if (writable.Count == 0)
+            {
+                warnings.Add("El slot no tiene parámetros con variable PLC para escribir");
+            }
+
+            foreach (var param in writable)
+            {
+                var (value, type) = WashTypeParameterSynchronizer.ToPlcValue(param);
+                await TryWriteAsync($"'{param.Name}'", param.PlcVariable, value, type);
+            }
+
+            // 3. Verificación por relectura
+            var verification = await _verifier.VerifyAsync(batch, OperationCategory.Recipe, username);
+            if (!verification.Success)
+            {
+                errors.AddRange(verification.ToErrorStrings());
+            }
+
+            await _verifier.LogIntegrityWarningsAsync(OperationCategory.Recipe, context, warnings, username);
+
+            var success = errors.Count == 0 && parametersWritten > 0;
+            _logger.Log(success ? LogLevel.Information : LogLevel.Error,
+                "🚿 {Context}: {Written} escritos, {Errors} errores, {Warnings} avisos. {Verification}",
+                context, parametersWritten, errors.Count, warnings.Count, verification.Summary);
 
             return new WriteToPlcResponseDto
             {
-                Success = parametersWritten > 0 && errors.Count == 0,
+                Success = success,
                 Message = parametersWritten == 0
-                    ? $"No se encontraron parámetros para escribir. Verifica que el WashType tenga parámetros configurados."
-                    : errors.Count == 0 
-                        ? $"Tipo de lavado '{washType.Name}' escrito al PLC (alternativo) correctamente ({parametersWritten} parámetros)" 
-                        : $"Escritura parcial (alternativo): {parametersWritten} parámetros escritos, {errors.Count} errores",
+                    ? "No se escribió ningún parámetro. Verifica que el slot tenga parámetros guardados y el Excel WashRecipe esté configurado."
+                    : errors.Count == 0
+                        ? $"Tipo de lavado '{washType.Name}' escrito y verificado en {label} ({parametersWritten} variables)"
+                        : $"Escritura con errores ({label}): {parametersWritten} OK, {errors.Count} errores",
                 ParametersWritten = parametersWritten,
                 Errors = errors.Count > 0 ? errors : null,
                 WrittenAt = DateTime.UtcNow

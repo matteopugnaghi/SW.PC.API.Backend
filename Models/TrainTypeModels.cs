@@ -547,6 +547,11 @@ namespace SW.PC.API.Backend.Models
         public string? Unit { get; set; }
         public string? PlcVariable { get; set; }
         public int DisplayOrder { get; set; }
+
+        /// <summary>
+        /// Grupo del parámetro: "Bool", "Decimal" o "Gantry" (sección del Excel TrainRecipe)
+        /// </summary>
+        public string? GroupName { get; set; }
     }
 
     // Nota: Las clases TrainRecipeConfiguration, TrainRecipeParameter y DTOs relacionados

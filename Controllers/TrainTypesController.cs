@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // TrainTypesController.cs - API para Tipos de Trenes
 // ============================================================================
 // Endpoints para:
@@ -30,6 +30,8 @@ namespace SW.PC.API.Backend.Controllers
         private readonly ITwinCATService _twinCATService;
         private readonly IExcelConfigService _excelService;
         private readonly IOperationLogService _operationLog;
+        private readonly IPlcWriteVerificationService _verifier;
+        private readonly ITrainTypePlcWriter _plcWriter;
         private readonly ILogger<TrainTypesController> _logger;
 
         public TrainTypesController(
@@ -37,12 +39,16 @@ namespace SW.PC.API.Backend.Controllers
             ITwinCATService twinCATService,
             IExcelConfigService excelService,
             IOperationLogService operationLog,
+            IPlcWriteVerificationService verifier,
+            ITrainTypePlcWriter plcWriter,
             ILogger<TrainTypesController> logger)
         {
             _dbContext = dbContext;
             _twinCATService = twinCATService;
             _excelService = excelService;
             _operationLog = operationLog;
+            _verifier = verifier;
+            _plcWriter = plcWriter;
             _logger = logger;
         }
 
@@ -593,31 +599,18 @@ namespace SW.PC.API.Backend.Controllers
                     existingTrainType.UpdatedAt = DateTime.UtcNow;
                     existingTrainType.UpdatedBy = username;
 
-                    // Actualizar parámetros
-                    foreach (var param in plcValues.Parameters)
+                    // Sincronizar parámetros por variable PLC (no por posición en el Excel):
+                    // actualiza metadatos+valor, añade los nuevos y elimina huérfanos.
+                    var sync = TrainTypeParameterSynchronizer.Sync(existingTrainType.Parameters, plcValues.Parameters);
+                    if (sync.Removed.Count > 0)
                     {
-                        var existingParam = existingTrainType.Parameters
-                            .FirstOrDefault(p => p.ParameterCode == param.Code);
-                        if (existingParam != null)
-                        {
-                            existingParam.Value = param.Value;
-                        }
-                        else
-                        {
-                            existingTrainType.Parameters.Add(new TrainTypeParameter
-                            {
-                                ParameterCode = param.Code,
-                                Name = param.Name,
-                                DataType = param.DataType,
-                                Value = param.Value,
-                                MinValue = param.MinValue,
-                                MaxValue = param.MaxValue,
-                                Unit = param.Unit,
-                                PlcVariable = param.PlcVariable,
-                                DisplayOrder = param.DisplayOrder
-                            });
-                        }
+                        _dbContext.Set<TrainTypeParameter>().RemoveRange(sync.Removed);
+                        await _verifier.LogIntegrityWarningsAsync(OperationCategory.Recipe, $"Guardar slot {dto.SlotNumber} desde PLC",
+                            new[] { $"Eliminados {sync.Removed.Count} parámetros huérfanos (ya no están en el Excel): {string.Join(", ", sync.Removed.Select(p => p.PlcVariable))}" },
+                            username);
                     }
+                    _logger.LogInformation("🚆 [TIPOS DE TREN] Slot {Slot}: parámetros sincronizados → {Updated} actualizados, {Added} nuevos, {Removed} eliminados",
+                        dto.SlotNumber, sync.Updated, sync.Added, sync.Removed.Count);
 
                     // Actualizar datos de Gantry
                     await UpdateGantryDataAsync(existingTrainType, plcValues.GantryTables);
@@ -638,18 +631,10 @@ namespace SW.PC.API.Backend.Controllers
                         GantryTableCount = plcValues.GantryTableCount,
                         CreatedAt = DateTime.UtcNow,
                         CreatedBy = username,
-                        Parameters = plcValues.Parameters.Select(p => new TrainTypeParameter
-                        {
-                            ParameterCode = p.Code,
-                            Name = p.Name,
-                            DataType = p.DataType,
-                            Value = p.Value,
-                            MinValue = p.MinValue,
-                            MaxValue = p.MaxValue,
-                            Unit = p.Unit,
-                            PlcVariable = p.PlcVariable,
-                            DisplayOrder = p.DisplayOrder
-                        }).ToList(),
+                        Parameters = plcValues.Parameters
+                            .Where(p => !string.IsNullOrWhiteSpace(p.PlcVariable))
+                            .Select(TrainTypeParameterSynchronizer.ToEntity)
+                            .ToList(),
                         GantryData = plcValues.GantryTables.SelectMany(table => 
                             table.Rows.Select(row => new TrainTypeGantryData
                             {
@@ -705,11 +690,20 @@ namespace SW.PC.API.Backend.Controllers
                         MaxValue = p.MaxValue,
                         Unit = p.Unit,
                         PlcVariable = p.PlcVariable,
-                        DisplayOrder = p.DisplayOrder
+                        DisplayOrder = p.DisplayOrder,
+                        GroupName = p.GroupName
                     }).ToList()
                 };
 
                 return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // PLC desconectado o lectura incompleta: NO se guarda nada (modo estricto)
+                _logger.LogError("❌ Guardar tipo de tren desde PLC abortado (slot {Slot}): {Error}", dto.SlotNumber, ex.Message);
+                await _verifier.LogIntegrityWarningsAsync(OperationCategory.Recipe, $"Guardar slot {dto.SlotNumber} desde PLC",
+                    new[] { $"Guardado ABORTADO: {ex.Message}" }, User.FindFirst(ClaimTypes.Name)?.Value);
+                return StatusCode(503, new { error = ex.Message });
             }
             catch (Exception ex)
             {
@@ -723,7 +717,8 @@ namespace SW.PC.API.Backend.Controllers
         #region PLC Operations
 
         /// <summary>
-        /// Escribir tipo de tren al PLC
+        /// Escribir tipo de tren al PLC (DB → PLC): cabecera, parámetros Bool/Decimal/Gantry,
+        /// tablas de interpolación Gantry (incl. min/max height) y verificación por relectura.
         /// </summary>
         [HttpPost("{id:int}/write-to-plc")]
         [ProducesResponseType(200)]
@@ -734,6 +729,7 @@ namespace SW.PC.API.Backend.Controllers
             {
                 var trainType = await _dbContext.TrainTypes
                     .Include(t => t.Parameters)
+                    .Include(t => t.GantryData)
                     .FirstOrDefaultAsync(t => t.Id == id);
 
                 if (trainType == null)
@@ -742,288 +738,31 @@ namespace SW.PC.API.Backend.Controllers
                 }
 
                 var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
-                var excelPath = _excelService.GetExcelConfigPath();
-                var trainConfig = await _excelService.LoadTrainRecipeConfigAsync(excelPath);
+                var trainConfig = await _excelService.LoadTrainRecipeConfigAsync(_excelService.GetExcelConfigPath());
 
-                int successCount = 0;
-                int errorCount = 0;
-                var errors = new List<string>();
-
-                // Escribir nombre del tren
-                if (!string.IsNullOrEmpty(trainConfig?.TrainNamePlcVariable))
+                var result = await _plcWriter.WriteAsync(trainType, trainConfig, new TrainTypePlcWriteOptions
                 {
-                    try
-                    {
-                        await _twinCATService.WriteVariableAsync(trainConfig.TrainNamePlcVariable, trainType.Name, typeof(string));
-                        successCount++;
-                        _logger.LogDebug("✅ Nombre de tren escrito: {Var} = {Value}", trainConfig.TrainNamePlcVariable, trainType.Name);
-                    }
-                    catch (Exception ex)
-                    {
-                        errorCount++;
-                        errors.Add($"TrainName: {ex.Message}");
-                    }
-                }
+                    IncludeGantryTables = true,
+                    ContextLabel = "PLC"
+                }, username);
 
-                // Escribir número de tablas activas del Gantry (1 = 4 tablas, 2 = 8 tablas)
-                if (!string.IsNullOrEmpty(trainConfig?.GantryTableCountPlcVariable))
-                {
-                    try
-                    {
-                        var countToWrite = (trainType.GantryTableCount == 1 || trainType.GantryTableCount == 2)
-                            ? trainType.GantryTableCount
-                            : 1;
-                        await _twinCATService.WriteVariableAsync(trainConfig.GantryTableCountPlcVariable, countToWrite, typeof(int));
-                        successCount++;
-                        _logger.LogInformation("✅ GantryTableCount escrito al PLC: {Var} = {Value}",
-                            trainConfig.GantryTableCountPlcVariable, countToWrite);
-                    }
-                    catch (Exception ex)
-                    {
-                        errorCount++;
-                        errors.Add($"GantryTableCount: {ex.Message}");
-                    }
-                }
-
-                // Escribir número de línea
-                if (!string.IsNullOrEmpty(trainConfig?.LineNumberPlcVariable))
-                {
-                    try
-                    {
-                        await _twinCATService.WriteVariableAsync(trainConfig.LineNumberPlcVariable, trainType.DisplayOrder, typeof(int));
-                        successCount++;
-                        _logger.LogDebug("✅ Línea de tren escrita: {Var} = {Value}", trainConfig.LineNumberPlcVariable, trainType.DisplayOrder);
-                    }
-                    catch (Exception ex)
-                    {
-                        errorCount++;
-                        errors.Add($"LineNumber: {ex.Message}");
-                    }
-                }
-
-                // Escribir parámetros
-                foreach (var param in trainType.Parameters.Where(p => !string.IsNullOrEmpty(p.PlcVariable)))
-                {
-                    try
-                    {
-                        object? valueToWrite = param.DataType?.ToUpper() switch
-                        {
-                            "BOOL" => bool.TryParse(param.Value, out var b) ? b : false,
-                            "LREAL" or "REAL" or "DOUBLE" => double.TryParse(param.Value,
-                                System.Globalization.NumberStyles.Any,
-                                System.Globalization.CultureInfo.InvariantCulture,
-                                out var d) ? d : 0.0,
-                            _ => param.Value
-                        };
-
-                        Type dataType = param.DataType?.ToUpper() switch
-                        {
-                            "BOOL" => typeof(bool),
-                            "LREAL" or "REAL" or "DOUBLE" => typeof(double),
-                            _ => typeof(string)
-                        };
-
-                        await _twinCATService.WriteVariableAsync(param.PlcVariable!, valueToWrite!, dataType);
-                        successCount++;
-                        _logger.LogDebug("✅ Parámetro escrito: {Var} = {Value}", param.PlcVariable, param.Value);
-                    }
-                    catch (Exception ex)
-                    {
-                        errorCount++;
-                        errors.Add($"{param.Name}: {ex.Message}");
-                    }
-                }
-
-                // ========== ESCRIBIR TABLAS DE INTERPOLACIÓN GANTRY ==========
-                // Cargar GantryData de la base de datos si no está incluido
-                var gantryData = await _dbContext.TrainTypeGantryData
-                    .Where(g => g.TrainTypeId == trainType.Id)
-                    .OrderBy(g => g.TableId)
-                    .ThenBy(g => g.RowNumber)
-                    .ToListAsync();
-
-                _logger.LogInformation("🚆 [TIPOS DE TREN] ESCRIBIR PLC - GantryData cargado: {Count} filas, trainConfig.GantryTables: {ConfigCount}", 
-                    gantryData.Count, 
-                    trainConfig?.GantryInterpolationTables?.Count ?? 0);
-
-                if (gantryData.Any() && trainConfig?.GantryInterpolationTables != null)
-                {
-                    _logger.LogInformation("🚆 Escribiendo {Count} filas de GantryData al PLC", gantryData.Count);
-                    
-                    // Agrupar por tabla
-                    var tableGroups = gantryData.GroupBy(g => g.TableId);
-                    
-                    foreach (var tableGroup in tableGroups)
-                    {
-                        var tableId = tableGroup.Key;
-                        var tableConfig = trainConfig.GantryInterpolationTables
-                            .FirstOrDefault(t => t.TableId == tableId && t.IsConfigured);
-                        
-                        if (tableConfig == null)
-                        {
-                            _logger.LogWarning("⚠️ No se encontró configuración para tabla {TableId}", tableId);
-                            continue;
-                        }
-                        
-                        var rows = tableGroup.OrderBy(r => r.RowNumber).ToList();
-                        
-                        // Escribir LineCount
-                        if (!string.IsNullOrEmpty(tableConfig.LineCountPlcVariable))
-                        {
-                            try
-                            {
-                                await _twinCATService.WriteVariableAsync(
-                                    tableConfig.LineCountPlcVariable, 
-                                    rows.Count(r => r.EnableLine), 
-                                    typeof(int));
-                                successCount++;
-                                _logger.LogDebug("✅ LineCount {TableId} = {Count}", tableId, rows.Count(r => r.EnableLine));
-                            }
-                            catch (Exception ex)
-                            {
-                                errorCount++;
-                                errors.Add($"LineCount_{tableId}: {ex.Message}");
-                            }
-                        }
-                        
-                        // Escribir cada fila
-                        foreach (var row in rows.Where(r => r.EnableLine))
-                        {
-                            // Índices de puntos según modelo encadenado
-                            int startIndex = GantryInterpolationTable.GetStartPointIndex(row.RowNumber);
-                            int endIndex = GantryInterpolationTable.GetEndPointIndex(row.RowNumber);
-                            
-                            // Convertir Syncron a FunctionType numérico
-                            int functionType = row.Syncron switch
-                            {
-                                "Syncron" => 1,
-                                "Polynom 3" => 3,
-                                "Polynom 5" => 5,
-                                _ => 1
-                            };
-                            
-                            _logger.LogInformation("🔍 [ESCRITURA] {TableId} Row{Row}: Syncron='{Syncron}' → FunctionType={FuncType}", 
-                                tableId, row.RowNumber, row.Syncron, functionType);
-                            
-                            // Escribir punto de inicio
-                            try
-                            {
-                                var funcTypeVar = tableConfig.GetFunctionTypePlcVariable(startIndex);
-                                var posXVar = tableConfig.GetPositionXPlcVariable(startIndex);
-                                var posYVar = tableConfig.GetPositionYPlcVariable(startIndex);
-                                var speedYVar = tableConfig.GetSpeedYPlcVariable(startIndex);
-                                
-                                if (!string.IsNullOrEmpty(funcTypeVar))
-                                {
-                                    // FunctionType en PLC es sbyte (8 bits), no int
-                                    await _twinCATService.WriteVariableAsync(funcTypeVar, (sbyte)functionType, typeof(sbyte));
-                                    successCount++;
-                                }
-                                if (!string.IsNullOrEmpty(posXVar))
-                                {
-                                    await _twinCATService.WriteVariableAsync(posXVar, row.Master1xStart, typeof(double));
-                                    successCount++;
-                                }
-                                if (!string.IsNullOrEmpty(posYVar))
-                                {
-                                    await _twinCATService.WriteVariableAsync(posYVar, row.Slave1yStart, typeof(double));
-                                    successCount++;
-                                }
-                                if (!string.IsNullOrEmpty(speedYVar))
-                                {
-                                    await _twinCATService.WriteVariableAsync(speedYVar, row.SpeedSlaveY1Start, typeof(double));
-                                    successCount++;
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                errorCount++;
-                                errors.Add($"Gantry_{tableId}_Row{row.RowNumber}_Start: {ex.Message}");
-                            }
-                            
-                            // Escribir punto de fin
-                            try
-                            {
-                                var posXVar = tableConfig.GetPositionXPlcVariable(endIndex);
-                                var posYVar = tableConfig.GetPositionYPlcVariable(endIndex);
-                                var speedYVar = tableConfig.GetSpeedYPlcVariable(endIndex);
-                                
-                                if (!string.IsNullOrEmpty(posXVar))
-                                {
-                                    await _twinCATService.WriteVariableAsync(posXVar, row.Master1xEnd, typeof(double));
-                                    successCount++;
-                                }
-                                if (!string.IsNullOrEmpty(posYVar))
-                                {
-                                    await _twinCATService.WriteVariableAsync(posYVar, row.Slave1yEnd, typeof(double));
-                                    successCount++;
-                                }
-                                if (!string.IsNullOrEmpty(speedYVar))
-                                {
-                                    await _twinCATService.WriteVariableAsync(speedYVar, row.SpeedSlaveY1End, typeof(double));
-                                    successCount++;
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                errorCount++;
-                                errors.Add($"Gantry_{tableId}_Row{row.RowNumber}_End: {ex.Message}");
-                            }
-                        }
-                        
-                        _logger.LogDebug("🚆 Tabla {TableId}: {RowCount} filas escritas al PLC", tableId, rows.Count(r => r.EnableLine));
-                    }
-                }
-                else
-                {
-                    _logger.LogDebug("🚆 No hay GantryData para escribir al PLC para TrainType {Id}", trainType.Id);
-                }
-
-                // Escribir trigger de escritura (TRUE) - el PLC lo pondrá en FALSE al recibir
-                if (!string.IsNullOrEmpty(trainConfig?.WriteTriggerPlcVariable))
-                {
-                    try
-                    {
-                        await _twinCATService.WriteVariableAsync(trainConfig.WriteTriggerPlcVariable, true, typeof(bool));
-                        _logger.LogDebug("🚆 Write trigger set to TRUE: {Var}", trainConfig.WriteTriggerPlcVariable);
-                        successCount++;
-                    }
-                    catch (Exception ex)
-                    {
-                        errorCount++;
-                        errors.Add($"WriteTrigger: {ex.Message}");
-                        _logger.LogWarning("🚆 Failed to set write trigger: {Error}", ex.Message);
-                    }
-                }
-
-                // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
                     OperationAction.TrainTypeWritePlc,
-                    trainType.Name,
-                    username);
+                    result.Success ? trainType.Name : $"{trainType.Name} ({result.ErrorCount} errores)",
+                    username,
+                    result.Success ? null : new Dictionary<string, object> { ["errors"] = result.Errors.Take(50).ToList() });
 
-                _logger.LogInformation("🚆 Train type '{Name}' written to PLC: {Success} success, {Errors} errors", 
-                    trainType.Name, successCount, errorCount);
-
-                if (errorCount > 0)
+                return Ok(new
                 {
-                    return Ok(new { 
-                        success = true, 
-                        trainType = trainType.Name,
-                        successCount, 
-                        errorCount, 
-                        errors,
-                        message = $"Escritura parcial: {successCount} OK, {errorCount} errores"
-                    });
-                }
-
-                return Ok(new { 
-                    success = true, 
+                    success = result.Success,
                     trainType = trainType.Name,
-                    successCount, 
-                    errorCount = 0,
-                    message = $"Tipo de tren '{trainType.Name}' escrito al PLC correctamente ({successCount} parámetros)"
+                    successCount = result.SuccessCount,
+                    errorCount = result.ErrorCount,
+                    errors = result.Errors,
+                    warnings = result.Warnings,
+                    verification = result.Verification?.Summary,
+                    message = result.Message
                 });
             }
             catch (Exception ex)
@@ -1046,6 +785,7 @@ namespace SW.PC.API.Backend.Controllers
             {
                 var trainType = await _dbContext.TrainTypes
                     .Include(t => t.Parameters)
+                    .Include(t => t.GantryData)
                     .FirstOrDefaultAsync(t => t.Id == id);
 
                 if (trainType == null)
@@ -1054,175 +794,53 @@ namespace SW.PC.API.Backend.Controllers
                 }
 
                 var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
-                var excelPath = _excelService.GetExcelConfigPath();
-                var trainConfig = await _excelService.LoadTrainRecipeConfigAsync(excelPath);
+                var trainConfig = await _excelService.LoadTrainRecipeConfigAsync(_excelService.GetExcelConfigPath());
 
-                // Verificar si hay prefijo alternativo configurado
-                if (string.IsNullOrEmpty(trainConfig?.AlternatePlcPrefix))
+                if (trainConfig == null || !trainConfig.AlternateWriteEnabled)
                 {
-                    return BadRequest(new { 
+                    return BadRequest(new
+                    {
+                        error = "Escritura al PLC2 no habilitada (Excel TrainRecipe A13 no está en ON)",
+                        success = false
+                    });
+                }
+
+                if (string.IsNullOrEmpty(trainConfig.AlternatePlcPrefix))
+                {
+                    return BadRequest(new
+                    {
                         error = "No hay prefijo alternativo configurado en Excel (celda A14)",
                         success = false
                     });
                 }
 
-                int successCount = 0;
-                int errorCount = 0;
-                var errors = new List<string>();
-
-                // Helper para aplicar prefijo alternativo
-                string ApplyAlternatePrefix(string? variable)
+                var prefix = trainConfig.AlternatePlcPrefix;
+                var result = await _plcWriter.WriteAsync(trainType, trainConfig, new TrainTypePlcWriteOptions
                 {
-                    if (string.IsNullOrEmpty(variable) || string.IsNullOrEmpty(trainConfig.AlternatePlcPrefix))
-                        return variable ?? "";
-                    
-                    // Reemplazar el prefijo original con el alternativo
-                    // Ejemplo: "PLC1.Variable" -> "PLC2.Variable"
-                    var dotIndex = variable.IndexOf('.');
-                    if (dotIndex > 0)
-                    {
-                        return trainConfig.AlternatePlcPrefix + variable.Substring(dotIndex);
-                    }
-                    return variable;
-                }
+                    // Tablas Gantry al PLC2 salvo que A15 = OFF
+                    IncludeGantryTables = trainConfig.AlternateIncludeGantryTables,
+                    VariableMapper = v => TrainTypePlcWriter.ApplyAlternatePrefix(v, prefix),
+                    ContextLabel = $"PLC2 ({prefix})"
+                }, username);
 
-                // Escribir nombre del tren con prefijo alternativo
-                if (!string.IsNullOrEmpty(trainConfig?.TrainNamePlcVariable))
-                {
-                    try
-                    {
-                        var altVariable = ApplyAlternatePrefix(trainConfig.TrainNamePlcVariable);
-                        await _twinCATService.WriteVariableAsync(altVariable, trainType.Name, typeof(string));
-                        successCount++;
-                        _logger.LogDebug("✅ [ALT] Nombre de tren escrito: {Var} = {Value}", altVariable, trainType.Name);
-                    }
-                    catch (Exception ex)
-                    {
-                        errorCount++;
-                        errors.Add($"TrainName (ALT): {ex.Message}");
-                    }
-                }
-
-                // Escribir número de tablas activas del Gantry con prefijo alternativo
-                if (!string.IsNullOrEmpty(trainConfig?.GantryTableCountPlcVariable))
-                {
-                    try
-                    {
-                        var altVariable = ApplyAlternatePrefix(trainConfig.GantryTableCountPlcVariable);
-                        var countToWrite = (trainType.GantryTableCount == 1 || trainType.GantryTableCount == 2)
-                            ? trainType.GantryTableCount
-                            : 1;
-                        await _twinCATService.WriteVariableAsync(altVariable, countToWrite, typeof(int));
-                        successCount++;
-                        _logger.LogInformation("✅ [ALT] GantryTableCount escrito: {Var} = {Value}", altVariable, countToWrite);
-                    }
-                    catch (Exception ex)
-                    {
-                        errorCount++;
-                        errors.Add($"GantryTableCount (ALT): {ex.Message}");
-                    }
-                }
-
-                // Escribir número de línea con prefijo alternativo
-                if (!string.IsNullOrEmpty(trainConfig?.LineNumberPlcVariable))
-                {
-                    try
-                    {
-                        var altVariable = ApplyAlternatePrefix(trainConfig.LineNumberPlcVariable);
-                        await _twinCATService.WriteVariableAsync(altVariable, trainType.DisplayOrder, typeof(int));
-                        successCount++;
-                        _logger.LogDebug("✅ [ALT] Línea de tren escrita: {Var} = {Value}", altVariable, trainType.DisplayOrder);
-                    }
-                    catch (Exception ex)
-                    {
-                        errorCount++;
-                        errors.Add($"LineNumber (ALT): {ex.Message}");
-                    }
-                }
-
-                // Escribir parámetros con prefijo alternativo
-                foreach (var param in trainType.Parameters.Where(p => !string.IsNullOrEmpty(p.PlcVariable)))
-                {
-                    try
-                    {
-                        var altVariable = ApplyAlternatePrefix(param.PlcVariable);
-                        
-                        object? valueToWrite = param.DataType?.ToUpper() switch
-                        {
-                            "BOOL" => bool.TryParse(param.Value, out var b) ? b : false,
-                            "LREAL" or "REAL" or "DOUBLE" => double.TryParse(param.Value,
-                                System.Globalization.NumberStyles.Any,
-                                System.Globalization.CultureInfo.InvariantCulture,
-                                out var d) ? d : 0.0,
-                            _ => param.Value
-                        };
-
-                        Type dataType = param.DataType?.ToUpper() switch
-                        {
-                            "BOOL" => typeof(bool),
-                            "LREAL" or "REAL" or "DOUBLE" => typeof(double),
-                            _ => typeof(string)
-                        };
-
-                        await _twinCATService.WriteVariableAsync(altVariable, valueToWrite!, dataType);
-                        successCount++;
-                        _logger.LogDebug("✅ [ALT] Parámetro escrito: {Var} = {Value}", altVariable, param.Value);
-                    }
-                    catch (Exception ex)
-                    {
-                        errorCount++;
-                        errors.Add($"{param.Name} (ALT): {ex.Message}");
-                    }
-                }
-
-                // Escribir trigger de escritura (TRUE) con prefijo alternativo - el PLC lo pondrá en FALSE al recibir
-                if (!string.IsNullOrEmpty(trainConfig?.WriteTriggerPlcVariable))
-                {
-                    try
-                    {
-                        var altTriggerVariable = ApplyAlternatePrefix(trainConfig.WriteTriggerPlcVariable);
-                        await _twinCATService.WriteVariableAsync(altTriggerVariable, true, typeof(bool));
-                        _logger.LogDebug("🚆 [ALT] Write trigger set to TRUE: {Var}", altTriggerVariable);
-                        successCount++;
-                    }
-                    catch (Exception ex)
-                    {
-                        errorCount++;
-                        errors.Add($"WriteTrigger (ALT): {ex.Message}");
-                        _logger.LogWarning("🚆 [ALT] Failed to set write trigger: {Error}", ex.Message);
-                    }
-                }
-
-                // Operation log
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
                     OperationAction.TrainTypeWritePlc,
-                    $"{trainType.Name} (PLC ALT)",
-                    username);
+                    result.Success ? $"{trainType.Name} (PLC ALT)" : $"{trainType.Name} (PLC ALT, {result.ErrorCount} errores)",
+                    username,
+                    result.Success ? null : new Dictionary<string, object> { ["errors"] = result.Errors.Take(50).ToList() });
 
-                _logger.LogInformation("🚆 [ALT] Train type '{Name}' written to ALTERNATE PLC: {Success} success, {Errors} errors", 
-                    trainType.Name, successCount, errorCount);
-
-                if (errorCount > 0)
+                return Ok(new
                 {
-                    return Ok(new { 
-                        success = true, 
-                        trainType = trainType.Name,
-                        successCount, 
-                        errorCount, 
-                        errors,
-                        alternatePlc = true,
-                        message = $"Escritura parcial a PLC Alternativo: {successCount} OK, {errorCount} errores"
-                    });
-                }
-
-                return Ok(new { 
-                    success = true, 
+                    success = result.Success,
                     trainType = trainType.Name,
-                    successCount, 
-                    errorCount = 0,
+                    successCount = result.SuccessCount,
+                    errorCount = result.ErrorCount,
+                    errors = result.Errors,
+                    warnings = result.Warnings,
                     alternatePlc = true,
-                    message = $"Tipo de tren '{trainType.Name}' escrito al PLC Alternativo correctamente ({successCount} parámetros)"
+                    verification = result.Verification?.Summary,
+                    message = result.Message
                 });
             }
             catch (Exception ex)
@@ -1249,6 +867,7 @@ namespace SW.PC.API.Backend.Controllers
                 int successCount = 0;
                 int errorCount = 0;
                 var errors = new List<string>();
+                var batch = _verifier.CreateBatch($"Receta de tren '{request.EffectiveName ?? "(sin nombre)"}' → PLC (write-recipe-to-plc)");
 
                 // Escribir nombre del tren (usar EffectiveName para compatibilidad)
                 var effectiveName = request.EffectiveName;
@@ -1256,7 +875,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     try
                     {
-                        await _twinCATService.WriteVariableAsync(trainConfig.TrainNamePlcVariable, effectiveName, typeof(string));
+                        await batch.WriteAsync(trainConfig.TrainNamePlcVariable, effectiveName, typeof(string));
                         successCount++;
                         _logger.LogDebug("✅ Nombre de tren escrito: {Var} = {Value}", trainConfig.TrainNamePlcVariable, effectiveName);
                     }
@@ -1273,7 +892,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     try
                     {
-                        await _twinCATService.WriteVariableAsync(trainConfig.LineNumberPlcVariable, effectiveSlot.Value, typeof(int));
+                        await batch.WriteAsync(trainConfig.LineNumberPlcVariable, effectiveSlot.Value, typeof(int));
                         successCount++;
                         _logger.LogDebug("✅ Línea de tren escrita: {Var} = {Value}", trainConfig.LineNumberPlcVariable, effectiveSlot.Value);
                     }
@@ -1291,7 +910,7 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         try
                         {
-                            await _twinCATService.WriteVariableAsync(boolVal.PlcVariable!, boolVal.Value, typeof(bool));
+                            await batch.WriteAsync(boolVal.PlcVariable!, boolVal.Value, typeof(bool));
                             successCount++;
                             _logger.LogDebug("✅ Bool escrito: {Var} = {Value}", boolVal.PlcVariable, boolVal.Value);
                         }
@@ -1310,7 +929,7 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         try
                         {
-                            await _twinCATService.WriteVariableAsync(decVal.PlcVariable!, decVal.Value, typeof(double));
+                            await batch.WriteAsync(decVal.PlcVariable!, decVal.Value, typeof(double));
                             successCount++;
                             _logger.LogDebug("✅ Decimal escrito: {Var} = {Value}", decVal.PlcVariable, decVal.Value);
                         }
@@ -1322,12 +941,22 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
 
+                // Verificación por relectura ANTES del trigger (L3 + L2 si hay discrepancias)
+                var verification = await _verifier.VerifyAsync(batch, OperationCategory.Recipe, username);
+                if (!verification.Success)
+                {
+                    var verifyErrors = verification.ToErrorStrings();
+                    errors.AddRange(verifyErrors);
+                    errorCount += verifyErrors.Count;
+                }
+
                 // Escribir trigger de escritura (TRUE) - el PLC lo pondrá en FALSE al recibir
                 if (!string.IsNullOrEmpty(trainConfig?.WriteTriggerPlcVariable))
                 {
                     try
                     {
-                        await _twinCATService.WriteVariableAsync(trainConfig.WriteTriggerPlcVariable, true, typeof(bool));
+                        if (!await _twinCATService.WriteVariableAsync(trainConfig.WriteTriggerPlcVariable, true, typeof(bool)))
+                            throw new PlcWriteException(trainConfig.WriteTriggerPlcVariable);
                         _logger.LogDebug("🚆 Write trigger set to TRUE: {Var}", trainConfig.WriteTriggerPlcVariable);
                         successCount++;
                     }
@@ -1343,19 +972,22 @@ namespace SW.PC.API.Backend.Controllers
                 await _operationLog.LogAsync(
                     OperationCategory.Recipe,
                     OperationAction.TrainTypeWritePlc,
-                    effectiveName ?? "N/A",
-                    username);
+                    errorCount == 0 ? (effectiveName ?? "N/A") : $"{effectiveName ?? "N/A"} ({errorCount} errores)",
+                    username,
+                    errorCount == 0 ? null : new Dictionary<string, object> { ["errors"] = errors.Take(50).ToList() });
 
-                _logger.LogInformation("🚆 Train recipe '{Name}' written to PLC: {Success} success, {Errors} errors", 
-                    effectiveName ?? "Sin nombre", successCount, errorCount);
+                _logger.Log(errorCount == 0 ? LogLevel.Information : LogLevel.Error,
+                    "🚆 Train recipe '{Name}' written to PLC: {Success} success, {Errors} errors. {Verification}", 
+                    effectiveName ?? "Sin nombre", successCount, errorCount, verification.Summary);
 
                 return Ok(new { 
                     success = errorCount == 0, 
                     successCount, 
                     errorCount, 
                     errors = errorCount > 0 ? errors : null,
+                    verification = verification.Summary,
                     message = errorCount == 0 
-                        ? $"Receta de tren escrita al PLC correctamente ({successCount} parámetros)"
+                        ? $"Receta de tren escrita y verificada en PLC ({successCount} parámetros)"
                         : $"Escritura parcial: {successCount} OK, {errorCount} errores"
                 });
             }
@@ -1468,21 +1100,9 @@ namespace SW.PC.API.Backend.Controllers
                 }
 
                 // Agregar parámetros desde los valores del PLC (usando la estructura del Excel)
-                foreach (var plcParam in plcValues.Parameters)
+                foreach (var plcParam in plcValues.Parameters.Where(p => !string.IsNullOrWhiteSpace(p.PlcVariable)))
                 {
-                    trainType.Parameters.Add(new TrainTypeParameter
-                    {
-                        ParameterCode = plcParam.Code,
-                        Name = plcParam.Name,
-                        DataType = plcParam.DataType,
-                        Value = plcParam.Value,
-                        MinValue = plcParam.MinValue,
-                        MaxValue = plcParam.MaxValue,
-                        Unit = plcParam.Unit,
-                        PlcVariable = plcParam.PlcVariable,
-                        DisplayOrder = plcParam.DisplayOrder,
-                        GroupName = plcParam.DataType == "BOOL" ? "Bool" : "Decimal"
-                    });
+                    trainType.Parameters.Add(TrainTypeParameterSynchronizer.ToEntity(plcParam));
                 }
 
                 if (!isUpdate)
@@ -1550,289 +1170,244 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         /// <summary>
-        /// Método interno para escribir tipo de tren al PLC
+        /// Método interno para escribir el tipo de tren activo al PLC (select / write-to-plc).
+        /// Delegado en ITrainTypePlcWriter: misma implementación verificada que /{id}/write-to-plc.
         /// </summary>
         private async Task<WriteToPlcResponseDto> WriteTrainTypeToPlcInternal(TrainType trainType, ActiveTrainType active, string username)
         {
-            var excelPath = _excelService.GetExcelConfigPath();
-            var trainConfig = await _excelService.LoadTrainRecipeConfigAsync(excelPath);
-
-            int successCount = 0;
-            int errorCount = 0;
-            var errors = new List<string>();
-
-            // Escribir nombre del tren
-            if (!string.IsNullOrEmpty(trainConfig?.TrainNamePlcVariable))
+            // Asegurar que las tablas Gantry están cargadas (las consultas de select/active sólo incluyen Parameters)
+            if (!_dbContext.Entry(trainType).Collection(t => t.GantryData).IsLoaded)
             {
-                try
-                {
-                    await _twinCATService.WriteVariableAsync(trainConfig.TrainNamePlcVariable, trainType.Name, typeof(string));
-                    successCount++;
-                }
-                catch (Exception ex)
-                {
-                    errorCount++;
-                    errors.Add($"TrainName: {ex.Message}");
-                }
+                await _dbContext.Entry(trainType).Collection(t => t.GantryData).LoadAsync();
             }
 
-            // Escribir número de línea
-            if (!string.IsNullOrEmpty(trainConfig?.LineNumberPlcVariable))
+            var trainConfig = await _excelService.LoadTrainRecipeConfigAsync(_excelService.GetExcelConfigPath());
+
+            var result = await _plcWriter.WriteAsync(trainType, trainConfig, new TrainTypePlcWriteOptions
             {
-                try
-                {
-                    await _twinCATService.WriteVariableAsync(trainConfig.LineNumberPlcVariable, trainType.DisplayOrder, typeof(int));
-                    successCount++;
-                }
-                catch (Exception ex)
-                {
-                    errorCount++;
-                    errors.Add($"LineNumber: {ex.Message}");
-                }
-            }
-
-            // Escribir número de tablas activas del Gantry
-            if (!string.IsNullOrEmpty(trainConfig?.GantryTableCountPlcVariable))
-            {
-                try
-                {
-                    var countToWrite = (trainType.GantryTableCount == 1 || trainType.GantryTableCount == 2)
-                        ? trainType.GantryTableCount
-                        : 1;
-                    await _twinCATService.WriteVariableAsync(trainConfig.GantryTableCountPlcVariable, countToWrite, typeof(int));
-                    successCount++;
-                    _logger.LogInformation("✅ GantryTableCount escrito al PLC: {Var} = {Value}",
-                        trainConfig.GantryTableCountPlcVariable, countToWrite);
-                }
-                catch (Exception ex)
-                {
-                    errorCount++;
-                    errors.Add($"GantryTableCount: {ex.Message}");
-                }
-            }
-
-            // Escribir parámetros
-            foreach (var param in trainType.Parameters.Where(p => !string.IsNullOrEmpty(p.PlcVariable)))
-            {
-                try
-                {
-                    object? valueToWrite = param.DataType?.ToUpper() switch
-                    {
-                        "BOOL" => bool.TryParse(param.Value, out var b) ? b : false,
-                        "LREAL" or "REAL" or "DOUBLE" => double.TryParse(param.Value,
-                            System.Globalization.NumberStyles.Any,
-                            System.Globalization.CultureInfo.InvariantCulture,
-                            out var d) ? d : 0.0,
-                        _ => param.Value
-                    };
-
-                    Type dataType = param.DataType?.ToUpper() switch
-                    {
-                        "BOOL" => typeof(bool),
-                        "LREAL" or "REAL" or "DOUBLE" => typeof(double),
-                        _ => typeof(string)
-                    };
-
-                    await _twinCATService.WriteVariableAsync(param.PlcVariable!, valueToWrite!, dataType);
-                    successCount++;
-                }
-                catch (Exception ex)
-                {
-                    errorCount++;
-                    errors.Add($"{param.Name}: {ex.Message}");
-                }
-            }
-
-            // Escribir trigger de escritura (TRUE) - el PLC lo pondrá en FALSE al recibir
-            if (!string.IsNullOrEmpty(trainConfig?.WriteTriggerPlcVariable))
-            {
-                try
-                {
-                    await _twinCATService.WriteVariableAsync(trainConfig.WriteTriggerPlcVariable, true, typeof(bool));
-                    _logger.LogDebug("🚆 Write trigger set to TRUE: {Var}", trainConfig.WriteTriggerPlcVariable);
-                    successCount++;
-                }
-                catch (Exception ex)
-                {
-                    errorCount++;
-                    errors.Add($"WriteTrigger: {ex.Message}");
-                    _logger.LogWarning("🚆 Failed to set write trigger: {Error}", ex.Message);
-                }
-            }
+                IncludeGantryTables = true,
+                ContextLabel = "PLC (activo)"
+            }, username);
 
             // Actualizar estado de escritura
-            active.WrittenToPlc = errorCount == 0;
+            active.WrittenToPlc = result.Success;
             active.WrittenToPlcAt = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
 
-            // Log de operación
             await _operationLog.LogAsync(
                 OperationCategory.Recipe,
                 OperationAction.TrainTypeWritePlc,
-                trainType.Name,
-                username);
-
-            _logger.LogInformation("🚆 Train type '{Name}' written to PLC: {Success} success, {Errors} errors",
-                trainType.Name, successCount, errorCount);
+                result.Success ? trainType.Name : $"{trainType.Name} ({result.ErrorCount} errores)",
+                username,
+                result.Success ? null : new Dictionary<string, object> { ["errors"] = result.Errors.Take(50).ToList() });
 
             return new WriteToPlcResponseDto
             {
-                Success = errorCount == 0,
-                Message = errorCount == 0
-                    ? $"Tipo de tren '{trainType.Name}' escrito al PLC ({successCount} parámetros)"
-                    : $"Escritura parcial: {successCount} OK, {errorCount} errores",
-                ParametersWritten = successCount,
-                Errors = errors.Count > 0 ? errors : null,
+                Success = result.Success,
+                Message = result.Message,
+                ParametersWritten = result.SuccessCount,
+                Errors = result.Errors.Count > 0 ? result.Errors : null,
                 WrittenAt = DateTime.UtcNow
             };
         }
 
         /// <summary>
-        /// Leer valores de receta de tren desde el PLC
+        /// Leer la receta de tren completa desde el PLC según la definición del Excel (hoja TrainRecipe).
+        /// MODO ESTRICTO: cualquier variable que no se pueda leer aborta la operación con
+        /// InvalidOperationException. Antes, los errores se silenciaban y se guardaban valores por
+        /// defecto (false/0) que luego se escribían al PLC al cargar el slot.
         /// </summary>
         private async Task<PlcTrainRecipeData> ReadTrainRecipeFromPlcAsync()
         {
-            var excelPath = _excelService.GetExcelConfigPath();
-            _logger.LogInformation("🚆 [TIPOS DE TREN] Cargando configuración Excel desde: {Path}", excelPath);
-            
-            var trainConfig = await _excelService.LoadTrainRecipeConfigAsync(excelPath);
-            
-            _logger.LogInformation("🚆 [TIPOS DE TREN] trainConfig cargado: BoolParams={Bool}, DecimalParams={Dec}, GantryTables={Gantry}", 
-                trainConfig?.BoolParameters?.Count ?? 0,
-                trainConfig?.DecimalParameters?.Count ?? 0,
-                trainConfig?.GantryInterpolationTables?.Count ?? 0);
+            if (!_twinCATService.IsConnected)
+            {
+                throw new InvalidOperationException("No hay conexión con el PLC. No se pueden leer los valores actuales de la receta de tren.");
+            }
 
+            var excelPath = _excelService.GetExcelConfigPath();
+            var trainConfig = await _excelService.LoadTrainRecipeConfigAsync(excelPath);
+
+            if (trainConfig == null)
+            {
+                throw new InvalidOperationException($"No se pudo cargar la hoja TrainRecipe del Excel ({excelPath}). No se guarda nada.");
+            }
+
+            _logger.LogInformation("🚆 [TIPOS DE TREN] Leyendo receta del PLC — Excel: Bool={Bool}, Decimal={Dec}, GantryCfg={GCfg}, GantryTables={Gantry}",
+                trainConfig.BoolParameters.Count, trainConfig.DecimalParameters.Count,
+                trainConfig.GantryConfigParameters.Count, trainConfig.GantryInterpolationTables.Count);
+
+            var readErrors = new List<string>();
             var result = new PlcTrainRecipeData
             {
                 RecipeName = "Receta desde PLC",
                 Parameters = new List<PlcTrainParameterData>()
             };
 
-            // Leer nombre del tren
-            if (!string.IsNullOrEmpty(trainConfig?.TrainNamePlcVariable))
+            // Nombre del tren
+            if (!string.IsNullOrEmpty(trainConfig.TrainNamePlcVariable))
             {
-                try
-                {
-                    var nameValue = await _twinCATService.ReadVariableAsync(trainConfig.TrainNamePlcVariable, typeof(string));
-                    result.RecipeName = nameValue?.ToString() ?? "Receta desde PLC";
-                }
-                catch
-                {
-                    // Ignorar errores de lectura
-                }
+                var nameValue = await ReadOrCollectAsync(trainConfig.TrainNamePlcVariable, typeof(string), "TrainName", readErrors);
+                if (nameValue != null) result.RecipeName = nameValue.ToString() ?? "Receta desde PLC";
             }
 
-            // Leer número de tablas activas del Gantry (1 = 4 tablas TAB1_*, 2 = 8 tablas TAB1_* + TAB2_*)
-            if (!string.IsNullOrEmpty(trainConfig?.GantryTableCountPlcVariable))
+            // Número de tablas activas del Gantry (1 = 4 tablas TAB1_*, 2 = 8 tablas TAB1_* + TAB2_*)
+            if (!string.IsNullOrEmpty(trainConfig.GantryTableCountPlcVariable))
             {
-                try
+                var countValue = await ReadOrCollectAsync(trainConfig.GantryTableCountPlcVariable, typeof(int), "GantryTableCount", readErrors);
+                if (countValue != null)
                 {
-                    var countValue = await _twinCATService.ReadVariableAsync(trainConfig.GantryTableCountPlcVariable, typeof(int));
-                    if (countValue != null)
+                    var parsed = Convert.ToInt32(countValue);
+                    if (parsed != 1 && parsed != 2)
                     {
-                        var parsed = Convert.ToInt32(countValue);
-                        // Solo aceptar valores válidos (1 o 2)
-                        result.GantryTableCount = (parsed == 1 || parsed == 2) ? parsed : 1;
-                        _logger.LogInformation("🚆 [TIPOS DE TREN] GantryTableCount leído del PLC: {Value} (var={Var})",
-                            result.GantryTableCount, trainConfig.GantryTableCountPlcVariable);
+                        _logger.LogWarning("🚆 [TIPOS DE TREN] GantryTableCount={Value} fuera de rango (1-2) en {Var}: se guarda 1",
+                            parsed, trainConfig.GantryTableCountPlcVariable);
                     }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning("🚆 [TIPOS DE TREN] ⚠️ No se pudo leer GantryTableCount del PLC ({Var}): {Error}",
-                        trainConfig.GantryTableCountPlcVariable, ex.Message);
+                    result.GantryTableCount = (parsed == 1 || parsed == 2) ? parsed : 1;
                 }
             }
 
             int order = 0;
 
-            // Leer parámetros booleanos
-            foreach (var param in trainConfig?.BoolParameters ?? new List<TrainRecipeParameter>())
+            // Parámetros booleanos (columnas C-E)
+            foreach (var param in trainConfig.BoolParameters)
             {
                 if (string.IsNullOrEmpty(param.PlcVariable)) continue;
 
-                var plcParam = new PlcTrainParameterData
+                var value = await ReadOrCollectAsync(param.PlcVariable, typeof(bool), $"BOOL '{param.Name}'", readErrors);
+                result.Parameters.Add(new PlcTrainParameterData
                 {
-                    Code = $"BOOL_{order}",
+                    Code = TrainTypeParameterSynchronizer.BuildCode(TrainTypeParameterSynchronizer.GroupBool, order),
                     Name = param.Name ?? $"Bool {order}",
                     DataType = "BOOL",
-                    Value = "false",
+                    Value = value != null && Convert.ToBoolean(value) ? "true" : "false",
                     PlcVariable = param.PlcVariable,
-                    DisplayOrder = order
-                };
-
-                try
-                {
-                    var value = await _twinCATService.ReadVariableAsync(param.PlcVariable, typeof(bool));
-                    plcParam.Value = value?.ToString()?.ToLower() ?? "false";
-                }
-                catch
-                {
-                    // Mantener valor por defecto
-                }
-
-                result.Parameters.Add(plcParam);
+                    DisplayOrder = order,
+                    GroupName = TrainTypeParameterSynchronizer.GroupBool
+                });
                 order++;
             }
 
-            // Leer parámetros decimales
-            foreach (var param in trainConfig?.DecimalParameters ?? new List<TrainRecipeParameter>())
+            // Parámetros decimales (columnas G-M)
+            foreach (var param in trainConfig.DecimalParameters)
             {
                 if (string.IsNullOrEmpty(param.PlcVariable)) continue;
 
-                var plcParam = new PlcTrainParameterData
+                var value = await ReadOrCollectAsync(param.PlcVariable, typeof(double), $"DECIMAL '{param.Name}'", readErrors);
+                result.Parameters.Add(new PlcTrainParameterData
                 {
-                    Code = $"DECIMAL_{order}",
+                    Code = TrainTypeParameterSynchronizer.BuildCode(TrainTypeParameterSynchronizer.GroupDecimal, order),
                     Name = param.Name ?? $"Decimal {order}",
                     DataType = "LREAL",
-                    Value = "0",
+                    Value = FormatDouble(value),
                     MinValue = param.MinValue,
                     MaxValue = param.MaxValue,
                     Unit = param.Unit,
                     PlcVariable = param.PlcVariable,
-                    DisplayOrder = order
-                };
-
-                try
-                {
-                    var value = await _twinCATService.ReadVariableAsync(param.PlcVariable, typeof(double));
-                    plcParam.Value = value?.ToString() ?? "0";
-                }
-                catch
-                {
-                    // Mantener valor por defecto
-                }
-
-                result.Parameters.Add(plcParam);
+                    DisplayOrder = order,
+                    GroupName = TrainTypeParameterSynchronizer.GroupDecimal
+                });
                 order++;
             }
 
-            // Leer tablas de interpolación del Gantry
-            result.GantryTables = await ReadGantryInterpolationTablesFromPlcAsync(trainConfig);
+            // Parámetros de configuración del Gantry (columnas O-V). Forman parte de la receta
+            // igual que BOOL/DECIMAL: si no se persisten, al cargar el slot el PLC conserva el
+            // último valor escrito desde el editor (incidente de campo r_TypeOfwash_012).
+            foreach (var param in trainConfig.GantryConfigParameters)
+            {
+                if (string.IsNullOrEmpty(param.PlcVariable)) continue;
+
+                var value = await ReadOrCollectAsync(param.PlcVariable, typeof(double), $"GANTRY '{param.Name}'", readErrors);
+                result.Parameters.Add(new PlcTrainParameterData
+                {
+                    Code = TrainTypeParameterSynchronizer.BuildCode(TrainTypeParameterSynchronizer.GroupGantry, order),
+                    Name = string.IsNullOrEmpty(param.Name) ? $"Gantry {order}" : param.Name,
+                    DataType = "LREAL",
+                    Value = FormatDouble(value),
+                    MinValue = param.MinValue,
+                    MaxValue = param.MaxValue,
+                    Unit = param.Unit,
+                    PlcVariable = param.PlcVariable,
+                    DisplayOrder = order,
+                    GroupName = TrainTypeParameterSynchronizer.GroupGantry
+                });
+                order++;
+            }
+
+            // Tablas de interpolación del Gantry
+            result.GantryTables = await ReadGantryInterpolationTablesFromPlcAsync(trainConfig, readErrors);
+
+            if (readErrors.Count > 0)
+            {
+                _logger.LogError("🚆 [TIPOS DE TREN] Lectura de receta INCOMPLETA: {Count} variables no legibles. NO se guarda nada. Detalle: {Errors}",
+                    readErrors.Count, string.Join(" | ", readErrors.Take(20)));
+                throw new InvalidOperationException(
+                    $"Lectura incompleta del PLC ({readErrors.Count} variables no legibles). No se guarda la receta para no persistir datos inválidos. " +
+                    $"Primer error: {readErrors[0]}");
+            }
+
+            _logger.LogInformation("🚆 [TIPOS DE TREN] Receta leída del PLC: Bool={Bool}, Decimal={Dec}, Gantry={Gantry}, Tablas={Tables} ({Rows} líneas)",
+                result.Parameters.Count(p => p.GroupName == TrainTypeParameterSynchronizer.GroupBool),
+                result.Parameters.Count(p => p.GroupName == TrainTypeParameterSynchronizer.GroupDecimal),
+                result.Parameters.Count(p => p.GroupName == TrainTypeParameterSynchronizer.GroupGantry),
+                result.GantryTables.Count,
+                result.GantryTables.Sum(t => t.Rows.Count));
 
             return result;
         }
 
         /// <summary>
-        /// Leer tablas de interpolación del Gantry desde el PLC
+        /// Lee una variable; si falla, registra el error (L3) y lo acumula para abortar la operación.
         /// </summary>
-        private async Task<List<PlcGantryTableData>> ReadGantryInterpolationTablesFromPlcAsync(TrainRecipeConfiguration? trainConfig)
+        private async Task<object?> ReadOrCollectAsync(string variable, Type type, string label, List<string> readErrors)
+        {
+            try
+            {
+                return await _twinCATService.ReadVariableAsync(variable, type);
+            }
+            catch (Exception ex)
+            {
+                var msg = $"{label} ({variable}): {ex.Message}";
+                readErrors.Add(msg);
+                _logger.LogError("🚆 [TIPOS DE TREN] ✖ No se pudo leer {Label} ({Var}): {Error}", label, variable, ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Serializa un valor numérico leído del PLC con cultura invariante (punto decimal),
+        /// que es el formato que esperan las rutas de escritura al parsear Value.
+        /// </summary>
+        private static string FormatDouble(object? value)
+        {
+            if (value == null) return "0";
+            try
+            {
+                return Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture)
+                    .ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return value.ToString() ?? "0";
+            }
+        }
+
+        /// <summary>
+        /// Leer tablas de interpolación del Gantry desde el PLC (modelo encadenado:
+        /// línea N = puntos N (START) y N+1 (END)). Errores de lectura → readErrors (modo estricto).
+        /// </summary>
+        private async Task<List<PlcGantryTableData>> ReadGantryInterpolationTablesFromPlcAsync(TrainRecipeConfiguration trainConfig, List<string> readErrors)
         {
             var tables = new List<PlcGantryTableData>();
-            
-            _logger.LogInformation("🚆 [TIPOS DE TREN] ReadGantryInterpolationTablesFromPlcAsync - trainConfig es null? {IsNull}, GantryTables: {Count}", 
-                trainConfig == null,
-                trainConfig?.GantryInterpolationTables?.Count ?? 0);
-            
-            if (trainConfig?.GantryInterpolationTables == null || trainConfig.GantryInterpolationTables.Count == 0)
+
+            var allTables = trainConfig.GantryInterpolationTables ?? new List<GantryInterpolationTable>();
+            var configuredTables = allTables.Where(t => t.IsConfigured).ToList();
+
+            if (allTables.Count > 0 && configuredTables.Count < allTables.Count)
             {
-                _logger.LogWarning("🚆 [TIPOS DE TREN] ⚠️ No hay tablas de interpolación de Gantry configuradas en el Excel");
-                return tables;
+                _logger.LogWarning("🚆 [TIPOS DE TREN] Tablas Gantry parcialmente configuradas en el Excel: {Configured}/{Total} (faltan plantillas PLC en: {Missing})",
+                    configuredTables.Count, allTables.Count,
+                    string.Join(", ", allTables.Where(t => !t.IsConfigured).Select(t => t.TableId)));
             }
-            
-            var configuredTables = trainConfig.GantryInterpolationTables.Where(t => t.IsConfigured).ToList();
-            _logger.LogInformation("🚆 [TIPOS DE TREN] Tablas configuradas: {Count}/{Total}", 
-                configuredTables.Count, trainConfig.GantryInterpolationTables.Count);
 
             foreach (var tableConfig in configuredTables)
             {
@@ -1843,142 +1418,78 @@ namespace SW.PC.API.Backend.Controllers
                     Rows = new List<PlcGantryRowData>()
                 };
 
-                // Leer el número de líneas habilitadas
+                // Número de líneas habilitadas
                 int lineCount = 1;
                 if (!string.IsNullOrEmpty(tableConfig.LineCountPlcVariable))
                 {
-                    try
+                    var value = await ReadOrCollectAsync(tableConfig.LineCountPlcVariable, typeof(int), $"Gantry {tableConfig.TableId} LineCount", readErrors);
+                    if (value == null)
                     {
-                        var value = await _twinCATService.ReadVariableAsync(tableConfig.LineCountPlcVariable, typeof(int));
-                        lineCount = Math.Max(1, Convert.ToInt32(value ?? 1));
+                        // Sin LineCount fiable no se puede reconstruir la tabla: el error ya está acumulado
+                        continue;
                     }
-                    catch
+                    lineCount = Convert.ToInt32(value);
+                    if (lineCount < 1 || lineCount > 124)
                     {
-                        _logger.LogWarning("⚠️ No se pudo leer LineCount de tabla {TableId}", tableConfig.TableId);
+                        readErrors.Add($"Gantry {tableConfig.TableId} LineCount={lineCount} fuera de rango (1-124)");
+                        _logger.LogError("🚆 [TIPOS DE TREN] ✖ Gantry {TableId}: LineCount={Count} fuera de rango (1-124)", tableConfig.TableId, lineCount);
+                        continue;
                     }
                 }
-
-                // Leer las filas de interpolación (máximo 124 líneas según modelo encadenado)
-                for (int lineNum = 1; lineNum <= lineCount && lineNum <= 124; lineNum++)
+                else
                 {
-                    var row = new PlcGantryRowData
-                    {
-                        RowNumber = lineNum,
-                        EnableLine = lineNum <= lineCount
-                    };
+                    _logger.LogWarning("🚆 [TIPOS DE TREN] Gantry {TableId}: sin variable LineCount en el Excel, se asume 1 línea", tableConfig.TableId);
+                }
 
-                    // Índices de puntos según modelo encadenado
+                for (int lineNum = 1; lineNum <= lineCount; lineNum++)
+                {
+                    var row = new PlcGantryRowData { RowNumber = lineNum, EnableLine = true };
                     int startIndex = GantryInterpolationTable.GetStartPointIndex(lineNum);
                     int endIndex = GantryInterpolationTable.GetEndPointIndex(lineNum);
+                    string label = $"Gantry {tableConfig.TableId} L{lineNum}";
 
-                    // Leer punto de inicio
-                    try
-                    {
-                        var funcTypeVar = tableConfig.GetFunctionTypePlcVariable(startIndex);
-                        var posXVar = tableConfig.GetPositionXPlcVariable(startIndex);
-                        var posYVar = tableConfig.GetPositionYPlcVariable(startIndex);
-                        var speedYVar = tableConfig.GetSpeedYPlcVariable(startIndex);
+                    var funcType = await ReadOrCollectAsync(tableConfig.GetFunctionTypePlcVariable(startIndex), typeof(sbyte), $"{label} Start.FunctionType", readErrors);
+                    row.Syncron = TrainTypePlcWriter.FunctionTypeToSyncron(Convert.ToInt32(funcType ?? 1));
 
-                        if (!string.IsNullOrEmpty(funcTypeVar))
-                        {
-                            // FunctionType en PLC es sbyte (8 bits), no int
-                            var value = await _twinCATService.ReadVariableAsync(funcTypeVar, typeof(sbyte));
-                            var funcType = Convert.ToInt32(value ?? 1);
-                            // Convertir FunctionType numérico a nombre: 1=Syncron, 3=Polynom 3, 5=Polynom 5
-                            row.Syncron = funcType switch
-                            {
-                                1 => "Syncron",
-                                3 => "Polynom 3",
-                                5 => "Polynom 5",
-                                _ => "Syncron"
-                            };
-                            _logger.LogInformation("🔍 [LECTURA] {TableId} Line{Line}: FunctionType={FuncType} → Syncron={Syncron}", 
-                                tableConfig.TableId, lineNum, funcType, row.Syncron);
-                        }
-                        if (!string.IsNullOrEmpty(posXVar))
-                        {
-                            var value = await _twinCATService.ReadVariableAsync(posXVar, typeof(double));
-                            row.Master1xStart = Convert.ToDouble(value ?? 0);
-                        }
-                        if (!string.IsNullOrEmpty(posYVar))
-                        {
-                            var value = await _twinCATService.ReadVariableAsync(posYVar, typeof(double));
-                            row.Slave1yStart = Convert.ToDouble(value ?? 0);
-                        }
-                        if (!string.IsNullOrEmpty(speedYVar))
-                        {
-                            var value = await _twinCATService.ReadVariableAsync(speedYVar, typeof(double));
-                            row.SpeedSlaveY1Start = Convert.ToDouble(value ?? 0);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning("⚠️ Error leyendo punto inicio línea {Line} tabla {Table}: {Error}", 
-                            lineNum, tableConfig.TableId, ex.Message);
-                    }
+                    var sx = await ReadOrCollectAsync(tableConfig.GetPositionXPlcVariable(startIndex), typeof(double), $"{label} Start.Position_X", readErrors);
+                    var sy = await ReadOrCollectAsync(tableConfig.GetPositionYPlcVariable(startIndex), typeof(double), $"{label} Start.Position_Y", readErrors);
+                    var ss = await ReadOrCollectAsync(tableConfig.GetSpeedYPlcVariable(startIndex), typeof(double), $"{label} Start.Speed_Y", readErrors);
+                    var ex = await ReadOrCollectAsync(tableConfig.GetPositionXPlcVariable(endIndex), typeof(double), $"{label} End.Position_X", readErrors);
+                    var ey = await ReadOrCollectAsync(tableConfig.GetPositionYPlcVariable(endIndex), typeof(double), $"{label} End.Position_Y", readErrors);
+                    var es = await ReadOrCollectAsync(tableConfig.GetSpeedYPlcVariable(endIndex), typeof(double), $"{label} End.Speed_Y", readErrors);
 
-                    // Leer punto de fin
-                    try
-                    {
-                        var posXVar = tableConfig.GetPositionXPlcVariable(endIndex);
-                        var posYVar = tableConfig.GetPositionYPlcVariable(endIndex);
-                        var speedYVar = tableConfig.GetSpeedYPlcVariable(endIndex);
-
-                        if (!string.IsNullOrEmpty(posXVar))
-                        {
-                            var value = await _twinCATService.ReadVariableAsync(posXVar, typeof(double));
-                            row.Master1xEnd = Convert.ToDouble(value ?? 0);
-                        }
-                        if (!string.IsNullOrEmpty(posYVar))
-                        {
-                            var value = await _twinCATService.ReadVariableAsync(posYVar, typeof(double));
-                            row.Slave1yEnd = Convert.ToDouble(value ?? 0);
-                        }
-                        if (!string.IsNullOrEmpty(speedYVar))
-                        {
-                            var value = await _twinCATService.ReadVariableAsync(speedYVar, typeof(double));
-                            row.SpeedSlaveY1End = Convert.ToDouble(value ?? 0);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning("⚠️ Error leyendo punto fin línea {Line} tabla {Table}: {Error}", 
-                            lineNum, tableConfig.TableId, ex.Message);
-                    }
+                    row.Master1xStart = Convert.ToDouble(sx ?? 0.0);
+                    row.Slave1yStart = Convert.ToDouble(sy ?? 0.0);
+                    row.SpeedSlaveY1Start = Convert.ToDouble(ss ?? 0.0);
+                    row.Master1xEnd = Convert.ToDouble(ex ?? 0.0);
+                    row.Slave1yEnd = Convert.ToDouble(ey ?? 0.0);
+                    row.SpeedSlaveY1End = Convert.ToDouble(es ?? 0.0);
 
                     tableData.Rows.Add(row);
                 }
 
                 tables.Add(tableData);
-                _logger.LogDebug("🚆 Leída tabla {TableId}: {RowCount} filas", tableConfig.TableId, tableData.Rows.Count);
+                _logger.LogDebug("🚆 Leída tabla {TableId}: {RowCount} líneas", tableConfig.TableId, tableData.Rows.Count);
             }
 
             return tables;
         }
 
         /// <summary>
-        /// Actualizar datos de Gantry de un TrainType existente
+        /// Reemplaza íntegramente los datos de Gantry de un TrainType existente por los leídos del PLC.
+        /// Se ejecuta aunque la lista esté vacía (Excel sin tablas) para no dejar filas obsoletas.
         /// </summary>
         private async Task UpdateGantryDataAsync(TrainType trainType, List<PlcGantryTableData> gantryTables)
         {
-            _logger.LogInformation("🚆 [TIPOS DE TREN] UpdateGantryDataAsync - TrainType {Id}, gantryTables: {Count}", 
-                trainType.Id, gantryTables?.Count ?? 0);
-            
-            if (gantryTables == null || gantryTables.Count == 0)
-            {
-                _logger.LogWarning("🚆 [TIPOS DE TREN] ⚠️ No hay gantryTables para guardar");
-                return;
-            }
+            gantryTables ??= new List<PlcGantryTableData>();
 
-            // Eliminar datos existentes
             var existingData = await _dbContext.TrainTypeGantryData
                 .Where(g => g.TrainTypeId == trainType.Id)
                 .ToListAsync();
-            
-            _logger.LogInformation("🚆 [TIPOS DE TREN] Eliminando {Count} filas existentes de GantryData", existingData.Count);
-            _dbContext.TrainTypeGantryData.RemoveRange(existingData);
 
-            // Agregar nuevos datos
+            _dbContext.TrainTypeGantryData.RemoveRange(existingData);
+            trainType.GantryData.Clear();
+
             foreach (var table in gantryTables)
             {
                 foreach (var row in table.Rows)
@@ -2001,8 +1512,8 @@ namespace SW.PC.API.Backend.Controllers
             }
 
             var totalRows = gantryTables.Sum(t => t.Rows?.Count ?? 0);
-            _logger.LogInformation("🚆 [TIPOS DE TREN] ✅ Guardados {TotalRows} filas en {TableCount} tablas de GantryData", 
-                totalRows, gantryTables.Count);
+            _logger.LogInformation("🚆 [TIPOS DE TREN] GantryData TrainType {Id}: {Removed} filas eliminadas, {Added} filas guardadas en {TableCount} tablas",
+                trainType.Id, existingData.Count, totalRows, gantryTables.Count);
         }
 
         #endregion

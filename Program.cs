@@ -434,6 +434,8 @@ builder.Services.AddSingleton<SW.PC.API.Backend.Services.Export.IExportCronSched
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SW.PC.API.Backend.Services.Export.ExportCronSchedulerService>());
 builder.Services.AddSingleton<IOperationLogService, OperationLogService>(); // 📋 Operation Log (Nivel 2) - Acciones de operador
 builder.Services.AddSingleton<ISystemLogService, SystemLogService>(); // 📋 System Log (Nivel 3) - In-memory diagnostic buffer
+builder.Services.AddSingleton<IPlcWriteVerificationService, PlcWriteVerificationService>(); // 🔎 Escritura verificada al PLC (relectura + L2 retentivo)
+builder.Services.AddSingleton<ITrainTypePlcWriter, TrainTypePlcWriter>(); // 🚆 Carga DB→PLC de tipos de tren (única implementación, verificada)
 builder.Services.AddSingleton<INxLogFileService, NxLogFileService>(); // 📋 NxLog JSONL Export - TISSEO SOC PIVOT (TLS_M3_ALS_EXI_CYB_SYS_00516)
 builder.Services.AddSingleton<IESIParserService, ESIParserService>(); // 🌐 ESI Parser - EtherCAT Slave Info files
 builder.Services.AddSingleton<IEtherCATDiagnosticsService, EtherCATDiagnosticsService>(); // 🌐 EtherCAT Topology Diagnostics

@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // WashRecipeController.cs - API para Editor de Recetas de Lavado
 // ============================================================================
 // Endpoints para configuración, lectura y escritura de parámetros de lavado
@@ -23,6 +23,7 @@ namespace SW.PC.API.Backend.Controllers
         private readonly ITwinCATService _twinCatService;
         private readonly IRequestProjectContext _projectContext;
         private readonly IOperationLogService _operationLog;
+        private readonly IPlcWriteVerificationService _verifier;
         
         // Cache de config mínima (variable de nombre + alternate) por fichero Excel:
         // evita parsear el .xlsm en cada poll de 3s de la vista (endpoint active-name)
@@ -34,8 +35,10 @@ namespace SW.PC.API.Backend.Controllers
             IExcelConfigService excelService,
             ITwinCATService twinCatService,
             IRequestProjectContext projectContext,
-            IOperationLogService operationLog)
+            IOperationLogService operationLog,
+            IPlcWriteVerificationService verifier)
         {
+            _verifier = verifier;
             _logger = logger;
             _excelService = excelService;
             _twinCatService = twinCatService;
@@ -403,6 +406,7 @@ namespace SW.PC.API.Backend.Controllers
                 int processed = 0;
                 int failed = 0;
                 var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
+                var batch = _verifier.CreateBatch($"Editor receta de lavado '{request.RecipeNameValue ?? "?"}' → PLC");
                 
                 // Escribir nombre de la receta al PLC (si hay variable configurada)
                 if (!string.IsNullOrEmpty(request.RecipeNamePlcVariable) && request.RecipeNameValue != null)
@@ -413,7 +417,7 @@ namespace SW.PC.API.Backend.Controllers
                         var currentValueObj = await _twinCatService.ReadVariableAsync(request.RecipeNamePlcVariable, typeof(string));
                         var currentName = currentValueObj?.ToString() ?? "";
                         
-                        var success = await _twinCatService.WriteVariableAsync(
+                        var success = await WriteAndRecordAsync(batch,
                             request.RecipeNamePlcVariable,
                             request.RecipeNameValue,
                             typeof(string));
@@ -456,7 +460,7 @@ namespace SW.PC.API.Backend.Controllers
                             var currentValueObj = await _twinCatService.ReadVariableAsync(param.PlcVariable, typeof(bool));
                             var currentBool = currentValueObj != null && Convert.ToBoolean(currentValueObj);
                             
-                            var success = await _twinCatService.WriteVariableAsync(
+                            var success = await WriteAndRecordAsync(batch,
                                 param.PlcVariable, 
                                 param.Value, 
                                 typeof(bool));
@@ -496,7 +500,7 @@ namespace SW.PC.API.Backend.Controllers
                             var currentValueObj = await _twinCatService.ReadVariableAsync(param.PlcVariable, typeof(int));
                             var currentInt = currentValueObj != null ? Convert.ToInt32(currentValueObj) : 0;
                             
-                            var success = await _twinCatService.WriteVariableAsync(
+                            var success = await WriteAndRecordAsync(batch,
                                 param.PlcVariable, 
                                 param.Value, 
                                 typeof(int));
@@ -526,20 +530,33 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
                 
-                _logger.LogInformation("🚿 Write to PLC completed: {Processed} OK, {Failed} failed", processed, failed);
+                // Verificación por relectura (L3 + L2 retentivo si hay discrepancias)
+                var verification = await _verifier.VerifyAsync(batch, OperationCategory.Recipe, username);
+                if (!verification.Success)
+                {
+                    var verifyErrors = verification.ToErrorStrings();
+                    errors.AddRange(verifyErrors);
+                    failed += verifyErrors.Count;
+                }
+
+                _logger.Log(failed == 0 ? LogLevel.Information : LogLevel.Error,
+                    "🚿 Write to PLC completed: {Processed} OK, {Failed} failed. {Verification}", processed, failed, verification.Summary);
                 
-                // 📋 Operation Log (L2) - Registrar escritura al PLC con detalles
-                if (writtenParams.Count > 0)
+                // 📋 Operation Log (L2) - Registrar escritura al PLC con detalles (cambios o errores)
+                if (writtenParams.Count > 0 || failed > 0)
                 {
                     var details = new Dictionary<string, object>
                     {
                         { "RecipeName", request.RecipeNameValue ?? "?" },
                         { "Changes", writtenParams }
                     };
+                    if (errors.Count > 0) details["Errors"] = errors.Take(50).ToList();
                     await _operationLog.LogAsync(
                         OperationCategory.Recipe,
                         OperationAction.WashTypeWritePlcFromEditor,
-                        $"{writtenParams.Count} parámetros escritos al PLC",
+                        failed == 0
+                            ? $"{writtenParams.Count} parámetros escritos al PLC"
+                            : $"{writtenParams.Count} parámetros escritos al PLC, {failed} ERRORES",
                         username,
                         details);
                 }
@@ -548,7 +565,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     Success = failed == 0,
                     Message = failed == 0 
-                        ? $"Escritos {processed} parámetros al PLC" 
+                        ? $"Escritos y verificados {processed} parámetros en el PLC" 
                         : $"Escritos {processed} parámetros, {failed} fallidos",
                     ParametersProcessed = processed,
                     ParametersFailed = failed,
@@ -566,6 +583,23 @@ namespace SW.PC.API.Backend.Controllers
             }
         }
         
+        /// <summary>
+        /// Escribe al PLC comprobando el resultado del driver y registrando la escritura en el lote
+        /// para su verificación posterior por relectura. Devuelve false si el driver rechazó la escritura.
+        /// </summary>
+        private async Task<bool> WriteAndRecordAsync(PlcWriteBatch batch, string variable, object value, Type dataType)
+        {
+            try
+            {
+                await batch.WriteAsync(variable, value, dataType);
+                return true;
+            }
+            catch (PlcWriteException)
+            {
+                return false;
+            }
+        }
+
         /// <summary>
         /// Recarga la configuración del Excel (invalida caché)
         /// POST /api/wash-recipe/reload-config

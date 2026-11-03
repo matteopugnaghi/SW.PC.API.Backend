@@ -47,10 +47,22 @@ namespace SW.PC.API.Backend.Models
         public int LineNumberValue { get; set; }
         
         /// <summary>
+        /// Escritura al PLC alternativo (receta 2) habilitada: celda A13 = "ON" (igual que WashRecipe)
+        /// </summary>
+        public bool AlternateWriteEnabled { get; set; } = false;
+
+        /// <summary>
         /// Prefijo alternativo para escribir al PLC2 (desde A14 del Excel)
-        /// Ej: "st_TrainRecipe2" para segundo PLC
+        /// Ej: "st_TrainRecipe2" para segundo PLC. Sustituye la subcadena "st_TrainRecipe".
+        /// Sólo se usa si <see cref="AlternateWriteEnabled"/> es true.
         /// </summary>
         public string? AlternatePlcPrefix { get; set; }
+
+        /// <summary>
+        /// Replicar también las tablas de interpolación Gantry (y min/max height) al PLC2.
+        /// Celda A15: "OFF" para excluirlas (por defecto ON: st_TrainRecipe2 suele ser el mismo DUT).
+        /// </summary>
+        public bool AlternateIncludeGantryTables { get; set; } = true;
         
         /// <summary>
         /// Nombre de la sección BOOL (desde celda B2 del Excel) - vacío = ocultar botón
@@ -541,6 +553,13 @@ namespace SW.PC.API.Backend.Models
         public string? LineNumberPlcVariable { get; set; }
         public string TrainNameValue { get; set; } = string.Empty;
         public int LineNumberValue { get; set; }
+
+        // PLC alternativo / receta 2 (Excel A13 ON/OFF, A14 prefijo, A15 Gantry OFF)
+        public bool AlternateWriteEnabled { get; set; } = false;
+        public string? AlternatePlcPrefix { get; set; }
+        public bool AlternateIncludeGantryTables { get; set; } = true;
+        /// <summary>Nombre de tren leído del PLC2 (sólo en active-name cuando A13=ON)</summary>
+        public string AlternateTrainNameValue { get; set; } = string.Empty;
         
         // Nombres de secciones (desde Excel B2, F2, N2) - vacío = ocultar botón
         public string SectionBoolName { get; set; } = string.Empty;

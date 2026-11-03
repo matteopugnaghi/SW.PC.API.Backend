@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using SW.PC.API.Backend.Data;
 using SW.PC.API.Backend.Hubs;
@@ -184,6 +184,7 @@ namespace SW.PC.API.Backend.Services
                 // Buscar el tipo de tren en la base de datos por DisplayOrder o Id
                 var trainType = await dbContext.TrainTypes
                     .Include(t => t.Parameters)
+                    .Include(t => t.GantryData)
                     .Where(t => t.IsActive && (t.DisplayOrder == lineNumber || t.Id == lineNumber))
                     .OrderByDescending(t => t.DisplayOrder == lineNumber) // Priorizar DisplayOrder match
                     .FirstOrDefaultAsync(stoppingToken);
@@ -201,103 +202,41 @@ namespace SW.PC.API.Backend.Services
                 var excelPath = projectContext.ExcelConfigPath;
                 var trainRecipeConfig = await excelConfigService.LoadTrainRecipeConfigAsync(excelPath);
 
-                // Determinar si es PLC1 o PLC2
+                // PLC2 → variables con prefijo alternativo (Excel A13 ON + A14). Tablas Gantry según A15.
                 bool useAlternate = plcId == "PLC2";
                 string? alternatePrefix = trainRecipeConfig?.AlternatePlcPrefix;
-                string? trainNameVar = useAlternate 
-                    ? GetAlternateVariable(trainRecipeConfig?.TrainNamePlcVariable, alternatePrefix)
-                    : trainRecipeConfig?.TrainNamePlcVariable;
-                string? lineNumberVar = useAlternate
-                    ? GetAlternateVariable(trainRecipeConfig?.LineNumberPlcVariable, alternatePrefix)
-                    : trainRecipeConfig?.LineNumberPlcVariable;
-
-                int parametersWritten = 0;
-
-                // Escribir nombre del tipo de tren
-                if (!string.IsNullOrEmpty(trainNameVar))
+                if (useAlternate && (trainRecipeConfig == null || !trainRecipeConfig.AlternateWriteEnabled || string.IsNullOrEmpty(alternatePrefix)))
                 {
-                    await _twinCATService.WriteVariableAsync(trainNameVar, trainType.Name, typeof(string));
-                    parametersWritten++;
-                    _logger.LogDebug("✅ Nombre de tren escrito: {Var} = {Value}", trainNameVar, trainType.Name);
+                    _logger.LogError("❌ Auto-carga {PlcId} solicitada pero PLC2 no está habilitado en Excel TrainRecipe (A13=ON y prefijo en A14). No se escribe nada.", plcId);
+                    return false;
                 }
 
-                // Escribir número de línea
-                if (!string.IsNullOrEmpty(lineNumberVar))
+                var plcWriter = scope.ServiceProvider.GetRequiredService<ITrainTypePlcWriter>();
+                var writeResult = await plcWriter.WriteAsync(trainType, trainRecipeConfig, new TrainTypePlcWriteOptions
                 {
-                    await _twinCATService.WriteVariableAsync(lineNumberVar, lineNumber, typeof(int));
-                    parametersWritten++;
-                    _logger.LogDebug("✅ Línea de tren escrita: {Var} = {Value}", lineNumberVar, lineNumber);
-                }
+                    IncludeGantryTables = !useAlternate || (trainRecipeConfig?.AlternateIncludeGantryTables ?? false),
+                    VariableMapper = useAlternate ? (v => TrainTypePlcWriter.ApplyAlternatePrefix(v, alternatePrefix)) : null,
+                    ContextLabel = $"{plcId} auto-carga",
+                    LineNumberOverride = lineNumber
+                }, "PLC");
 
-                // Escribir parámetros del TrainType
-                foreach (var param in trainType.Parameters.Where(p => !string.IsNullOrEmpty(p.PlcVariable)))
-                {
-                    try
-                    {
-                        string plcVar = useAlternate 
-                            ? GetAlternateVariable(param.PlcVariable, alternatePrefix) ?? param.PlcVariable!
-                            : param.PlcVariable!;
+                int parametersWritten = writeResult.SuccessCount;
+                _logger.Log(writeResult.Success ? LogLevel.Information : LogLevel.Error,
+                    "{Icon} Auto-carga de tren '{Name}' al {PlcId}: {ParamsWritten} escritos, {Errors} errores. {Verification}",
+                    writeResult.Success ? "✅" : "❌", trainType.Name, plcId, parametersWritten, writeResult.ErrorCount, writeResult.Verification?.Summary);
 
-                        object? valueToWrite = param.DataType?.ToUpper() switch
-                        {
-                            "BOOL" => (object)(bool.TryParse(param.Value, out var b) ? b : false),
-                            "INT" or "INTEGER" => (object)(int.TryParse(param.Value, out var i) ? i : 0),
-                            "LREAL" or "REAL" or "DOUBLE" => (object)(double.TryParse(param.Value,
-                                System.Globalization.NumberStyles.Any,
-                                System.Globalization.CultureInfo.InvariantCulture,
-                                out var d) ? d : 0.0),
-                            _ => param.Value
-                        };
-
-                        Type dataType = param.DataType?.ToUpper() switch
-                        {
-                            "BOOL" => typeof(bool),
-                            "INT" or "INTEGER" => typeof(int),
-                            "LREAL" or "REAL" or "DOUBLE" => typeof(double),
-                            _ => typeof(string)
-                        };
-
-                        await _twinCATService.WriteVariableAsync(plcVar, valueToWrite!, dataType);
-                        parametersWritten++;
-                        _logger.LogDebug("✅ Parámetro escrito: {Var} = {Value}", plcVar, param.Value);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning("⚠️ Error escribiendo parámetro {Param}: {Error}", 
-                            param.Name, ex.Message);
-                    }
-                }
-
-                _logger.LogInformation("✅ Auto-carga de tren completada: {ParamsWritten} parámetros escritos al {PlcId}", 
-                    parametersWritten, plcId);
-
-                // � Escribir variable de trigger para notificar al PLC que hay datos nuevos
-                if (!string.IsNullOrEmpty(trainRecipeConfig?.WriteTriggerPlcVariable))
-                {
-                    try
-                    {
-                        string triggerVar = useAlternate 
-                            ? GetAlternateVariable(trainRecipeConfig.WriteTriggerPlcVariable, alternatePrefix) ?? trainRecipeConfig.WriteTriggerPlcVariable
-                            : trainRecipeConfig.WriteTriggerPlcVariable;
-                        
-                        await _twinCATService.WriteVariableAsync(triggerVar, true, typeof(bool));
-                        _logger.LogInformation("🔔 Write trigger set to TRUE: {Var}", triggerVar);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning("⚠️ Error escribiendo trigger: {Error}", ex.Message);
-                    }
-                }
-
-                // �📋 Registrar en Operation Log (PlcCommand)
+                // 📋 Registrar en Operation Log (PlcCommand)
                 try
                 {
                     var operationLog = scope.ServiceProvider.GetRequiredService<IOperationLogService>();
                     await operationLog.LogAsync(
                         OperationCategory.PlcCommand,
                         OperationAction.PlcCommandTrainChange,
-                        $"{plcId}: L{lineNumber} → '{trainType.Name}' ({parametersWritten})",
-                        user: "PLC"
+                        writeResult.Success
+                            ? $"{plcId}: L{lineNumber} → '{trainType.Name}' ({parametersWritten})"
+                            : $"{plcId}: L{lineNumber} → '{trainType.Name}' ({parametersWritten} OK, {writeResult.ErrorCount} ERRORES)",
+                        user: "PLC",
+                        details: writeResult.Success ? null : new Dictionary<string, object> { ["errors"] = writeResult.Errors.Take(50).ToList() }
                     );
                 }
                 catch (Exception logEx)
@@ -305,22 +244,13 @@ namespace SW.PC.API.Backend.Services
                     _logger.LogWarning(logEx, "⚠️ No se pudo registrar en Operation Log");
                 }
 
-                return true;
+                return writeResult.Success;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ Error en ProcessAutoLoadAsync para tipo de tren");
                 return false;
             }
-        }
-
-        private string? GetAlternateVariable(string? originalVar, string? alternatePrefix)
-        {
-            if (string.IsNullOrEmpty(originalVar) || string.IsNullOrEmpty(alternatePrefix))
-                return originalVar;
-
-            // Reemplazar el prefijo st_TrainRecipe con el alternativo
-            return originalVar.Replace("st_TrainRecipe", alternatePrefix);
         }
     }
 }

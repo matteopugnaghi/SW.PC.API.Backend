@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 // TrainRecipeController.cs - API para Editor de Recetas de Tren
 // ============================================================================
 // Endpoints para configuración, lectura y escritura de parámetros de tren
@@ -24,10 +24,11 @@ namespace SW.PC.API.Backend.Controllers
         private readonly ITwinCATService _twinCatService;
         private readonly IRequestProjectContext _projectContext;
         private readonly IOperationLogService _operationLog;
+        private readonly IPlcWriteVerificationService _verifier;
         
         // Cache de la variable PLC del nombre de tren por fichero Excel:
         // evita parsear el .xlsm en cada poll de 3s de la vista (endpoint active-name)
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime Ts, string? NameVar)> _activeNameVarCache = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime Ts, string? NameVar, bool AltEnabled, string? AltPrefix)> _activeNameVarCache = new();
         private static readonly TimeSpan _activeNameCacheTtl = TimeSpan.FromMinutes(5);
         
         public TrainRecipeController(
@@ -35,8 +36,10 @@ namespace SW.PC.API.Backend.Controllers
             IExcelConfigService excelService,
             ITwinCATService twinCatService,
             IRequestProjectContext projectContext,
-            IOperationLogService operationLog)
+            IOperationLogService operationLog,
+            IPlcWriteVerificationService verifier)
         {
+            _verifier = verifier;
             _logger = logger;
             _excelService = excelService;
             _twinCatService = twinCatService;
@@ -71,6 +74,10 @@ namespace SW.PC.API.Backend.Controllers
                     TrainNameValue = config.TrainNameValue,
                     LineNumberValue = config.LineNumberValue,
                     LoadedAt = config.LoadedAt,
+                    // PLC alternativo / receta 2 (A13/A14/A15)
+                    AlternateWriteEnabled = config.AlternateWriteEnabled,
+                    AlternatePlcPrefix = config.AlternatePlcPrefix,
+                    AlternateIncludeGantryTables = config.AlternateIncludeGantryTables,
                     // Nombres de secciones desde Excel (B2, F2, N2)
                     SectionBoolName = config.SectionBoolName,
                     SectionDecimalName = config.SectionDecimalName,
@@ -139,26 +146,48 @@ namespace SW.PC.API.Backend.Controllers
                     (DateTime.Now - cached.Ts) > _activeNameCacheTtl)
                 {
                     var config = await _excelService.LoadTrainRecipeConfigAsync(excelPath);
-                    cached = (DateTime.Now, config.TrainNamePlcVariable);
+                    cached = (DateTime.Now, config.TrainNamePlcVariable, config.AlternateWriteEnabled, config.AlternatePlcPrefix);
                     _activeNameVarCache[cacheKey] = cached;
                 }
                 
                 var trainNameValue = string.Empty;
+                var alternateTrainNameValue = string.Empty;
+                int processed = 0;
                 if (!string.IsNullOrEmpty(cached.NameVar))
                 {
                     var result = await _twinCatService.ReadVariableAsync(cached.NameVar, typeof(string));
                     trainNameValue = result?.ToString() ?? string.Empty;
+                    processed++;
+
+                    // Nombre del tren activo en el PLC2 (receta 2) si A13=ON
+                    if (cached.AltEnabled && !string.IsNullOrEmpty(cached.AltPrefix))
+                    {
+                        try
+                        {
+                            var altVar = TrainTypePlcWriter.ApplyAlternatePrefix(cached.NameVar, cached.AltPrefix);
+                            var altResult = await _twinCatService.ReadVariableAsync(altVar, typeof(string));
+                            alternateTrainNameValue = altResult?.ToString() ?? string.Empty;
+                            processed++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning("🚂 No se pudo leer el nombre de tren del PLC2: {Error}", ex.Message);
+                        }
+                    }
                 }
                 
                 return Ok(new TrainRecipePlcOperationResult
                 {
                     Success = true,
                     Message = "OK",
-                    ParametersProcessed = 1,
+                    ParametersProcessed = processed,
                     Data = new TrainRecipeConfigResponse
                     {
                         TrainNamePlcVariable = cached.NameVar,
                         TrainNameValue = trainNameValue,
+                        AlternateWriteEnabled = cached.AltEnabled,
+                        AlternatePlcPrefix = cached.AltPrefix,
+                        AlternateTrainNameValue = alternateTrainNameValue,
                         LoadedAt = DateTime.Now
                     }
                 });
@@ -477,6 +506,7 @@ namespace SW.PC.API.Backend.Controllers
                 int processed = 0;
                 int failed = 0;
                 var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
+                var batch = _verifier.CreateBatch($"Editor receta de tren '{request.TrainNameValue ?? "?"}' → PLC");
                 
                 // Escribir nombre del tren al PLC (si hay variable configurada)
                 if (!string.IsNullOrEmpty(request.TrainNamePlcVariable) && request.TrainNameValue != null)
@@ -487,7 +517,7 @@ namespace SW.PC.API.Backend.Controllers
                         var currentValueObj = await _twinCatService.ReadVariableAsync(request.TrainNamePlcVariable, typeof(string));
                         var currentName = currentValueObj?.ToString() ?? "";
                         
-                        var success = await _twinCatService.WriteVariableAsync(
+                        var success = await WriteAndRecordAsync(batch,
                             request.TrainNamePlcVariable,
                             request.TrainNameValue,
                             typeof(string));
@@ -530,7 +560,7 @@ namespace SW.PC.API.Backend.Controllers
                         var currentValueObj = await _twinCatService.ReadVariableAsync(request.GantryTableCountPlcVariable, typeof(int));
                         var currentValue = currentValueObj != null ? Convert.ToInt32(currentValueObj) : 0;
                         
-                        var success = await _twinCatService.WriteVariableAsync(
+                        var success = await WriteAndRecordAsync(batch,
                             request.GantryTableCountPlcVariable,
                             request.GantryTableCountValue.Value,
                             typeof(int));
@@ -573,7 +603,7 @@ namespace SW.PC.API.Backend.Controllers
                         var currentStr = currentValue?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?";
                         var newStr = param.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
                         
-                        var success = await _twinCatService.WriteVariableAsync(
+                        var success = await WriteAndRecordAsync(batch,
                             param.PlcVariable, 
                             param.Value, 
                             typeof(double));
@@ -614,7 +644,7 @@ namespace SW.PC.API.Backend.Controllers
                         var currentValueObj = await _twinCatService.ReadVariableAsync(param.PlcVariable, typeof(bool));
                         var currentBool = currentValueObj != null && Convert.ToBoolean(currentValueObj);
                         
-                        var success = await _twinCatService.WriteVariableAsync(
+                        var success = await WriteAndRecordAsync(batch,
                             param.PlcVariable, 
                             param.Value, 
                             typeof(bool));
@@ -656,7 +686,7 @@ namespace SW.PC.API.Backend.Controllers
                         var currentStr = currentValue?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?";
                         var newStr = param.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
                         
-                        var success = await _twinCatService.WriteVariableAsync(
+                        var success = await WriteAndRecordAsync(batch,
                             param.PlcVariable, 
                             param.Value, 
                             typeof(double));
@@ -687,6 +717,17 @@ namespace SW.PC.API.Backend.Controllers
                 
                 // ============================================================
                 // TRIGGER: Escribir TRUE a la variable de trigger (celda A5)
+                // ============================================================
+                // VERIFICACIÓN por relectura ANTES del trigger (L3 + L2 retentivo si falla)
+                // ============================================================
+                var verification = await _verifier.VerifyAsync(batch, OperationCategory.Recipe, username);
+                if (!verification.Success)
+                {
+                    var verifyErrors = verification.ToErrorStrings();
+                    errors.AddRange(verifyErrors);
+                    failed += verifyErrors.Count;
+                }
+
                 // El PLC lo pondrá en FALSE al recibir la señal
                 // ============================================================
                 var excelPath = _excelService.GetExcelConfigPath();
@@ -725,20 +766,24 @@ namespace SW.PC.API.Backend.Controllers
                     _logger.LogDebug("🚂 No WriteTriggerPlcVariable configured in Excel A5");
                 }
                 
-                _logger.LogInformation("🚂 Write to PLC completed: {Processed} OK, {Failed} failed", processed, failed);
+                _logger.Log(failed == 0 ? LogLevel.Information : LogLevel.Error,
+                    "🚂 Write to PLC completed: {Processed} OK, {Failed} failed. {Verification}", processed, failed, verification.Summary);
                 
-                // 📋 Operation Log (L2) - Registrar escritura al PLC con detalles
-                if (writtenParams.Count > 0)
+                // 📋 Operation Log (L2) - Registrar escritura al PLC con detalles (siempre que haya cambios o errores)
+                if (writtenParams.Count > 0 || failed > 0)
                 {
                     var details = new Dictionary<string, object>
                     {
                         { "TrainName", request.TrainNameValue ?? "?" },
                         { "Changes", writtenParams }
                     };
+                    if (errors.Count > 0) details["Errors"] = errors.Take(50).ToList();
                     await _operationLog.LogAsync(
                         OperationCategory.Recipe,
                         OperationAction.TrainTypeWritePlcFromEditor,
-                        $"{writtenParams.Count} parámetros escritos al PLC",
+                        failed == 0
+                            ? $"{writtenParams.Count} parámetros escritos al PLC"
+                            : $"{writtenParams.Count} parámetros escritos al PLC, {failed} ERRORES",
                         username,
                         details);
                 }
@@ -747,7 +792,7 @@ namespace SW.PC.API.Backend.Controllers
                 {
                     Success = failed == 0,
                     Message = failed == 0 
-                        ? $"Escritos {processed} parámetros al PLC" 
+                        ? $"Escritos y verificados {processed} parámetros en el PLC" 
                         : $"Escritos {processed} parámetros, {failed} fallidos",
                     ParametersProcessed = processed,
                     ParametersFailed = failed,
@@ -1027,6 +1072,8 @@ namespace SW.PC.API.Backend.Controllers
                 // Obtener el slot de receta (default 1 para compatibilidad)
                 int recipeSlot = request.SlotNumber > 0 ? request.SlotNumber : 1;
                 _logger.LogInformation("🚂 Using recipe slot {Slot} for interpolation write", recipeSlot);
+                var interpUser = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
+                var batch = _verifier.CreateBatch($"Editor interpolación Gantry {request.TableId} (slot {recipeSlot}) → PLC");
                 
                 // =====================================================
                 // PASO 1: Leer TODOS los puntos actuales del PLC (snapshot)
@@ -1063,7 +1110,7 @@ namespace SW.PC.API.Backend.Controllers
                 
                 foreach (var line in enabledLines)
                 {
-                    var result = await WriteLineToPlcWithSnapshotAsync(table, line, recipeSlot, snapshot);
+                    var result = await WriteLineToPlcWithSnapshotAsync(table, line, recipeSlot, snapshot, batch);
                     totalPointsWritten += result.pointsWritten;
                     totalPointsFailed += result.pointsFailed;
                     if (result.error != null) errors.Add(result.error);
@@ -1095,7 +1142,7 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         try
                         {
-                            await _twinCatService.WriteVariableAsync(minHeightVar, minHeight, typeof(double));
+                            await batch.WriteAsync(minHeightVar, minHeight, typeof(double));
                             _logger.LogInformation("✅ Written min_height to {Var}: {Value}", minHeightVar, minHeight);
                         }
                         catch (Exception ex)
@@ -1116,7 +1163,7 @@ namespace SW.PC.API.Backend.Controllers
                     {
                         try
                         {
-                            await _twinCatService.WriteVariableAsync(maxHeightVar, maxHeight, typeof(double));
+                            await batch.WriteAsync(maxHeightVar, maxHeight, typeof(double));
                             _logger.LogInformation("✅ Written max_height to {Var}: {Value}", maxHeightVar, maxHeight);
                         }
                         catch (Exception ex)
@@ -1132,18 +1179,30 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
                 
-                _logger.LogInformation("🚂 Written {PointsWritten} interpolation points to {TableId} (parallel), {ChangeCount} changes detected", 
-                    totalPointsWritten, request.TableId, allChanges.Count);
-                
-                // 📋 Operation Log (L2) - Registrar escritura de tabla de interpolación SOLO si hubo cambios reales
-                if (allChanges.Count > 0)
+                // Verificación por relectura de todo lo escrito (puntos + min/max) → L3 + L2 si falla
+                var verification = await _verifier.VerifyAsync(batch, OperationCategory.Recipe, interpUser);
+                if (!verification.Success)
                 {
-                    var username = User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
+                    var verifyErrors = verification.ToErrorStrings();
+                    errors.AddRange(verifyErrors);
+                    totalPointsFailed += verifyErrors.Count;
+                }
+
+                _logger.Log(totalPointsFailed == 0 ? LogLevel.Information : LogLevel.Error,
+                    "🚂 Written {PointsWritten} interpolation points to {TableId}, {ChangeCount} changes detected, {Failed} failed. {Verification}", 
+                    totalPointsWritten, request.TableId, allChanges.Count, totalPointsFailed, verification.Summary);
+                
+                // 📋 Operation Log (L2) - Registrar escritura de tabla de interpolación si hubo cambios reales o errores
+                if (allChanges.Count > 0 || totalPointsFailed > 0)
+                {
+                    var username = interpUser;
                     var details = new Dictionary<string, object>
                     {
                         { "TableId", request.TableId },
                         { "SlotNumber", request.SlotNumber },
                         { "PointsWritten", totalPointsWritten },
+                        { "PointsFailed", totalPointsFailed },
+                        { "Errors", errors.Take(50).ToList() },
                         { "Changes", allChanges }
                     };
                     // Formatear mensaje con todos los cambios
@@ -1151,7 +1210,9 @@ namespace SW.PC.API.Backend.Controllers
                     await _operationLog.LogAsync(
                         OperationCategory.Recipe,
                         OperationAction.TrainTypeInterpolationWrite,
-                        $"{request.TableId}: {changesPreview}",
+                        totalPointsFailed == 0
+                            ? $"{request.TableId}: {changesPreview}"
+                            : $"{request.TableId}: {totalPointsFailed} ERRORES. {changesPreview}",
                         username,
                         details);
                 }
@@ -1180,6 +1241,23 @@ namespace SW.PC.API.Backend.Controllers
             }
         }
         
+        /// <summary>
+        /// Escribe al PLC comprobando el resultado del driver y registrando la escritura en el lote
+        /// para su verificación posterior por relectura. Devuelve false si el driver rechazó la escritura.
+        /// </summary>
+        private async Task<bool> WriteAndRecordAsync(PlcWriteBatch batch, string variable, object value, Type dataType)
+        {
+            try
+            {
+                await batch.WriteAsync(variable, value, dataType);
+                return true;
+            }
+            catch (PlcWriteException)
+            {
+                return false;
+            }
+        }
+
         /// <summary>
         /// Helper: Lee un punto de interpolación del PLC
         /// </summary>
@@ -1216,7 +1294,8 @@ namespace SW.PC.API.Backend.Controllers
             GantryInterpolationTable table, 
             GantryInterpolationLineDto line, 
             int recipeSlot,
-            Dictionary<int, (int funcType, double posX, double posY, double speedY)> snapshot)
+            Dictionary<int, (int funcType, double posX, double posY, double speedY)> snapshot,
+            PlcWriteBatch batch)
         {
             int startIndex = GantryInterpolationTable.GetStartPointIndex(line.LineNumber);
             int endIndex = GantryInterpolationTable.GetEndPointIndex(line.LineNumber);
@@ -1295,26 +1374,19 @@ namespace SW.PC.API.Backend.Controllers
                     hasChanges = true;
                 }
                 
-                // Solo escribir si hay cambios
+                // Solo escribir si hay cambios. Secuencial y con comprobación del resultado del
+                // driver (antes: Task.WhenAll ignorando los bool devueltos → fallos contados como OK)
                 if (hasChanges)
                 {
-                    var writeStartTasks = new[]
-                    {
-                        _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(startIndex, recipeSlot), line.Start.FunctionType, typeof(sbyte)),
-                        _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(startIndex, recipeSlot), line.Start.PositionX, typeof(double)),
-                        _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(startIndex, recipeSlot), line.Start.PositionY, typeof(double)),
-                        _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(startIndex, recipeSlot), line.Start.SpeedY, typeof(double))
-                    };
-                    
-                    var writeEndTasks = new[]
-                    {
-                        _twinCatService.WriteVariableAsync(table.GetFunctionTypePlcVariable(endIndex, recipeSlot), line.End.FunctionType, typeof(sbyte)),
-                        _twinCatService.WriteVariableAsync(table.GetPositionXPlcVariable(endIndex, recipeSlot), line.End.PositionX, typeof(double)),
-                        _twinCatService.WriteVariableAsync(table.GetPositionYPlcVariable(endIndex, recipeSlot), line.End.PositionY, typeof(double)),
-                        _twinCatService.WriteVariableAsync(table.GetSpeedYPlcVariable(endIndex, recipeSlot), line.End.SpeedY, typeof(double))
-                    };
-                    
-                    await Task.WhenAll(writeStartTasks.Concat(writeEndTasks));
+                    await batch.WriteAsync(table.GetFunctionTypePlcVariable(startIndex, recipeSlot), (sbyte)line.Start.FunctionType, typeof(sbyte));
+                    await batch.WriteAsync(table.GetPositionXPlcVariable(startIndex, recipeSlot), line.Start.PositionX, typeof(double));
+                    await batch.WriteAsync(table.GetPositionYPlcVariable(startIndex, recipeSlot), line.Start.PositionY, typeof(double));
+                    await batch.WriteAsync(table.GetSpeedYPlcVariable(startIndex, recipeSlot), line.Start.SpeedY, typeof(double));
+
+                    await batch.WriteAsync(table.GetFunctionTypePlcVariable(endIndex, recipeSlot), (sbyte)line.End.FunctionType, typeof(sbyte));
+                    await batch.WriteAsync(table.GetPositionXPlcVariable(endIndex, recipeSlot), line.End.PositionX, typeof(double));
+                    await batch.WriteAsync(table.GetPositionYPlcVariable(endIndex, recipeSlot), line.End.PositionY, typeof(double));
+                    await batch.WriteAsync(table.GetSpeedYPlcVariable(endIndex, recipeSlot), line.End.SpeedY, typeof(double));
                     pointsWritten = 2;
                 }
             }
@@ -1322,6 +1394,7 @@ namespace SW.PC.API.Backend.Controllers
             {
                 error = $"Error escribiendo línea {line.LineNumber}: {ex.Message}";
                 pointsFailed = 2;
+                _logger.LogError("🚂 ✖ {Error}", error);
             }
             
             return (line.LineNumber, pointsWritten, pointsFailed, error, changes);
@@ -1546,7 +1619,11 @@ namespace SW.PC.API.Backend.Controllers
                     return BadRequest(new { error = $"Tabla '{request.TableId}' no tiene variable PLC de line count configurada" });
                 }
                 
-                await _twinCatService.WriteVariableAsync(table.LineCountPlcVariable, request.LineCount, typeof(int));
+                if (!await _twinCatService.WriteVariableAsync(table.LineCountPlcVariable, request.LineCount, typeof(int)))
+                {
+                    _logger.LogError("🚂 ✖ El driver ADS rechazó la escritura de LineCount {TableId} ({Var})", request.TableId, table.LineCountPlcVariable);
+                    return StatusCode(500, new { error = $"Escritura rechazada por el PLC para LineCount de {request.TableId}" });
+                }
                 
                 return Ok(new { success = true, message = $"Line count de {request.TableId} establecido a {request.LineCount}" });
             }
