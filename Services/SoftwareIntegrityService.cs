@@ -856,20 +856,12 @@ namespace SW.PC.API.Backend.Services
                 }
 
                 // Parsear último release CalVer
-                var tagOutput = latestTagTask.Result.Trim();
-                if (!string.IsNullOrEmpty(tagOutput))
+                var latestTag = PickLatestCalVerTag(latestTagTask.Result);
+                if (latestTag != null)
                 {
-                    var firstLine = tagOutput.Split('\n').FirstOrDefault()?.Trim();
-                    if (!string.IsNullOrEmpty(firstLine) && firstLine.Contains("|"))
-                    {
-                        var parts = firstLine.Split('|');
-                        component.LatestRelease = parts[0].Trim();
-                        component.LatestReleaseDate = parts.Length > 1 ? parts[1].Trim() : "";
-                    }
-                    else if (!string.IsNullOrEmpty(firstLine))
-                    {
-                        component.LatestRelease = firstLine;
-                    }
+                    component.LatestRelease = latestTag.Value.Tag;
+                    if (!string.IsNullOrEmpty(latestTag.Value.Date))
+                        component.LatestReleaseDate = latestTag.Value.Date;
                 }
 
                 // Analizar estado del working directory
@@ -932,6 +924,50 @@ namespace SW.PC.API.Backend.Services
             }
 
             return component;
+        }
+
+        /// <summary>
+        /// Elige el tag CalVer más reciente de la salida de <c>git tag</c> con formato "tag|fecha"
+        /// (una línea por tag). Compara sin el prefijo 'v' heredado: git ordena "v2026.09.07"
+        /// por encima de "2026.11.02", así que no vale quedarse con la primera línea.
+        /// </summary>
+        public static (string Tag, string Date)? PickLatestCalVerTag(string? gitTagOutput)
+        {
+            (string Tag, string Date)? best = null;
+            int[]? bestKey = null;
+
+            foreach (var rawLine in (gitTagOutput ?? "").Split('\n'))
+            {
+                var line = rawLine.Trim();
+                if (line.Length == 0) continue;
+
+                var parts = line.Split('|');
+                var tag = parts[0].Trim();
+                if (tag.Length == 0) continue;
+
+                var key = tag.TrimStart('v', 'V').Split('.')
+                    .Select(s => int.TryParse(s, out var n) ? n : -1)
+                    .ToArray();
+
+                if (bestKey == null || CompareVersionKeys(key, bestKey) > 0)
+                {
+                    best = (tag, parts.Length > 1 ? parts[1].Trim() : "");
+                    bestKey = key;
+                }
+            }
+
+            return best;
+        }
+
+        private static int CompareVersionKeys(int[] a, int[] b)
+        {
+            for (var i = 0; i < Math.Max(a.Length, b.Length); i++)
+            {
+                var x = i < a.Length ? a[i] : -1;
+                var y = i < b.Length ? b[i] : -1;
+                if (x != y) return x.CompareTo(y);
+            }
+            return 0;
         }
 
         private string ParseVersion(string gitDescribe)
