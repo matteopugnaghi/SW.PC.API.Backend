@@ -1090,6 +1090,100 @@ namespace SW.PC.API.Backend.Controllers
         }
 
         // ════════════════════════════════════════════════════════════════════
+        // Layout del dashboard por usuario (DEC-005) — orden de las tarjetas
+        // ════════════════════════════════════════════════════════════════════
+        // Una fila por usuario en SMM_UserDashboardLayouts, en la BD del proyecto activo
+        // (cada proyecto tiene sus propios usuarios). Formato: SmmDashboardLayoutSerializer.
+        // Lista vacía = sin personalizar → el frontend usa el orden por defecto (alfabético).
+
+        private int? GetCurrentUserId()
+        {
+            var claim = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            return int.TryParse(claim, out var id) ? id : null;
+        }
+
+        /// <summary>Orden de tarjetas del dashboard guardado por el usuario actual.</summary>
+        [HttpGet("layout")]
+        [Authorize]
+        public async Task<IActionResult> GetDashboardLayoutAsync()
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null) return BadRequest(new { error = "usuario no identificado" });
+
+            using var db = _dbFactory.CreateDbContext();
+            var layoutJson = await db.SmmUserDashboardLayouts
+                .AsNoTracking()
+                .Where(l => l.UserId == userId.Value)
+                .Select(l => l.LayoutJson)
+                .FirstOrDefaultAsync();
+            return Ok(new { groupOrder = SmmDashboardLayoutSerializer.ReadGroupOrder(layoutJson) });
+        }
+
+        /// <summary>Guarda el orden de tarjetas del dashboard del usuario actual.</summary>
+        [HttpPut("layout")]
+        [Authorize]
+        public async Task<IActionResult> SaveDashboardLayoutAsync([FromBody] SaveDashboardLayoutRequest req)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null) return BadRequest(new { error = "usuario no identificado" });
+            if (req?.GroupOrder == null) return BadRequest(new { error = "groupOrder requerido" });
+            if (req.GroupOrder.Count > SmmDashboardLayoutSerializer.MaxGroups)
+                return BadRequest(new { error = $"groupOrder admite como máximo {SmmDashboardLayoutSerializer.MaxGroups} grupos" });
+
+            var order = SmmDashboardLayoutSerializer.NormalizeGroupOrder(req.GroupOrder);
+            var layoutJson = SmmDashboardLayoutSerializer.Serialize(order);
+
+            // Dos guardados casi simultáneos del mismo usuario sin fila previa chocarían en el
+            // índice único (UserId): en ese caso se reintenta una vez, ya como actualización.
+            for (var attempt = 0; ; attempt++)
+            {
+                using var db = _dbFactory.CreateDbContext();
+                var layout = await db.SmmUserDashboardLayouts.FirstOrDefaultAsync(l => l.UserId == userId.Value);
+                if (layout == null)
+                {
+                    layout = new SmmUserDashboardLayout { UserId = userId.Value };
+                    db.SmmUserDashboardLayouts.Add(layout);
+                }
+                layout.LayoutJson = layoutJson;
+                layout.UpdatedAt = System.DateTime.UtcNow;
+                try
+                {
+                    await db.SaveChangesAsync();
+                    break;
+                }
+                catch (DbUpdateException) when (attempt == 0)
+                {
+                    // reintento
+                }
+            }
+
+            return Ok(new { ok = true, groupOrder = order });
+        }
+
+        /// <summary>Elimina la personalización: vuelve al orden por defecto.</summary>
+        [HttpDelete("layout")]
+        [Authorize]
+        public async Task<IActionResult> ResetDashboardLayoutAsync()
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null) return BadRequest(new { error = "usuario no identificado" });
+
+            using var db = _dbFactory.CreateDbContext();
+            var layouts = await db.SmmUserDashboardLayouts.Where(l => l.UserId == userId.Value).ToListAsync();
+            if (layouts.Count > 0)
+            {
+                db.SmmUserDashboardLayouts.RemoveRange(layouts);
+                await db.SaveChangesAsync();
+            }
+            return Ok(new { ok = true, groupOrder = System.Array.Empty<string>() });
+        }
+
+        public class SaveDashboardLayoutRequest
+        {
+            public List<string>? GroupOrder { get; set; }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
         // FASE 6.2 — Mantenimiento (DEC-014/017/019/023)
         // ════════════════════════════════════════════════════════════════════
 
