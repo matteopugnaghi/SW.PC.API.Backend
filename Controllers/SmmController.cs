@@ -336,16 +336,9 @@ namespace SW.PC.API.Backend.Controllers
             using var db = _dbFactory.CreateDbContext();
             take = System.Math.Clamp(take, 1, 20000);
 
-            var q = db.SmmReadings.Where(r => r.GroupId == groupId && r.CycleId == null);
-            if (from.HasValue) q = q.Where(r => r.Timestamp >= from.Value);
-            if (to.HasValue)   q = q.Where(r => r.Timestamp <= to.Value);
-
             // Tomamos los últimos N timestamps distintos (cada snapshot escribe el mismo Timestamp para todas sus vars)
-            var recentTimestamps = await q
-                .Select(r => r.Timestamp)
-                .Distinct()
-                .OrderByDescending(t => t)
-                .Take(take)
+            var recentTimestamps = await SmmReadingQueries
+                .RecentSnapshotTimestamps(db.SmmReadings, groupId, take, from, to)
                 .ToListAsync();
 
             if (recentTimestamps.Count == 0)

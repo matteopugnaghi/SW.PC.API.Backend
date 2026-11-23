@@ -1408,6 +1408,11 @@ public static class AquafrischDbContextFactory
                 )");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Readings_Group_Var_Time ON SMM_Readings(GroupId, VariableId, Timestamp)");
             await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Readings_Cycle ON SMM_Readings(CycleId)");
+            // Snapshots Continuous/OnDemand (CycleId IS NULL) de un grupo ordenados por fecha: lo usan
+            // readings/recent y la purga de retención, que se ejecuta tras cada snapshot. Sin este índice
+            // ambas recorrían TODAS las lecturas del grupo (IX_..._Group_Var_Time lleva VariableId antes
+            // que Timestamp): con lectura cada 1 s y 1 día de retención son >1 M de filas por petición.
+            await context.Database.ExecuteSqlRawAsync(@"CREATE INDEX IF NOT EXISTS IX_SMM_Readings_Group_Cycle_Time ON SMM_Readings(GroupId, CycleId, Timestamp)");
 
             // Migración idempotente: añadir StringValue a BDs creadas antes de DEC-027
             try { await context.Database.ExecuteSqlRawAsync(@"ALTER TABLE SMM_Readings ADD COLUMN StringValue TEXT"); }
