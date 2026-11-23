@@ -80,6 +80,25 @@ namespace SW.PC.API.Backend.Hubs
             var claims = Context.User.Claims.Select(c => $"{c.Type}={c.Value}");
             _logger.LogInformation("🔍 Claims del usuario: {Claims}", string.Join(", ", claims));
             
+            // 🔒 HostName Interlocking: la sesión de este cliente fue cerrada por una toma de
+            // control mientras estaba desconectado (micro-corte de red) y reconecta con un JWT
+            // todavía válido. Se le avisa para que vuelva al login y NO se registra como HMI
+            // activo (no cuenta para el PLC ni vuelve a figurar como equipo conectado).
+            var takeoverNotice = await HostInterlock.GetTakeoverNoticeAsync(_serviceProvider, httpCtx, _logger);
+            if (takeoverNotice != null)
+            {
+                _logger.LogWarning("🔒 Conexión SignalR rechazada (sesión cerrada por interlocking) - ConnectionId={ConnectionId}, User={Username}, Host={HostName}",
+                    Context.ConnectionId, username, hostName);
+                await Clients.Caller.SendAsync(HostInterlock.TerminatedEvent, takeoverNotice);
+                // Cierre diferido: abortar al instante podría descartar el aviso recién enviado.
+                var rejectedConnection = Context;
+                _ = Task.Delay(TimeSpan.FromSeconds(2)).ContinueWith(_ =>
+                {
+                    try { rejectedConnection.Abort(); } catch { /* conexión ya cerrada */ }
+                });
+                return;
+            }
+            
             lock (ClientConnectionTrackerService.LockObj)
             {
                 ClientConnectionTrackerService.ActiveConnections++;

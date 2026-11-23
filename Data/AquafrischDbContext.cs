@@ -117,6 +117,9 @@ public class AquafrischDbContext : DbContext
     /// <summary>Dispositivos identificados por token de URL (sin soporte de certificados: paneles HMI, tablets).</summary>
     public DbSet<TokenDevice> TokenDevices { get; set; } = null!;
 
+    /// <summary>HostName Interlocking: habilitación de interlocking/override por nombre de equipo.</summary>
+    public DbSet<HostInterlockSetting> HostInterlockSettings { get; set; } = null!;
+
     #endregion
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -199,6 +202,7 @@ public class AquafrischDbContext : DbContext
             entity.Property(e => e.RefreshToken).HasMaxLength(500);
             entity.Property(e => e.IpAddress).HasMaxLength(50);
             entity.Property(e => e.UserAgent).HasMaxLength(500);
+            entity.Property(e => e.MachineName).HasMaxLength(100);
             entity.Property(e => e.RevokedReason).HasMaxLength(200);
         });
 
@@ -485,6 +489,15 @@ public class AquafrischDbContext : DbContext
         });
 
         // ============================================
+        // Configuración de HostInterlockSetting (HostName Interlocking)
+        // ============================================
+        modelBuilder.Entity<HostInterlockSetting>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.HostName).IsUnique();
+        });
+
+        // ============================================
         // Seed Data - Roles del Sistema
         // ============================================
         SeedRoles(modelBuilder);
@@ -673,6 +686,7 @@ public static class AquafrischDbContextFactory
         await RunStepAsync(nameof(EnsureExportProfileTablesAsync), () => EnsureExportProfileTablesAsync(context));
         await RunStepAsync(nameof(EnsureMachineRegistrationCodesTableAsync), () => EnsureMachineRegistrationCodesTableAsync(context));
         await RunStepAsync(nameof(EnsureTokenDevicesTableAsync), () => EnsureTokenDevicesTableAsync(context));
+        await RunStepAsync(nameof(EnsureHostInterlockSchemaAsync), () => EnsureHostInterlockSchemaAsync(context));
 
         static async Task RunStepAsync(string step, Func<Task> action)
         {
@@ -1740,6 +1754,38 @@ public static class AquafrischDbContextFactory
         catch (Exception ex)
         {
             Console.WriteLine($"[TokenDevices] EnsureTokenDevicesTableAsync error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// HostName Interlocking: tabla HostInterlockSettings + columna UserSessions.MachineName.
+    /// Bases de datos existentes: EnsureCreatedAsync no añade tablas ni columnas nuevas.
+    /// NO se silencian los errores: el modelo EF ya incluye UserSessions.MachineName, así que si
+    /// la columna no llegara a crearse fallarían todas las consultas de sesión (login incluido).
+    /// Al propagar el error, ProjectDbContextFactory reintenta el esquema en el siguiente uso.
+    /// </summary>
+    public static async Task EnsureHostInterlockSchemaAsync(AquafrischDbContext context)
+    {
+        await context.Database.ExecuteSqlRawAsync(@"
+            CREATE TABLE IF NOT EXISTS HostInterlockSettings (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                HostName TEXT NOT NULL,
+                Interlocking INTEGER NOT NULL DEFAULT 0,
+                OverrideInterlocking INTEGER NOT NULL DEFAULT 0,
+                UpdatedBy TEXT NOT NULL DEFAULT '',
+                UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+            )");
+        await context.Database.ExecuteSqlRawAsync(@"CREATE UNIQUE INDEX IF NOT EXISTS IX_HostInterlockSettings_HostName ON HostInterlockSettings(HostName)");
+
+        // 1 = la tabla UserSessions existe y aún no tiene la columna; 0 = nada que hacer.
+        var needsMachineName = await context.Database
+            .SqlQueryRaw<int>(@"
+                SELECT (SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'UserSessions')
+                     - (SELECT COUNT(*) FROM pragma_table_info('UserSessions') WHERE name = 'MachineName') AS Value")
+            .SingleAsync();
+        if (needsMachineName > 0)
+        {
+            await context.Database.ExecuteSqlRawAsync("ALTER TABLE UserSessions ADD COLUMN MachineName TEXT");
         }
     }
 }

@@ -267,6 +267,13 @@ public class UserSession
     /// <summary>User-Agent del cliente</summary>
     [MaxLength(500)]
     public string? UserAgent { get; set; }
+
+    /// <summary>
+    /// Nombre VERIFICADO del equipo que inició la sesión (CN del certificado mTLS, nombre del
+    /// dispositivo por token o nombre del equipo local). null si el equipo no está identificado.
+    /// </summary>
+    [MaxLength(100)]
+    public string? MachineName { get; set; }
     
     /// <summary>Fecha/hora de inicio de sesión</summary>
     public DateTime CreatedAt { get; set; } = DateTime.Now;
@@ -351,6 +358,12 @@ public class LoginRequest
     
     /// <summary>Recordar sesión (token de mayor duración)</summary>
     public bool RememberMe { get; set; } = false;
+
+    /// <summary>
+    /// HostName Interlocking: forzar la toma de control aunque haya un equipo con interlocking
+    /// conectado. Solo se acepta si este equipo tiene Override o el usuario es SuperAdmin.
+    /// </summary>
+    public bool ForceInterlock { get; set; } = false;
 }
 
 /// <summary>
@@ -367,6 +380,22 @@ public class LoginResponse
     public bool MustChangePassword { get; set; }
     public int? RemainingAttempts { get; set; }
     public int? LockoutMinutes { get; set; }
+
+    /// <summary>
+    /// Código de rechazo independiente del idioma (el frontend lo traduce).
+    /// HostName Interlocking: INTERLOCK_BLOCKED / INTERLOCK_OVERRIDE_AVAILABLE.
+    /// </summary>
+    public string? ErrorCode { get; set; }
+
+    /// <summary>Equipo(s) con interlocking que bloquean este login.</summary>
+    public string? InterlockHost { get; set; }
+
+    /// <summary>
+    /// Toma de control aplicada en este login: el controlador avisa por SignalR a los equipos
+    /// expulsados. Nunca se serializa.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public SW.PC.API.Backend.Services.HostInterlockTakeover? InterlockTakeover { get; set; }
 }
 
 /// <summary>

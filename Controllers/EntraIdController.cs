@@ -98,9 +98,15 @@ namespace SW.PC.API.Backend.Controllers
                 });
             }
 
-            var response = await _authService.LoginWithEntraAsync(entraUser, ipAddress, userAgent, _projectContext.ProjectId);
+            var response = await _authService.LoginWithEntraAsync(entraUser, ipAddress, userAgent, _projectContext.ProjectId,
+                HostInterlock.GetLoginOrigin(HttpContext), request?.ForceInterlock ?? false);
             if (!response.Success)
+            {
+                // 🔒 HostName Interlocking: misma respuesta que el login local (409 + errorCode)
+                if (HostInterlock.IsInterlockError(response.ErrorCode))
+                    return Conflict(response);
                 return Unauthorized(response);
+            }
 
             // 🔐 mTLS ESTRICTO (MtlsRequireRegisteredMachine): misma política que el login local.
             // Equipos remotos sin certificado de máquina no pueden iniciar sesión (ni por SSO).
@@ -154,6 +160,9 @@ namespace SW.PC.API.Backend.Controllers
                     }
                 }
             }
+
+            // 🔒 HostName Interlocking: avisar a los equipos cuya sesión se ha cerrado
+            await HostInterlock.NotifyTakeoverAsync(HttpContext.RequestServices, response.InterlockTakeover, _logger);
 
             return Ok(response);
         }

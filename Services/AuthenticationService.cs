@@ -27,7 +27,8 @@ public interface IAuthenticationService
 {
     /// <summary>Autenticar usuario</summary>
     /// <param name="projectId">ID del proyecto para audit log (null = proyecto activo)</param>
-    Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? userAgent, string? projectId = null);
+    /// <param name="origin">Equipo verificado desde el que se inicia sesión (HostName Interlocking). null = no se evalúa.</param>
+    Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? userAgent, string? projectId = null, LoginOrigin? origin = null);
 
     /// <summary>
     /// 🔑 Login vía Entra ID (SSO): el token ya fue validado por IEntraIdService.
@@ -35,7 +36,7 @@ public interface IAuthenticationService
     /// y emite la MISMA sesión + JWT local que el login normal (cero cambios downstream).
     /// Solo lo invoca EntraIdController cuando EntraIdEnabled=TRUE.
     /// </summary>
-    Task<LoginResponse> LoginWithEntraAsync(Models.EntraId.EntraUserInfo entraUser, string? ipAddress, string? userAgent, string? projectId = null);
+    Task<LoginResponse> LoginWithEntraAsync(Models.EntraId.EntraUserInfo entraUser, string? ipAddress, string? userAgent, string? projectId = null, LoginOrigin? origin = null, bool forceInterlock = false);
     
     /// <summary>Cerrar sesión</summary>
     Task<AuthOperationResponse> LogoutAsync(string token);
@@ -153,7 +154,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
     
     #region Autenticación
     
-    public async Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? userAgent, string? projectId = null)
+    public async Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? userAgent, string? projectId = null, LoginOrigin? origin = null)
     {
         try
         {
@@ -332,6 +333,16 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 };
             }
             
+            // ===== HOSTNAME INTERLOCKING =====
+            // Con las credenciales ya validadas y ANTES del control de sesiones: un login
+            // bloqueado no debe expulsar a nadie ni contar como último acceso.
+            var interlock = await HostInterlock.EvaluateLoginAsync(
+                Context, origin, user.UserRoles.Any(ur => ur.Role?.Name == "SuperAdmin"), request.ForceInterlock);
+            if (!interlock.IsAllowed)
+            {
+                return await RejectByInterlockAsync(interlock, user, origin, ipAddress, userAgent, authMethod, projectId);
+            }
+            
             // Login exitoso - resetear intentos fallidos
             user.FailedLoginAttempts = 0;
             user.LastFailedLoginAt = null;
@@ -435,13 +446,20 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 RefreshToken = refreshToken,
                 IpAddress = ipAddress,
                 UserAgent = userAgent,
+                MachineName = string.IsNullOrEmpty(origin?.MachineName) ? null : origin.MachineName,
                 CreatedAt = DateTime.Now,
                 ExpiresAt = tokenExpiry,
                 LastActivityAt = DateTime.Now
             };
             
+            // HostName Interlocking: cerrar las sesiones de los equipos expulsados en el mismo
+            // guardado que crea la nueva sesión.
+            var interlockTakeover = interlock.Apply(user.Username);
+            
             Context.UserSessions.Add(session);
             await Context.SaveChangesAsync();
+            
+            await LogInterlockTakeoverAsync(interlockTakeover, user, ipAddress, projectId);
             
             // Log exitoso
             await LogLoginAttemptAsync(request.Username, true, AuthEventType.LoginSuccess, 
@@ -465,6 +483,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 ExpiresAt = tokenExpiry,
                 MustChangePassword = user.MustChangePassword,
                 User = MapToUserProfile(user),
+                InterlockTakeover = interlockTakeover,
                 Message = user.MustChangePassword 
                     ? "Debe cambiar su contraseña antes de continuar" 
                     : "Login exitoso"
@@ -496,7 +515,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
     /// Reutiliza los campos IsActiveDirectoryUser/ActiveDirectoryDN (sin migración de BD):
     /// ActiveDirectoryDN = "entra:{objectId}" identifica al usuario Entra de forma inmutable.
     /// </summary>
-    public async Task<LoginResponse> LoginWithEntraAsync(Models.EntraId.EntraUserInfo entraUser, string? ipAddress, string? userAgent, string? projectId = null)
+    public async Task<LoginResponse> LoginWithEntraAsync(Models.EntraId.EntraUserInfo entraUser, string? ipAddress, string? userAgent, string? projectId = null, LoginOrigin? origin = null, bool forceInterlock = false)
     {
         try
         {
@@ -592,6 +611,14 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                     .FirstAsync(u => u.Id == user.Id);
             }
 
+            // HostName Interlocking: misma regla que el login local (antes de dar por bueno el acceso).
+            var interlock = await HostInterlock.EvaluateLoginAsync(
+                Context, origin, user.UserRoles.Any(ur => ur.Role?.Name == "SuperAdmin"), forceInterlock);
+            if (!interlock.IsAllowed)
+            {
+                return await RejectByInterlockAsync(interlock, user, origin, ipAddress, userAgent, "EntraID", projectId);
+            }
+
             // Login OK — mismos pasos que el login local
             user.FailedLoginAttempts = 0;
             user.LastLoginAt = DateTime.Now;
@@ -601,6 +628,8 @@ public class AuthenticationService : IAuthenticationService, IDisposable
             var token = GenerateJwtToken(user, tokenExpiry);
             var refreshToken = GenerateRefreshToken();
 
+            var interlockTakeover = interlock.Apply(user.Username);
+
             Context.UserSessions.Add(new UserSession
             {
                 UserId = user.Id,
@@ -608,11 +637,14 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 RefreshToken = refreshToken,
                 IpAddress = ipAddress,
                 UserAgent = userAgent,
+                MachineName = string.IsNullOrEmpty(origin?.MachineName) ? null : origin.MachineName,
                 CreatedAt = DateTime.Now,
                 ExpiresAt = tokenExpiry,
                 LastActivityAt = DateTime.Now
             });
             await Context.SaveChangesAsync();
+
+            await LogInterlockTakeoverAsync(interlockTakeover, user, ipAddress, projectId);
 
             await LogLoginAttemptAsync(user.Username, true, AuthEventType.LoginSuccess,
                 ipAddress, userAgent, null, "EntraID");
@@ -630,6 +662,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 ExpiresAt = tokenExpiry,
                 MustChangePassword = false,
                 User = MapToUserProfile(user),
+                InterlockTakeover = interlockTakeover,
                 Message = "Login exitoso (Entra ID)"
             };
         }
@@ -832,6 +865,7 @@ public class AuthenticationService : IAuthenticationService, IDisposable
                 RefreshToken = newRefreshToken,
                 IpAddress = ipAddress ?? session.IpAddress,
                 UserAgent = session.UserAgent,
+                MachineName = session.MachineName,
                 CreatedAt = DateTime.Now,
                 ExpiresAt = tokenExpiry,
                 LastActivityAt = DateTime.Now
@@ -1989,6 +2023,68 @@ public class AuthenticationService : IAuthenticationService, IDisposable
         
         Context.LoginAttempts.Add(attempt);
         await Context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// HostName Interlocking: respuesta de login rechazado porque hay un equipo con interlocking
+    /// conectado. El frontend traduce por ErrorCode; Message queda como texto de respaldo.
+    /// Solo el bloqueo real se registra: OverrideAvailable es la pregunta previa al forzado.
+    /// </summary>
+    private async Task<LoginResponse> RejectByInterlockAsync(HostInterlockLoginCheck interlock, User user,
+        LoginOrigin? origin, string? ipAddress, string? userAgent, string authMethod, string? projectId)
+    {
+        var blocking = interlock.BlockingHostsText;
+        var canForce = interlock.Decision == HostInterlockDecision.OverrideAvailable;
+
+        if (!canForce)
+        {
+            var fromHost = origin != null ? HostInterlock.DisplayName(origin) : (ipAddress ?? "");
+
+            await LogLoginAttemptAsync(user.Username, false, AuthEventType.LoginBlocked,
+                ipAddress, userAgent, $"Interlocking: equipo {blocking} conectado", authMethod);
+
+            await _auditLog.LogAsync(
+                AuditCategory.Security,
+                AuditAction.PermissionDenied,
+                AuditResult.Warning,
+                $"Login de '{user.Username}' desde el equipo '{fromHost}' BLOQUEADO por interlocking: equipo '{blocking}' conectado",
+                user.Id.ToString(), user.Username, ipAddress,
+                projectId: projectId);
+
+            _logger.LogWarning("🔒 Login de {User} desde {Host} bloqueado por interlocking (equipo {Blocking} conectado)",
+                user.Username, fromHost, blocking);
+        }
+
+        return new LoginResponse
+        {
+            Success = false,
+            ErrorCode = interlock.ErrorCode,
+            InterlockHost = blocking,
+            Message = canForce
+                ? $"El equipo {blocking} está conectado. Este equipo puede forzar la toma de control."
+                : $"No se puede iniciar sesión: el equipo {blocking} está conectado."
+        };
+    }
+
+    /// <summary>HostName Interlocking: audita las sesiones cerradas por una toma de control.</summary>
+    private async Task LogInterlockTakeoverAsync(HostInterlockTakeover? takeover, User user, string? ipAddress, string? projectId)
+    {
+        if (takeover == null) return;
+
+        var hosts = string.Join(", ", takeover.ExpelledHosts.Select(h => string.IsNullOrEmpty(h) ? "(sin identificar)" : h));
+        var users = string.Join(", ", takeover.ExpelledUsers);
+
+        await _auditLog.LogAsync(
+            AuditCategory.Authentication,
+            AuditAction.LogoutAllSessions,
+            AuditResult.Warning,
+            $"Interlocking: sesiones de [{users}] en los equipos [{hosts}] cerradas por login de {user.Username} desde '{takeover.ByHost}'"
+                + (takeover.Forced ? " (toma de control FORZADA)" : ""),
+            user.Id.ToString(), user.Username, ipAddress,
+            projectId: projectId);
+
+        _logger.LogWarning("🔒 Interlocking: {User} desde {Host} toma el control; expulsados [{Hosts}] (forzado: {Forced})",
+            user.Username, takeover.ByHost, hosts, takeover.Forced);
     }
     
     private static UserProfileDto MapToUserProfile(User user)

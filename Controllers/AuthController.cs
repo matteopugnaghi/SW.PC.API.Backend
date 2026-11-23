@@ -69,10 +69,17 @@ public class AuthController : ControllerBase
         var userAgent = Request.Headers.UserAgent.ToString();
         
         // Pasar el projectId del request context para que el log vaya al proyecto correcto
-        var response = await _authService.LoginAsync(request, ipAddress, userAgent, _projectContext.ProjectId);
+        var response = await _authService.LoginAsync(request, ipAddress, userAgent, _projectContext.ProjectId,
+            HostInterlock.GetLoginOrigin(HttpContext));
         
         if (!response.Success)
         {
+            // 🔒 HostName Interlocking: hay un equipo con interlocking conectado (409, no es
+            // un problema de credenciales). El frontend traduce por errorCode.
+            if (HostInterlock.IsInterlockError(response.ErrorCode))
+            {
+                return Conflict(response);
+            }
             return Unauthorized(response);
         }
 
@@ -133,6 +140,9 @@ public class AuthController : ControllerBase
                 }
             }
         }
+        
+        // 🔒 HostName Interlocking: avisar a los equipos cuya sesión se ha cerrado
+        await HostInterlock.NotifyTakeoverAsync(HttpContext.RequestServices, response.InterlockTakeover, _logger);
         
         return Ok(response);
     }

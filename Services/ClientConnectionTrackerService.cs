@@ -193,6 +193,40 @@ namespace SW.PC.API.Backend.Services
         public static bool IsLocalClient(string? ipAddress) =>
             OriginPermissionEvaluator.NormalizeIp(ipAddress) == "127.0.0.1";
 
+        /// <summary>
+        /// Nombres de equipo con una conexión viva o dentro de la gracia de reconexión
+        /// ("" = equipo sin identificar). Comparación sin distinguir mayúsculas.
+        /// Usado por HostName Interlocking para saber qué equipos están "conectados".
+        /// </summary>
+        public static HashSet<string> GetLiveHostNames()
+        {
+            var hosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            lock (LockObj)
+            {
+                var now = UtcNowProvider();
+                foreach (var client in ConnectedClients.Values)
+                    hosts.Add(client.HostName ?? "");
+                foreach (var entry in _recentlyDisconnected.Values)
+                {
+                    if ((now - entry.DisconnectedAtUtc).TotalSeconds <= ReconnectGraceSeconds)
+                        hosts.Add(entry.Info.HostName ?? "");
+                }
+            }
+            return hosts;
+        }
+
+        /// <summary>ConnectionIds de las conexiones vivas cuyo nombre de equipo cumple el filtro.</summary>
+        public static List<string> GetConnectionIdsByHost(Func<string, bool> hostMatches)
+        {
+            lock (LockObj)
+            {
+                return ConnectedClients
+                    .Where(kv => hostMatches(kv.Value.HostName ?? ""))
+                    .Select(kv => kv.Key)
+                    .ToList();
+            }
+        }
+
         // 🔄 Estado anterior de conexión al PLC para detectar transición disconnected->connected
         // y reenviar UserLogged/ClientsIdConnected (que solo se escriben en login/logout).
         private bool _previousPlcConnected = false;

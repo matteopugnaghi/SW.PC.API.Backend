@@ -81,5 +81,8 @@ namespace SW.PC.API.Backend.Models.EntraId
     public class EntraLoginRequest
     {
         public string IdToken { get; set; } = "";
+
+        /// <summary>HostName Interlocking: forzar la toma de control (ver LoginRequest.ForceInterlock).</summary>
+        public bool ForceInterlock { get; set; } = false;
     }
 }
